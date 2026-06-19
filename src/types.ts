@@ -74,6 +74,7 @@ export interface Transaction {
   categoryId?: string;
   categoryName?: string;
   createdAt: string;
+  paymentMethod?: string;
 }
 
 export interface TransactionCategory {
