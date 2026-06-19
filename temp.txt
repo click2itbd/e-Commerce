@@ -1,0 +1,71 @@
+2597:             <button onClick={() => setActiveTab('inventory')} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors", activeTab === 'inventory' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 font-medium hover:bg-gray-50")}>
+2598:               <Package size={18} className={activeTab === 'inventory' ? "text-blue-600" : "text-gray-400"} /> Stock
+2609:               <button onClick={() => setActiveTab('sales')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'sales' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2610:                 <ShoppingCart size={16} className={activeTab === 'sales' ? "text-blue-600" : "text-gray-400"} /> Sale
+2613:             <button onClick={() => setActiveTab('orders')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'orders' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2614:               <Receipt size={16} className={activeTab === 'orders' ? "text-blue-600" : "text-gray-400"} /> Orders & Docs
+2616:             <button onClick={() => setActiveTab('customers')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'customers' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2617:               <Users size={16} className={activeTab === 'customers' ? "text-blue-600" : "text-gray-400"} /> Customer
+2625:               <button onClick={() => setActiveTab('purchases')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'purchases' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2626:                 <ShoppingBag size={16} className={activeTab === 'purchases' ? "text-blue-600" : "text-gray-400"} /> Purchase
+2629:             <button onClick={() => setActiveTab('vendors')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'vendors' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2630:               <Briefcase size={16} className={activeTab === 'vendors' ? "text-blue-600" : "text-gray-400"} /> Supplier
+2638:               <button onClick={() => setActiveTab('services')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'services' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2639:                 <ShieldCheck size={16} className={activeTab === 'services' ? "text-blue-600" : "text-gray-400"} /> Warranty & Service
+2648:               <button onClick={() => setActiveTab('transactions')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'transactions' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2649:                 <CreditCard size={16} className={activeTab === 'transactions' ? "text-blue-600" : "text-gray-400"} /> Payment Account
+2653:               <button onClick={() => setActiveTab('ledger')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'ledger' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2654:                 <Book size={16} className={activeTab === 'ledger' ? "text-blue-600" : "text-gray-400"} /> Ledger
+2658:               <button onClick={() => setActiveTab('manual_income')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'manual_income' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2659:                 <Download size={16} className={activeTab === 'manual_income' ? "text-blue-600" : "text-gray-400"} /> General Income
+2663:               <button onClick={() => setActiveTab('manual_expense')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'manual_expense' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2664:                 <Upload size={16} className={activeTab === 'manual_expense' ? "text-blue-600" : "text-gray-400"} /> General Expense
+2668:               <button onClick={() => setActiveTab('tx_categories')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'tx_categories' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2669:                 <List size={16} className={activeTab === 'tx_categories' ? "text-blue-600" : "text-gray-400"} /> Categories
+2673:               <button onClick={() => setActiveTab('reports')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'reports' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2674:                 <FileText size={16} className={activeTab === 'reports' ? "text-blue-600" : "text-gray-400"} /> Sales Accounting
+2678:               <button onClick={() => setActiveTab('all_reports')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'all_reports' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2679:                 <FileText size={16} className={activeTab === 'all_reports' ? "text-blue-600" : "text-gray-400"} /> All Reports
+2688:               <button onClick={() => setActiveTab('campaigns')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'campaigns' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2689:                 <Tag size={16} className={activeTab === 'campaigns' ? "text-blue-600" : "text-gray-400"} /> Marketing
+2693:               <button onClick={() => setActiveTab('discountCodes')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'discountCodes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2694:                 <Percent size={16} className={activeTab === 'discountCodes' ? "text-blue-600" : "text-gray-400"} /> Discounts
+2704:                 <button onClick={() => setActiveTab('users')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'users' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2705:                   <Users size={16} className={activeTab === 'users' ? "text-blue-600" : "text-gray-400"} /> App Access
+2707:                 <button onClick={() => setActiveTab('employees')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'employees' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2708:                   <Briefcase size={16} className={activeTab === 'employees' ? "text-blue-600" : "text-gray-400"} /> Employees
+2710:                 <button onClick={() => setActiveTab('leave')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'leave' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2711:                   <CheckCircle size={16} className={activeTab === 'leave' ? "text-blue-600" : "text-gray-400"} /> Leave
+2713:                 <button onClick={() => setActiveTab('salary')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'salary' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2714:                   <CreditCard size={16} className={activeTab === 'salary' ? "text-blue-600" : "text-gray-400"} /> Salary Overview
+2723:               <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2724:                 <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Site Menus
+2728:               <button onClick={() => setActiveTab('hostingPlans')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2729:                 <Server size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} /> Hosting Plans
+2733:               <button onClick={() => setActiveTab('hostingServices')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingServices' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2734:                 <Server size={16} className={activeTab === 'hostingServices' ? "text-blue-600" : "text-gray-400"} /> Hosting Services
+2738:               <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+2739:                 <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
+2769:        {activeTab === 'inventory' ? (
+3452:        ) : activeTab === 'orders' ? (
+3765:        ) : activeTab === 'purchases' ? (
+3984:        ) : activeTab === 'customers' ? (
+4126:        ) : activeTab === 'vendors' ? (
+4279:        ) : activeTab === 'all_reports' && (isAdmin || isManager) ? (
+4309:        ) : activeTab === 'tx_categories' && (isAdmin || isManager) ? (
+4360:        ) : activeTab === 'manual_expense' && (isAdmin || isManager) ? (
+4408:        ) : activeTab === 'manual_income' && (isAdmin || isManager) ? (
+4455:        ) : activeTab === 'transactions' && (isAdmin || isManager) ? (
+4514:        ) : activeTab === 'menus' && isAdmin ? (
+4749:        ) : activeTab === 'ledger' && (isAdmin || isManager) ? (
+4843:        ) : activeTab === 'reports' && (isAdmin || isManager) ? (
+4947:        ) : activeTab === 'users' && isAdmin ? (
+5005:        ) : activeTab === 'campaigns' && (isAdmin || isManager) ? (
+5142:        ) : activeTab === 'discountCodes' && (isAdmin || isManager) ? (
+5219:        ) : activeTab === 'hostingPlans' && isAdmin ? (
+5298:        ) : activeTab === 'hostingServices' && isAdmin ? (
+5384:        ) : activeTab === 'settings' && isAdmin ? (
+5754:        ) : activeTab === 'services' ? (
+5999:        ) : activeTab === 'employees' ? (
+6036:        ) : activeTab === 'leave' ? (
+6079:        ) : activeTab === 'salary' ? (
