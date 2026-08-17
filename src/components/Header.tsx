@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, Cpu } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, Cpu, Server } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
@@ -98,6 +98,10 @@ export const Header: React.FC = () => {
 
             {user ? (
               <div className="flex items-center gap-4">
+                <Link to="/account/services" className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
+                  <Server size={20} />
+                  <span className="text-sm font-medium">My Services</span>
+                </Link>
                 {canAccessAdmin && (
                   <Link to="/admin" className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
                     <LayoutDashboard size={20} />
@@ -243,9 +247,19 @@ export const Header: React.FC = () => {
             </div>
 
             {user ? (
-              <button onClick={handleLogout} className="flex items-center gap-2 py-2 text-left">
-                <LogOut size={20} /> Logout
-              </button>
+              <div className="flex flex-col gap-2">
+                <Link to="/account/services" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
+                  <Server size={20} /> My Services
+                </Link>
+                {canAccessAdmin && (
+                  <Link to="/admin" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
+                    <LayoutDashboard size={20} /> Admin Dashboard
+                  </Link>
+                )}
+                <button onClick={handleLogout} className="flex items-center gap-2 py-2 text-left">
+                  <LogOut size={20} /> Logout
+                </button>
+              </div>
             ) : (
               <Link to="/login" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
                 <User size={20} /> Login / Register

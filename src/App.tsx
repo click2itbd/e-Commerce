@@ -10,10 +10,11 @@ import { Login } from './pages/Login';
 import { PCBuilder } from './pages/PCBuilder';
 import { ComparePage } from './pages/Compare';
 import { CategoryPage } from './pages/CategoryPage';
-import { Hosting } from './pages/Hosting';
+// import { Hosting } from './pages/Hosting';
 import { HostingDetails } from './pages/HostingDetails';
 import { HostingBillingDashboard } from './pages/HostingBillingDashboard';
 import { AccountingDashboard } from './pages/AccountingDashboard';
+import { MyServices } from './pages/MyServices';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { WebsitePopup } from './components/WebsitePopup';
 import { ChatWidget } from './components/ChatWidget';
@@ -22,6 +23,7 @@ import { Checkout } from './pages/Checkout';
 import { OrderSuccess } from './pages/OrderSuccess';
 import { RetailPOS } from './pages/RetailPOS';
 import { CompareProvider } from './context/CompareContext';
+import Hosting from './pages/Hosting';
 
 export default function App() {
   return (
@@ -74,6 +76,14 @@ export default function App() {
                 element={
                   <ProtectedRoute adminOnly>
                     <AccountingDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/account/services"
+                element={
+                  <ProtectedRoute>
+                    <MyServices />
                   </ProtectedRoute>
                 }
               />

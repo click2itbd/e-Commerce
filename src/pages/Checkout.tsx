@@ -11,7 +11,7 @@ import { db, auth } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { generateDocumentNumber } from '../lib/numbering';
-import { OrderType } from '../types';
+import { OrderType, CartItem } from '../types';
 
 export const Checkout: React.FC = () => {
   const { user } = useAuth();
@@ -129,6 +129,41 @@ export const Checkout: React.FC = () => {
       };
 
       const docRef = await addDoc(collection(db, 'orders'), orderData);
+      
+      const domainItems = items.filter(item => item.itemType === 'domain');
+      const hostingItems = items.filter(item => item.itemType === 'hosting');
+
+      for (const domainItem of domainItems) {
+        const domain = domainItem.id.replace('domain_', '');
+        const tld = domainItem.domainTld || domain.split('.').pop() || '';
+        await addDoc(collection(db, 'domainOrders'), {
+          domain,
+          tld,
+          userId: currentUserId,
+          orderId: docRef.id,
+          status: 'pending',
+          years: domainItem.termYears || 1,
+          autoRenew: false,
+          nameservers: [],
+          price: domainItem.price,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      for (const hostingItem of hostingItems) {
+        await addDoc(collection(db, 'hostingAccounts'), {
+          userId: currentUserId,
+          orderId: docRef.id,
+          planId: hostingItem.id.replace('hosting_', ''),
+          provider: 'dummy',
+          status: 'pending',
+          billingCycle: hostingItem.billingCycle || 'monthly',
+          autoRenew: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
       
       toast.success('Order placed successfully!');
       clearCart();

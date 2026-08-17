@@ -1,1 +1,40 @@
 @import "tailwindcss";
+
+@theme {
+  --font-display: "Space Grotesk", sans-serif;
+  --font-sans: "Inter", sans-serif;
+}
+
+:root {
+  --c2i-ink: #0B1420;
+  --c2i-ink-soft: #475569;
+  --c2i-paper: #F7F8FA;
+  --c2i-red: #EF4444;
+  --c2i-red-deep: #B91C1C;
+  --c2i-line: #E2E8F0;
+  --c2i-success: #16A34A;
+  --c2i-success-soft: #ECFDF3;
+  --c2i-amber: #D97706;
+  --c2i-blue-dark: #070e30;
+  --c2i-blue-main: #142270;
+  --c2i-blue-light: #2c42b8;
+  --c2i-orange: #f97316;
+  --c2i-shadow-sm: 0 1px 2px rgba(11,20,32,0.06);
+  --c2i-shadow-md: 0 4px 16px rgba(11,20,32,0.08);
+  --c2i-shadow-lg: 0 12px 32px rgba(11,20,32,0.12);
+  --c2i-gradient-dark: linear-gradient(135deg, #070e30 0%, #142270 100%);
+  --c2i-gradient-red: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%);
+}
+
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  background-color: var(--c2i-paper);
+  color: var(--c2i-ink);
+}
+
+.dot-grid {
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.08;
+}

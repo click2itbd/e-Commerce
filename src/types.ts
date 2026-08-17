@@ -88,6 +88,10 @@ export interface TransactionCategory {
 export interface CartItem extends Product {
   quantity: number;
   selectedSerials?: string[];
+  itemType?: 'product' | 'domain' | 'hosting';
+  domainTld?: string;
+  billingCycle?: 'monthly' | 'yearly';
+  termYears?: number;
 }
 
 export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
@@ -253,6 +257,9 @@ export interface SiteSettings {
   minimumPointToRedeem?: number;
   loyaltyRate?: number;
   productCodeStartFrom?: string;
+
+  // Admin Auth
+  adminPin?: string;
 
   updatedAt: string;
   [key: string]: any;

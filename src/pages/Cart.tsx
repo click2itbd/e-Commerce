@@ -97,6 +97,15 @@ export const Cart: React.FC = () => {
               </div>
               <div className="flex-grow">
                 <h3 className="text-sm font-bold text-[#081621] line-clamp-1">{item.name}</h3>
+                {item.itemType === 'domain' && (
+                  <p className="text-xs text-gray-500 mt-1">Domain Registration — {item.termYears || 1} Year{item.termYears && item.termYears > 1 ? 's' : ''}</p>
+                )}
+                {item.itemType === 'hosting' && (
+                  <p className="text-xs text-gray-500 mt-1">Hosting Plan — {item.billingCycle === 'yearly' ? 'Yearly' : 'Monthly'} Billing</p>
+                )}
+                {item.itemType === 'product' && (
+                  <p className="text-xs text-gray-500 mt-1">{item.description}</p>
+                )}
                 <p className="text-[#EF4444] font-bold mt-1">{formatCurrency(item.price)}</p>
               </div>
               <div className="flex items-center gap-3 bg-gray-50 rounded-md p-1">

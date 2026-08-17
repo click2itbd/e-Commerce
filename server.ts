@@ -5,13 +5,15 @@ import { fileURLToPath } from "url";
 import { Resend } from "resend";
 import dotenv from "dotenv";
 import cors from "cors";
+import domainRouter from "./server/routes/domain";
+import hostingRouter from "./server/routes/hosting";
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 async function startServer() {
   const app = express();
@@ -19,21 +21,6 @@ async function startServer() {
 
   app.use(cors());
   app.use(express.json());
-
-  // API routes
-  app.post("/api/check-domain", async (req, res) => {
-    const { domain } = req.body;
-    // In a real scenario, you'd use a domain registrar API here (e.g., Namecheap, GoDaddy)
-    // Example: const isAvailable = await registrarApi.check(domain);
-    
-    // Simulating API check
-    const isAvailable = domain.length > 5; 
-    
-    res.json({
-        status: isAvailable ? 'available' : 'taken',
-        message: isAvailable ? `Great news! ${domain} is available.` : `Sorry, ${domain} is already taken.`
-    });
-  });
 
   app.post("/api/send-email", async (req, res) => {
     const { to, subject, html } = req.body;
@@ -132,6 +119,9 @@ async function startServer() {
         res.status(500).json({ error: "Failed to send campaign" });
     }
   });
+
+  app.use('/api/domain', domainRouter);
+  app.use('/api/hosting', hostingRouter);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

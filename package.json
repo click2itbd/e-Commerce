@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "predeploy:check": "node scripts/check-deploy-safety.cjs"
   },
   "dependencies": {
     "@babel/preset-react": "^7.28.5",
