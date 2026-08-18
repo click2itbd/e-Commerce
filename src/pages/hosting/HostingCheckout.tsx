@@ -97,6 +97,15 @@ export const HostingCheckout: React.FC = () => {
 
     setIsProcessing(true);
 
+    // DEV MODE: Skip Firebase writes, go directly to payment simulation
+    if (import.meta.env.DEV) {
+      await new Promise(r => setTimeout(r, 1000));
+      const fakeOrderId = 'DEV-' + Date.now();
+      navigate(`/payment/simulate?method=${formData.paymentMethod}&orderId=${fakeOrderId}&amount=${grandTotal}`);
+      setIsProcessing(false);
+      return;
+    }
+
     try {
       const docType = 'INV'; 
       const docNumber = await generateDocumentNumber(docType);
@@ -371,13 +380,19 @@ export const HostingCheckout: React.FC = () => {
                   <h2 className="text-lg font-semibold text-gray-900">Payment Method</h2>
                 </div>
                 <div className="p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <label className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentMethod === 'bkash' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-100 hover:border-gray-200'}`}>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <label className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentMethod === 'bkash' ? 'border-pink-600 bg-pink-50/50' : 'border-gray-100 hover:border-gray-200'}`}>
                       <input type="radio" name="paymentMethod" value="bkash" checked={formData.paymentMethod === 'bkash'} onChange={handleChange} className="sr-only" />
-                      <Wallet className={`w-8 h-8 mb-2 ${formData.paymentMethod === 'bkash' ? 'text-blue-600' : 'text-gray-400'}`} />
-                      <span className={`text-sm font-medium ${formData.paymentMethod === 'bkash' ? 'text-blue-900' : 'text-gray-600'}`}>Mobile Banking</span>
-                      <span className="text-xs text-gray-500 mt-1">bKash, Nagad</span>
-                      {formData.paymentMethod === 'bkash' && <div className="absolute top-2 right-2"><CheckCircle className="w-4 h-4 text-blue-600" /></div>}
+                      <Wallet className={`w-8 h-8 mb-2 ${formData.paymentMethod === 'bkash' ? 'text-pink-600' : 'text-gray-400'}`} />
+                      <span className={`text-sm font-medium ${formData.paymentMethod === 'bkash' ? 'text-pink-900' : 'text-gray-600'}`}>bKash</span>
+                      {formData.paymentMethod === 'bkash' && <div className="absolute top-2 right-2"><CheckCircle className="w-4 h-4 text-pink-600" /></div>}
+                    </label>
+
+                    <label className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentMethod === 'nagad' ? 'border-orange-600 bg-orange-50/50' : 'border-gray-100 hover:border-gray-200'}`}>
+                      <input type="radio" name="paymentMethod" value="nagad" checked={formData.paymentMethod === 'nagad'} onChange={handleChange} className="sr-only" />
+                      <Wallet className={`w-8 h-8 mb-2 ${formData.paymentMethod === 'nagad' ? 'text-orange-600' : 'text-gray-400'}`} />
+                      <span className={`text-sm font-medium ${formData.paymentMethod === 'nagad' ? 'text-orange-900' : 'text-gray-600'}`}>Nagad</span>
+                      {formData.paymentMethod === 'nagad' && <div className="absolute top-2 right-2"><CheckCircle className="w-4 h-4 text-orange-600" /></div>}
                     </label>
 
                     <label className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentMethod === 'card' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-100 hover:border-gray-200'}`}>

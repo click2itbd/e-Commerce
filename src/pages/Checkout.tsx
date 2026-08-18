@@ -83,6 +83,15 @@ export const Checkout: React.FC = () => {
 
     setIsProcessing(true);
 
+    // DEV MODE: Skip Firebase writes, go directly to payment simulation
+    if (import.meta.env.DEV) {
+      await new Promise(r => setTimeout(r, 1000));
+      const fakeOrderId = 'DEV-' + Date.now();
+      navigate(`/payment/simulate?method=${formData.paymentMethod}&orderId=${fakeOrderId}&amount=${grandTotal}`);
+      setIsProcessing(false);
+      return;
+    }
+
     try {
       let currentUserId = user?.uid;
 
@@ -322,7 +331,11 @@ export const Checkout: React.FC = () => {
             <div className="flex flex-wrap gap-4 items-center">
               <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600">
                 <input type="radio" name="paymentMethod" value="bkash" checked={formData.paymentMethod === 'bkash'} onChange={handleChange} className="text-[#17a2b8] focus:ring-[#17a2b8]" />
-                Bkash, Rocket, Nagad & Cellfin
+                bKash
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600">
+                <input type="radio" name="paymentMethod" value="nagad" checked={formData.paymentMethod === 'nagad'} onChange={handleChange} className="text-[#17a2b8] focus:ring-[#17a2b8]" />
+                Nagad
               </label>
               <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-400 hover:text-gray-600">
                 <input type="radio" name="paymentMethod" value="card" checked={formData.paymentMethod === 'card'} onChange={handleChange} className="text-[#17a2b8] focus:ring-[#17a2b8]" />
