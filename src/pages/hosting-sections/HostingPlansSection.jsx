@@ -105,7 +105,7 @@ export default function HostingPlansSection({
                     ? "bg-white text-[var(--c2i-blue-dark)] hover:bg-gray-100" 
                     : "bg-[var(--c2i-blue-dark)] text-white hover:bg-[var(--c2i-blue-main)]"
                 )}
-                onClick={() => onNavigate('/cart')}
+                onClick={() => onNavigate('/hosting/cart')}
               >
                 Buy Now
               </button>

@@ -26,7 +26,7 @@ const CATEGORIES = [
 export const PCBuildNavbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isComponentsOpen, setIsComponentsOpen] = useState(false);
-  const { cartItems } = useCart();
+  const { items } = useCart();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { settings } = useSettings();
@@ -52,7 +52,7 @@ export const PCBuildNavbar: React.FC = () => {
     }
   };
 
-  const cartItemCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  const cartItemCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
     <nav className="sticky top-0 z-50 bg-[#111827] text-white shadow-md">

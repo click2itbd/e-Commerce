@@ -35,7 +35,7 @@ export default function HostingPlanCard({ plan, billingCycle, onAddToCart }) {
     };
     addToCart(product);
     toast.success(`${plan.name} plan added to cart`);
-    navigate('/cart');
+    navigate('/hosting/cart');
   };
 
   const isPopular = plan.popular;

@@ -440,3 +440,50 @@ export interface SupportTicket {
   customerName?: string;
   customerEmail?: string;
 }
+
+export interface DomainOrder {
+  id: string;
+  domain: string;
+  tld: string;
+  userId: string;
+  orderId: string;
+  status: 'pending' | 'active' | 'suspended' | 'cancelled';
+  years: number;
+  autoRenew: boolean;
+  nameservers: string[];
+  price: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HostingAccount {
+  id: string;
+  userId: string;
+  orderId: string;
+  planId: string;
+  domain: string;
+  provider: string;
+  status: 'pending' | 'active' | 'suspended' | 'cancelled';
+  billingCycle: 'monthly' | 'yearly';
+  autoRenew: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HostingOrder {
+  id: string;
+  userId: string;
+  items: any[];
+  total: number;
+  shippingCost: number;
+  status: 'pending' | 'processing' | 'completed' | 'cancelled';
+  type: 'invoice';
+  documentNumber: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  shippingAddress: string;
+  company: string;
+  paymentMethod: string;
+  createdAt: string;
+}

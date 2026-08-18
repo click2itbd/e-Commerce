@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Globe, CheckCircle } from 'lucide-react';
 import { getDomainPricing } from '../../services/hostingApi';
 

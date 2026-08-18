@@ -64,7 +64,7 @@ export const HostingDetails: React.FC = () => {
     };
     addToCart(product as any);
     toast.success(`${plan.name} plan added to cart`);
-    navigate('/cart');
+    navigate('/hosting/cart');
   };
 
   return (

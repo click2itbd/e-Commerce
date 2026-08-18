@@ -28,14 +28,8 @@ import UsersTab from './admin/tabs/hr/Users';
 import HostingServicesTab from './admin/tabs/hosting/HostingServices';
 import { SalesForm } from './admin/tabs/sales/SalesForm';
 import ServicesTab from './admin/tabs/services/Services';
-import AllReportsTab from './admin/tabs/accounting/AllReports';
-import PaymentAccountsTab from './admin/tabs/accounting/PaymentAccounts';
-import LedgerTab from './admin/tabs/accounting/Ledger';
-import ManualIncomeTab from './admin/tabs/accounting/ManualIncome';
-import ManualExpenseTab from './admin/tabs/accounting/ManualExpense';
-import TxCategoriesTab from './admin/tabs/accounting/TransactionCategories';
-import SalesReportTab from './admin/tabs/finance/SalesReport';
-import HostingPlansTab from './admin/tabs/hosting/HostingPlans';
+
+import HostingOrdersTab from './admin/tabs/hosting/HostingOrders';
 import PurchaseReturnTab from './admin/tabs/sales/PurchaseReturn';
 import PurchasesTab from './admin/tabs/purchase/Purchases';
 import SaleReturnTab from './admin/tabs/sales/SaleReturn';
@@ -176,7 +170,7 @@ export const AdminDashboard: React.FC = () => {
   const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
   const [isAddingPaymentAccount, setIsAddingPaymentAccount] = useState(false);
   const [paymentAccountFormData, setPaymentAccountFormData] = useState({ type: '', name: '', description: '', openingBalance: 0, status: 'active' });
-const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'hostingPlans' | 'hostingServices' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
+const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
   
   const [serialSelectionModal, setSerialSelectionModal] = useState<{
     isOpen: boolean;
@@ -3041,9 +3035,14 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
                  <LifeBuoy size={16} className={activeTab === 'support_tickets' ? "text-blue-600" : "text-gray-400"} /> Support Tickets
                </button>
              {hasPermission('manage_services') && (
-               <button onClick={() => setActiveTab('hostingPlans')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Server size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} /> Hosting Plans
-               </button>
+               <>
+                 <button onClick={() => setActiveTab('hostingOrders')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingOrders' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Server size={16} className={activeTab === 'hostingOrders' ? "text-blue-600" : "text-gray-400"} /> Hosting Orders
+                 </button>
+                 <button onClick={() => setActiveTab('hostingPlans')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Server size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} /> Hosting Plans
+                 </button>
+               </>
              )}
              {hasPermission('manage_services') && (
                <button onClick={() => setActiveTab('hostingServices')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingServices' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
@@ -3148,7 +3147,33 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
         ) : activeTab === 'quotations' ? (
           <QuotationManager />
         ) : activeTab === 'orders' ? (
-          <OrdersTab />
+          <OrdersTab
+            orders={orders}
+            customers={customers}
+            orderSearchQuery={orderSearchQuery}
+            setOrderSearchQuery={setOrderSearchQuery}
+            orderStatusFilter={orderStatusFilter}
+            setOrderStatusFilter={setOrderStatusFilter}
+            orderStartDate={orderStartDate}
+            setOrderStartDate={setOrderStartDate}
+            orderEndDate={orderEndDate}
+            setOrderEndDate={setOrderEndDate}
+            orderSort={orderSort}
+            setOrderSort={setOrderSort}
+            selectedOrderIds={selectedOrderIds}
+            setSelectedOrderIds={setSelectedOrderIds}
+            handleExportFilteredOrders={handleExportFilteredOrders}
+            handleBulkUpdateOrderStatus={handleBulkUpdateOrderStatus}
+            handleBulkReturnOrders={handleBulkReturnOrders}
+            handleBulkExportOrders={handleBulkExportOrders}
+            handleBulkDeleteOrders={handleBulkDeleteOrders}
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+            fetchData={fetchData}
+            updateOrderDiscount={updateOrderDiscount}
+            updateOrderStatus={updateOrderStatus}
+            generatePDF={generatePDF}
+          />
         ) : activeTab === 'purchase_return' ? (
           <PurchaseReturnTab />
         ) : activeTab === 'sale_return' ? (
@@ -3204,6 +3229,8 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
           <TxCategoriesTab />
         ) : activeTab === 'reports' && hasPermission('manage_reports') ? (
           <SalesReportTab />
+        ) : activeTab === 'hostingOrders' && isAdmin ? (
+          <HostingOrdersTab />
         ) : activeTab === 'hostingPlans' && isAdmin ? (
           <HostingPlansTab />
         ) : activeTab === 'campaigns' && hasPermission('manage_marketing') ? (

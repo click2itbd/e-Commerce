@@ -28,6 +28,9 @@ import PricingPage from './pages/hosting/PricingPage';
 import DomainPage from './pages/hosting/DomainPage';
 import SupportPage from './pages/hosting/SupportPage';
 
+import { HostingCart } from './pages/hosting/HostingCart';
+import { HostingCheckout } from './pages/hosting/HostingCheckout';
+
 export default function App() {
   return (
     <SettingsProvider>
@@ -45,6 +48,8 @@ export default function App() {
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/domain" element={<DomainPage />} />
                 <Route path="/support" element={<SupportPage />} />
+                <Route path="/hosting/cart" element={<HostingCart />} />
+                <Route path="/hosting/checkout" element={<HostingCheckout />} />
 
                 {/* E-COMMERCE */}
                 <Route path="/shop" element={<Home />} />

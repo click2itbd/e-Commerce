@@ -7,7 +7,12 @@ import { collection, query, where, onSnapshot, updateDoc, doc, getDocs } from 'f
 import { toast } from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { getHostingUsage, HostingUsageStats } from '../services/hostingApi';
-import { RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, RotateCcw, Server } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, RotateCcw, Server, FileText, Receipt } from 'lucide-react';
+import { HostingOrder } from '../types';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { useSettings } from '../context/SettingsContext';
+import { formatCurrency } from '../lib/utils';
 
 interface DomainOrder {
   id: string;
@@ -32,6 +37,7 @@ interface HostingAccount {
   expiresAt?: string;
   autoRenew?: boolean;
   billingCycle?: string;
+  domain?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,10 +45,12 @@ interface HostingAccount {
 export const MyServices: React.FC = () => {
   const { user } = useAuth();
   const { addToCart } = useCart();
+  const { settings } = useSettings();
   const navigate = useNavigate();
 
   const [domains, setDomains] = useState<DomainOrder[]>([]);
   const [hosting, setHosting] = useState<HostingAccount[]>([]);
+  const [orders, setOrders] = useState<HostingOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [domainLoading, setDomainLoading] = useState<string | null>(null);
   const [hostingLoading, setHostingLoading] = useState<string | null>(null);
@@ -70,9 +78,17 @@ export const MyServices: React.FC = () => {
       setLoading(false);
     });
 
+    const qOrders = query(collection(db, 'hostingOrders'), where('userId', '==', user.uid));
+    const unsubOrders = onSnapshot(qOrders, (snap) => {
+      setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as HostingOrder)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    }, (err) => {
+      console.error('Error loading orders:', err);
+    });
+
     return () => {
       unsubDomains();
       unsubHosting();
+      unsubOrders();
     };
   }, [user]);
 
@@ -171,6 +187,94 @@ export const MyServices: React.FC = () => {
         </div>
       </div>
     );
+  };
+
+  const generateInvoice = (order: HostingOrder) => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    let currentY = 15;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Header
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text(settings?.companyName || 'Hosting Provider', 14, currentY);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    currentY += 6;
+    doc.text(settings?.contactEmail || '', 14, currentY);
+    currentY += 5;
+    doc.text(settings?.contactPhone || '', 14, currentY);
+    
+    // INVOICE text
+    doc.setFontSize(24);
+    doc.setTextColor(0);
+    doc.text('INVOICE', pageWidth - 14, 20, { align: 'right' });
+
+    currentY += 15;
+    doc.setLineWidth(0.5);
+    doc.line(14, currentY, pageWidth - 14, currentY);
+    currentY += 10;
+
+    // Customer Info
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Billed To:', 14, currentY);
+    doc.setFont('helvetica', 'normal');
+    currentY += 5;
+    doc.text(order.customerName, 14, currentY);
+    currentY += 5;
+    doc.text(order.customerEmail, 14, currentY);
+    currentY += 5;
+    doc.text(order.customerPhone, 14, currentY);
+    
+    // Invoice details
+    let detailsY = currentY - 15;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Invoice Details:', pageWidth - 60, detailsY);
+    doc.setFont('helvetica', 'normal');
+    detailsY += 5;
+    doc.text(`Invoice No: ${order.documentNumber || order.id.slice(0, 8)}`, pageWidth - 60, detailsY);
+    detailsY += 5;
+    doc.text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`, pageWidth - 60, detailsY);
+    detailsY += 5;
+    doc.text(`Status: ${order.status.toUpperCase()}`, pageWidth - 60, detailsY);
+
+    currentY += 15;
+
+    // Table
+    const tableBody = (order.items || []).map(item => [
+      item.name,
+      item.itemType === 'domain' ? `${item.termYears || 1} Year(s)` : (item.billingCycle || 'Monthly'),
+      formatCurrency(item.price),
+      formatCurrency(item.price)
+    ]);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Description', 'Term/Cycle', 'Price', 'Total']],
+      body: tableBody,
+      theme: 'grid',
+      headStyles: { fillColor: [10, 22, 40] },
+      styles: { fontSize: 10 }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Totals
+    const totalX = pageWidth - 60;
+    doc.text('Subtotal:', totalX, currentY);
+    doc.text(formatCurrency(order.total), pageWidth - 14, currentY, { align: 'right' });
+    
+    currentY += 8;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('Grand Total:', totalX, currentY);
+    doc.text(formatCurrency(order.total), pageWidth - 14, currentY, { align: 'right' });
+
+    doc.save(`Invoice_${order.documentNumber || order.id.slice(0, 8)}.pdf`);
+    toast.success('Invoice generated successfully!');
   };
 
   if (loading) {
@@ -274,6 +378,7 @@ export const MyServices: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
                           <span className="font-bold">{account.planId || '-'}</span>
+                          {account.domain && <span className="text-xs text-blue-600">{account.domain}</span>}
                           <span className="text-xs text-gray-500">{account.billingCycle?.toUpperCase() || 'MONTHLY'}</span>
                         </div>
                       </td>
@@ -327,6 +432,60 @@ export const MyServices: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* My Orders & Invoices */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-6">
+            <Receipt className="text-[#EF4444]" size={24} />
+            <h2 className="text-xl font-bold text-[#081621]">My Orders & Invoices</h2>
+          </div>
+
+          {orders.length === 0 ? (
+            <p className="text-gray-400 text-center py-8">No orders found.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-[#081621] text-white text-xs uppercase">
+                  <tr>
+                    <th className="px-6 py-4">Order ID / No</th>
+                    <th className="px-6 py-4">Date</th>
+                    <th className="px-6 py-4">Total</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right">Invoice</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {orders.map(order => (
+                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 font-bold text-sm">
+                        {order.documentNumber || order.id.slice(0, 8).toUpperCase()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold">
+                        {formatCurrency(order.total)}
+                      </td>
+                      <td className="px-6 py-4">
+                        {getStatusBadge(order.status)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => generateInvoice(order)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+                        >
+                          <Download size={14} />
+                          Download
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
       </div>
     </Layout>
   );

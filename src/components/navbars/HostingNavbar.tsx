@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Cloud, Menu, X, User, LayoutDashboard, Server, LogOut, Phone, Mail } from 'lucide-react';
+import { Cloud, Menu, X, User, LayoutDashboard, Server, LogOut, Phone, Mail, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
 import { useSettings } from '../../context/SettingsContext';
 import { auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
@@ -11,6 +12,8 @@ export const HostingNavbar: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const { user, isAdmin } = useAuth();
+  const { items } = useCart();
+  const cartCount = items.filter(i => i.category === 'Hosting & Domains').length;
   const { settings } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
@@ -53,7 +56,7 @@ export const HostingNavbar: React.FC = () => {
   };
 
   return (
-    <header className={`fixed top-0 left-0 right-0 z-50 w-full transition-all duration-300`}>
+    <header className={`sticky top-0 left-0 right-0 z-50 w-full transition-all duration-300`}>
       {/* Top Bar */}
       <div className="bg-[#060d1f] text-gray-300 text-xs py-1.5 px-4 hidden sm:block">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -117,6 +120,7 @@ export const HostingNavbar: React.FC = () => {
             </Link>
 
             {/* Desktop Nav Links */}
+            <div className="hidden md:flex items-center space-x-6">
             <nav className="hidden md:flex items-center space-x-1">
               {navLinks.map((link) => (
                 <Link
@@ -144,6 +148,17 @@ export const HostingNavbar: React.FC = () => {
                 </Link>
               )}
             </nav>
+
+              {/* Cart Icon Desktop */}
+              <Link to="/hosting/cart" className="relative p-2 text-gray-300 hover:text-white transition-colors">
+                <ShoppingCart size={20} />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+            </div>
 
             {/* CTA Button */}
             <div className="hidden md:flex items-center space-x-4">
@@ -187,6 +202,22 @@ export const HostingNavbar: React.FC = () => {
           ))}
           
           <div className="border-t border-gray-800 my-4 pt-4">
+
+              <Link
+                to="/hosting/cart"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
+              >
+                <div className="relative">
+                  <ShoppingCart size={20} />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
+                      {cartCount}
+                    </span>
+                  )}
+                </div>
+                <span>Cart</span>
+              </Link>
             {user ? (
                <>
                  <Link

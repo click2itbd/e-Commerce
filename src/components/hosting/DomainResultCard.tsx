@@ -32,7 +32,7 @@ export const DomainResultCard: React.FC<DomainResultCardProps> = ({ result, pric
     };
     addToCart(product as any);
     toast.success(`Domain ${result.domain} added to cart`);
-    navigate('/cart');
+    navigate('/hosting/cart');
   };
 
   return (

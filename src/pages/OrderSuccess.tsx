@@ -86,6 +86,23 @@ export const OrderSuccess: React.FC = () => {
               </div>
             </div>
 
+            {/* Payment Instructions for Manual Methods */}
+            {['bkash', 'nagad', 'rocket', 'bank'].includes(order.paymentMethod) && (
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 mx-8 mt-8 rounded-r-lg shadow-sm">
+                <h3 className="text-lg font-bold text-yellow-800 mb-2">Payment Instructions</h3>
+                <p className="text-yellow-700 mb-4 text-sm">
+                  Your order is currently <strong>PENDING</strong>. To activate your services, please complete your payment using {order.paymentMethod.toUpperCase()}.
+                </p>
+                <div className="bg-white p-4 rounded border border-yellow-200 text-sm text-gray-800 font-mono">
+                  <p>1. Send exactly <span className="font-bold text-red-600">{formatCurrency(order.total, settings)}</span> to our {order.paymentMethod.toUpperCase()} Number: <strong className="text-lg tracking-wider">017XXXXXX</strong></p>
+                  <p className="mt-2">2. Use <span className="font-bold">{order.documentNumber || order.id.toUpperCase().slice(0, 8)}</span> as the Reference.</p>
+                </div>
+                <p className="text-xs text-yellow-600 mt-4 italic">
+                  * Note: Once we verify the payment, your order status will be updated to ACTIVE and you will receive an email confirmation.
+                </p>
+              </div>
+            )}
+
             {/* Order details */}
             <div className="p-8">
               <div className="flex justify-between items-end mb-6 pb-6 border-b border-gray-100">
