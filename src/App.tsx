@@ -1,4 +1,4 @@
-﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { SettingsProvider } from './context/SettingsContext';
@@ -23,6 +23,11 @@ import { RetailPOS } from './pages/RetailPOS';
 import { CompareProvider } from './context/CompareContext';
 import Hosting from './pages/Hosting';
 
+import ServicesPage from './pages/hosting/ServicesPage';
+import PricingPage from './pages/hosting/PricingPage';
+import DomainPage from './pages/hosting/DomainPage';
+import SupportPage from './pages/hosting/SupportPage';
+
 export default function App() {
   return (
     <SettingsProvider>
@@ -36,6 +41,10 @@ export default function App() {
                 {/* HOSTING - Default Home */}
                 <Route path="/" element={<Hosting />} />
                 <Route path="/hosting/:serviceId" element={<HostingDetails />} />
+                <Route path="/services" element={<ServicesPage />} />
+                <Route path="/pricing" element={<PricingPage />} />
+                <Route path="/domain" element={<DomainPage />} />
+                <Route path="/support" element={<SupportPage />} />
 
                 {/* E-COMMERCE */}
                 <Route path="/shop" element={<Home />} />

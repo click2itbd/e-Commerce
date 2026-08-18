@@ -39,8 +39,8 @@ export const HostingNavbar: React.FC = () => {
 
   const navLinks = [
     { name: 'Home', path: '/' },
-    { name: 'Services', path: '/#services' },
-    { name: 'Pricing', path: '/#pricing' },
+    { name: 'Services', path: '/services' },
+    { name: 'Pricing', path: '/pricing' },
     { name: 'Domain', path: '/domain' },
     { name: 'Support', path: '/support' },
   ];
