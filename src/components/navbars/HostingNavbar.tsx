@@ -135,39 +135,35 @@ export const HostingNavbar: React.FC = () => {
                   {link.name}
                 </Link>
               ))}
-              {!user && (
-                 <Link
-                  to="/login"
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive('/login') 
-                      ? 'text-blue-400 bg-blue-500/10' 
-                      : 'text-gray-300 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  Login
-                </Link>
-              )}
             </nav>
+            </div>
 
+            {/* CTA Button and Cart */}
+            <div className="hidden md:flex items-center space-x-4">
               {/* Cart Icon Desktop */}
-              <Link to="/hosting/cart" className="relative p-2 text-gray-300 hover:text-white transition-colors">
-                <ShoppingCart size={20} />
+              <Link to="/hosting/cart" className="relative p-2 text-gray-300 hover:text-white transition-colors mr-2">
+                <ShoppingCart size={22} />
                 {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
+                  <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center border border-[#0a1628]">
                     {cartCount}
                   </span>
                 )}
               </Link>
-            </div>
-
-            {/* CTA Button */}
-            <div className="hidden md:flex items-center space-x-4">
-              <Link
-                to="/#pricing"
-                className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all transform hover:scale-105 shadow-lg shadow-orange-500/30"
-              >
-                Get Started
-              </Link>
+              {user ? (
+                <Link
+                  to="/dashboard"
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all transform hover:scale-105 shadow-lg shadow-blue-500/30 flex items-center gap-2"
+                >
+                  <User size={16} /> Profile
+                </Link>
+              ) : (
+                <Link
+                  to="/login"
+                  className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all transform hover:scale-105 shadow-lg shadow-orange-500/30 flex items-center gap-2"
+                >
+                  <LogOut size={16} className="rotate-180" /> Login
+                </Link>
+              )}
             </div>
 
             {/* Mobile menu button */}
@@ -262,13 +258,23 @@ export const HostingNavbar: React.FC = () => {
           </div>
           
           <div className="mt-4 px-3">
-            <Link
-              to="/#pricing"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block w-full text-center bg-gradient-to-r from-orange-500 to-orange-600 text-white px-5 py-3 rounded-lg font-semibold shadow-lg"
-            >
-              Get Started
-            </Link>
+            {user ? (
+              <Link
+                to="/dashboard"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block w-full text-center bg-gradient-to-r from-blue-500 to-blue-600 text-white px-5 py-3 rounded-lg font-semibold shadow-lg"
+              >
+                Go to Profile
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block w-full text-center bg-gradient-to-r from-orange-500 to-orange-600 text-white px-5 py-3 rounded-lg font-semibold shadow-lg"
+              >
+                Login
+              </Link>
+            )}
           </div>
         </div>
       </div>
