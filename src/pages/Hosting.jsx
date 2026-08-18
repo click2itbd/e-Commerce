@@ -7,6 +7,7 @@ import { useCart } from '../context/CartContext';
 import { useHostingApiConfig } from '../hooks/useHostingApiConfig';
 import { useAuth } from '../context/AuthContext';
 import { getDomainPricing } from '../services/hostingApi';
+import { SEO } from '../components/SEO';
 
 import HeroSection from './hosting-sections/HeroSection';
 import WhyChooseUsSection from './hosting-sections/WhyChooseUsSection';
@@ -58,6 +59,11 @@ export default function Hosting() {
 
   return (
     <Layout fullWidth>
+      <SEO 
+        title="Premium Web Hosting & Cloud Servers"
+        description="Fast, secure, and reliable web hosting services for your business. Explore our plans and start growing today."
+        keywords="web hosting, cloud server, VPS, shared hosting, cheap hosting bd"
+      />
       {/* 1. Hero — dark blue bg, domain search, 3D server graphic */}
       <HeroSection hasDomainInCart={hasDomainInCart} bundleDiscount={bundleDiscount} />
 

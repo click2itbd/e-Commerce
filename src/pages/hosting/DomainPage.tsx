@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { Layout } from '../../components/Layout';
 import { PageHeader } from '../../components/hosting/PageHeader';
+import { SEO } from '../../components/SEO';
 import DomainPricingSection from '../hosting-sections/DomainPricingSection';
 import { Search, Shield, Settings, RefreshCw, ArrowRight, Loader2, CheckCircle, XCircle, ShoppingCart } from 'lucide-react';
 import { checkDomainAvailability, DomainAvailabilityResponse } from '../../services/domainApi';
@@ -24,119 +25,65 @@ const DomainPage = () => {
       return;
     }
     
-    setIsSearching(true);
-    setSearchResult(null);
-    
-    try {
-      const result = await checkDomainAvailability(searchQuery);
-      setSearchResult(result);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to check domain availability');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleAddToCart = () => {
-    if (!searchResult || !searchResult.available) return;
-    
-    const domainProduct = {
-      id: `domain_${searchResult.domain}`,
-      name: `Domain Registration — ${searchResult.domain}`,
-      description: '1 Year Registration',
-      price: searchResult.price || 1000,
-      category: 'Hosting & Domains',
-      stock: 9999,
-      images: [],
-      createdAt: new Date().toISOString(),
-      itemType: 'domain' as const,
-      domainTld: searchResult.domain.split('.').pop() || '',
-      termYears: 1,
-    };
-    
-    addToCart(domainProduct as any);
-    toast.success(`${searchResult.domain} added to cart!`);
-    navigate('/cart');
+    navigate(`/domain/search?q=${encodeURIComponent(searchQuery.trim())}`);
   };
 
   return (
     <Layout fullWidth>
+      <SEO 
+        title="Register Domain Names"
+        description="Search and register your perfect domain name today. Best prices on .com, .net, .bd and more."
+        keywords="domain registration, buy domain, domain search, cheap domain"
+      />
+      
       <PageHeader 
         title="Find Your Perfect Domain Name" 
         subtitle="Search, register, and manage your domain names with ease. Get the perfect web address for your business." 
       />
 
       {/* Domain Search Section */}
-      <section className="py-20 bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
+      <section className="py-5 ">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl font-bold text-gray-900 mb-8">
             Start Your Journey Here
           </h2>
-          <form onSubmit={handleSearch} className="relative max-w-3xl mx-auto shadow-2xl rounded-full overflow-hidden flex bg-white dark:bg-gray-800 ring-4 ring-blue-100 dark:ring-blue-900/30 transition-all focus-within:ring-blue-500">
-            <div className="flex-grow flex items-center pl-6">
-              <Search className="h-6 w-6 text-gray-400" />
+          <div className="bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden flex items-stretch max-w-3xl mx-auto mb-6">
+            <form onSubmit={handleSearch} className="flex-grow flex items-stretch">
+              <div className="flex items-center pl-5 text-gray-400">
+                <Search size={20} />
+              </div>
               <input
                 type="text"
-                placeholder="Find your perfect domain name (e.g., example.com)"
+                placeholder="Type your domain name here..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full py-5 px-4 text-lg bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white placeholder-gray-400 outline-none"
+                className="flex-1 px-4 py-5 text-lg text-gray-800 outline-none bg-transparent placeholder-gray-400"
                 disabled={isSearching}
               />
-            </div>
-            <button 
-              type="submit"
-              disabled={isSearching}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold text-lg px-8 py-5 transition-colors duration-200 ease-in-out whitespace-nowrap flex items-center gap-2"
-            >
-              {isSearching ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Search'} 
-              <span className="hidden sm:inline">{isSearching ? 'Checking...' : 'Domain'}</span>
-            </button>
-          </form>
-
-          {/* Search Result */}
-          {searchResult && (
-            <div className={`mt-8 max-w-3xl mx-auto p-6 rounded-2xl border-2 transition-all ${searchResult.available ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4 text-left">
-                  {searchResult.available ? (
-                    <CheckCircle className="w-10 h-10 text-green-500 flex-shrink-0" />
-                  ) : (
-                    <XCircle className="w-10 h-10 text-red-500 flex-shrink-0" />
-                  )}
-                  <div>
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {searchResult.domain}
-                    </h3>
-                    <p className={`text-lg font-medium ${searchResult.available ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-                      {searchResult.available ? 'is available!' : 'is already taken'}
-                    </p>
-                  </div>
-                </div>
-
-                {searchResult.available && (
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <span className="block text-2xl font-bold text-gray-900 dark:text-white">
-                        {formatCurrency(searchResult.price || 0)}
-                      </span>
-                      <span className="text-sm text-gray-500">/year</span>
-                    </div>
-                    <button 
-                      onClick={handleAddToCart}
-                      className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 transition-transform hover:scale-105 shadow-lg shadow-green-600/30"
-                    >
-                      <ShoppingCart className="w-5 h-5" />
-                      Add to Cart
-                    </button>
-                  </div>
-                )}
+              <div className="flex items-center gap-2 pr-2">
+                <select className="hidden md:block text-sm text-gray-600 bg-gray-100 border-0 rounded-lg px-3 py-2 outline-none h-[44px]">
+                  <option>.com</option>
+                  <option>.net</option>
+                  <option>.org</option>
+                  <option>.xyz</option>
+                </select>
+                <button 
+                  type="submit"
+                  disabled={isSearching}
+                  className="flex items-center gap-2 text-white font-bold px-7 h-[44px] rounded-xl transition-all active:scale-95 hover:opacity-90 disabled:opacity-70 my-auto"
+                  style={{ background: 'linear-gradient(135deg, #f97316, #ea6100)' }}
+                >
+                  {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search size={18} />} 
+                  <span className="hidden sm:inline">{isSearching ? 'Checking...' : 'Search Now'}</span>
+                </button>
               </div>
-            </div>
-          )}
+            </form>
+          </div>
 
-          <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
-            Popular extensions: <span className="font-medium text-gray-700 dark:text-gray-300">.com, .net, .org, .io, .co</span>
+
+
+          <p className="mt-6 text-sm text-black/70">
+            Popular extensions: <span className="font-medium text-black/70">.com, .net, .org, .io, .co</span>
           </p>
         </div>
       </section>
@@ -145,10 +92,10 @@ const DomainPage = () => {
       <DomainPricingSection />
 
       {/* Why Register With Us Section */}
-      <section className="py-20 bg-white dark:bg-gray-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-20 bg-white ">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl">
+            <h2 className="text-3xl font-extrabold text-black-700 sm:text-4xl">
               Why Register With Us?
             </h2>
             <p className="mt-4 max-w-2xl text-xl text-gray-500 dark:text-gray-400 mx-auto">
@@ -194,8 +141,8 @@ const DomainPage = () => {
       </section>
 
       {/* Domain Transfer Banner */}
-      <section className="py-16 bg-blue-600 dark:bg-blue-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-8 ">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="bg-blue-700 dark:bg-blue-800 rounded-3xl p-8 sm:p-12 lg:flex lg:items-center lg:justify-between shadow-2xl overflow-hidden relative">
             <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-blue-500 rounded-full opacity-20 blur-3xl"></div>
             <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 bg-blue-400 rounded-full opacity-20 blur-3xl"></div>

@@ -7,6 +7,7 @@ import { ProductCard } from '../components/ProductCard';
 import { Layout } from '../components/Layout';
 import { ChevronRight, Laptop, Cpu, Monitor, MousePointer2, Fan, Server, Database, HardDrive, Plug, Keyboard, Mouse, BatteryCharging } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
+import { SEO } from '../components/SEO';
 
 export const Home: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -51,6 +52,11 @@ export const Home: React.FC = () => {
 
   return (
     <Layout>
+      <SEO 
+        title="Shop Electronics & PC Components"
+        description="Buy the best electronics, PC components, laptops, and accessories online at unbeatable prices."
+        keywords="pc components, electronics, laptops, buy online, click2it shop"
+      />
       {/* Hero Section */}
       <section className="mb-12">
         <div className="bg-[#222222] text-white rounded-lg p-12 flex items-center justify-between h-[450px] overflow-hidden">

@@ -13,6 +13,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useSettings } from '../context/SettingsContext';
 import { formatCurrency } from '../lib/utils';
+import { SupportTicketsClient } from '../components/hosting/SupportTicketsClient';
+import { NameserverModal } from '../components/hosting/NameserverModal';
 
 interface DomainOrder {
   id: string;
@@ -56,6 +58,8 @@ export const MyServices: React.FC = () => {
   const [hostingLoading, setHostingLoading] = useState<string | null>(null);
   const [usageData, setUsageData] = useState<Record<string, HostingUsageStats>>({});
   const [usageLoading, setUsageLoading] = useState<string | null>(null);
+  
+  const [managingNsDomain, setManagingNsDomain] = useState<DomainOrder | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -332,11 +336,17 @@ export const MyServices: React.FC = () => {
                           <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-[#EF4444] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#EF4444]"></div>
                         </label>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setManagingNsDomain(domain)}
+                          className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-200 transition-colors"
+                        >
+                          Nameservers
+                        </button>
                         <button
                           onClick={() => handleRenew(domain)}
                           disabled={domainLoading === domain.id}
-                          className="bg-[#081621] text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-[#EF4444] transition-colors disabled:opacity-50 flex items-center gap-1 ml-auto"
+                          className="bg-[#081621] text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-[#EF4444] transition-colors disabled:opacity-50 flex items-center gap-1"
                         >
                           <RotateCcw size={14} />
                           {domainLoading === domain.id ? 'Processing...' : 'Renew Now'}
@@ -349,6 +359,15 @@ export const MyServices: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Nameserver Modal */}
+        {managingNsDomain && (
+          <NameserverModal
+            domain={managingNsDomain}
+            onClose={() => setManagingNsDomain(null)}
+            onUpdate={() => {}}
+          />
+        )}
 
         {/* My Hosting */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -485,6 +504,9 @@ export const MyServices: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Support Tickets */}
+        <SupportTicketsClient />
 
       </div>
     </Layout>

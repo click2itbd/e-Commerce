@@ -4,14 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useSettings } from '../context/SettingsContext';
 import { Layout } from '../components/Layout';
-import { formatCurrency } from '../lib/utils';
 import { toast } from 'react-hot-toast';
 import { Lock, ArrowRight } from 'lucide-react';
-import { db, auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { generateDocumentNumber } from '../lib/numbering';
-import { OrderType, CartItem } from '../types';
+import { initiateBkashPayment, initiateSSLCommerzPayment } from '../services/paymentApi';
 
 export const Checkout: React.FC = () => {
   const { user } = useAuth();
@@ -116,6 +115,7 @@ export const Checkout: React.FC = () => {
         total: grandTotal,
         shippingCost,
         status: 'pending',
+        paymentStatus: 'pending',
         type: 'invoice',
         documentNumber: docNumber,
         customerName: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -165,13 +165,38 @@ export const Checkout: React.FC = () => {
         });
       }
       
+      // Only clear cart and show success if not redirecting to a payment gateway
+      if (formData.paymentMethod === 'bkash') {
+        const res = await initiateBkashPayment(docRef.id, grandTotal, formData.email);
+        if (res.success && res.paymentUrl) {
+          window.location.href = res.paymentUrl;
+          return;
+        } else {
+          throw new Error(res.errorMessage || 'Failed to initiate bKash payment');
+        }
+      } else if (formData.paymentMethod === 'card') {
+        const res = await initiateSSLCommerzPayment(
+          docRef.id, 
+          grandTotal, 
+          formData.email, 
+          `${formData.firstName} ${formData.lastName}`, 
+          formData.phone
+        );
+        if (res.success && res.paymentUrl) {
+          window.location.href = res.paymentUrl;
+          return;
+        } else {
+          throw new Error(res.errorMessage || 'Failed to initiate Card payment');
+        }
+      }
+
+      // For manual methods (bank transfer, etc), proceed directly
       toast.success('Order placed successfully!');
       clearCart();
       navigate(`/order-success/${docRef.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Checkout error:', error);
-      toast.error('Failed to place order');
-    } finally {
+      toast.error(error.message || 'Failed to place order');
       setIsProcessing(false);
     }
   };

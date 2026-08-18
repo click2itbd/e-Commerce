@@ -26,10 +26,12 @@ import CampaignsTab from './admin/tabs/marketing/Campaigns';
 import DiscountCodesTab from './admin/tabs/marketing/DiscountCodes';
 import UsersTab from './admin/tabs/hr/Users';
 import HostingServicesTab from './admin/tabs/hosting/HostingServices';
+import HostingPlansTab from './admin/tabs/hosting/HostingPlans';
 import { SalesForm } from './admin/tabs/sales/SalesForm';
 import ServicesTab from './admin/tabs/services/Services';
 
 import HostingOrdersTab from './admin/tabs/hosting/HostingOrders';
+import SupportTicketsTab from './admin/tabs/hosting/SupportTickets';
 import PurchaseReturnTab from './admin/tabs/sales/PurchaseReturn';
 import PurchasesTab from './admin/tabs/purchase/Purchases';
 import SaleReturnTab from './admin/tabs/sales/SaleReturn';
@@ -38,7 +40,7 @@ import VendorsTab from './admin/tabs/purchase/Vendors';
 import ConveyanceTab from './admin/tabs/finance/Conveyance';
 import CustomerReceiveReportTab from './admin/tabs/accounting/CustomerReceiveReport';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit2, Trash2, Package, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
@@ -3039,6 +3041,9 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
                  <button onClick={() => setActiveTab('hostingOrders')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingOrders' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                    <Server size={16} className={activeTab === 'hostingOrders' ? "text-blue-600" : "text-gray-400"} /> Hosting Orders
                  </button>
+                 <button onClick={() => setActiveTab('support_tickets')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'support_tickets' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <MessageSquare size={16} className={activeTab === 'support_tickets' ? "text-blue-600" : "text-gray-400"} /> Support Tickets
+                 </button>
                  <button onClick={() => setActiveTab('hostingPlans')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                    <Server size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} /> Hosting Plans
                  </button>
@@ -3231,6 +3236,8 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
           <SalesReportTab />
         ) : activeTab === 'hostingOrders' && isAdmin ? (
           <HostingOrdersTab />
+        ) : activeTab === 'support_tickets' && isAdmin ? (
+          <SupportTicketsTab />
         ) : activeTab === 'hostingPlans' && isAdmin ? (
           <HostingPlansTab />
         ) : activeTab === 'campaigns' && hasPermission('manage_marketing') ? (

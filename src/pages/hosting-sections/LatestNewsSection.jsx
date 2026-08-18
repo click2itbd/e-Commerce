@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 
 const NEWS = [
   { id: 1, category: 'Cloud', title: 'New cloud infrastructure deployed across 5 regions for faster access', image: '/assets/cloud_server.jpg', date: 'Aug 15, 2026' },

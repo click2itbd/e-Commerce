@@ -26,7 +26,7 @@ const HostingCart: React.FC = () => {
         </p>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm border border-slate-200">
             <div className="bg-slate-100 p-6 rounded-full mb-6">

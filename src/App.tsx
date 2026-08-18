@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { SettingsProvider } from './context/SettingsContext';
@@ -14,6 +15,7 @@ import { HostingDetails } from './pages/HostingDetails';
 import { HostingBillingDashboard } from './pages/HostingBillingDashboard';
 import { AccountingDashboard } from './pages/AccountingDashboard';
 import { MyServices } from './pages/MyServices';
+import { Profile } from './pages/Profile';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { WebsitePopup } from './components/WebsitePopup';
 import { ChatWidget } from './components/ChatWidget';
@@ -26,61 +28,73 @@ import Hosting from './pages/Hosting';
 import ServicesPage from './pages/hosting/ServicesPage';
 import PricingPage from './pages/hosting/PricingPage';
 import DomainPage from './pages/hosting/DomainPage';
+import DomainSearchResults from './pages/hosting/DomainSearchResults';
+import DomainTransferPage from './pages/hosting/DomainTransferPage';
 import SupportPage from './pages/hosting/SupportPage';
+import PaymentSimulation from './pages/PaymentSimulation';
+import PaymentCallback from './pages/PaymentCallback';
 
 import { HostingCart } from './pages/hosting/HostingCart';
 import { HostingCheckout } from './pages/hosting/HostingCheckout';
 
 export default function App() {
   return (
-    <SettingsProvider>
-      <AuthProvider>
-        <CompareProvider>
-          <CartProvider>
-            <WebsitePopup />
-            <ChatWidget />
-            <Router>
-              <Routes>
-                {/* HOSTING - Default Home */}
-                <Route path="/" element={<Hosting />} />
-                <Route path="/hosting/:serviceId" element={<HostingDetails />} />
-                <Route path="/services" element={<ServicesPage />} />
-                <Route path="/pricing" element={<PricingPage />} />
-                <Route path="/domain" element={<DomainPage />} />
-                <Route path="/support" element={<SupportPage />} />
-                <Route path="/hosting/cart" element={<HostingCart />} />
-                <Route path="/hosting/checkout" element={<HostingCheckout />} />
+    <HelmetProvider>
+      <SettingsProvider>
+        <AuthProvider>
+          <CompareProvider>
+            <CartProvider>
+              <WebsitePopup />
+              <ChatWidget />
+              <Router>
+                <Routes>
+                  {/* HOSTING - Default Home */}
+                  <Route path="/" element={<Hosting />} />
+                  <Route path="/hosting/:serviceId" element={<HostingDetails />} />
+                  <Route path="/services" element={<ServicesPage />} />
+                  <Route path="/pricing" element={<PricingPage />} />
+                  <Route path="/domain" element={<DomainPage />} />
+                  <Route path="/domain/search" element={<DomainSearchResults />} />
+                  <Route path="/domain/transfer" element={<DomainTransferPage />} />
+                  <Route path="/support" element={<SupportPage />} />
+                  <Route path="/hosting/cart" element={<HostingCart />} />
+                  <Route path="/hosting/checkout" element={<HostingCheckout />} />
 
-                {/* E-COMMERCE */}
-                <Route path="/shop" element={<Home />} />
-                <Route path="/product/:id" element={<ProductDetails />} />
-                <Route path="/cart" element={<Cart />} />
-                <Route path="/checkout" element={<Checkout />} />
-                <Route path="/order-success/:id" element={<OrderSuccess />} />
-                <Route path="/category/:categorySlug" element={<CategoryPage />} />
-                <Route path="/category/:categorySlug/:subCategorySlug" element={<CategoryPage />} />
+                  {/* E-COMMERCE */}
+                  <Route path="/shop" element={<Home />} />
+                  <Route path="/product/:id" element={<ProductDetails />} />
+                  <Route path="/cart" element={<Cart />} />
+                  <Route path="/checkout" element={<Checkout />} />
+                  <Route path="/order-success/:id" element={<OrderSuccess />} />
+                  <Route path="/order-success" element={<OrderSuccess />} />
+                  <Route path="/payment/simulate" element={<PaymentSimulation />} />
+                  <Route path="/payment/callback" element={<PaymentCallback />} />
+                  <Route path="/category/:categorySlug" element={<CategoryPage />} />
+                  <Route path="/category/:categorySlug/:subCategorySlug" element={<CategoryPage />} />
 
-                {/* PC BUILD */}
-                <Route path="/pc-build" element={<PCBuilder />} />
-                <Route path="/pc-builder" element={<Navigate to="/pc-build" replace />} />
-                <Route path="/compare" element={<ComparePage />} />
+                  {/* PC BUILD */}
+                  <Route path="/pc-build" element={<PCBuilder />} />
+                  <Route path="/pc-builder" element={<Navigate to="/pc-build" replace />} />
+                  <Route path="/compare" element={<ComparePage />} />
 
-                {/* AUTH */}
-                <Route path="/login" element={<Login />} />
+                  {/* AUTH */}
+                  <Route path="/login" element={<Login />} />
 
-                {/* ADMIN */}
-                <Route path="/pos" element={<ProtectedRoute adminOnly><RetailPOS /></ProtectedRoute>} />
-                <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
-                <Route path="/admin/billing" element={<ProtectedRoute adminOnly><HostingBillingDashboard /></ProtectedRoute>} />
-                <Route path="/admin/accounting" element={<ProtectedRoute adminOnly><AccountingDashboard /></ProtectedRoute>} />
+                  {/* ADMIN */}
+                  <Route path="/pos" element={<ProtectedRoute adminOnly><RetailPOS /></ProtectedRoute>} />
+                  <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
+                  <Route path="/admin/billing" element={<ProtectedRoute adminOnly><HostingBillingDashboard /></ProtectedRoute>} />
+                  <Route path="/admin/accounting" element={<ProtectedRoute adminOnly><AccountingDashboard /></ProtectedRoute>} />
 
-                {/* ACCOUNT */}
-                <Route path="/account/services" element={<ProtectedRoute><MyServices /></ProtectedRoute>} />
-              </Routes>
-            </Router>
-          </CartProvider>
-        </CompareProvider>
-      </AuthProvider>
-    </SettingsProvider>
+                  {/* ACCOUNT */}
+                  <Route path="/account/services" element={<ProtectedRoute><MyServices /></ProtectedRoute>} />
+                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                </Routes>
+              </Router>
+            </CartProvider>
+          </CompareProvider>
+        </AuthProvider>
+      </SettingsProvider>
+    </HelmetProvider>
   );
 }

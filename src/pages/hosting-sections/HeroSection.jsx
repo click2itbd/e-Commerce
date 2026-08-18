@@ -1,8 +1,7 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Loader2, ShieldCheck, Zap, Headphones } from 'lucide-react';
-import { useDomainSearch } from '../../hooks/useDomainSearch';
 import { getDomainPricing } from '../../services/hostingApi';
-import { DomainResultCard } from '../../components/hosting/DomainResultCard';
+import { useNavigate } from 'react-router-dom';
 
 const STATIC_TLDS = [
   { tld: '.com', price: '1,299' },
@@ -18,7 +17,7 @@ export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
   const [query, setQuery] = useState('');
   const [selectedTlds, setSelectedTlds] = useState(['.com', '.net', '.org', '.com.bd', '.xyz']);
   const [pricingData, setPricingData] = useState([]);
-  const { loading, results, search } = useDomainSearch();
+  const navigate = useNavigate();
 
   useEffect(() => {
     getDomainPricing().then(data => {
@@ -35,14 +34,7 @@ export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
 
   const handleSearch = () => {
     if (!query.trim()) return;
-    const domains = selectedTlds.map(tld => query.trim() + tld);
-    search(domains);
-  };
-
-  const getPriceForResult = (domain) => {
-    const tld = '.' + domain.split('.').slice(1).join('.');
-    const match = pricingData.find(p => p.tld === tld || '.' + p.tld === tld);
-    return match ? { registerPrice: match.registerPrice, currency: 'BDT' } : undefined;
+    navigate(`/domain/search?q=${encodeURIComponent(query.trim())}`);
   };
 
   return (
@@ -121,11 +113,10 @@ export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
               </select>
               <button
                 onClick={handleSearch}
-                disabled={loading}
-                className="flex items-center gap-2 text-white font-bold px-7 py-3.5 rounded-xl transition-all active:scale-95 disabled:opacity-60"
+                className="flex items-center gap-2 text-white font-bold px-7 py-3.5 rounded-xl transition-all active:scale-95 hover:opacity-90"
                 style={{ background: 'linear-gradient(135deg, #f97316, #ea6100)' }}
               >
-                {loading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                <Search size={18} />
                 <span className="hidden sm:inline">Search Now</span>
               </button>
             </div>
@@ -164,14 +155,6 @@ export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
           </div>
         </div>
 
-        {/* Search results */}
-        {results.length > 0 && (
-          <div className="max-w-3xl mx-auto space-y-3 mb-8">
-            {results.map((r, i) => (
-              <DomainResultCard key={i} result={r} pricing={getPriceForResult(r.domain)} onSearchAlternative={() => {}} />
-            ))}
-          </div>
-        )}
 
         {/* Server image centered */}
         <div className="flex justify-center mt-4">

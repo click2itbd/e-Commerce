@@ -152,6 +152,115 @@ const HostingPlansTab: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {isAddingHostingPlan && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg w-full max-w-2xl">
+                  <div className="flex justify-between items-center p-6 border-b border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {editingHostingPlan ? 'Edit Hosting Plan' : 'Add Hosting Plan'}
+                    </h3>
+                    <button onClick={() => {
+                      setIsAddingHostingPlan(false);
+                      setEditingHostingPlan(null);
+                      setHostingPlanFormData({ name: '', price: 0, billingCycle: '', features: [], popular: false, order: 0 });
+                    }} className="text-gray-400 hover:text-gray-600">
+                      <X size={24} />
+                    </button>
+                  </div>
+                  
+                  <form onSubmit={handleSaveHostingPlan} className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Plan Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={hostingPlanFormData.name}
+                          onChange={(e) => setHostingPlanFormData({ ...hostingPlanFormData, name: e.target.value })}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Price *</label>
+                        <input
+                          type="number"
+                          required
+                          value={hostingPlanFormData.price}
+                          onChange={(e) => setHostingPlanFormData({ ...hostingPlanFormData, price: parseFloat(e.target.value) })}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Billing Cycle *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. /mo or /year"
+                          value={hostingPlanFormData.billingCycle}
+                          onChange={(e) => setHostingPlanFormData({ ...hostingPlanFormData, billingCycle: e.target.value })}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
+                        <input
+                          type="number"
+                          value={hostingPlanFormData.order}
+                          onChange={(e) => setHostingPlanFormData({ ...hostingPlanFormData, order: parseInt(e.target.value) })}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Features (one per line) *</label>
+                        <textarea
+                          required
+                          rows={4}
+                          value={hostingPlanFormData.features.join('\n')}
+                          onChange={(e) => setHostingPlanFormData({ ...hostingPlanFormData, features: e.target.value.split('\n').filter(f => f.trim() !== '') })}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                         <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                           <input
+                             type="checkbox"
+                             checked={hostingPlanFormData.popular}
+                             onChange={(e) => setHostingPlanFormData({ ...hostingPlanFormData, popular: e.target.checked })}
+                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                           />
+                           Mark as Popular Plan
+                         </label>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 flex justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingHostingPlan(false);
+                          setEditingHostingPlan(null);
+                        }}
+                        className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-[#EF4444] text-white rounded-md hover:bg-red-600"
+                      >
+                        {editingHostingPlan ? 'Update Plan' : 'Save Plan'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
   );
 };

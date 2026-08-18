@@ -1,12 +1,16 @@
 import React from 'react';
-import { Database, Monitor, Server, Check } from 'lucide-react';
+import { Database, Monitor, Server, Check, ArrowRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useCart } from '../../context/CartContext';
+import { toast } from 'react-hot-toast';
 
 export default function HostingPlansSection({
   billingCycle,
   onBillingCycleChange,
   onNavigate,
 }) {
+  const { addItem } = useCart();
+
   const dummyPlans = [
     {
       id: '1',
@@ -19,7 +23,7 @@ export default function HostingPlansSection({
     {
       id: '2',
       name: 'VPS HOSTING',
-      price: 10,
+      price: 15,
       icon: Monitor,
       features: ['50 GB NVMe Storage', '2 TB Bandwidth', 'Free SSL', 'Unlimited Domains', '24/7 Priority Support', 'Dedicated IP'],
       highlighted: true,
@@ -27,28 +31,44 @@ export default function HostingPlansSection({
     {
       id: '3',
       name: 'DEDICATED SERVER',
-      price: 10,
+      price: 30,
       icon: Server,
       features: ['1 TB Storage', 'Unmetered Bandwidth', 'Free SSL', 'Unlimited Domains', '24/7 Priority Support', 'Root Access'],
       highlighted: false,
     }
   ];
 
+  const handleBuyNow = (plan) => {
+    addItem({
+      id: `hosting-${plan.id}-${billingCycle}`,
+      name: `${plan.name} Plan`,
+      price: plan.price,
+      quantity: 1,
+      category: 'Hosting & Domains',
+      image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&q=80&w=200',
+      billingCycle: billingCycle
+    });
+    toast.success(`${plan.name} added to cart!`);
+    onNavigate('/hosting/cart');
+  };
+
   return (
-    <section className="py-20 bg-white">
-      <div className="container mx-auto px-4">
-        <div className="text-center mb-10">
-          <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">CHOOSE A PLAN</p>
-          <h2 className="text-3xl md:text-4xl font-extrabold text-[var(--c2i-blue-dark)] uppercase">OUR BEST PRICING</h2>
+    <section className="py-24 bg-gray-50 border-t border-gray-100">
+      <div className="container mx-auto px-4 max-w-7xl">
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest mb-4 border border-blue-100">
+            CHOOSE A PLAN
+          </div>
+          <h2 className="text-3xl md:text-5xl font-extrabold text-gray-900 uppercase tracking-tight">OUR BEST PRICING</h2>
         </div>
 
         <div className="flex justify-center mb-16">
-          <div className="inline-flex bg-white rounded-full p-1 border-2 border-[var(--c2i-blue-dark)]">
+          <div className="inline-flex bg-white rounded-full p-1 border border-gray-200 shadow-sm">
             <button
               onClick={() => onBillingCycleChange('yearly')}
               className={cn(
                 "px-8 py-3 rounded-full text-sm font-bold transition-all uppercase tracking-wide",
-                billingCycle === 'yearly' ? "bg-[var(--c2i-blue-dark)] text-white" : "text-[var(--c2i-blue-dark)] hover:bg-gray-100"
+                billingCycle === 'yearly' ? "bg-blue-600 text-white shadow-md" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
               )}
             >
               Yearly Plan
@@ -57,7 +77,7 @@ export default function HostingPlansSection({
               onClick={() => onBillingCycleChange('monthly')}
               className={cn(
                 "px-8 py-3 rounded-full text-sm font-bold transition-all uppercase tracking-wide",
-                billingCycle === 'monthly' ? "bg-[var(--c2i-blue-dark)] text-white" : "text-[var(--c2i-blue-dark)] hover:bg-gray-100"
+                billingCycle === 'monthly' ? "bg-blue-600 text-white shadow-md" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
               )}
             >
               Monthly Plan
@@ -65,49 +85,62 @@ export default function HostingPlansSection({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto items-center">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
           {dummyPlans.map((plan, idx) => (
             <div 
               key={idx} 
               className={cn(
-                "relative rounded-2xl p-8 text-center transition-all duration-300",
+                "relative rounded-3xl p-8 text-center transition-all duration-300 group",
                 plan.highlighted 
-                  ? "bg-[var(--c2i-blue-dark)] text-white shadow-2xl transform md:-translate-y-4 md:scale-105 border-4 border-[var(--c2i-blue-dark)]" 
-                  : "bg-white text-[var(--c2i-blue-dark)] border border-gray-200 shadow-lg hover:shadow-xl"
+                  ? "bg-white text-gray-900 shadow-[0_20px_50px_rgba(0,0,0,0.1)] transform md:-translate-y-4 md:scale-105 border-2 border-blue-500" 
+                  : "bg-white text-gray-900 border border-gray-200 hover:border-gray-300 hover:shadow-xl"
               )}
             >
-              <div className="flex justify-center mb-6">
-                <plan.icon size={64} strokeWidth={1.5} className={plan.highlighted ? "text-white" : "text-[var(--c2i-blue-main)]"} />
-              </div>
-              <h3 className="text-xl font-bold uppercase mb-6 tracking-wide">{plan.name}</h3>
+              {plan.highlighted && (
+                <div className="absolute top-0 inset-x-0 flex justify-center -mt-3.5">
+                  <span className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-widest shadow-md">
+                    Most Popular
+                  </span>
+                </div>
+              )}
               
+              <div className="flex justify-center mb-6">
+                <div className={cn("p-4 rounded-2xl", plan.highlighted ? "bg-blue-50" : "bg-gray-50 group-hover:bg-blue-50/50 transition-colors")}>
+                  <plan.icon size={48} strokeWidth={1.5} className={plan.highlighted ? "text-blue-600" : "text-gray-400 group-hover:text-blue-500 transition-colors"} />
+                </div>
+              </div>
+              
+              <h3 className="text-xl font-bold uppercase mb-4 tracking-wide text-gray-900">{plan.name}</h3>
+              
+              <div className="mb-8">
+                <p className="text-sm uppercase tracking-wider mb-2 text-gray-500">Starting at</p>
+                <div className="flex items-center justify-center font-bold">
+                  <span className="text-2xl align-top mt-1 text-gray-400">$</span>
+                  <span className={cn("text-6xl tracking-tighter", plan.highlighted ? "text-gray-900" : "text-gray-800")}>{plan.price}</span>
+                  <span className="text-gray-500 align-bottom ml-1">/mo</span>
+                </div>
+              </div>
+
               <ul className="space-y-4 mb-8 text-left inline-block">
                 {plan.features.map((feature, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm">
-                    <Check size={16} className={plan.highlighted ? "text-[var(--c2i-orange)]" : "text-[var(--c2i-blue-light)]"} />
-                    <span className={plan.highlighted ? "text-gray-200" : "text-gray-600"}>{feature}</span>
+                    <Check size={16} className={plan.highlighted ? "text-blue-600" : "text-blue-500"} />
+                    <span className="text-gray-600">{feature}</span>
                   </li>
                 ))}
               </ul>
 
-              <div className="mb-8">
-                <p className="text-sm uppercase tracking-wider mb-2 opacity-80">Start From</p>
-                <div className="flex items-center justify-center font-bold">
-                  <span className="text-2xl align-top mt-1">$</span>
-                  <span className="text-6xl tracking-tighter">{plan.price}</span>
-                </div>
-              </div>
-
               <button 
+                onClick={() => handleBuyNow(plan)}
                 className={cn(
-                  "w-full py-4 rounded-full font-bold uppercase tracking-widest transition-all",
+                  "w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold uppercase tracking-widest transition-all",
                   plan.highlighted 
-                    ? "bg-white text-[var(--c2i-blue-dark)] hover:bg-gray-100" 
-                    : "bg-[var(--c2i-blue-dark)] text-white hover:bg-[var(--c2i-blue-main)]"
+                    ? "bg-blue-600 text-white shadow-lg hover:shadow-blue-500/25 hover:bg-blue-700" 
+                    : "bg-gray-50 text-gray-900 border border-gray-200 hover:bg-gray-100 hover:border-gray-300"
                 )}
-                onClick={() => onNavigate('/hosting/cart')}
               >
                 Buy Now
+                <ArrowRight size={16} className={cn("transition-transform", plan.highlighted ? "group-hover:translate-x-1" : "")} />
               </button>
             </div>
           ))}

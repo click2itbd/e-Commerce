@@ -399,14 +399,14 @@ service cloud.firestore {
 
     match /domainOrders/{orderId} {
       allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow create: if hasStaffAccess() && isValidDomainOrder(request.resource.data);
+      allow create: if isValidDomainOrder(request.resource.data) && (isOwner(request.resource.data.userId) || hasStaffAccess());
       allow update: if hasStaffAccess() && isValidDomainOrder(request.resource.data);
       allow delete: if isAdmin();
     }
 
     match /hostingAccounts/{accountId} {
       allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow create: if hasStaffAccess() && isValidHostingAccount(request.resource.data);
+      allow create: if isValidHostingAccount(request.resource.data) && (isOwner(request.resource.data.userId) || hasStaffAccess());
       allow update: if hasStaffAccess() && isValidHostingAccount(request.resource.data);
       allow delete: if isAdmin();
     }
