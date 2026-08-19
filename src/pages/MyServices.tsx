@@ -7,7 +7,7 @@ import { collection, query, where, onSnapshot, updateDoc, doc, getDocs } from 'f
 import { toast } from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { getHostingUsage, HostingUsageStats } from '../services/hostingApi';
-import { RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, RotateCcw, Server, FileText, Receipt } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, RotateCcw, Server, FileText, Receipt, Download } from 'lucide-react';
 import { HostingOrder } from '../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';

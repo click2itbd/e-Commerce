@@ -32,12 +32,22 @@ import ServicesTab from './admin/tabs/services/Services';
 
 import HostingOrdersTab from './admin/tabs/hosting/HostingOrders';
 import SupportTicketsTab from './admin/tabs/hosting/SupportTickets';
+
+// Finance tabs
+import AllReportsTab from './admin/tabs/finance/AllReports';
+import LedgerTab from './admin/tabs/finance/Ledger';
+import ManualExpenseTab from './admin/tabs/finance/ManualExpense';
+import ManualIncomeTab from './admin/tabs/finance/ManualIncome';
+import PaymentAccountsTab from './admin/tabs/finance/PaymentAccounts';
+import SalesReportTab from './admin/tabs/finance/SalesReport';
+import TransactionsTab from './admin/tabs/finance/Transactions';
+import TxCategoriesTab from './admin/tabs/finance/TxCategories';
+import ConveyanceTab from './admin/tabs/finance/Conveyance';
 import PurchaseReturnTab from './admin/tabs/sales/PurchaseReturn';
 import PurchasesTab from './admin/tabs/purchase/Purchases';
 import SaleReturnTab from './admin/tabs/sales/SaleReturn';
 import CustomersTab from './admin/tabs/sales/Customers';
 import VendorsTab from './admin/tabs/purchase/Vendors';
-import ConveyanceTab from './admin/tabs/finance/Conveyance';
 import CustomerReceiveReportTab from './admin/tabs/accounting/CustomerReceiveReport';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit2, Trash2, Package, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare } from 'lucide-react';

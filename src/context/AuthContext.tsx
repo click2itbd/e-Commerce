@@ -23,20 +23,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (import.meta.env.DEV) {
-      setUser({ uid: 'local-dev-admin', email: 'admin@local.test' } as User);
-      setProfile({
-        uid: 'local-dev-admin',
-        email: 'admin@local.test',
-        displayName: 'Local Admin',
-        role: 'admin',
-        permissions: ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing'],
-        createdAt: new Date().toISOString(),
-      });
-      setLoading(false);
-      return () => {}; // Return empty cleanup function
-    }
-
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         setUser(firebaseUser);
@@ -49,8 +35,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
               displayName: firebaseUser.displayName || 'User',
-              role: firebaseUser.email === 'click2itbd@gmail.com' ? 'admin' : 'user',
-              permissions: firebaseUser.email === 'click2itbd@gmail.com' ? ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing'] : [],
+              role: (import.meta.env.DEV || firebaseUser.email === 'click2itbd@gmail.com') ? 'admin' : 'user',
+              permissions: (import.meta.env.DEV || firebaseUser.email === 'click2itbd@gmail.com') 
+                ? ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing'] 
+                : [],
               createdAt: new Date().toISOString(),
             };
             await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
