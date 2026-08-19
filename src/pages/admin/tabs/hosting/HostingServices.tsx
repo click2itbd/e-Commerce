@@ -90,7 +90,7 @@ const HostingServicesTab: React.FC = () => {
       <div className="p-6 border-b border-gray-100 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-2">
           <Server className="text-[#EF4444]" />
-          <h2 className="text-xl font-bold">Hosting Services</h2>
+          <h2 className="text-xl font-bold">Domain Plans & Services</h2>
         </div>
         <button
           onClick={() => {
@@ -167,9 +167,9 @@ const HostingServicesTab: React.FC = () => {
               </tr>
             ))}
             {hostingServices.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-gray-400 italic">No hosting services created yet.</td>
-              </tr>
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400 italic">No domain plans or services created yet.</td>
+                </tr>
             )}
           </tbody>
         </table>

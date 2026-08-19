@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { PageHeader } from '../../components/hosting/PageHeader';
 import HostingPlansSection from '../hosting-sections/HostingPlansSection';
+import ComparePlansSection from '../hosting-sections/ComparePlansSection';
 import { Shield, Check, X, ChevronDown } from 'lucide-react';
 
 export default function PricingPage() {
@@ -43,64 +44,7 @@ export default function PricingPage() {
         <HostingPlansSection billingCycle={billingCycle} onBillingCycleChange={setBillingCycle} onNavigate={navigate} />
       </div>
 
-      {/* Feature Comparison Table */}
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-gray-900">Compare Plan Features</h2>
-          <p className="mt-4 text-lg text-gray-600">A detailed breakdown of what's included in every plan.</p>
-        </div>
-        
-        <div className="overflow-x-auto shadow-xl rounded-2xl ring-1 ring-gray-200 bg-white">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="py-5 px-6 font-semibold text-gray-900 w-1/4">Feature</th>
-                <th className="py-5 px-6 font-semibold text-gray-900 text-center w-1/4">Basic</th>
-                <th className="py-5 px-6 font-semibold text-gray-900 text-center w-1/4">Pro</th>
-                <th className="py-5 px-6 font-semibold text-gray-900 text-center w-1/4 bg-blue-50">Enterprise</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 px-6 text-gray-700 font-medium">Storage</td>
-                <td className="py-4 px-6 text-gray-600 text-center">10 GB SSD</td>
-                <td className="py-4 px-6 text-gray-600 text-center">50 GB NVMe</td>
-                <td className="py-4 px-6 text-gray-900 text-center font-medium bg-blue-50/50">Unlimited NVMe</td>
-              </tr>
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 px-6 text-gray-700 font-medium">Bandwidth</td>
-                <td className="py-4 px-6 text-gray-600 text-center">100 GB</td>
-                <td className="py-4 px-6 text-gray-600 text-center">Unmetered</td>
-                <td className="py-4 px-6 text-gray-900 text-center font-medium bg-blue-50/50">Unmetered</td>
-              </tr>
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 px-6 text-gray-700 font-medium">Databases</td>
-                <td className="py-4 px-6 text-gray-600 text-center">2 MySQL</td>
-                <td className="py-4 px-6 text-gray-600 text-center">Unlimited</td>
-                <td className="py-4 px-6 text-gray-900 text-center font-medium bg-blue-50/50">Unlimited</td>
-              </tr>
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 px-6 text-gray-700 font-medium">Free Domain (1st Year)</td>
-                <td className="py-4 px-6 text-gray-400 flex justify-center"><X className="w-5 h-5 mx-auto" /></td>
-                <td className="py-4 px-6 text-green-500 flex justify-center"><Check className="w-5 h-5 mx-auto" /></td>
-                <td className="py-4 px-6 text-green-500 flex justify-center bg-blue-50/50"><Check className="w-5 h-5 mx-auto" /></td>
-              </tr>
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 px-6 text-gray-700 font-medium">Professional Email</td>
-                <td className="py-4 px-6 text-gray-600 text-center">1 Account</td>
-                <td className="py-4 px-6 text-gray-600 text-center">10 Accounts</td>
-                <td className="py-4 px-6 text-gray-900 text-center font-medium bg-blue-50/50">Unlimited</td>
-              </tr>
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 px-6 text-gray-700 font-medium">Priority Support</td>
-                <td className="py-4 px-6 text-gray-400 flex justify-center"><X className="w-5 h-5 mx-auto" /></td>
-                <td className="py-4 px-6 text-gray-400 flex justify-center"><X className="w-5 h-5 mx-auto" /></td>
-                <td className="py-4 px-6 text-green-500 flex justify-center bg-blue-50/50"><Check className="w-5 h-5 mx-auto" /></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <ComparePlansSection />
 
       {/* 30-Day Money-Back Guarantee */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

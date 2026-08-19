@@ -105,34 +105,37 @@ const DomainPage = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             {/* Card 1 */}
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700">
-              <div className="bg-blue-100 dark:bg-blue-900/50 w-14 h-14 rounded-xl flex items-center justify-center mb-6">
-                <Shield className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 text-white relative overflow-hidden group">
+              <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl transition-transform group-hover:scale-110"></div>
+              <div className="bg-white/20 backdrop-blur-sm w-14 h-14 rounded-xl flex items-center justify-center mb-6 relative z-10">
+                <Shield className="h-7 w-7 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Free Domain Privacy</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <h3 className="text-xl font-bold text-white mb-3 relative z-10">Free Domain Privacy</h3>
+              <p className="text-blue-100 relative z-10">
                 Keep your personal information safe. We include free WHOIS privacy protection with every eligible domain registration.
               </p>
             </div>
 
             {/* Card 2 */}
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700">
-              <div className="bg-blue-100 dark:bg-blue-900/50 w-14 h-14 rounded-xl flex items-center justify-center mb-6">
-                <Settings className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 text-white relative overflow-hidden group">
+              <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl transition-transform group-hover:scale-110"></div>
+              <div className="bg-white/20 backdrop-blur-sm w-14 h-14 rounded-xl flex items-center justify-center mb-6 relative z-10">
+                <Settings className="h-7 w-7 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Easy DNS Management</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <h3 className="text-xl font-bold text-white mb-3 relative z-10">Easy DNS Management</h3>
+              <p className="text-blue-100 relative z-10">
                 Route your domain to any website, email service, or hosting provider with our powerful, intuitive DNS control panel.
               </p>
             </div>
 
             {/* Card 3 */}
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700">
-              <div className="bg-blue-100 dark:bg-blue-900/50 w-14 h-14 rounded-xl flex items-center justify-center mb-6">
-                <RefreshCw className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 text-white relative overflow-hidden group">
+              <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl transition-transform group-hover:scale-110"></div>
+              <div className="bg-white/20 backdrop-blur-sm w-14 h-14 rounded-xl flex items-center justify-center mb-6 relative z-10">
+                <RefreshCw className="h-7 w-7 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Auto-renewal</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <h3 className="text-xl font-bold text-white mb-3 relative z-10">Auto-renewal</h3>
+              <p className="text-blue-100 relative z-10">
                 Never lose your domain. Set up auto-renewal to ensure your perfect web address stays yours, year after year.
               </p>
             </div>

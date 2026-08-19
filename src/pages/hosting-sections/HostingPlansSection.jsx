@@ -1,45 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Database, Monitor, Server, Check, ArrowRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useCart } from '../../context/CartContext';
 import { toast } from 'react-hot-toast';
+import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 export default function HostingPlansSection({
   billingCycle,
   onBillingCycleChange,
   onNavigate,
 }) {
-  const { addItem } = useCart();
+  const { addToCart } = useCart();
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const dummyPlans = [
-    {
-      id: '1',
-      name: 'SHARED HOSTING',
-      price: 10,
-      icon: Database,
-      features: ['10 GB Storage', 'Unmetered Bandwidth', 'Free SSL', '1 Domain', '24/7 Support', '99.9% Uptime'],
-      highlighted: false,
-    },
-    {
-      id: '2',
-      name: 'VPS HOSTING',
-      price: 15,
-      icon: Monitor,
-      features: ['50 GB NVMe Storage', '2 TB Bandwidth', 'Free SSL', 'Unlimited Domains', '24/7 Priority Support', 'Dedicated IP'],
-      highlighted: true,
-    },
-    {
-      id: '3',
-      name: 'DEDICATED SERVER',
-      price: 30,
-      icon: Server,
-      features: ['1 TB Storage', 'Unmetered Bandwidth', 'Free SSL', 'Unlimited Domains', '24/7 Priority Support', 'Root Access'],
-      highlighted: false,
-    }
-  ];
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const q = query(collection(db, 'hostingPlans'), orderBy('order', 'asc'));
+        const snap = await getDocs(q);
+        const fetchedPlans = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (fetchedPlans.length > 0) {
+          setPlans(fetchedPlans);
+        } else {
+          // Fallback to dummy plans if empty
+          setPlans([
+            {
+              id: '1', name: 'SHARED HOSTING', price: 10, icon: 'Database', 
+              features: ['10 GB Storage', 'Unmetered Bandwidth', 'Free SSL', '1 Domain', '24/7 Support', '99.9% Uptime'], popular: false
+            },
+            {
+              id: '2', name: 'VPS HOSTING', price: 15, icon: 'Monitor',
+              features: ['50 GB NVMe Storage', '2 TB Bandwidth', 'Free SSL', 'Unlimited Domains', '24/7 Priority Support', 'Dedicated IP'], popular: true
+            },
+            {
+              id: '3', name: 'DEDICATED SERVER', price: 30, icon: 'Server',
+              features: ['1 TB Storage', 'Unmetered Bandwidth', 'Free SSL', 'Unlimited Domains', '24/7 Priority Support', 'Root Access'], popular: false
+            }
+          ]);
+        }
+      } catch (error) {
+        console.error('Error fetching plans:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPlans();
+  }, []);
 
   const handleBuyNow = (plan) => {
-    addItem({
+    addToCart({
       id: `hosting-${plan.id}-${billingCycle}`,
       name: `${plan.name} Plan`,
       price: plan.price,
@@ -86,17 +97,19 @@ export default function HostingPlansSection({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
-          {dummyPlans.map((plan, idx) => (
+          {plans.map((plan, idx) => {
+            const IconComponent = plan.icon === 'Monitor' ? Monitor : plan.icon === 'Server' ? Server : Database;
+            return (
             <div 
-              key={idx} 
+              key={plan.id || idx} 
               className={cn(
                 "relative rounded-3xl p-8 text-center transition-all duration-300 group",
-                plan.highlighted 
+                plan.popular 
                   ? "bg-white text-gray-900 shadow-[0_20px_50px_rgba(0,0,0,0.1)] transform md:-translate-y-4 md:scale-105 border-2 border-blue-500" 
                   : "bg-white text-gray-900 border border-gray-200 hover:border-gray-300 hover:shadow-xl"
               )}
             >
-              {plan.highlighted && (
+              {plan.popular && (
                 <div className="absolute top-0 inset-x-0 flex justify-center -mt-3.5">
                   <span className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-widest shadow-md">
                     Most Popular
@@ -105,8 +118,8 @@ export default function HostingPlansSection({
               )}
               
               <div className="flex justify-center mb-6">
-                <div className={cn("p-4 rounded-2xl", plan.highlighted ? "bg-blue-50" : "bg-gray-50 group-hover:bg-blue-50/50 transition-colors")}>
-                  <plan.icon size={48} strokeWidth={1.5} className={plan.highlighted ? "text-blue-600" : "text-gray-400 group-hover:text-blue-500 transition-colors"} />
+                <div className={cn("p-4 rounded-2xl", plan.popular ? "bg-blue-50" : "bg-gray-50 group-hover:bg-blue-50/50 transition-colors")}>
+                  <IconComponent size={48} strokeWidth={1.5} className={plan.popular ? "text-blue-600" : "text-gray-400 group-hover:text-blue-500 transition-colors"} />
                 </div>
               </div>
               
@@ -116,34 +129,40 @@ export default function HostingPlansSection({
                 <p className="text-sm uppercase tracking-wider mb-2 text-gray-500">Starting at</p>
                 <div className="flex items-center justify-center font-bold">
                   <span className="text-2xl align-top mt-1 text-gray-400">$</span>
-                  <span className={cn("text-6xl tracking-tighter", plan.highlighted ? "text-gray-900" : "text-gray-800")}>{plan.price}</span>
-                  <span className="text-gray-500 align-bottom ml-1">/mo</span>
+                  <span className={cn("text-6xl tracking-tighter", plan.popular ? "text-gray-900" : "text-gray-800")}>{plan.price}</span>
+                  <span className="text-gray-500 align-bottom ml-1">/{plan.billingCycle || 'mo'}</span>
                 </div>
               </div>
 
-              <ul className="space-y-4 mb-8 text-left inline-block">
-                {plan.features.map((feature, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm">
-                    <Check size={16} className={plan.highlighted ? "text-blue-600" : "text-blue-500"} />
-                    <span className="text-gray-600">{feature}</span>
-                  </li>
-                ))}
-              </ul>
+                <ul className="space-y-4 mb-8 text-left inline-block">
+                  {(plan.features || []).map((feature, i) => {
+                    const fName = typeof feature === 'string' ? feature : feature.name;
+                    const fValue = typeof feature === 'string' ? 'yes' : feature.value;
+                    if (fValue === 'no' || fValue === 'false') return null; // Don't show negative features in the list
+                    const displayValue = (fValue === 'yes' || fValue === 'true') ? '' : `${fValue} `;
+                    return (
+                      <li key={i} className="flex items-center gap-3 text-sm">
+                        <Check size={16} className={plan.popular ? "text-blue-600" : "text-blue-500"} />
+                        <span className="text-gray-600">{displayValue}{fName}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
 
               <button 
                 onClick={() => handleBuyNow(plan)}
                 className={cn(
                   "w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold uppercase tracking-widest transition-all",
-                  plan.highlighted 
+                  plan.popular 
                     ? "bg-blue-600 text-white shadow-lg hover:shadow-blue-500/25 hover:bg-blue-700" 
                     : "bg-gray-50 text-gray-900 border border-gray-200 hover:bg-gray-100 hover:border-gray-300"
                 )}
               >
                 Buy Now
-                <ArrowRight size={16} className={cn("transition-transform", plan.highlighted ? "group-hover:translate-x-1" : "")} />
+                <ArrowRight size={16} className={cn("transition-transform", plan.popular ? "group-hover:translate-x-1" : "")} />
               </button>
             </div>
-          ))}
+          )})}
         </div>
       </div>
     </section>

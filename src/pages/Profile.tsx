@@ -341,7 +341,8 @@ export const Profile: React.FC = () => {
                 {orders.map(order => {
                   const isPaid = order.paymentStatus === 'paid';
                   const isFailed = order.paymentStatus === 'failed';
-                  const isPending = !isPaid && !isFailed;
+                  const isCancelled = order.status === 'cancelled' || order.paymentStatus === 'cancelled';
+                  const isPending = !isPaid && !isFailed && !isCancelled;
                   const isExpanded = expandedOrderId === order.id;
                   const date = new Date(order.createdAt).toLocaleDateString('en-BD', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -355,9 +356,9 @@ export const Profile: React.FC = () => {
                       >
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            isPaid ? 'bg-green-100' : isFailed ? 'bg-red-100' : 'bg-yellow-100'
+                            isPaid ? 'bg-green-100' : isFailed ? 'bg-red-100' : isCancelled ? 'bg-gray-100' : 'bg-yellow-100'
                           }`}>
-                            {isPaid ? <CheckCircle2 className="w-5 h-5 text-green-600" /> : isFailed ? <XCircle className="w-5 h-5 text-red-600" /> : <Clock className="w-5 h-5 text-yellow-600" />}
+                            {isPaid ? <CheckCircle2 className="w-5 h-5 text-green-600" /> : isFailed ? <XCircle className="w-5 h-5 text-red-600" /> : isCancelled ? <XCircle className="w-5 h-5 text-gray-500" /> : <Clock className="w-5 h-5 text-yellow-600" />}
                           </div>
                           <div>
                             <div className="font-bold text-gray-900">Order #{order.documentNumber || order.id.slice(-8).toUpperCase()}</div>
@@ -366,9 +367,9 @@ export const Profile: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-3 ml-auto">
                           <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                            isPaid ? 'bg-green-100 text-green-700' : isFailed ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                            isPaid ? 'bg-green-100 text-green-700' : isFailed ? 'bg-red-100 text-red-700' : isCancelled ? 'bg-gray-100 text-gray-600' : 'bg-yellow-100 text-yellow-700'
                           }`}>
-                            {isPaid ? '✓ Paid' : isFailed ? '✗ Failed' : '⏳ Pending'}
+                            {isPaid ? '✓ Paid' : isFailed ? '✗ Failed' : isCancelled ? '✗ Cancelled' : '⏳ Pending'}
                           </span>
                           <span className="font-black text-gray-900 text-lg">{formatCurrency(order.total)}</span>
                           <ChevronRight size={16} className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
@@ -417,8 +418,8 @@ export const Profile: React.FC = () => {
                             <div className="bg-gray-50 rounded-xl p-3">
                               <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Payment Status</div>
                               <div className={`text-sm font-bold capitalize ${
-                                isPaid ? 'text-green-600' : isFailed ? 'text-red-600' : 'text-yellow-600'
-                              }`}>{order.paymentStatus || 'pending'}</div>
+                                isPaid ? 'text-green-600' : isFailed ? 'text-red-600' : isCancelled ? 'text-gray-500' : 'text-yellow-600'
+                              }`}>{isCancelled ? 'cancelled' : (order.paymentStatus || 'pending')}</div>
                             </div>
                           </div>
 

@@ -60,10 +60,32 @@ export const initiateSSLCommerzPayment = async (
     // Simulated Response
     return {
       success: true,
-      paymentUrl: `/payment/simulate?method=sslcommerz&orderId=${orderId}&amount=${amount}`
+      paymentUrl: `/payment/simulate?method=card&orderId=${orderId}&amount=${amount}`
     };
   } catch (error: any) {
     console.error('SSLCommerz Payment Error:', error);
     return { success: false, errorMessage: error.message || 'Failed to initiate SSLCommerz payment' };
+  }
+};
+
+export const initiateNagadPayment = async (
+  orderId: string, 
+  amount: number, 
+  customerPhone: string
+): Promise<PaymentInitiationResult> => {
+  try {
+    console.log(`[Nagad API] Initiating payment for Order: ${orderId}, Amount: ${amount}`);
+    
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Simulated Response
+    return {
+      success: true,
+      paymentUrl: `/payment/simulate?method=nagad&orderId=${orderId}&amount=${amount}`
+    };
+  } catch (error: any) {
+    console.error('Nagad Payment Error:', error);
+    return { success: false, errorMessage: error.message || 'Failed to initiate Nagad payment' };
   }
 };

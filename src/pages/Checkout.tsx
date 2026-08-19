@@ -10,7 +10,7 @@ import { auth, db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { generateDocumentNumber } from '../lib/numbering';
-import { initiateBkashPayment, initiateSSLCommerzPayment } from '../services/paymentApi';
+import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../services/paymentApi';
 
 export const Checkout: React.FC = () => {
   const { user } = useAuth();
@@ -82,15 +82,6 @@ export const Checkout: React.FC = () => {
     }
 
     setIsProcessing(true);
-
-    // DEV MODE: Skip Firebase writes, go directly to payment simulation
-    if (import.meta.env.DEV) {
-      await new Promise(r => setTimeout(r, 1000));
-      const fakeOrderId = 'DEV-' + Date.now();
-      navigate(`/payment/simulate?method=${formData.paymentMethod}&orderId=${fakeOrderId}&amount=${grandTotal}`);
-      setIsProcessing(false);
-      return;
-    }
 
     try {
       let currentUserId = user?.uid;
@@ -196,6 +187,14 @@ export const Checkout: React.FC = () => {
           return;
         } else {
           throw new Error(res.errorMessage || 'Failed to initiate Card payment');
+        }
+      } else if (formData.paymentMethod === 'nagad') {
+        const res = await initiateNagadPayment(docRef.id, grandTotal, formData.phone);
+        if (res.success && res.paymentUrl) {
+          window.location.href = res.paymentUrl;
+          return;
+        } else {
+          throw new Error(res.errorMessage || 'Failed to initiate Nagad payment');
         }
       }
 

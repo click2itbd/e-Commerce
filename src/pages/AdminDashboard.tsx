@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit } from 'firebase/firestore';
 import { db, auth, storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeApp } from 'firebase/app';
@@ -50,7 +50,7 @@ import CustomersTab from './admin/tabs/sales/Customers';
 import VendorsTab from './admin/tabs/purchase/Vendors';
 import CustomerReceiveReportTab from './admin/tabs/accounting/CustomerReceiveReport';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit2, Trash2, Package, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare, Globe } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
@@ -626,10 +626,10 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
     setLoading(true);
     try {
       const productsSnap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc')));
-      const ordersSnap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc')));
-      const customersSnap = await getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc')));
-      const vendorsSnap = await getDocs(query(collection(db, 'vendors'), orderBy('createdAt', 'desc')));
-      const transactionsSnap = await getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc')));
+      const ordersSnap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(500)));
+      const customersSnap = await getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(500)));
+      const vendorsSnap = await getDocs(query(collection(db, 'vendors'), orderBy('createdAt', 'desc'), limit(500)));
+      const transactionsSnap = await getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(500)));
       const menusSnap = await getDocs(query(collection(db, 'menus'), orderBy('order', 'asc')));
       const usersSnap = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc')));
       const campaignsSnap = await getDocs(query(collection(db, 'campaigns'), orderBy('createdAt', 'desc')));
@@ -667,7 +667,9 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
       setTransactionCategories(transactionCategoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TransactionCategory[]);
     } catch (error) {
       console.error('Error fetching data:', error);
-      toast.error('Failed to load data');
+      if (!import.meta.env.DEV) {
+        toast.error('Failed to load data');
+      }
     } finally {
       setLoading(false);
     }
@@ -1095,8 +1097,17 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
           }
         }
       }
+      
+      const orderRef = doc(db, 'orders', orderId);
+      
+      const updateData: any = { status };
+      
+      // If the order is being cancelled and payment was pending, mark payment as cancelled
+      if (status === 'cancelled' && order.paymentStatus === 'pending') {
+        updateData.paymentStatus = 'cancelled';
+      }
 
-      await updateDoc(doc(db, 'orders', orderId), { status });
+      await updateDoc(orderRef, updateData);
       
       // Send shipping update email
       try {
@@ -2603,19 +2614,42 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
     doc.save(`Service_Bill_${record.id}.pdf`);
   };
 
-  const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quotation' | 'challan' | 'receipt') => {
+  const generatePDF = async (order: Order | Transaction, type: 'invoice' | 'quotation' | 'challan' | 'receipt') => {
     const doc = new jsPDF('p', 'mm', 'a4'); 
     let currentY = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
     const useLetterhead = settings?.documentDesign?.printOnLetterhead;
 
+    // Helper to load image
+    const loadImage = (url: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
+
     // ----- HEADER -----
     if (!useLetterhead) {
       // Company brand and contacts
+      let textX = 20;
+      
+      if (settings?.logoUrl) {
+        try {
+          const img = await loadImage(settings.logoUrl);
+          const h = 15;
+          const w = h * (img.width / img.height);
+          doc.addImage(img, 'PNG', 20, currentY - 5, w, h);
+          textX = 20 + w + 5;
+        } catch (e) {
+          console.error('Failed to load logo for PDF', e);
+        }
+      }
+
       doc.setFontSize(26);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(30, 58, 138); // Deep Blue
-      doc.text(settings?.brandName || 'STAR TECH', 20, currentY + 10);
+      doc.text(settings?.brandName || 'STAR TECH', textX, currentY + 10);
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
@@ -2680,14 +2714,15 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 0, 0);
-      doc.text(o.customerName, 20, currentY + 12);
+      const nameLines = doc.splitTextToSize(o.customerName || 'N/A', 120);
+      doc.text(nameLines, 20, currentY + 12);
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(80, 80, 80);
-      doc.text(o.customerPhone, 20, currentY + 17);
+      doc.text(o.customerPhone, 20, currentY + 17 + ((nameLines.length - 1) * 5));
       
-      let addressY = currentY + 22;
+      let addressY = currentY + 22 + ((nameLines.length - 1) * 5);
       if (type === 'challan') {
         const addressText = doc.splitTextToSize(`Address: ${o.shippingAddress || 'N/A'}`, 80);
         doc.text(addressText, 20, addressY);
@@ -2705,7 +2740,12 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
       doc.text(detailsLabel, pageWidth - 80, currentY + 5);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
-      doc.text(`Doc No: ${o.documentNumber || o.id.substring(0, 8).toUpperCase()}`, pageWidth - 80, currentY + 11);
+      
+      let docNum = o.documentNumber || o.id.substring(0, 8).toUpperCase();
+      if (type === 'quotation') docNum = docNum.replace(/^INV-/, 'QUO-');
+      if (type === 'challan') docNum = docNum.replace(/^INV-/, 'CHA-');
+      
+      doc.text(`Doc No: ${docNum}`, pageWidth - 80, currentY + 11);
       doc.text(`Date: ${new Date(o.createdAt).toLocaleDateString()}`, pageWidth - 80, currentY + 17);
       currentY = Math.max(addressY, currentY + 20) + 10;
       
@@ -2750,7 +2790,7 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
         const subtotal = o.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
         const discount = o.discountAmount || 0;
         
-        const totalsX = pageWidth - 60;
+        const totalsX = pageWidth - 70;
         const alignRightX = pageWidth - 20;
 
         doc.setTextColor(80, 80, 80);
@@ -2775,7 +2815,7 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(30, 58, 138);
-        doc.text('Total Amount:', totalsX, currTotalY);
+        doc.text('Total:', totalsX, currTotalY);
         doc.text(formatCurrency(o.total, settings), alignRightX, currTotalY, { align: 'right' });
         
         if (type === 'invoice' && o.paymentMethod) {
@@ -3051,9 +3091,6 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
                  <button onClick={() => setActiveTab('hostingOrders')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingOrders' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                    <Server size={16} className={activeTab === 'hostingOrders' ? "text-blue-600" : "text-gray-400"} /> Hosting Orders
                  </button>
-                 <button onClick={() => setActiveTab('support_tickets')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'support_tickets' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                   <MessageSquare size={16} className={activeTab === 'support_tickets' ? "text-blue-600" : "text-gray-400"} /> Support Tickets
-                 </button>
                  <button onClick={() => setActiveTab('hostingPlans')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                    <Server size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} /> Hosting Plans
                  </button>
@@ -3061,7 +3098,7 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
              )}
              {hasPermission('manage_services') && (
                <button onClick={() => setActiveTab('hostingServices')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingServices' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Server size={16} className={activeTab === 'hostingServices' ? "text-blue-600" : "text-gray-400"} /> Hosting Services
+                 <Globe size={16} className={activeTab === 'hostingServices' ? "text-blue-600" : "text-gray-400"} /> Domain Plans
                </button>
              )}
              {hasPermission('manage_settings') && (
@@ -3084,10 +3121,10 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
         <header className="h-[60px] bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0 sticky top-0 z-10">
            <div className="flex-1 max-w-lg relative">
              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-             <input type="text" placeholder="Search [CTRL + K]" className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-md text-sm focus:ring-2 focus:ring-blue-100 outline-none" />
+             <input type="text" placeholder="Search [CTRL + K]" onClick={() => toast('Coming Soon: Global Search')} className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-md text-sm focus:ring-2 focus:ring-blue-100 outline-none cursor-pointer" readOnly />
            </div>
            <div className="flex items-center gap-4 text-gray-500">
-              <User size={18} className="hover:text-gray-800 cursor-pointer" />
+              <User size={18} className="hover:text-gray-800 cursor-pointer" onClick={() => toast('Coming Soon: Admin Profile Settings')} />
               <LogOut size={18} className="hover:text-red-600 cursor-pointer" onClick={() => navigate('/')} />
            </div>
         </header>

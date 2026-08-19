@@ -63,8 +63,9 @@ export default function App() {
                   {/* E-COMMERCE */}
                   <Route path="/shop" element={<Home />} />
                   <Route path="/product/:id" element={<ProductDetails />} />
-                  <Route path="/cart" element={<Cart />} />
-                  <Route path="/checkout" element={<Checkout />} />
+                  <Route path="/cart" element={<Navigate to="/hosting/cart" replace />} />
+                  <Route path="/checkout" element={<Navigate to="/hosting/checkout" replace />} />
+                  {/* <Route path="/checkout" element={<Checkout />} /> */}
                   <Route path="/order-success/:id" element={<OrderSuccess />} />
                   <Route path="/order-success" element={<OrderSuccess />} />
                   <Route path="/payment/simulate" element={<PaymentSimulation />} />

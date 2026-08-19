@@ -15,6 +15,7 @@ const HostingPlansTab: React.FC = () => {
   const [isAddingHostingPlan, setIsAddingHostingPlan] = useState(false);
   const [editingHostingPlan, setEditingHostingPlan] = useState<any>(null);
   const [hostingPlanFormData, setHostingPlanFormData] = useState({
+    serviceId: 'default-service',
     name: '',
     price: 0,
     billingCycle: '',
@@ -55,7 +56,7 @@ const HostingPlansTab: React.FC = () => {
 
       setIsAddingHostingPlan(false);
       setEditingHostingPlan(null);
-      setHostingPlanFormData({ name: '', price: 0, billingCycle: '', features: [], popular: false, order: 0 });
+      setHostingPlanFormData({ serviceId: 'default-service', name: '', price: 0, billingCycle: '', features: [], popular: false, order: 0 });
       fetchData();
     } catch (error) {
       console.error('Error saving plan:', error);
@@ -215,16 +216,63 @@ const HostingPlansTab: React.FC = () => {
                         />
                       </div>
 
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Features (one per line) *</label>
-                        <textarea
-                          required
-                          rows={4}
-                          value={hostingPlanFormData.features.join('\n')}
-                          onChange={(e) => setHostingPlanFormData({ ...hostingPlanFormData, features: e.target.value.split('\n').filter(f => f.trim() !== '') })}
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Features *</label>
+                          <div className="space-y-3">
+                            {hostingPlanFormData.features.map((feature: any, index: number) => {
+                               // Handle legacy string features
+                               const fName = typeof feature === 'string' ? feature : feature.name;
+                               const fValue = typeof feature === 'string' ? 'yes' : feature.value;
+                               return (
+                                <div key={index} className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Feature Name (e.g., Storage)"
+                                    value={fName}
+                                    onChange={(e) => {
+                                      const newFeatures = [...hostingPlanFormData.features];
+                                      newFeatures[index] = { name: e.target.value, value: fValue };
+                                      setHostingPlanFormData({ ...hostingPlanFormData, features: newFeatures });
+                                    }}
+                                    className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="Value (e.g., 10 GB SSD, yes, no)"
+                                    value={fValue}
+                                    onChange={(e) => {
+                                      const newFeatures = [...hostingPlanFormData.features];
+                                      newFeatures[index] = { name: fName, value: e.target.value };
+                                      setHostingPlanFormData({ ...hostingPlanFormData, features: newFeatures });
+                                    }}
+                                    className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newFeatures = [...hostingPlanFormData.features];
+                                      newFeatures.splice(index, 1);
+                                      setHostingPlanFormData({ ...hostingPlanFormData, features: newFeatures });
+                                    }}
+                                    className="p-2 text-red-500 hover:bg-red-50 rounded-md"
+                                  >
+                                    <X size={16} />
+                                  </button>
+                                </div>
+                               );
+                            })}
+                            <button
+                              type="button"
+                              onClick={() => setHostingPlanFormData({
+                                ...hostingPlanFormData,
+                                features: [...hostingPlanFormData.features, { name: '', value: '' }]
+                              })}
+                              className="text-sm text-blue-600 font-medium flex items-center gap-1 hover:text-blue-700"
+                            >
+                              <Plus size={16} /> Add Feature
+                            </button>
+                          </div>
+                        </div>
 
                       <div className="md:col-span-2">
                          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">

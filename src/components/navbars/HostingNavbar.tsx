@@ -81,8 +81,8 @@ export const HostingNavbar: React.FC = () => {
       className={`sticky top-0 left-0 right-0 z-50 w-full transition-all duration-300`}
     >
       {/* Top Bar */}
-      <div className="bg-[#060d1f] text-gray-300 text-xs py-1.5 px-4 hidden sm:block">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
+      <div className="bg-[#060d1f] text-gray-300 text-xs py-1.5 px-10 hidden sm:block">
+        <div className="container mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-1">
               <Phone size={12} />
@@ -137,7 +137,7 @@ export const HostingNavbar: React.FC = () => {
       <div
         className={`transition-all duration-300 ${isScrolled ? "bg-[#0a1628]/95 backdrop-blur-md shadow-lg py-3" : "bg-[#0a1628] py-4"}`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">
             {/* Logo */}
             <Link to="/" className="flex items-center space-x-2 group">

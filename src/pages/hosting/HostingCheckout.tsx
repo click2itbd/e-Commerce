@@ -8,9 +8,9 @@ import { formatCurrency } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { Lock, ShieldCheck, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server } from 'lucide-react';
 import { db } from '../../firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { generateDocumentNumber } from '../../lib/numbering';
-import { initiateBkashPayment, initiateSSLCommerzPayment } from '../../services/paymentApi';
+import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../../services/paymentApi';
 
 export const HostingCheckout: React.FC = () => {
   const { user } = useAuth();
@@ -19,8 +19,15 @@ export const HostingCheckout: React.FC = () => {
   const navigate = useNavigate();
   
   const items = allItems.filter(i => i.category === 'Hosting & Domains');
-  const shippingCost = settings.shippingCost || 0;
-  const grandTotal = total + shippingCost;
+  const hostingSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const shippingCost = 0; // Hosting shouldn't usually have shipping, but let's keep it 0 or from settings if strictly needed. Let's make it 0.
+
+  const [discountCode, setDiscountCode] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
+  const [isValidatingCode, setIsValidatingCode] = useState(false);
+
+  const discountAmount = appliedDiscount ? (hostingSubtotal * appliedDiscount.discountPercentage) / 100 : 0;
+  const grandTotal = hostingSubtotal - discountAmount + shippingCost;
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -35,6 +42,7 @@ export const HostingCheckout: React.FC = () => {
     postcode: '',
     country: 'Bangladesh',
     paymentMethod: 'bkash',
+    transactionId: '',
     termsAccepted: false
   });
 
@@ -83,6 +91,44 @@ export const HostingCheckout: React.FC = () => {
     );
   }
 
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) return;
+    setIsValidatingCode(true);
+    try {
+      const q = query(
+        collection(db, 'couponCodes'), 
+        where('code', '==', discountCode.trim().toUpperCase()),
+        where('isActive', '==', true)
+      );
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        toast.error('Invalid or inactive discount code');
+        return;
+      }
+
+      const codeData = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+      
+      if (new Date(codeData.expiryDate) < new Date()) {
+        toast.error('This discount code has expired');
+        return;
+      }
+
+      setAppliedDiscount(codeData);
+      toast.success(`Discount applied: ${codeData.discountPercentage}% off`);
+    } catch (error) {
+      console.error('Error validating discount code:', error);
+      toast.error('Failed to validate discount code');
+    } finally {
+      setIsValidatingCode(false);
+    }
+  };
+
+  const handleRemoveDiscount = () => {
+    setAppliedDiscount(null);
+    setDiscountCode('');
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
     setFormData(prev => ({ ...prev, [e.target.name]: value }));
@@ -95,24 +141,40 @@ export const HostingCheckout: React.FC = () => {
       return;
     }
 
-    setIsProcessing(true);
-
-    // DEV MODE: Skip Firebase writes, go directly to payment simulation
-    if (import.meta.env.DEV) {
-      await new Promise(r => setTimeout(r, 1000));
-      const fakeOrderId = 'DEV-' + Date.now();
-      navigate(`/payment/simulate?method=${formData.paymentMethod}&orderId=${fakeOrderId}&amount=${grandTotal}`);
-      setIsProcessing(false);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast.error('Please enter a valid email address.');
       return;
     }
+
+    const phoneRegex = /^(?:\+88|88)?(01[3-9]\d{8})$/;
+    if (!phoneRegex.test(formData.phone)) {
+      toast.error('Please enter a valid Bangladeshi phone number.');
+      return;
+    }
+
+    if (hasHosting && !hasDomain) {
+      const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
+      if (!hostingConfig.domain || !domainRegex.test(hostingConfig.domain)) {
+        toast.error('Please enter a valid domain name for your hosting plan.');
+        return;
+      }
+    }
+
+    if (formData.paymentMethod === 'bank' && !formData.transactionId.trim()) {
+      toast.error('Please enter the Transaction ID for your Bank/Manual transfer.');
+      return;
+    }
+
+    setIsProcessing(true);
 
     try {
       const docType = 'INV'; 
       const docNumber = await generateDocumentNumber(docType);
 
       const orderData = {
-        userId: user.uid,
-        items,
+        userId: user?.uid || 'guest',
+        items: items.map(item => ({ ...item, isDigital: true })),
         total: grandTotal,
         shippingCost,
         status: 'pending',
@@ -125,6 +187,9 @@ export const HostingCheckout: React.FC = () => {
         shippingAddress: `${formData.address1}, ${formData.address2 ? formData.address2 + ', ' : ''}${formData.city}, ${formData.state} - ${formData.postcode}, ${formData.country}`,
         company: formData.company,
         paymentMethod: formData.paymentMethod,
+        transactionId: formData.paymentMethod === 'bank' ? formData.transactionId : null,
+        discountAmount: discountAmount,
+        appliedDiscountCode: appliedDiscount ? appliedDiscount.code : null,
         createdAt: new Date().toISOString(),
       };
 
@@ -188,6 +253,14 @@ export const HostingCheckout: React.FC = () => {
           return;
         } else {
           throw new Error(res.errorMessage || 'Failed to initiate Card payment');
+        }
+      } else if (formData.paymentMethod === 'nagad') {
+        const res = await initiateNagadPayment(docRef.id, grandTotal, formData.phone);
+        if (res.success && res.paymentUrl) {
+          window.location.href = res.paymentUrl;
+          return;
+        } else {
+          throw new Error(res.errorMessage || 'Failed to initiate Nagad payment');
         }
       }
 
@@ -411,6 +484,31 @@ export const HostingCheckout: React.FC = () => {
                       {formData.paymentMethod === 'bank' && <div className="absolute top-2 right-2"><CheckCircle className="w-4 h-4 text-blue-600" /></div>}
                     </label>
                   </div>
+
+                  {formData.paymentMethod === 'bank' && (
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-4">
+                      <h4 className="font-semibold text-blue-900">Manual Payment Instructions</h4>
+                      <p className="text-sm text-blue-800">
+                        Please send the total amount to any of the following accounts, then enter your Transaction ID below:
+                      </p>
+                      <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
+                        <li><strong>bKash (Personal):</strong> 01712-345678</li>
+                        <li><strong>Nagad (Personal):</strong> 01712-345678</li>
+                        <li><strong>DBBL Account:</strong> 123.456.7890 (Branch: Dhaka)</li>
+                      </ul>
+                      <div className="pt-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID / Reference Number *</label>
+                        <input 
+                          type="text" 
+                          name="transactionId" 
+                          value={formData.transactionId || ''} 
+                          onChange={handleChange}
+                          placeholder="e.g. 9B5F6C2E or your mobile number"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -441,8 +539,43 @@ export const HostingCheckout: React.FC = () => {
                   <div className="space-y-3 pt-4 border-t border-gray-100">
                     <div className="flex justify-between text-sm text-gray-600">
                       <span>Subtotal</span>
-                      <span>{formatCurrency(total)}</span>
+                      <span>{formatCurrency(hostingSubtotal)}</span>
                     </div>
+                    
+                    {appliedDiscount && (
+                      <div className="flex justify-between text-green-600 font-medium text-sm">
+                        <div className="flex items-center gap-1">
+                          <span>Discount ({appliedDiscount.code})</span>
+                          <button type="button" onClick={handleRemoveDiscount} className="text-gray-400 hover:text-red-500">
+                            <span className="text-xs ml-1">[Remove]</span>
+                          </button>
+                        </div>
+                        <span>-{formatCurrency(discountAmount)}</span>
+                      </div>
+                    )}
+
+                    {!appliedDiscount && (
+                      <div className="pt-2 pb-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Discount Code"
+                            value={discountCode}
+                            onChange={e => setDiscountCode(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 uppercase"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleApplyDiscount}
+                            disabled={isValidatingCode || !discountCode.trim()}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all disabled:opacity-50"
+                          >
+                            {isValidatingCode ? '...' : 'Apply'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {shippingCost > 0 && (
                       <div className="flex justify-between text-sm text-gray-600">
                         <span>Taxes & Fees</span>

@@ -34,6 +34,12 @@ const DiscountCodesTab: React.FC = () => {
 
   const handleSaveDiscountCode = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (new Date(discountCodeFormData.expiryDate) < new Date(new Date().setHours(0, 0, 0, 0))) {
+      toast.error('Expiry date cannot be in the past');
+      return;
+    }
+
     try {
       const data = {
         ...discountCodeFormData,
@@ -145,9 +151,88 @@ const DiscountCodesTab: React.FC = () => {
                     </tr>
                   )}
                 </tbody>
-              </table>
+        </table>
+      </div>
+
+      {isAddingDiscountCode && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">{editingDiscountCode ? 'Edit Discount Code' : 'Create Discount Code'}</h2>
+              <button onClick={() => { setIsAddingDiscountCode(false); setEditingDiscountCode(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X size={24} />
+              </button>
             </div>
+            
+            <form onSubmit={handleSaveDiscountCode} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Coupon Code *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. SUMMER2024"
+                  value={discountCodeFormData.code}
+                  onChange={e => setDiscountCodeFormData(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 uppercase font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Discount Percentage (%) *</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  max="100"
+                  value={discountCodeFormData.discountPercentage}
+                  onChange={e => setDiscountCodeFormData(prev => ({ ...prev, discountPercentage: parseFloat(e.target.value) || 0 }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date *</label>
+                <input
+                  type="date"
+                  required
+                  min={new Date().toISOString().split('T')[0]}
+                  value={discountCodeFormData.expiryDate}
+                  onChange={e => setDiscountCodeFormData(prev => ({ ...prev, expiryDate: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={discountCodeFormData.isActive}
+                  onChange={e => setDiscountCodeFormData(prev => ({ ...prev, isActive: e.target.checked }))}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <label htmlFor="isActive" className="text-sm font-medium text-gray-700">Active</label>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => { setIsAddingDiscountCode(false); setEditingDiscountCode(null); }}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors"
+                >
+                  {editingDiscountCode ? 'Update Code' : 'Save Code'}
+                </button>
+              </div>
+            </form>
           </div>
+        </div>
+      )}
+    </div>
   );
 };
 

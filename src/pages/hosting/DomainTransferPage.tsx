@@ -22,8 +22,9 @@ const DomainTransferPage = () => {
       return;
     }
     
-    // Simple domain validation
-    if (!domainName.includes('.')) {
+    // Strict domain validation
+    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
+    if (!domainRegex.test(domainName.toLowerCase())) {
       toast.error('Please enter a valid domain name (e.g., example.com)');
       return;
     }
@@ -118,7 +119,7 @@ const DomainTransferPage = () => {
 
                   <div>
                     <label htmlFor="authCode" className="block text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
-                      <span>Auth/EPP Code (Optional now)</span>
+                      <span>Auth/EPP Code *</span>
                       <span className="text-xs text-blue-600 hover:underline cursor-pointer flex items-center gap-1">
                         <HelpCircle size={12} /> Where do I get this?
                       </span>
@@ -131,9 +132,32 @@ const DomainTransferPage = () => {
                         onChange={(e) => setAuthCode(e.target.value)}
                         placeholder="e.g., 123456789"
                         className="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
+                        required
                       />
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">You can provide the auth code later from your dashboard if you don't have it right now.</p>
+                  </div>
+
+                  {/* Transfer Checklist */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-3">
+                    <p className="text-sm font-medium text-gray-900 mb-1">Pre-Transfer Checklist</p>
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <div className="flex items-center h-5">
+                        <input type="checkbox" required className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                      </div>
+                      <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">I verify that my domain is <strong>unlocked</strong> at my current registrar.</span>
+                    </label>
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <div className="flex items-center h-5">
+                        <input type="checkbox" required className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                      </div>
+                      <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">I have disabled <strong>WHOIS Privacy</strong> (if required) to ensure the transfer emails can be received.</span>
+                    </label>
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <div className="flex items-center h-5">
+                        <input type="checkbox" required className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                      </div>
+                      <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">My domain has been registered or transferred for more than <strong>60 days</strong>.</span>
+                    </label>
                   </div>
 
                   <button 

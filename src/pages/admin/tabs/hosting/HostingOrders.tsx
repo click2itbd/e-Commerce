@@ -32,9 +32,20 @@ export default function HostingOrders() {
 
   const fetchOrders = async () => {
     try {
-      const q = query(collection(db, 'hostingOrders'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
       const snap = await getDocs(q);
-      const fetchedOrders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as HostingOrder[];
+      let fetchedOrders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as HostingOrder[];
+      
+      // Filter orders that contain hosting or domain items
+      fetchedOrders = fetchedOrders.filter(order => 
+        order.items && order.items.some(item => 
+          item.itemType === 'domain' || 
+          item.itemType === 'hosting' || 
+          item.category === 'Hosting & Domains' ||
+          item.isDigital
+        )
+      );
+      
       setOrders(fetchedOrders);
     } catch (error) {
       console.error('Error fetching hosting orders:', error);
@@ -87,7 +98,7 @@ export default function HostingOrders() {
     if (!selectedOrder) return;
     setStatusUpdating(true);
     try {
-      await updateDoc(doc(db, 'hostingOrders', selectedOrder.id), {
+      await updateDoc(doc(db, 'orders', selectedOrder.id), {
         status: newStatus
       });
       toast.success('Order status updated');
@@ -158,9 +169,9 @@ export default function HostingOrders() {
     let currentY = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    doc.setFontSize(20);
+    doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text(settings?.companyName || 'Hosting Provider', 14, currentY);
+    doc.text(settings?.brandName || 'CLICK2IT', 14, currentY);
     
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
@@ -184,13 +195,21 @@ export default function HostingOrders() {
     doc.text('Billed To:', 14, currentY);
     doc.setFont('helvetica', 'normal');
     currentY += 5;
-    doc.text(order.customerName, 14, currentY);
-    currentY += 5;
-    doc.text(order.customerEmail, 14, currentY);
-    currentY += 5;
-    doc.text(order.customerPhone, 14, currentY);
     
-    let detailsY = currentY - 15;
+    const startY = currentY;
+    const nameLines = doc.splitTextToSize(order.customerName || 'N/A', 120);
+    doc.text(nameLines, 14, currentY);
+    currentY += (nameLines.length * 5);
+    
+    const emailLines = doc.splitTextToSize(order.customerEmail || 'N/A', 120);
+    doc.text(emailLines, 14, currentY);
+    currentY += (emailLines.length * 5);
+    
+    const phoneLines = doc.splitTextToSize(order.customerPhone || 'N/A', 120);
+    doc.text(phoneLines, 14, currentY);
+    currentY += (phoneLines.length * 5);
+    
+    let detailsY = startY;
     doc.setFont('helvetica', 'bold');
     doc.text('Invoice Details:', pageWidth - 60, detailsY);
     doc.setFont('helvetica', 'normal');

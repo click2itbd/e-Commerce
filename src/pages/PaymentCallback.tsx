@@ -26,22 +26,7 @@ export default function PaymentCallback() {
       }
 
       try {
-        // DEV MODE: Bypass Firebase
-        if (import.meta.env.DEV) {
-          await new Promise(r => setTimeout(r, 1500));
-          if (status === 'success') {
-            clearCart();
-            toast.success('পেমেন্ট সফল হয়েছে! আপনার অর্ডার কনফার্ম করা হয়েছে।');
-            navigate('/', { replace: true });
-          } else {
-            toast.error(`Payment ${status === 'cancelled' ? 'cancelled' : 'failed'}. Please try again.`);
-            navigate(-1);
-          }
-          setLoading(false);
-          return;
-        }
-
-        // Production: update Firestore order
+        // Update Firestore order
         let targetRef = doc(db, 'orders', orderId);
         let docSnap = await getDoc(targetRef);
         

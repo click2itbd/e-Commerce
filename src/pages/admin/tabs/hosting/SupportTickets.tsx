@@ -46,7 +46,9 @@ export default function SupportTickets() {
       setTickets(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ticket[]);
     } catch (error) {
       console.error('Error fetching tickets:', error);
-      toast.error('Failed to load tickets');
+      if (!import.meta.env.DEV) {
+        toast.error('Failed to load tickets');
+      }
     } finally {
       setLoading(false);
     }
