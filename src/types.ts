@@ -196,8 +196,10 @@ export interface ServiceRecord {
 }
 
 export interface ApiSettings {
-  domainApiType: 'manual' | 'resellerclub' | 'namecheap';
+  domainApiType: 'manual' | 'resellerclub' | 'namecheap' | 'dynadot';
   domainApiKey: string;
+  dynadotApiKey?: string;
+  usdToBdtRate?: number;
   cloudLinuxApiType: 'manual' | 'cpanel';
   cloudLinuxApiKey: string;
   vpsApiType: 'manual' | 'solusvm' | 'virtualizor';

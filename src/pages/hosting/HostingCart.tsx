@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency } from '../../lib/utils';
-import { Server, Globe, Trash2, Plus, Minus, ShoppingCart, Tag, ArrowRight } from 'lucide-react';
+import { Server, Globe, Trash2, Plus, Minus, ShoppingCart, Tag, ArrowRight, ShieldCheck, CheckCircle } from 'lucide-react';
 
 const HostingCart: React.FC = () => {
   const { items: allItems, removeFromCart, updateQuantity, clearCart } = useCart();
@@ -132,44 +132,36 @@ const HostingCart: React.FC = () => {
                   <div className="border-t border-slate-200 pt-4 mt-4">
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-bold text-slate-900">Total</span>
-                      <span className="text-2xl font-extrabold text-[#0a1628]">
+                      <span className="text-3xl font-extrabold text-[#7B61FF]">
                         {formatCurrency(total)}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-slate-700 mb-2" htmlFor="promo">
-                    Promo Code
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Tag className="w-4 h-4 text-slate-400" />
-                      </div>
-                      <input
-                        type="text"
-                        id="promo"
-                        className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="Enter code"
-                      />
-                    </div>
-                    <button className="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors">
-                      Apply
-                    </button>
+                {/* Trust Badges */}
+                <div className="flex items-center justify-center gap-4 mb-6 text-slate-400">
+                  <div className="flex flex-col items-center">
+                    <ShieldCheck className="w-5 h-5 mb-1 text-green-500" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider">Secure Payment</span>
+                  </div>
+                  <div className="w-px h-8 bg-slate-200"></div>
+                  <div className="flex flex-col items-center">
+                    <CheckCircle className="w-5 h-5 mb-1 text-blue-500" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider">Money Back Guarantee</span>
                   </div>
                 </div>
 
                 <button
                   onClick={() => navigate('/hosting/checkout')}
-                  className="w-full bg-[#0a1628] hover:bg-[#12284c] text-white py-4 rounded-xl font-bold text-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+                  className="w-full bg-gradient-to-r from-[#7B61FF] to-[#0a1628] hover:from-[#6650d0] hover:to-[#12284c] text-white py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#7B61FF]/25 hover:shadow-xl hover:-translate-y-0.5"
                 >
-                  Proceed to Checkout <ArrowRight className="w-5 h-5" />
+                  Proceed to Secure Checkout <ArrowRight className="w-5 h-5" />
                 </button>
 
-                <p className="text-xs text-slate-500 text-center mt-4">
-                  By proceeding to checkout, you agree to our Terms of Service and Privacy Policy.
+                <p className="text-xs text-slate-500 text-center mt-4 flex flex-col gap-1">
+                  <span>By proceeding to checkout, you agree to our</span>
+                  <span className="text-[#7B61FF] font-medium">Terms of Service and Privacy Policy.</span>
                 </p>
               </div>
             </div>

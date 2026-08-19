@@ -12,41 +12,38 @@ export default function HostingPlansSection({
   onNavigate,
 }) {
   const { addToCart } = useCart();
-  const [plans, setPlans] = useState([]);
-  const [loading, setLoading] = useState(true);
-
+  const [specialPlans, setSpecialPlans] = useState([]);
+  
   useEffect(() => {
-    const fetchPlans = async () => {
+    const fetchSpecialPlans = async () => {
       try {
-        const q = query(collection(db, 'hostingPlans'), orderBy('order', 'asc'));
+        const q = query(collection(db, 'specialPlans'), orderBy('order', 'asc'));
         const snap = await getDocs(q);
         const fetchedPlans = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if (fetchedPlans.length > 0) {
-          setPlans(fetchedPlans);
+          setSpecialPlans(fetchedPlans);
         } else {
           // Fallback to dummy plans if empty
-          setPlans([
+          setSpecialPlans([
             {
-              id: '1', name: 'SHARED HOSTING', price: 10, icon: 'Database', 
+              id: 'special-shared', name: 'SHARED HOSTING', price: 10, icon: 'Database', 
               features: ['10 GB Storage', 'Unmetered Bandwidth', 'Free SSL', '1 Domain', '24/7 Support', '99.9% Uptime'], popular: false
             },
             {
-              id: '2', name: 'VPS HOSTING', price: 15, icon: 'Monitor',
+              id: 'special-vps', name: 'VPS HOSTING', price: 15, icon: 'Monitor',
               features: ['50 GB NVMe Storage', '2 TB Bandwidth', 'Free SSL', 'Unlimited Domains', '24/7 Priority Support', 'Dedicated IP'], popular: true
             },
             {
-              id: '3', name: 'DEDICATED SERVER', price: 30, icon: 'Server',
+              id: 'special-dedicated', name: 'DEDICATED SERVER', price: 30, icon: 'Server',
               features: ['1 TB Storage', 'Unmetered Bandwidth', 'Free SSL', 'Unlimited Domains', '24/7 Priority Support', 'Root Access'], popular: false
             }
           ]);
         }
       } catch (error) {
-        console.error('Error fetching plans:', error);
-      } finally {
-        setLoading(false);
+        console.error('Error fetching special plans:', error);
       }
     };
-    fetchPlans();
+    fetchSpecialPlans();
   }, []);
 
   const handleBuyNow = (plan) => {
@@ -97,7 +94,7 @@ export default function HostingPlansSection({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
-          {plans.map((plan, idx) => {
+          {specialPlans.map((plan, idx) => {
             const IconComponent = plan.icon === 'Monitor' ? Monitor : plan.icon === 'Server' ? Server : Database;
             return (
             <div 

@@ -26,6 +26,7 @@ import CampaignsTab from './admin/tabs/marketing/Campaigns';
 import DiscountCodesTab from './admin/tabs/marketing/DiscountCodes';
 import UsersTab from './admin/tabs/hr/Users';
 import HostingServicesTab from './admin/tabs/hosting/HostingServices';
+import DomainOffersTab from './admin/tabs/hosting/DomainOffers';
 import HostingPlansTab from './admin/tabs/hosting/HostingPlans';
 import { SalesForm } from './admin/tabs/sales/SalesForm';
 import ServicesTab from './admin/tabs/services/Services';
@@ -182,7 +183,7 @@ export const AdminDashboard: React.FC = () => {
   const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
   const [isAddingPaymentAccount, setIsAddingPaymentAccount] = useState(false);
   const [paymentAccountFormData, setPaymentAccountFormData] = useState({ type: '', name: '', description: '', openingBalance: 0, status: 'active' });
-const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
+const [activeTab, setActiveTab] = useState<'domainOffers' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
   
   const [serialSelectionModal, setSerialSelectionModal] = useState<{
     isOpen: boolean;
@@ -3102,7 +3103,12 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
                </button>
              )}
              {hasPermission('manage_settings') && (
-               <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               <button onClick={() => setActiveTab('domainOffers')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'domainOffers' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                  <Globe size={16} className={activeTab === 'domainOffers' ? "text-blue-600" : "text-gray-400"} /> Domain Offers
+                </button>
+              )}
+              {hasPermission('manage_settings') && (
+                <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
                </button>
              )}
@@ -3257,6 +3263,8 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
           <AllReportsTab />
         ) : activeTab === 'menus' && isAdmin ? (
           <MenusTab />
+        ) : activeTab === 'domainOffers' ? (
+          <DomainOffersTab />
         ) : activeTab === 'hostingServices' && isAdmin ? (
           <HostingServicesTab />
         ) : activeTab === 'settings' && hasPermission('manage_settings') ? (
@@ -3325,3 +3333,6 @@ const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'inventor
 </div>
 );
 };
+
+
+

@@ -13,11 +13,13 @@ import HeroSection from './hosting-sections/HeroSection';
 import WhyChooseUsSection from './hosting-sections/WhyChooseUsSection';
 import DomainPricingSection from './hosting-sections/DomainPricingSection';
 import HostingPlansSection from './hosting-sections/HostingPlansSection';
+import DynamicHostingPlansSection from './hosting-sections/DynamicHostingPlansSection';
 import ServicesGrid from './hosting-sections/ServicesGrid';
 import MiddleBannerSection from './hosting-sections/MiddleBannerSection';
 import SecureServiceSection from './hosting-sections/SecureServiceSection';
 import SecureDomainSection from './hosting-sections/SecureDomainSection';
 import LatestNewsSection from './hosting-sections/LatestNewsSection';
+import ReviewSection from './hosting-sections/ReviewSection';
 
 export default function Hosting() {
   const [services, setServices] = useState([]);
@@ -80,6 +82,13 @@ export default function Hosting() {
         onNavigate={navigate}
       />
 
+      {/* Dynamic Plans from Admin */}
+      <DynamicHostingPlansSection
+        billingCycle={billingCycle}
+        onBillingCycleChange={setBillingCycle}
+        onNavigate={navigate}
+      />
+
       {/* 4. Our Services — 3x2 grid */}
       <ServicesGrid
         services={services}
@@ -95,6 +104,9 @@ export default function Hosting() {
 
       {/* 7. Secure Domain — image left, text right */}
       <SecureDomainSection />
+
+      {/* Reviews Section */}
+      <ReviewSection />
 
       {/* 8. Latest News — 4 cards */}
       <LatestNewsSection />

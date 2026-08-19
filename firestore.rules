@@ -354,7 +354,8 @@ service cloud.firestore {
     }
     match /couponCodes/{couponCodeId} {
       allow read: if true;
-      allow create, update: if isAdmin();
+      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.code.matches('^REV-.*'));
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
     match /hostingServices/{serviceId} {
@@ -416,6 +417,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /domain_offers/{offerId} {
+      allow read, update, delete: if hasManagerAccess();
+      allow create: if true;
+    }
+
     match /domainPricing/{tld} {
       allow read: if true;
       allow write: if isAdmin() && isValidDomainPricing(request.resource.data);
@@ -427,3 +433,4 @@ service cloud.firestore {
     }
   }
 }
+

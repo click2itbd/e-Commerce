@@ -13,7 +13,7 @@ import { SiteSettings } from '../../../../types';
 export const Settings = () => {
   const { settings, updateSettings } = useSettings();
   const [settingsFormData, setSettingsFormData] = useState<SiteSettings>(settings);
-  const [settingsTab, setSettingsTab] = useState<'business' | 'pos' | 'tax' | 'invoice' | 'zatca' | 'email' | 'sms' | 'whatsapp' | 'whitelabel' | 'pwa' | 'crm_integrations' | 'review_integrations' | 'external_ecommerce'>('business');
+  const [settingsTab, setSettingsTab] = useState<'business' | 'pos' | 'tax' | 'invoice' | 'zatca' | 'email' | 'sms' | 'whatsapp' | 'whitelabel' | 'pwa' | 'crm_integrations' | 'review_integrations' | 'external_ecommerce' | 'domain_reseller'>('business');
   const [taxCalcAmount, setTaxCalcAmount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
 
@@ -58,6 +58,7 @@ export const Settings = () => {
               { id: 'crm_integrations', icon: SettingsIcon, label: 'CRM Integrations' },
               { id: 'review_integrations', icon: MessageCircle, label: 'Review Integrations' },
               { id: 'external_ecommerce', icon: ShoppingBag, label: 'External E-commerce' },
+              { id: 'domain_reseller', icon: SettingsIcon, label: 'Domain Reseller API' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -501,9 +502,58 @@ export const Settings = () => {
                       </div>
                     </>
                   )}
+                  </div>
+                </div>
+
+                <div className="p-4 border-b border-gray-100 bg-gray-50 mt-6 border-t border-gray-200">
+                  <h3 className="text-sm font-bold text-gray-700">Internal Review Rewards</h3>
+                </div>
+                <div className="p-6 space-y-6">
+                  <div className="bg-green-50 border border-green-100 rounded-lg p-4 flex gap-4">
+                    <CheckSquare className="text-green-500 shrink-0" />
+                    <div className="text-sm text-green-800">
+                      <p className="font-bold mb-1">Reward First-Time Reviewers</p>
+                      <p>Automatically issue a one-time discount code when a logged-in user submits their first review on the site.</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700">Enable Review Rewards</label>
+                        <p className="text-xs text-gray-500">Generate a discount code upon first review</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSettingsFormData({...settingsFormData, reviewRewardEnabled: !(settingsFormData as any).reviewRewardEnabled})}
+                        className={cn(
+                          "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                          (settingsFormData as any).reviewRewardEnabled ? "bg-[#7B61FF]" : "bg-gray-200"
+                        )}
+                      >
+                        <span className={cn(
+                          "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                          (settingsFormData as any).reviewRewardEnabled ? "translate-x-6" : "translate-x-1"
+                        )} />
+                      </button>
+                    </div>
+
+                    {(settingsFormData as any).reviewRewardEnabled && (
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Reward Discount Percentage (%)</label>
+                        <input 
+                          type="number"
+                          value={(settingsFormData as any).reviewRewardPercentage || 10}
+                          onChange={e => setSettingsFormData({...settingsFormData, reviewRewardPercentage: Number(e.target.value)})}
+                          className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
+                          min={1}
+                          max={100}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
           ) : settingsTab === 'external_ecommerce' ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div className="p-4 border-b border-gray-100 bg-gray-50">
@@ -608,3 +658,4 @@ export const Settings = () => {
     </div>
   );
 };
+

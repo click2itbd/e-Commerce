@@ -60,6 +60,7 @@ export const HostingCheckout: React.FC = () => {
   const hasHosting = items.some(i => i.itemType === 'hosting');
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [existingOrderId, setExistingOrderId] = useState<string | null>(null);
 
   if (items.length === 0) {
     navigate('/hosting/cart');
@@ -95,6 +96,9 @@ export const HostingCheckout: React.FC = () => {
     if (!discountCode.trim()) return;
     setIsValidatingCode(true);
     try {
+
+
+
       const q = query(
         collection(db, 'couponCodes'), 
         where('code', '==', discountCode.trim().toUpperCase()),
@@ -161,6 +165,11 @@ export const HostingCheckout: React.FC = () => {
       }
     }
 
+    if (['card', 'nagad'].includes(formData.paymentMethod)) {
+      toast.error('This payment method is coming soon.');
+      return;
+    }
+
     if (formData.paymentMethod === 'bank' && !formData.transactionId.trim()) {
       toast.error('Please enter the Transaction ID for your Bank/Manual transfer.');
       return;
@@ -169,6 +178,9 @@ export const HostingCheckout: React.FC = () => {
     setIsProcessing(true);
 
     try {
+      let orderId = existingOrderId;
+
+      if (!orderId) {
       const docType = 'INV'; 
       const docNumber = await generateDocumentNumber(docType);
 
@@ -231,9 +243,13 @@ export const HostingCheckout: React.FC = () => {
         });
       }
       
+      orderId = docRef.id;
+        setExistingOrderId(orderId);
+      } // End if (!orderId)
+
       // Process payment
       if (formData.paymentMethod === 'bkash') {
-        const res = await initiateBkashPayment(docRef.id, grandTotal, formData.email);
+        const res = await initiateBkashPayment(orderId, grandTotal, formData.email);
         if (res.success && res.paymentUrl) {
           window.location.href = res.paymentUrl;
           return;
@@ -242,7 +258,7 @@ export const HostingCheckout: React.FC = () => {
         }
       } else if (formData.paymentMethod === 'card') {
         const res = await initiateSSLCommerzPayment(
-          docRef.id, 
+          orderId, 
           grandTotal, 
           formData.email, 
           `${formData.firstName} ${formData.lastName}`, 
@@ -255,7 +271,7 @@ export const HostingCheckout: React.FC = () => {
           throw new Error(res.errorMessage || 'Failed to initiate Card payment');
         }
       } else if (formData.paymentMethod === 'nagad') {
-        const res = await initiateNagadPayment(docRef.id, grandTotal, formData.phone);
+        const res = await initiateNagadPayment(orderId, grandTotal, formData.phone);
         if (res.success && res.paymentUrl) {
           window.location.href = res.paymentUrl;
           return;
@@ -266,7 +282,7 @@ export const HostingCheckout: React.FC = () => {
 
       toast.success('Order completed successfully!');
       clearCart();
-      navigate(`/order-success/${docRef.id}`);
+      navigate(`/order-success/${orderId}`);
     } catch (error: any) {
       console.error('Checkout error:', error);
       toast.error(error.message || 'Failed to place order');
@@ -461,27 +477,32 @@ export const HostingCheckout: React.FC = () => {
                       {formData.paymentMethod === 'bkash' && <div className="absolute top-2 right-2"><CheckCircle className="w-4 h-4 text-pink-600" /></div>}
                     </label>
 
-                    <label className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentMethod === 'nagad' ? 'border-orange-600 bg-orange-50/50' : 'border-gray-100 hover:border-gray-200'}`}>
-                      <input type="radio" name="paymentMethod" value="nagad" checked={formData.paymentMethod === 'nagad'} onChange={handleChange} className="sr-only" />
-                      <Wallet className={`w-8 h-8 mb-2 ${formData.paymentMethod === 'nagad' ? 'text-orange-600' : 'text-gray-400'}`} />
-                      <span className={`text-sm font-medium ${formData.paymentMethod === 'nagad' ? 'text-orange-900' : 'text-gray-600'}`}>Nagad</span>
-                      {formData.paymentMethod === 'nagad' && <div className="absolute top-2 right-2"><CheckCircle className="w-4 h-4 text-orange-600" /></div>}
+                    <label className="relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed">
+                      <input type="radio" name="paymentMethod" value="nagad" disabled className="sr-only" />
+                      <Wallet className="w-8 h-8 mb-2 text-gray-400" />
+                      <span className="text-sm font-medium text-gray-500">Nagad</span>
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-[1px] rounded-xl">
+                        <span className="bg-gray-800 text-white text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap">Coming Soon</span>
+                      </div>
                     </label>
 
-                    <label className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentMethod === 'card' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-100 hover:border-gray-200'}`}>
-                      <input type="radio" name="paymentMethod" value="card" checked={formData.paymentMethod === 'card'} onChange={handleChange} className="sr-only" />
-                      <CreditCard className={`w-8 h-8 mb-2 ${formData.paymentMethod === 'card' ? 'text-blue-600' : 'text-gray-400'}`} />
-                      <span className={`text-sm font-medium ${formData.paymentMethod === 'card' ? 'text-blue-900' : 'text-gray-600'}`}>Credit Card</span>
-                      <span className="text-xs text-gray-500 mt-1">Visa, Master</span>
-                      {formData.paymentMethod === 'card' && <div className="absolute top-2 right-2"><CheckCircle className="w-4 h-4 text-blue-600" /></div>}
+                    <label className="relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed">
+                      <input type="radio" name="paymentMethod" value="card" disabled className="sr-only" />
+                      <CreditCard className="w-8 h-8 mb-2 text-gray-400" />
+                      <span className="text-sm font-medium text-gray-500">Credit Card</span>
+                      <span className="text-[10px] text-gray-400 mt-1">Visa, Master</span>
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-[1px] rounded-xl">
+                        <span className="bg-gray-800 text-white text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap">Coming Soon</span>
+                      </div>
                     </label>
 
-                    <label className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentMethod === 'bank' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-100 hover:border-gray-200'}`}>
-                      <input type="radio" name="paymentMethod" value="bank" checked={formData.paymentMethod === 'bank'} onChange={handleChange} className="sr-only" />
-                      <Landmark className={`w-8 h-8 mb-2 ${formData.paymentMethod === 'bank' ? 'text-blue-600' : 'text-gray-400'}`} />
-                      <span className={`text-sm font-medium ${formData.paymentMethod === 'bank' ? 'text-blue-900' : 'text-gray-600'}`}>Bank Transfer</span>
-                      <span className="text-xs text-gray-500 mt-1">Local Banks</span>
-                      {formData.paymentMethod === 'bank' && <div className="absolute top-2 right-2"><CheckCircle className="w-4 h-4 text-blue-600" /></div>}
+                    <label className="relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed">
+                      <input type="radio" name="paymentMethod" value="bank" disabled className="sr-only" />
+                      <Landmark className="w-8 h-8 mb-2 text-gray-400" />
+                      <span className="text-sm font-medium text-gray-500">Bank Transfer</span>
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-[1px] rounded-xl">
+                        <span className="bg-gray-800 text-white text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap">Coming Soon</span>
+                      </div>
                     </label>
                   </div>
 
@@ -645,3 +666,13 @@ export const HostingCheckout: React.FC = () => {
     </Layout>
   );
 };
+
+
+
+
+
+
+
+
+
+

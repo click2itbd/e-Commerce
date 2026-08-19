@@ -18,6 +18,7 @@ import { MyServices } from './pages/MyServices';
 import { Profile } from './pages/Profile';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { WebsitePopup } from './components/WebsitePopup';
+import { ReviewRewardPopup } from './components/ReviewRewardPopup';
 import { ChatWidget } from './components/ChatWidget';
 import { Checkout } from './pages/Checkout';
 import { OrderSuccess } from './pages/OrderSuccess';
@@ -44,9 +45,10 @@ export default function App() {
         <AuthProvider>
           <CompareProvider>
             <CartProvider>
-              <WebsitePopup />
-              <ChatWidget />
               <Router>
+                <WebsitePopup />
+                <ReviewRewardPopup />
+                <ChatWidget />
                 <Routes>
                   {/* HOSTING - Default Home */}
                   <Route path="/" element={<Hosting />} />
