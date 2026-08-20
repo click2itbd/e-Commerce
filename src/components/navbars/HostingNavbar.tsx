@@ -64,6 +64,7 @@ export const HostingNavbar: React.FC = () => {
       subLinks: [
         { name: "Domain Registration", path: "/domain" },
         { name: "Domain Transfer", path: "/domain/transfer" },
+        { name: "Domain Renewal", path: "/domain-renewal" },
       ],
     },
     { name: "Support", path: "/support" },

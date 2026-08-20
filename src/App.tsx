@@ -42,6 +42,7 @@ import PaymentReturn from './pages/PaymentReturn';
 
 import { HostingCart } from './pages/hosting/HostingCart';
 import { HostingCheckout } from './pages/hosting/HostingCheckout';
+import DomainRenewal from './pages/hosting/DomainRenewal';
 
 export default function App() {
   return (
@@ -60,9 +61,10 @@ export default function App() {
                   <Route path="/hosting/:serviceId" element={<HostingDetails />} />
                   <Route path="/services" element={<ServicesPage />} />
                   <Route path="/pricing" element={<PricingPage />} />
-                  <Route path="/domain" element={<DomainPage />} />
-                  <Route path="/domain/search" element={<DomainSearchResults />} />
-                  <Route path="/domain/transfer" element={<DomainTransferPage />} />
+                   <Route path="/domain" element={<DomainPage />} />
+                   <Route path="/domain/search" element={<DomainSearchResults />} />
+                   <Route path="/domain/transfer" element={<DomainTransferPage />} />
+                   <Route path="/domain-renewal" element={<DomainRenewal />} />
                   <Route path="/support" element={<SupportPage />} />
                   <Route path="/hosting/cart" element={<HostingCart />} />
                   <Route path="/hosting/checkout" element={<HostingCheckout />} />

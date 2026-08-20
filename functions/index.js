@@ -343,7 +343,6 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
 
 exports.dynadotSearchProxy = functions.https.onCall(async (data, context) => {
   try {
-    // In Gen2/v7, data might be a CallableRequest. We extract domain safely.
     const payload = data.data || data; 
     const domain = payload.domain;
     
@@ -372,64 +371,309 @@ exports.dynadotSearchProxy = functions.https.onCall(async (data, context) => {
     }
 
     const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
-    const dynadotUrl = `${baseUrl}?key=${apiKey}&command=search&domain0=${domain}`;
-
-    const response = await fetch(dynadotUrl);
-    if (!response.ok) {
-      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${response.status}`);
-    }
-    const rawText = await response.text(); 
     
-    let apiData;
+    // Step 1: Check domain availability via search API
+    const searchUrl = `${baseUrl}?key=${apiKey}&command=search&domain0=${domain}`;
+    const searchResponse = await fetch(searchUrl);
+    if (!searchResponse.ok) {
+      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${searchResponse.status}`);
+    }
+    const searchText = await searchResponse.text();
+    let searchData;
     try { 
-      apiData = JSON.parse(rawText); 
+      searchData = JSON.parse(searchText); 
     } catch(e) { 
-      throw new functions.https.HttpsError('internal', 'Failed to parse JSON response from Dynadot.'); 
+      throw new functions.https.HttpsError('internal', 'Failed to parse Dynadot search response.');
     }
 
-    console.log('[DynadotSearchProxy] Raw Dynadot response:', JSON.stringify(apiData));
+    console.log('[DynadotSearchProxy] Raw search response:', JSON.stringify(searchData));
 
-    if (apiData?.SearchResponse?.SearchResults) {
-        console.log('[DynadotSearchProxy] Processing', apiData.SearchResponse.SearchResults.length, 'results');
-        apiData.SearchResponse.SearchResults = apiData.SearchResponse.SearchResults.map(res => {
-          const wholesaleUsd = res.Price ? parseFloat(res.Price) : 0;
-          console.log('[DynadotSearchProxy] Result:', {
-            domain: res.Domain || res.domain,
-            Available: res.Available,
-            Price: res.Price,
-            wholesaleUsd,
-            exchangeRate,
-            markupPercent
-          });
-          
-          if (wholesaleUsd > 0) {
-            const retailUsd = wholesaleUsd * (1 + markupPercent / 100);
-            res.Price = retailUsd.toFixed(2);
-            res.priceBdt = Math.round(retailUsd * exchangeRate);
-            console.log('[DynadotSearchProxy] Calculated price:', {
-              retailUsd,
-              priceBdt: res.priceBdt
-            });
-          } else {
-            res.Price = '0';
-            res.priceBdt = 0;
-            console.log('[DynadotSearchProxy] Price is 0, setting priceBdt to 0');
-          }
-
-          return { ...res };
-        });
-    } else {
-      console.log('[DynadotSearchProxy] No SearchResults found in response');
+    const searchResult = searchData?.SearchResponse?.SearchResults?.[0];
+    if (!searchResult) {
+      throw new functions.https.HttpsError('not-found', 'No search results found for domain.');
     }
+
+    const isAvailable = searchResult.Available?.toLowerCase() === 'yes';
+    const domainName = searchResult.Domain || searchResult.domain || domain;
     
-    // Return completely serialized plain JSON object
-    return JSON.parse(JSON.stringify(apiData));
+    console.log('[DynadotSearchProxy] Availability:', {
+      rawAvailable: searchResult.Available,
+      isAvailable,
+      domainName
+    });
+    
+    // Extract TLD from domain
+    const tldMatch = domainName.match(/\.[^.]+$/);
+    const tld = tldMatch ? tldMatch[0] : '';
+    
+    console.log('[DynadotSearchProxy] Domain:', domainName, 'Available:', isAvailable, 'TLD:', tld);
+
+    // Step 2: Fetch TLD pricing from tld_price API
+    let registerPriceUsd = 0;
+    
+    if (tld) {
+      const tldUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tld)}&currency=USD`;
+      const tldResponse = await fetch(tldUrl);
+      
+      if (tldResponse.ok) {
+        const tldText = await tldResponse.text();
+        let tldData;
+        try { 
+          tldData = JSON.parse(tldText); 
+        } catch(e) { 
+          tldData = null; 
+        }
+
+        console.log('[DynadotSearchProxy] Extracted TLD:', tld);
+        console.log('[DynadotSearchProxy] TLD pricing response:', JSON.stringify(tldData));
+
+        // Try multiple possible response structures
+        const tldPriceArray = 
+          tldData?.TldPriceResponse?.TldPrice ||
+          tldData?.TLDPricing?.TldPrice ||
+          tldData?.TldPrice ||
+          (Array.isArray(tldData) ? tldData : null);
+
+        if (tldPriceArray && Array.isArray(tldPriceArray)) {
+          const matchedTld = tldPriceArray.find(
+            item => item?.Tld?.toLowerCase() === tld.toLowerCase()
+          );
+
+          console.log('[DynadotSearchProxy] Matched TLD data:', JSON.stringify(matchedTld));
+
+          if (matchedTld?.Price?.Register) {
+            registerPriceUsd = parseFloat(matchedTld.Price.Register);
+            console.log('[DynadotSearchProxy] Register price:', registerPriceUsd);
+          } else if (matchedTld?.Price?.register) {
+            registerPriceUsd = parseFloat(matchedTld.Price.register);
+            console.log('[DynadotSearchProxy] Register price (lowercase):', registerPriceUsd);
+          }
+        }
+      }
+    }
+
+    // Step 3: Calculate final price
+    let priceUsd = 0;
+    let priceBdt = 0;
+    let status = isAvailable ? 'available' : 'taken';
+
+    if (registerPriceUsd > 0) {
+      const retailUsd = registerPriceUsd * (1 + markupPercent / 100);
+      priceUsd = Math.round(retailUsd * 100) / 100;
+      priceBdt = Math.round(retailUsd * exchangeRate);
+      
+      console.log('[DynadotSearchProxy] Calculated price:', {
+        registerPriceUsd,
+        retailUsd,
+        priceUsd,
+        priceBdt
+      });
+    } else {
+      console.log('[DynadotSearchProxy] No register price available for TLD:', tld);
+    }
+
+    // Return result in the expected format
+    return {
+      SearchResponse: {
+        ResponseCode: '0',
+        SearchResults: [
+          {
+            DomainName: domainName,
+            Status: isAvailable ? 'success' : 'success',
+            Available: isAvailable ? 'yes' : 'no',
+            Price: registerPriceUsd > 0 ? priceUsd.toFixed(2) : '0',
+            priceBdt: priceBdt,
+            Currency: 'USD',
+            TLD: tld,
+            RegisterPrice: registerPriceUsd
+          }
+        ]
+      }
+    };
+
   } catch (error) {
     console.error('Dynadot Search Proxy Error:', error);
     if (error instanceof functions.https.HttpsError) {
       throw error;
     }
     throw new functions.https.HttpsError('internal', 'Domain search failed unexpectedly.');
+  }
+});
+
+exports.dynadotTldPricing = functions.https.onCall(async (data, context) => {
+  try {
+    const { tld } = data;
+    
+    if (!tld) {
+      throw new functions.https.HttpsError('invalid-argument', 'Missing TLD parameter');
+    }
+
+    const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+    const settingsSnap = await db.collection('settings').doc('api_keys').get();
+    const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
+    const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
+
+    if (!apiKey) {
+      throw new functions.https.HttpsError('internal', 'Domain API key not configured.');
+    }
+
+    const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
+    const dynadotUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tld)}&currency=USD`;
+
+    const response = await fetch(dynadotUrl);
+    if (!response.ok) {
+      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${response.status}`);
+    }
+    const rawText = await response.text();
+    
+    let apiData;
+    try {
+      apiData = JSON.parse(rawText);
+    } catch(e) {
+      throw new functions.https.HttpsError('internal', 'Failed to parse JSON response from Dynadot.');
+    }
+
+    console.log('[DynadotTLDPricing] Raw response:', JSON.stringify(apiData));
+
+    if (apiData?.ResponseCode === '0' && apiData?.TLDPricing) {
+      const tldData = apiData.TLDPricing;
+      return {
+        success: true,
+        tld: tld,
+        currency: 'USD',
+        registrationPrice: parseFloat(tldData.RegistrationPrice || tldData.registration_price || 0),
+        renewalPrice: parseFloat(tldData.RenewalPrice || tldData.renewal_price || 0),
+        transferPrice: parseFloat(tldData.TransferPrice || tldData.transfer_price || 0),
+        restorePrice: parseFloat(tldData.RestorePrice || tldData.restore_price || 0),
+      };
+    }
+
+    throw new functions.https.HttpsError('not-found', `TLD pricing not available for .${tld}`);
+  } catch (error) {
+    console.error('Dynadot TLD Pricing Error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError('internal', 'Failed to fetch TLD pricing.');
+  }
+});
+
+exports.getDomainRenewalPrice = functions.https.onCall(async (data, context) => {
+  try {
+    const { domain } = data;
+    
+    if (!domain) {
+      throw new functions.https.HttpsError('invalid-argument', 'Missing domain parameter');
+    }
+
+    const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+    const settingsSnap = await db.collection('settings').doc('api_keys').get();
+    const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
+    const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
+    const apiKeysData = settingsSnap.exists ? settingsSnap.data() : {};
+    const exchangeRate = parseFloat(apiKeysData.usdToBdtRate) || 120;
+    const markupPercent = parseFloat(apiKeysData.domainMarkupPercent) || 15;
+
+    console.log('[DomainRenewalPrice] Settings:', {
+      hasApiKey: !!apiKey,
+      isSandbox,
+      exchangeRate,
+      markupPercent,
+      domain
+    });
+
+    if (!apiKey) {
+      throw new functions.https.HttpsError('internal', 'Domain API key not configured.');
+    }
+
+    const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
+    
+    const tldMatch = domain.match(/\.[^.]+$/);
+    const tld = tldMatch ? tldMatch[0] : '';
+    
+    if (!tld) {
+      throw new functions.https.HttpsError('invalid-argument', 'Invalid domain format');
+    }
+
+    console.log('[DomainRenewalPrice] Domain:', domain, 'TLD:', tld);
+
+    const tldUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tld)}&currency=USD`;
+    const tldResponse = await fetch(tldUrl);
+    
+    if (!tldResponse.ok) {
+      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${tldResponse.status}`);
+    }
+    
+    const tldText = await tldResponse.text();
+    let tldData;
+    try { 
+      tldData = JSON.parse(tldText); 
+    } catch(e) { 
+      throw new functions.https.HttpsError('internal', 'Failed to parse Dynadot TLD pricing response.');
+    }
+
+    console.log('[DomainRenewalPrice] Raw TLD pricing response:', JSON.stringify(tldData));
+
+    const tldPriceArray = 
+      tldData?.TldPriceResponse?.TldPrice ||
+      tldData?.TLDPricing?.TldPrice ||
+      tldData?.TldPrice ||
+      (Array.isArray(tldData) ? tldData : null);
+
+    if (!tldPriceArray || !Array.isArray(tldPriceArray)) {
+      throw new functions.https.HttpsError('not-found', `TLD pricing not available for ${tld}`);
+    }
+
+    const matchedTld = tldPriceArray.find(
+      item => item?.Tld?.toLowerCase() === tld.toLowerCase()
+    );
+
+    if (!matchedTld) {
+      throw new functions.https.HttpsError('not-found', `TLD ${tld} not found in Dynadot pricing`);
+    }
+
+    const renewPriceUsd = parseFloat(matchedTld.Price?.Renew || matchedTld.Price?.renew || 0);
+    
+    console.log('[DomainRenewalPrice] Matched TLD:', JSON.stringify(matchedTld));
+    console.log('[DomainRenewalPrice] Renew price USD:', renewPriceUsd);
+
+    if (renewPriceUsd <= 0) {
+      throw new functions.https.HttpsError('not-found', `Renewal price not available for ${tld}`);
+    }
+
+    const retailUsd = renewPriceUsd * (1 + markupPercent / 100);
+    const priceUsd = Math.round(retailUsd * 100) / 100;
+    const priceBdt = Math.round(retailUsd * exchangeRate);
+
+    const maxDuration = matchedTld.MaxDuration || matchedTld.maxDuration || 10;
+
+    console.log('[DomainRenewalPrice] Calculated:', {
+      renewPriceUsd,
+      retailUsd,
+      priceUsd,
+      priceBdt,
+      maxDuration
+    });
+
+    return {
+      success: true,
+      domain,
+      tld,
+      renewPriceUsd,
+      priceUsd,
+      priceBdt,
+      currency: 'USD',
+      maxDuration: parseInt(maxDuration),
+      exchangeRate,
+      markupPercent
+    };
+
+  } catch (error) {
+    console.error('Domain Renewal Price Error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError('internal', 'Failed to fetch renewal price.');
   }
 });
 

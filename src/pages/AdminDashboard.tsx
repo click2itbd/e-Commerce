@@ -29,6 +29,7 @@ import DiscountCodesTab from './admin/tabs/marketing/DiscountCodes';
 import UsersTab from './admin/tabs/hr/Users';
 import HostingServicesTab from './admin/tabs/hosting/HostingServices';
 import DomainOffersTab from './admin/tabs/hosting/DomainOffers';
+import DomainRenewalsTab from './admin/tabs/hosting/DomainRenewals';
 import HostingPlansTab from './admin/tabs/hosting/HostingPlans';
 import { SalesForm } from './admin/tabs/sales/SalesForm';
 import ServicesTab from './admin/tabs/services/Services';
@@ -53,7 +54,7 @@ import CustomersTab from './admin/tabs/sales/Customers';
 import VendorsTab from './admin/tabs/purchase/Vendors';
 import CustomerReceiveReportTab from './admin/tabs/accounting/CustomerReceiveReport';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit2, Trash2, Package, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare, Globe, Terminal } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare, Globe, Terminal, RefreshCw } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
@@ -186,7 +187,7 @@ export const AdminDashboard: React.FC = () => {
   const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
   const [isAddingPaymentAccount, setIsAddingPaymentAccount] = useState(false);
   const [paymentAccountFormData, setPaymentAccountFormData] = useState({ type: '', name: '', description: '', openingBalance: 0, status: 'active' });
-const [activeTab, setActiveTab] = useState<'domainOffers' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
+const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
   
   const [serialSelectionModal, setSerialSelectionModal] = useState<{
     isOpen: boolean;
@@ -3113,11 +3114,16 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'dashboard' | 'analy
                  <Globe size={16} className={activeTab === 'hostingServices' ? "text-blue-600" : "text-gray-400"} /> Domain Plans
                </button>
              )}
-             {hasPermission('manage_settings') && (
-               <button onClick={() => setActiveTab('domainOffers')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'domainOffers' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                  <Globe size={16} className={activeTab === 'domainOffers' ? "text-blue-600" : "text-gray-400"} /> Domain Offers
-                </button>
-              )}
+              {hasPermission('manage_settings') && (
+                <button onClick={() => setActiveTab('domainOffers')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'domainOffers' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Globe size={16} className={activeTab === 'domainOffers' ? "text-blue-600" : "text-gray-400"} /> Domain Offers
+                 </button>
+               )}
+               {hasPermission('manage_settings') && (
+                <button onClick={() => setActiveTab('domainRenewals')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'domainRenewals' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <RefreshCw size={16} className={activeTab === 'domainRenewals' ? "text-blue-600" : "text-gray-400"} /> Domain Renewals
+                 </button>
+               )}
               {hasPermission('manage_settings') && (
                 <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
@@ -3282,6 +3288,8 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'dashboard' | 'analy
           <MenusTab />
         ) : activeTab === 'domainOffers' ? (
           <DomainOffersTab />
+        ) : activeTab === 'domainRenewals' ? (
+          <DomainRenewalsTab />
         ) : activeTab === 'hostingServices' && isAdmin ? (
           <HostingServicesTab />
         ) : activeTab === 'settings' && hasPermission('manage_settings') ? (

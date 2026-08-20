@@ -21,17 +21,17 @@ export function useDomainSearch() {
     if (!domains.length) return;
     setState(prev => ({ ...prev, loading: true, error: null, results: [], suggestions: [] }));
     try {
-      // For each domain, call Dynadot API
       const promises = domains.map(domain => searchDomainDynadot(domain));
-      const dynadotResults = await Promise.all(promises);
+      const settled = await Promise.allSettled(promises);
       
-      // Map to the format expected by the UI
-      const results: DomainAvailabilityResult[] = dynadotResults.map(res => ({
-        domain: res.domain,
-        available: res.available,
-        price: res.priceBdt, // Provide BDT price directly
-        originalPrice: res.priceBdt,
-      }));
+      const results: DomainAvailabilityResult[] = settled
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .map(r => ({
+          domain: r.value.domain,
+          available: r.value.available,
+          price: r.value.priceBdt,
+          originalPrice: r.value.priceBdt,
+        }));
 
       setState(prev => ({ ...prev, loading: false, results }));
     } catch (err: any) {

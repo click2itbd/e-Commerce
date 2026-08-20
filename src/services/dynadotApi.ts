@@ -13,12 +13,49 @@ export interface DomainAvailabilityResponse {
   status: string;
 }
 
+export interface TldPricingResponse {
+  tld: string;
+  currency: string;
+  registrationPrice: number;
+  renewalPrice: number;
+  transferPrice: number;
+  restorePrice: number;
+}
+
+export const getTldPricing = async (tld: string): Promise<TldPricingResponse> => {
+  try {
+    const functions = getFunctions(auth.app);
+    const dynadotTldPricing = httpsCallable(functions, 'dynadotTldPricing');
+    
+    const result = await dynadotTldPricing({ tld });
+    
+    const data = result.data as any;
+    
+    if (data?.success) {
+      return {
+        tld: data.tld,
+        currency: data.currency,
+        registrationPrice: data.registrationPrice || 0,
+        renewalPrice: data.renewalPrice || 0,
+        transferPrice: data.transferPrice || 0,
+        restorePrice: data.restorePrice || 0,
+      };
+    } else {
+      throw new Error(data?.error || 'Failed to fetch TLD pricing');
+    }
+    
+  } catch (error: any) {
+    console.error('Dynadot TLD Pricing Error:', error);
+    throw new Error(error.message || 'Failed to fetch TLD pricing');
+  }
+};
+
 export const searchDomainDynadot = async (domain: string): Promise<DomainAvailabilityResponse> => {
   try {
     const functions = getFunctions(auth.app);
     const dynadotSearchProxy = httpsCallable(functions, 'dynadotSearchProxy');
     
-    const payload = { command: 'search', domain };
+    const payload = { domain };
     console.log('[Dynadot] Calling searchDomainDynadot with payload:', payload);
     
     const result = await dynadotSearchProxy(payload);
@@ -38,13 +75,21 @@ export const searchDomainDynadot = async (domain: string): Promise<DomainAvailab
       throw new Error('Domain search failed, please try again.');
     }
     
-    const isAvailable = searchResult.Available?.toLowerCase() === 'yes';
+    let isAvailable = false;
+    try {
+      isAvailable = String(searchResult.Available).toLowerCase() === 'yes';
+    } catch (e) {
+      console.warn('[Dynadot] Could not parse Available field:', searchResult.Available);
+      isAvailable = false;
+    }
+    
     const priceUsd = searchResult.Price ? parseFloat(searchResult.Price) : 0;
     const priceBdt = searchResult.priceBdt || 0;
     
     console.log('[Dynadot] SearchResult:', {
       domain: searchResult.Domain || searchResult.domain,
       Available: searchResult.Available,
+      isAvailable,
       Price: searchResult.Price,
       priceBdt: searchResult.priceBdt,
       priceUsd,
@@ -63,4 +108,49 @@ export const searchDomainDynadot = async (domain: string): Promise<DomainAvailab
     console.error('Dynadot search error:', error);
     throw new Error('Domain search failed, please try again.');
   }
+};
+
+export interface DomainRenewalPriceResponse {
+  success: boolean;
+  domain: string;
+  tld: string;
+  renewPriceUsd: number;
+  priceUsd: number;
+  priceBdt: number;
+  currency: string;
+  maxDuration: number;
+  exchangeRate: number;
+  markupPercent: number;
 }
+
+export const getDomainRenewalPrice = async (domain: string): Promise<DomainRenewalPriceResponse> => {
+  try {
+    const functions = getFunctions(auth.app);
+    const getRenewalPrice = httpsCallable(functions, 'getDomainRenewalPrice');
+    
+    const result = await getRenewalPrice({ domain });
+    
+    const data = result.data as any;
+    
+    if (data?.success) {
+      return {
+        success: true,
+        domain: data.domain,
+        tld: data.tld,
+        renewPriceUsd: data.renewPriceUsd || 0,
+        priceUsd: data.priceUsd || 0,
+        priceBdt: data.priceBdt || 0,
+        currency: data.currency || 'USD',
+        maxDuration: data.maxDuration || 10,
+        exchangeRate: data.exchangeRate || 120,
+        markupPercent: data.markupPercent || 15,
+      };
+    } else {
+      throw new Error(data?.error || 'Failed to fetch renewal price');
+    }
+    
+  } catch (error: any) {
+    console.error('Dynadot renewal price error:', error);
+    throw new Error(error.message || 'Failed to fetch renewal price');
+  }
+};
