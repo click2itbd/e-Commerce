@@ -1,36 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Loader2, ShieldCheck, Zap, Headphones } from 'lucide-react';
-import { getDomainPricing } from '../../services/hostingApi';
 import { useNavigate } from 'react-router-dom';
 
-const STATIC_TLDS = [
-  { tld: '.com', price: '1,299' },
-  { tld: '.net', price: '1,099' },
-  { tld: '.org', price: '1,199' },
-  { tld: '.com.bd', price: '2,499' },
-  { tld: '.xyz', price: '499' },
-  { tld: '.store', price: '799' },
-  { tld: '.online', price: '699' },
-];
+const POPULAR_TLDS = ['.com', '.net', '.org', '.com.bd', '.xyz', '.store', '.online'];
 
 export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
   const [query, setQuery] = useState('');
   const [selectedTlds, setSelectedTlds] = useState(['.com', '.net', '.org', '.com.bd', '.xyz']);
-  const [pricingData, setPricingData] = useState([]);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    getDomainPricing().then(data => {
-      if (data && data.length > 0) setPricingData(data);
-    }).catch(() => {});
-  }, []);
-
-  const displayTlds = pricingData.length > 0
-    ? pricingData.filter(p => p.isActive).map(p => ({
-        tld: p.tld.startsWith('.') ? p.tld : '.' + p.tld,
-        price: p.registerPrice.toLocaleString()
-      }))
-    : STATIC_TLDS;
 
   const handleSearch = () => {
     if (!query.trim()) return;
@@ -122,15 +99,15 @@ export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
             </div>
           </div>
 
-          {/* TLD price pills */}
+          {/* TLD selector pills */}
           <div className="flex flex-wrap justify-center gap-2 mb-6">
-            {displayTlds.slice(0, 7).map((item, i) => {
-              const selected = selectedTlds.includes(item.tld);
+            {POPULAR_TLDS.slice(0, 7).map((tld, i) => {
+              const selected = selectedTlds.includes(tld);
               return (
                 <span
                   key={i}
                   onClick={() => setSelectedTlds(prev =>
-                    prev.includes(item.tld) ? prev.filter(x => x !== item.tld) : [...prev, item.tld]
+                    prev.includes(tld) ? prev.filter(x => x !== tld) : [...prev, tld]
                   )}
                   className="cursor-pointer select-none px-4 py-1.5 rounded-full text-sm font-semibold transition-all border"
                   style={selected
@@ -138,8 +115,7 @@ export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
                     : { background: 'rgba(255,255,255,0.04)', color: '#94a3b8', borderColor: 'rgba(255,255,255,0.1)' }
                   }
                 >
-                  <span className="font-bold">{item.tld}</span>
-                  <span className="ml-2 text-orange-300">৳{item.price}</span>
+                  <span className="font-bold">{tld}</span>
                 </span>
               );
             })}

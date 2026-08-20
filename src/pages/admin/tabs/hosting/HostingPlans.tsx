@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, setDoc, getDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
-import { Server, Edit, Trash2, Plus, X, Settings2, Database, LayoutTemplate, Save } from 'lucide-react';
+import { Server, Edit, Trash2, Plus, X, Settings2, Database, LayoutTemplate, Save, DollarSign, Calculator } from 'lucide-react';
 
 const HostingPlansTab: React.FC = () => {
   const { isAdmin, hasPermission } = useAuth();
@@ -25,10 +25,12 @@ const HostingPlansTab: React.FC = () => {
   const [editingPackage, setEditingPackage] = useState<any>(null);
   const [packageForm, setPackageForm] = useState({
     name: '', slug: '', status: 'published', order: 0,
-    pricing: { monthly: 0, annually: 0 },
+    pricing: { licenseCostUsd: 0, monthly: 0, annually: 0, billingCycle: 'monthly' as const },
     cloudLinuxLimits: { cpu: '100', pmem: '1024', vmem: '2048', io: '10', iops: '1024', ep: '20', nproc: '100', inodes: '250000' },
     allowCustomization: false,
-    comparisonValues: {} as Record<string, any>
+    comparisonValues: {} as Record<string, any>,
+    priceOverride: false,
+    overridePrice: 0
   });
   const [packageModalTab, setPackageModalTab] = useState<'basic' | 'cloudlinux' | 'compare'>('basic');
 
@@ -39,15 +41,13 @@ const HostingPlansTab: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch Features
       const featSnap = await getDocs(query(collection(db, 'hosting_features'), orderBy('order', 'asc')));
       setFeatures(featSnap.docs.map(d => ({ docId: d.id, ...d.data() })));
 
-      // Fetch Packages
       const packSnap = await getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc')));
-      setPackages(packSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const plans = packSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPackages(plans);
 
-      // Fetch Custom Pricing
       const pricingSnap = await getDoc(doc(db, 'custom_hosting_pricing', 'global_pricing'));
       if (pricingSnap.exists()) {
         setCustomPricing(pricingSnap.data() as any);
@@ -62,71 +62,21 @@ const HostingPlansTab: React.FC = () => {
     fetchData();
   }, []);
 
-  
-  const handleSeed = async () => {
-    if(!window.confirm('Seed DianaHost demo data?')) return;
-    const features = [
-      { id: 'disk_space', name: 'Storage Space', category: 'Standard Features', type: 'text', order: 1 },
-      { id: 'bandwidth', name: 'Bandwidth', category: 'Standard Features', type: 'text', order: 2 },
-      { id: 'addon_domains', name: 'Addon Domains', category: 'Standard Features', type: 'text', order: 3 },
-      { id: 'subdomains', name: 'Subdomains', category: 'Standard Features', type: 'text', order: 4 },
-      { id: 'emails', name: 'Email Accounts', category: 'Email & DB', type: 'text', order: 5 },
-      { id: 'databases', name: 'MySQL Databases', category: 'Email & DB', type: 'text', order: 6 },
-      { id: 'free_ssl', name: 'Free SSL Certificate', category: 'Security', type: 'boolean', order: 7 },
-      { id: 'litespeed', name: 'Litespeed Web Server', category: 'Server', type: 'boolean', order: 8 },
-      { id: 'daily_backup', name: 'Daily Backup', category: 'Security', type: 'boolean', order: 9 },
-      { id: 'cpanel', name: 'cPanel Control Panel', category: 'Server', type: 'boolean', order: 10 },
-      { id: 'softaculous', name: 'Softaculous', category: 'Server', type: 'boolean', order: 11 },
-    ];
-    const plans = [
-      {
-        id: 'plan_starter',
-        name: 'Starter', slug: 'starter', status: 'published', order: 1, allowCustomization: true,
-        pricing: { monthly: 150, annually: 1500 },
-        cloudLinuxLimits: { cpu: '100', pmem: '1024', vmem: '2048', io: '10', iops: '1024', ep: '20', nproc: '100', inodes: '250000' },
-        comparisonValues: {
-          disk_space: '5 GB NVMe SSD', bandwidth: '100 GB', addon_domains: '0', subdomains: 'Unlimited', emails: '5', databases: '5', free_ssl: true, litespeed: true, daily_backup: false, cpanel: true, softaculous: true
-        }
-      },
-      {
-        id: 'plan_standard',
-        name: 'Standard', slug: 'standard', status: 'published', order: 2, popular: true, allowCustomization: true,
-        pricing: { monthly: 250, annually: 2500 },
-        cloudLinuxLimits: { cpu: '100', pmem: '2048', vmem: '4096', io: '20', iops: '2048', ep: '30', nproc: '120', inodes: '350000' },
-        comparisonValues: {
-          disk_space: '10 GB NVMe SSD', bandwidth: 'Unlimited', addon_domains: '3', subdomains: 'Unlimited', emails: '20', databases: '20', free_ssl: true, litespeed: true, daily_backup: true, cpanel: true, softaculous: true
-        }
-      },
-      {
-        id: 'plan_professional',
-        name: 'Professional', slug: 'professional', status: 'published', order: 3, allowCustomization: true,
-        pricing: { monthly: 400, annually: 4000 },
-        cloudLinuxLimits: { cpu: '200', pmem: '3072', vmem: '6144', io: '30', iops: '3072', ep: '40', nproc: '150', inodes: '500000' },
-        comparisonValues: {
-          disk_space: '20 GB NVMe SSD', bandwidth: 'Unlimited', addon_domains: '10', subdomains: 'Unlimited', emails: 'Unlimited', databases: 'Unlimited', free_ssl: true, litespeed: true, daily_backup: true, cpanel: true, softaculous: true
-        }
-      },
-      {
-        id: 'plan_premium',
-        name: 'Premium', slug: 'premium', status: 'published', order: 4, allowCustomization: true,
-        pricing: { monthly: 600, annually: 6000 },
-        cloudLinuxLimits: { cpu: '300', pmem: '4096', vmem: '8192', io: '50', iops: '4096', ep: '50', nproc: '200', inodes: '1000000' },
-        comparisonValues: {
-          disk_space: '50 GB NVMe SSD', bandwidth: 'Unlimited', addon_domains: 'Unlimited', subdomains: 'Unlimited', emails: 'Unlimited', databases: 'Unlimited', free_ssl: true, litespeed: true, daily_backup: true, cpanel: true, softaculous: true
-        }
-      }
-    ];
-
-    try {
-      for(let f of features) await setDoc(doc(db, 'hosting_features', f.id), f);
-      for(let p of plans) await setDoc(doc(db, 'hostingPlans', p.id), p);
-      await setDoc(doc(db, 'custom_hosting_pricing', 'global_pricing'), { perGbDisk: 50, perGbBandwidth: 10, perEmailAccount: 5, perDatabase: 10, perCoreCpu: 200, perGbRam: 150 });
-      toast.success('DianaHost Demo Data Seeded!');
-      fetchData();
-    } catch(e) {
-      toast.error('Failed to seed');
-      console.error(e);
+  const calculatePlanPrice = (plan: any) => {
+    if (!plan) return { monthly: 0, annually: 0, isOverridden: false };
+    
+    const licenseCostUsd = plan.pricing?.licenseCostUsd || 0;
+    const exchangeRate = settings.apiSettings?.usdToBdtRate || settings.usdToBdtRate || 120;
+    const markupPercent = settings.apiSettings?.hostingMarkupPercent || settings.hostingMarkupPercent || 35;
+    
+    const calculatedMonthly = Math.round(licenseCostUsd * exchangeRate * (1 + markupPercent / 100));
+    const calculatedAnnually = Math.round(calculatedMonthly * 12 * 0.8);
+    
+    if (plan.priceOverride && plan.overridePrice > 0) {
+      return { monthly: plan.overridePrice, annually: Math.round(plan.overridePrice * 12 * 0.8), isOverridden: true };
     }
+    
+    return { monthly: calculatedMonthly, annually: calculatedAnnually, isOverridden: false };
   };
 
   // --- FEATURE HANDLERS ---
@@ -202,7 +152,7 @@ const HostingPlansTab: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center"><h2 className="text-2xl font-bold text-gray-800">Hosting Package System</h2><button onClick={handleSeed} className="bg-yellow-500 text-white px-3 py-1 rounded text-xs ml-4 font-bold shadow hover:bg-yellow-600 transition">✨ Load DianaHost Demo Data</button></div>
+        <h2 className="text-2xl font-bold text-gray-800">Hosting Package System</h2>
         <div className="flex bg-gray-100 p-1 rounded-lg">
           <button onClick={() => setActiveSubTab('packages')} className={cn("px-4 py-2 rounded-md text-sm font-medium transition-colors", activeSubTab === 'packages' ? "bg-white text-[#7B61FF] shadow-sm" : "text-gray-600")}>Packages</button>
           <button onClick={() => setActiveSubTab('features')} className={cn("px-4 py-2 rounded-md text-sm font-medium transition-colors", activeSubTab === 'features' ? "bg-white text-[#7B61FF] shadow-sm" : "text-gray-600")}>Compare Features</button>
@@ -275,23 +225,29 @@ const HostingPlansTab: React.FC = () => {
             <button onClick={() => { setIsAddingPackage(true); setEditingPackage(null); setPackageModalTab('basic'); }} className="bg-[#7B61FF] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-purple-700"><Plus size={16} className="mr-2" />Add Package</button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {packages.map(p => (
+            {packages.map(p => {
+              const calculated = calculatePlanPrice(p);
+              return (
               <div key={p.id} className="border rounded-lg p-5 relative group hover:border-[#7B61FF] transition-colors">
                 <div className="absolute top-4 right-4 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => { setEditingPackage(p); setPackageForm({ name: p.name || '', slug: p.slug || '', status: p.status || 'published', order: p.order || 0, pricing: p.pricing || { monthly: 0, annually: 0 }, cloudLinuxLimits: p.cloudLinuxLimits || { cpu: '100', pmem: '1024', vmem: '2048', io: '10', iops: '1024', ep: '20', nproc: '100', inodes: '250000' }, allowCustomization: p.allowCustomization || false, comparisonValues: p.comparisonValues || {} }); setIsAddingPackage(true); setPackageModalTab('basic'); }} className="bg-blue-100 text-blue-600 p-2 rounded hover:bg-blue-200"><Edit size={16} /></button>
+                  <button onClick={() => { setEditingPackage(p); setPackageForm({ name: p.name || '', slug: p.slug || '', status: p.status || 'published', order: p.order || 0, pricing: p.pricing || { licenseCostUsd: 0, monthly: 0, annually: 0, billingCycle: 'monthly' }, cloudLinuxLimits: p.cloudLinuxLimits || { cpu: '100', pmem: '1024', vmem: '2048', io: '10', iops: '1024', ep: '20', nproc: '100', inodes: '250000' }, allowCustomization: p.allowCustomization || false, comparisonValues: p.comparisonValues || {}, priceOverride: p.priceOverride || false, overridePrice: p.overridePrice || 0 }); setIsAddingPackage(true); setPackageModalTab('basic'); }} className="bg-blue-100 text-blue-600 p-2 rounded hover:bg-blue-200"><Edit size={16} /></button>
                   <button onClick={() => handleDeletePackage(p.id)} className="bg-red-100 text-red-600 p-2 rounded hover:bg-red-200"><Trash2 size={16} /></button>
                 </div>
                 <div className="mb-4">
                   <span className={cn("text-xs font-bold px-2 py-1 rounded-full", p.status === 'published' ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700")}>{p.status}</span>
+                  {calculated.isOverridden && <span className="ml-2 text-xs font-bold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">MANUAL OVERRIDE</span>}
                 </div>
                 <h4 className="text-xl font-bold mb-1">{p.name}</h4>
-                <p className="text-3xl font-bold text-[#7B61FF] mb-4">৳{p.pricing?.monthly}<span className="text-sm text-gray-500 font-normal">/mo</span></p>
+                <p className="text-3xl font-bold text-[#7B61FF] mb-1">৳{calculated.monthly}<span className="text-sm text-gray-500 font-normal">/mo</span></p>
+                <p className="text-xs text-gray-400 mb-4">৳{calculated.annually}/yr (20% off annually)</p>
                 <div className="space-y-2 text-sm text-gray-600 bg-gray-50 p-3 rounded">
+                  <p><DollarSign size={14} className="inline mr-2" /> License: ${p.pricing?.licenseCostUsd || 0}/mo</p>
                   <p><Server size={14} className="inline mr-2" /> CPU: {p.cloudLinuxLimits?.cpu}% | RAM: {p.cloudLinuxLimits?.pmem}</p>
                   <p><Database size={14} className="inline mr-2" /> EP: {p.cloudLinuxLimits?.ep} | IO: {p.cloudLinuxLimits?.io}</p>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -341,21 +297,76 @@ const HostingPlansTab: React.FC = () => {
               <button onClick={() => setPackageModalTab('compare')} className={cn("px-6 py-3 text-sm font-medium border-b-2", packageModalTab === 'compare' ? "border-[#7B61FF] text-[#7B61FF]" : "border-transparent text-gray-500")}>Compare Table Values</button>
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1">
-               {packageModalTab === 'basic' && (
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div><label className="block text-sm font-medium mb-1">Name</label><input type="text" value={packageForm.name} onChange={(e) => setPackageForm({...packageForm, name: e.target.value})} className="w-full border p-2 rounded" /></div>
-                  <div><label className="block text-sm font-medium mb-1">Slug</label><input type="text" value={packageForm.slug} onChange={(e) => setPackageForm({...packageForm, slug: e.target.value})} className="w-full border p-2 rounded" /></div>
-                  <div><label className="block text-sm font-medium mb-1">Monthly Price (BDT)</label><input type="number" value={packageForm.pricing?.monthly} onChange={(e) => setPackageForm({...packageForm, pricing: {...packageForm.pricing, monthly: parseFloat(e.target.value)}})} className="w-full border p-2 rounded" /></div>
-                  <div><label className="block text-sm font-medium mb-1">Annually Price (BDT)</label><input type="number" value={packageForm.pricing?.annually} onChange={(e) => setPackageForm({...packageForm, pricing: {...packageForm.pricing, annually: parseFloat(e.target.value)}})} className="w-full border p-2 rounded" /></div>
-                  <div><label className="block text-sm font-medium mb-1">Status</label><select value={packageForm.status} onChange={(e) => setPackageForm({...packageForm, status: e.target.value})} className="w-full border p-2 rounded"><option value="published">Published</option><option value="draft">Draft</option></select></div>
-                  <div><label className="block text-sm font-medium mb-1">Order</label><input type="number" value={packageForm.order} onChange={(e) => setPackageForm({...packageForm, order: parseInt(e.target.value)})} className="w-full border p-2 rounded" /></div>
-                  <div className="col-span-2 flex items-center mt-2">
-                    <input type="checkbox" id="allowCust" checked={packageForm.allowCustomization} onChange={(e) => setPackageForm({...packageForm, allowCustomization: e.target.checked})} className="mr-2" />
-                    <label htmlFor="allowCust" className="text-sm font-medium">Allow Custom Builder (User can adjust resources with sliders)</label>
+             <div className="p-6 overflow-y-auto flex-1">
+                {packageModalTab === 'basic' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div><label className="block text-sm font-medium mb-1">Name</label><input type="text" value={packageForm.name} onChange={(e) => setPackageForm({...packageForm, name: e.target.value})} className="w-full border p-2 rounded" /></div>
+                      <div><label className="block text-sm font-medium mb-1">Slug</label><input type="text" value={packageForm.slug} onChange={(e) => setPackageForm({...packageForm, slug: e.target.value})} className="w-full border p-2 rounded" /></div>
+                      <div><label className="block text-sm font-medium mb-1">Status</label><select value={packageForm.status} onChange={(e) => setPackageForm({...packageForm, status: e.target.value})} className="w-full border p-2 rounded"><option value="published">Published</option><option value="draft">Draft</option></select></div>
+                      <div><label className="block text-sm font-medium mb-1">Order</label><input type="number" value={packageForm.order} onChange={(e) => setPackageForm({...packageForm, order: parseInt(e.target.value)})} className="w-full border p-2 rounded" /></div>
+                    </div>
+
+                    <div className="border-t pt-6">
+                      <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center"><DollarSign size={16} className="mr-2" /> License Cost & Pricing</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">CloudLinux License Cost (USD/month)</label>
+                          <input type="number" step="0.01" min="0" value={packageForm.pricing?.licenseCostUsd || 0} onChange={(e) => setPackageForm({...packageForm, pricing: {...packageForm.pricing, licenseCostUsd: parseFloat(e.target.value) || 0}})} className="w-full border p-2 rounded" placeholder="e.g. 5.00" />
+                          <p className="text-xs text-gray-500 mt-1">What CloudLinux charges YOU per license per month</p>
+                          <p className="text-xs text-yellow-600 mt-1 font-medium">⚠️ Estimated cost — verify against your CloudLinux billing page and update</p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Calculated BDT Price</label>
+                          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                            {(() => {
+                              const calc = calculatePlanPrice({...packageForm, pricing: {...packageForm.pricing, licenseCostUsd: packageForm.pricing?.licenseCostUsd || 0}});
+                              return (
+                                <div className="space-y-1 text-sm">
+                                  <p className="text-gray-600">License: ${(packageForm.pricing?.licenseCostUsd || 0).toFixed(2)} USD</p>
+                                  <p className="text-gray-600">× Rate: {settings.apiSettings?.usdToBdtRate || settings.usdToBdtRate || 120} BDT</p>
+                                  <p className="text-gray-600">× Margin: {settings.apiSettings?.hostingMarkupPercent || settings.hostingMarkupPercent || 35}%</p>
+                                  <p className="font-bold text-blue-900 text-lg">৳{calc.monthly}/mo</p>
+                                  <p className="text-xs text-gray-500">৳{calc.annually}/yr with 20% annual discount</p>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <label className="block text-sm font-bold text-gray-700">Price Override</label>
+                            <p className="text-xs text-gray-500">Pin a manual price instead of using the calculated one</p>
+                          </div>
+                          <button type="button" onClick={() => setPackageForm({...packageForm, priceOverride: !packageForm.priceOverride})} className={cn("relative inline-flex h-6 w-11 items-center rounded-full transition-colors", packageForm.priceOverride ? "bg-[#7B61FF]" : "bg-gray-200")}>
+                            <span className={cn("inline-block h-4 w-4 transform rounded-full bg-white transition-transform", packageForm.priceOverride ? "translate-x-6" : "translate-x-1")} />
+                          </button>
+                        </div>
+                        {packageForm.priceOverride && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Override Monthly Price (BDT)</label>
+                              <input type="number" value={packageForm.overridePrice || 0} onChange={(e) => setPackageForm({...packageForm, overridePrice: parseFloat(e.target.value) || 0})} className="w-full border p-2 rounded" />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Override Annual Price (BDT)</label>
+                              <input type="number" value={Math.round((packageForm.overridePrice || 0) * 12 * 0.8)} disabled className="w-full border p-2 rounded bg-gray-100" />
+                              <p className="text-xs text-gray-500 mt-1">Auto-calculated from monthly override</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="col-span-2 flex items-center mt-2">
+                      <input type="checkbox" id="allowCust" checked={packageForm.allowCustomization} onChange={(e) => setPackageForm({...packageForm, allowCustomization: e.checked})} className="mr-2" />
+                      <label htmlFor="allowCust" className="text-sm font-medium">Allow Custom Builder (User can adjust resources with sliders)</label>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {packageModalTab === 'cloudlinux' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

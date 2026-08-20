@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Check, ArrowRight, X, Server, Database, Activity } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useCart } from '../../context/CartContext';
+import { useSettings } from '../../context/SettingsContext';
 import { toast } from 'react-hot-toast';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -13,9 +14,27 @@ export default function DynamicHostingPlansSection({
   onNavigate,
 }) {
   const { addToCart } = useCart();
+  const { settings } = useSettings();
   const [plans, setPlans] = useState([]);
   const [features, setFeatures] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const calculatePlanPrice = (plan) => {
+    if (!plan) return { monthly: 0, annually: 0, isOverridden: false };
+    
+    const licenseCostUsd = plan.pricing?.licenseCostUsd || 0;
+    const exchangeRate = settings.apiSettings?.usdToBdtRate || settings.usdToBdtRate || 120;
+    const markupPercent = settings.apiSettings?.hostingMarkupPercent || settings.hostingMarkupPercent || 35;
+    
+    const calculatedMonthly = Math.round(licenseCostUsd * exchangeRate * (1 + markupPercent / 100));
+    const calculatedAnnually = Math.round(calculatedMonthly * 12 * 0.8);
+    
+    if (plan.priceOverride && plan.overridePrice > 0) {
+      return { monthly: plan.overridePrice, annually: Math.round(plan.overridePrice * 12 * 0.8), isOverridden: true };
+    }
+    
+    return { monthly: calculatedMonthly, annually: calculatedAnnually, isOverridden: false };
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -36,11 +55,18 @@ export default function DynamicHostingPlansSection({
   }, []);
 
   const handleBuyNow = (plan) => {
-    const price = billingCycle === 'annually' ? plan.pricing?.annually : plan.pricing?.monthly;
+    const calculated = calculatePlanPrice(plan);
+    const price = billingCycle === 'annually' ? calculated.annually : calculated.monthly;
+    
+    if (price <= 0) {
+      toast.error('Price unavailable for this plan. Please contact us.');
+      return;
+    }
+    
     addToCart({
       id: `dynamic-hosting-${plan.id}-${billingCycle}`,
       name: plan.name,
-      price: price || 0,
+      price: price,
       quantity: 1,
       category: 'Hosting & Domains',
       image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&q=80&w=200',
@@ -73,7 +99,8 @@ export default function DynamicHostingPlansSection({
         {/* Package Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start mb-20">
           {plans.map((plan, idx) => {
-            const price = billingCycle === 'annually' ? plan.pricing?.annually : plan.pricing?.monthly;
+            const calculated = calculatePlanPrice(plan);
+            const price = billingCycle === 'annually' ? calculated.annually : calculated.monthly;
             
             return (
             <div key={plan.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 hover:shadow-xl hover:border-[#7B61FF] transition-all relative overflow-hidden group">
@@ -82,11 +109,18 @@ export default function DynamicHostingPlansSection({
               <h3 className="text-xl font-bold uppercase mb-2 tracking-wide text-gray-900">{plan.name}</h3>
               
               <div className="mb-6">
-                <div className="flex items-baseline font-bold text-gray-900">
-                  <span className="text-lg mr-1">৳</span>
-                  <span className="text-4xl tracking-tighter">{price || 0}</span>
-                  <span className="text-gray-500 ml-1 text-sm font-normal">/{billingCycle === 'annually' ? 'yr' : 'mo'}</span>
-                </div>
+                {price > 0 ? (
+                  <div className="flex items-baseline font-bold text-gray-900">
+                    <span className="text-lg mr-1">৳</span>
+                    <span className="text-4xl tracking-tighter">{price}</span>
+                    <span className="text-gray-500 ml-1 text-sm font-normal">/{billingCycle === 'annually' ? 'yr' : 'mo'}</span>
+                  </div>
+                ) : (
+                  <div className="text-gray-500 text-sm py-2">Price unavailable</div>
+                )}
+                {calculated.isOverridden && (
+                  <p className="text-xs text-yellow-600 font-medium mt-1">Manually overridden</p>
+                )}
               </div>
 
               {/* CloudLinux Highlight Box */}
@@ -105,8 +139,12 @@ export default function DynamicHostingPlansSection({
                 </div>
               </div>
 
-              <button onClick={() => handleBuyNow(plan)} className="w-full py-3 rounded-lg font-bold uppercase tracking-wider text-xs transition-all bg-[#7B61FF] text-white hover:bg-purple-700 shadow-md">
-                Order Now
+              <button 
+                onClick={() => handleBuyNow(plan)} 
+                disabled={price <= 0}
+                className="w-full py-3 rounded-lg font-bold uppercase tracking-wider text-xs transition-all bg-[#7B61FF] text-white hover:bg-purple-700 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {price > 0 ? 'Order Now' : 'Contact Us'}
               </button>
             </div>
           )})}

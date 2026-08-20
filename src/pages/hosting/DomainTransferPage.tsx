@@ -6,6 +6,7 @@ import { PageHeader } from '../../components/hosting/PageHeader';
 import { SEO } from '../../components/SEO';
 import { ArrowRight, Lock, Unlock, Key, RefreshCw, Shield, HelpCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { searchDomainDynadot } from '../../services/dynadotApi';
 
 const DomainTransferPage = () => {
   const navigate = useNavigate();
@@ -32,12 +33,26 @@ const DomainTransferPage = () => {
     setIsProcessing(true);
     
     // Simulate an API call to verify transferability
-    setTimeout(() => {
+    setTimeout(async () => {
+      let transferPrice = 0;
+      try {
+        const result = await searchDomainDynadot(domainName);
+        transferPrice = result.priceBdt || result.priceUsd * 125;
+      } catch (e) {
+        console.error('Failed to get transfer price:', e);
+      }
+
+      if (transferPrice <= 0) {
+        toast.error('Price unavailable for this domain. Please try again later.');
+        setIsProcessing(false);
+        return;
+      }
+
       const transferProduct = {
         id: `domain_transfer_${domainName}`,
         name: `Domain Transfer — ${domainName}`,
         description: 'Includes 1 Year Extension',
-        price: 1299, // Standard transfer price
+        price: transferPrice,
         category: 'Hosting & Domains',
         stock: 9999,
         images: [],

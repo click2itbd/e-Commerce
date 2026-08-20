@@ -67,12 +67,12 @@ const HostingCart: React.FC = () => {
                     )}
                   </div>
                   
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-slate-900 mb-1">{item.name}</h3>
-                    <p className="text-sm text-slate-500">
-                      {item.details || 'Billed Annually'}
-                    </p>
-                  </div>
+                   <div className="flex-1">
+                     <h3 className="text-lg font-bold text-slate-900 mb-1">{item.name}</h3>
+                     <p className="text-sm text-slate-500">
+                       {typeof item.details === 'object' && item.details !== null ? 'Custom configuration' : (item.details || 'Billed Annually')}
+                     </p>
+                   </div>
 
                   <div className="flex items-center gap-8 w-full sm:w-auto justify-between sm:justify-end">
                     <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200 p-1">

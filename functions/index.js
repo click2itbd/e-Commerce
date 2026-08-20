@@ -196,9 +196,98 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
               }
             }
           }
+
+          // Provision hosting accounts if this order contains hosting items
+          const hostingItems = orderData.items.filter(item => item.itemType === 'hosting');
+          if (hostingItems.length > 0) {
+            const hAccountsSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('hostingAccounts')
+              .where('orderId', '==', orderId)
+              .get();
+            
+            if (!hAccountsSnap.empty) {
+              const batch = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').batch();
+              hAccountsSnap.docs.forEach(doc => {
+                batch.update(doc.ref, {
+                  status: 'active',
+                  activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+              });
+              await batch.commit();
+
+              // CloudLinux provisioning
+              const settingsSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('settings').doc('api_keys').get();
+              const apiKeys = settingsSnap.exists ? settingsSnap.data() : {};
+              const clnLogin = apiKeys?.clnLogin;
+              const clnSecretKey = apiKeys?.clnSecretKey;
+              const isSandbox = apiKeys?.isSandboxMode === true;
+
+              if (clnLogin && clnSecretKey) {
+                const timestamp = Math.floor(Date.now() / 1000);
+                const hash = crypto.createHash('sha1').update(clnSecretKey + timestamp).digest('hex');
+                const token = `${clnLogin}|${timestamp}|${hash}`;
+                const baseUrl = 'https://cln.cloudlinux.com/api';
+
+                for (const account of hAccountsSnap.docs) {
+                  const accountData = account.data();
+                  const ip = accountData.ipAddress || accountData.ip;
+                  const licenseType = accountData.licenseType || 1; // 1 = CloudLinux OS
+
+                  if (!ip) {
+                    console.warn('Hosting account missing IP address for CloudLinux provisioning:', account.id);
+                    continue;
+                  }
+
+                  const endpoint = `/v2/ip-license/licenses?ip=${encodeURIComponent(ip)}&type=${licenseType}`;
+
+                  if (isSandbox) {
+                    console.log('[CloudLinux TEST MODE] Would provision license:', {
+                      ip,
+                      licenseType,
+                      endpoint,
+                      method: 'POST',
+                      token: token.substring(0, 10) + '...'
+                    });
+                  } else {
+                    try {
+                      const response = await fetch(`${baseUrl}${endpoint}`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${token}`
+                        }
+                      });
+
+                      const rawText = await response.text();
+                      let apiData;
+                      try { apiData = JSON.parse(rawText); } catch (e) { apiData = {}; }
+
+                      if (!response.ok) {
+                        console.error('CloudLinux provisioning error:', apiData);
+                      } else {
+                        console.log('CloudLinux provisioning success:', { ip, licenseType, response: apiData });
+                      }
+                    } catch (error) {
+                      console.error('CloudLinux provisioning failed:', error);
+                    }
+                  }
+                }
+              } else {
+                console.warn('CloudLinux credentials not configured. Skipping provisioning.');
+              }
+
+              await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('apiLogs').add({
+                action: 'hosting_provisioning_completed',
+                orderId,
+                accountCount: hAccountsSnap.size,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                isSandbox,
+                note: isSandbox ? 'TEST MODE: Provisioning logged, not executed.' : 'Provisioning executed.'
+              });
+            }
+          }
         }
       }
-
 
       return res.status(200).send({ message: "Payment status updated successfully" });
     } else {
@@ -266,6 +355,17 @@ exports.dynadotSearchProxy = functions.https.onCall(async (data, context) => {
     const settingsSnap = await db.collection('settings').doc('api_keys').get();
     const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
     const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
+    const apiKeysData = settingsSnap.exists ? settingsSnap.data() : {};
+    const exchangeRate = parseFloat(apiKeysData.usdToBdtRate) || 120;
+    const markupPercent = parseFloat(apiKeysData.domainMarkupPercent) || 15;
+
+    console.log('[DynadotSearchProxy] Settings:', {
+      hasApiKey: !!apiKey,
+      isSandbox,
+      exchangeRate,
+      markupPercent,
+      domain
+    });
 
     if (!apiKey) {
       throw new functions.https.HttpsError('internal', 'Domain API key not configured.');
@@ -276,7 +376,7 @@ exports.dynadotSearchProxy = functions.https.onCall(async (data, context) => {
 
     const response = await fetch(dynadotUrl);
     if (!response.ok) {
-      throw new Error(`HTTP Error ${response.status}`);
+      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${response.status}`);
     }
     const rawText = await response.text(); 
     
@@ -287,15 +387,39 @@ exports.dynadotSearchProxy = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('internal', 'Failed to parse JSON response from Dynadot.'); 
     }
 
-    const publicConfigSnap = await db.collection('settings').doc('public_config').get();
-    const rate = publicConfigSnap.exists ? (parseFloat(publicConfigSnap.data().usdToBdtRate) || 120) : 120;
+    console.log('[DynadotSearchProxy] Raw Dynadot response:', JSON.stringify(apiData));
 
     if (apiData?.SearchResponse?.SearchResults) {
+        console.log('[DynadotSearchProxy] Processing', apiData.SearchResponse.SearchResults.length, 'results');
         apiData.SearchResponse.SearchResults = apiData.SearchResponse.SearchResults.map(res => {
-          const wholesaleUsd = res.Price ? parseFloat(res.Price) : 0; const publicConfig = publicConfigSnap.exists ? publicConfigSnap.data() : {}; const markup = parseFloat(publicConfig.domainMarkupPercent || 15); const retailUsd = wholesaleUsd + (wholesaleUsd * markup / 100); res.Price = retailUsd.toString(); const priceUsd = retailUsd;
-          res.priceBdt = priceUsd * rate;
-          return { ...res }; // Ensure plain objects
+          const wholesaleUsd = res.Price ? parseFloat(res.Price) : 0;
+          console.log('[DynadotSearchProxy] Result:', {
+            domain: res.Domain || res.domain,
+            Available: res.Available,
+            Price: res.Price,
+            wholesaleUsd,
+            exchangeRate,
+            markupPercent
+          });
+          
+          if (wholesaleUsd > 0) {
+            const retailUsd = wholesaleUsd * (1 + markupPercent / 100);
+            res.Price = retailUsd.toFixed(2);
+            res.priceBdt = Math.round(retailUsd * exchangeRate);
+            console.log('[DynadotSearchProxy] Calculated price:', {
+              retailUsd,
+              priceBdt: res.priceBdt
+            });
+          } else {
+            res.Price = '0';
+            res.priceBdt = 0;
+            console.log('[DynadotSearchProxy] Price is 0, setting priceBdt to 0');
+          }
+
+          return { ...res };
         });
+    } else {
+      console.log('[DynadotSearchProxy] No SearchResults found in response');
     }
     
     // Return completely serialized plain JSON object
@@ -510,4 +634,374 @@ exports.cloudLinuxProxy = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('internal', 'CloudLinux API request failed.');
   }
 });
-// Force deploy update 1
+
+// bKash Token Cache (simple in-memory cache for warm instances)
+const bkashTokenCache = {
+  token: null,
+  expiresAt: 0
+};
+
+function getBkashBaseUrl(isSandbox) {
+  return isSandbox ? 'https://tokenized.sandbox.bka.sh/v1.2.0-beta' : 'https://tokenized.pay.bka.sh/v1.2.0-beta';
+}
+
+async function getBkashCredentials(db) {
+  const settingsSnap = await db.collection('settings').doc('api_keys').get();
+  if (!settingsSnap.exists) {
+    throw new functions.https.HttpsError('failed-precondition', 'Payment gateway credentials not configured.');
+  }
+  const data = settingsSnap.data();
+  const isSandbox = data.isSandboxMode === true;
+  const prefix = isSandbox ? 'sandbox_' : 'production_';
+  
+  return {
+    appKey: data[`${prefix}bkashAppKey`] || data.bkashAppKey,
+    appSecret: data[`${prefix}bkashAppSecret`] || data.bkashAppSecret,
+    username: data[`${prefix}bkashUsername`] || data.bkashUsername,
+    password: data[`${prefix}bkashPassword`] || data.bkashPassword,
+    isSandbox,
+    baseUrl: getBkashBaseUrl(isSandbox)
+  };
+}
+
+async function getBkashAccessToken(db) {
+  const now = Date.now();
+  if (bkashTokenCache.token && now < bkashTokenCache.expiresAt) {
+    return bkashTokenCache.token;
+  }
+
+  const creds = await getBkashCredentials(db);
+  
+  const authString = Buffer.from(`${creds.username}:${creds.password}`).toString('base64');
+  
+  const response = await fetch(`${creds.baseUrl}/tokenized/checkout/token/grant`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Basic ${authString}`,
+      'X-APP-Key': creds.appKey
+    },
+    body: JSON.stringify({
+      app_key: creds.appKey,
+      app_secret: creds.appSecret
+    })
+  });
+
+  const rawText = await response.text();
+  let apiData;
+  try {
+    apiData = JSON.parse(rawText);
+  } catch (e) {
+    console.error('bKash non-JSON response:', rawText);
+    throw new functions.https.HttpsError('internal', 'bKash API returned invalid format.');
+  }
+
+  if (!response.ok || apiData.status_code !== '0000') {
+    console.error('bKash token error:', apiData);
+    throw new functions.https.HttpsError('internal', apiData.status_message || 'Failed to get bKash access token.');
+  }
+
+  // Cache token (expires in ~1 hour, we refresh 5 mins before)
+  bkashTokenCache.token = apiData.id_token;
+  bkashTokenCache.expiresAt = now + (55 * 60 * 1000); // 55 minutes
+
+  return bkashTokenCache.token;
+}
+
+exports.bkashGrantToken = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+  }
+
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  
+  try {
+    const token = await getBkashAccessToken(db);
+    return { success: true, token };
+  } catch (error) {
+    console.error('bKash Grant Token Error:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    throw new functions.https.HttpsError('internal', 'Failed to get bKash access token.');
+  }
+});
+
+exports.bkashCreatePayment = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+  }
+
+  const { orderId, amount, customerEmail, customerName, customerPhone } = data;
+  
+  if (!orderId || !amount || !customerEmail) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters: orderId, amount, customerEmail.');
+  }
+
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  
+  try {
+    // Verify order exists
+    const orderSnap = await db.collection('orders').doc(orderId).get();
+    if (!orderSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'Order not found.');
+    }
+
+    const accessToken = await getBkashAccessToken(db);
+    const creds = await getBkashCredentials(db);
+
+    const response = await fetch(`${creds.baseUrl}/tokenized/checkout/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-APP-Key': creds.appKey
+      },
+      body: JSON.stringify({
+        mode: '0011',
+        payerReference: customerPhone || customerEmail,
+        callbackURL: `https://e-commerce-chi-six.vercel.app/payment/return`,
+        amount: amount.toString(),
+        currency: 'BDT',
+        intent: 'sale',
+        merchantInvoiceNumber: orderId
+      })
+    });
+
+    const rawText = await response.text();
+    let apiData;
+    try {
+      apiData = JSON.parse(rawText);
+    } catch (e) {
+      console.error('bKash create payment non-JSON:', rawText);
+      throw new functions.https.HttpsError('internal', 'bKash API returned invalid format.');
+    }
+
+    if (!response.ok || apiData.status_code !== '0000') {
+      console.error('bKash create payment error:', apiData);
+      throw new functions.https.HttpsError('internal', apiData.status_message || 'Failed to create bKash payment.');
+    }
+
+    // Save paymentID to order
+    await db.collection('orders').doc(orderId).update({
+      bkashPaymentId: apiData.paymentID,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return {
+      success: true,
+      paymentId: apiData.paymentID,
+      paymentUrl: apiData.bkashURL
+    };
+
+  } catch (error) {
+    console.error('bKash Create Payment Error:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    throw new functions.https.HttpsError('internal', 'Failed to create bKash payment.');
+  }
+});
+
+exports.bkashExecutePayment = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+  }
+
+  const { paymentId, orderId } = data;
+  
+  if (!paymentId || !orderId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters: paymentId, orderId.');
+  }
+
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  
+  try {
+    const accessToken = await getBkashAccessToken(db);
+    const creds = await getBkashCredentials(db);
+
+    const response = await fetch(`${creds.baseUrl}/tokenized/checkout/execute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-APP-Key': creds.appKey
+      },
+      body: JSON.stringify({
+        paymentID: paymentId
+      })
+    });
+
+    const rawText = await response.text();
+    let apiData;
+    try {
+      apiData = JSON.parse(rawText);
+    } catch (e) {
+      console.error('bKash execute payment non-JSON:', rawText);
+      throw new functions.https.HttpsError('internal', 'bKash API returned invalid format.');
+    }
+
+    if (!response.ok || apiData.status_code !== '0000') {
+      console.error('bKash execute payment error:', apiData);
+      throw new functions.https.HttpsError('internal', apiData.status_message || 'Failed to execute bKash payment.');
+    }
+
+    // Update order with transaction details
+    await db.collection('orders').doc(orderId).update({
+      paymentStatus: 'paid',
+      status: 'processing',
+      transactionId: apiData.trxID || paymentId,
+      paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Log success
+    await db.collection('apiLogs').add({
+      action: 'bkash_payment_success',
+      orderId,
+      paymentId,
+      trxId: apiData.trxID,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      response: apiData
+    });
+
+    return { success: true, trxId: apiData.trxID };
+
+  } catch (error) {
+    console.error('bKash Execute Payment Error:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    throw new functions.https.HttpsError('internal', 'Failed to execute bKash payment.');
+  }
+});
+
+exports.bkashQueryPayment = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+  }
+
+  const { paymentId, orderId } = data;
+  
+  if (!paymentId || !orderId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters: paymentId, orderId.');
+  }
+
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  
+  try {
+    const accessToken = await getBkashAccessToken(db);
+    const creds = await getBkashCredentials(db);
+
+    const response = await fetch(`${creds.baseUrl}/tokenized/checkout/payment/status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-APP-Key': creds.appKey
+      },
+      body: JSON.stringify({
+        paymentID: paymentId
+      })
+    });
+
+    const rawText = await response.text();
+    let apiData;
+    try {
+      apiData = JSON.parse(rawText);
+    } catch (e) {
+      console.error('bKash query payment non-JSON:', rawText);
+      throw new functions.https.HttpsError('internal', 'bKash API returned invalid format.');
+    }
+
+    if (!response.ok || apiData.status_code !== '0000') {
+      console.error('bKash query payment error:', apiData);
+      throw new functions.https.HttpsError('internal', apiData.status_message || 'Failed to query bKash payment.');
+    }
+
+    return {
+      success: true,
+      status: apiData.status,
+      transactionStatus: apiData.transactionStatus,
+      amount: apiData.amount,
+      currency: apiData.currency,
+      trxId: apiData.trxID,
+      merchantInvoiceNumber: apiData.merchantInvoiceNumber
+    };
+
+  } catch (error) {
+    console.error('bKash Query Payment Error:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    throw new functions.https.HttpsError('internal', 'Failed to query bKash payment.');
+  }
+});
+
+exports.bkashCallback = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  if (req.method === 'OPTIONS') {
+    res.set('Access-Control-Allow-Methods', 'GET, POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    return res.status(204).send('');
+  }
+
+  try {
+    const { status, paymentId, orderId } = req.body || req.query;
+
+    if (!orderId) {
+      return res.status(400).send('Missing orderId');
+    }
+
+    const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+    const orderSnap = await db.collection('orders').doc(orderId).get();
+
+    if (!orderSnap.exists) {
+      return res.status(404).send('Order not found');
+    }
+
+    if (status === 'success' || status === 'completed') {
+      // Execute payment if we have paymentId
+      if (paymentId) {
+        try {
+          const accessToken = await getBkashAccessToken(db);
+          const creds = await getBkashCredentials(db);
+          
+          const executeResponse = await fetch(`${creds.baseUrl}/tokenized/checkout/execute`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+              'X-APP-Key': creds.appKey
+            },
+            body: JSON.stringify({ paymentID: paymentId })
+          });
+
+          const rawText = await executeResponse.text();
+          let executeData;
+          try { executeData = JSON.parse(rawText); } catch (e) { executeData = {}; }
+
+          if (executeData.status_code === '0000') {
+            await db.collection('orders').doc(orderId).update({
+              paymentStatus: 'paid',
+              status: 'processing',
+              transactionId: executeData.trxID || paymentId,
+              paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+          } else {
+            console.error('bKash execute failed on callback:', executeData);
+          }
+        } catch (e) {
+          console.error('bKash execute error on callback:', e);
+        }
+      }
+    } else {
+      // Failed or cancelled - update order status
+      await db.collection('orders').doc(orderId).update({
+        paymentStatus: 'failed',
+        status: 'cancelled',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    return res.status(200).send({ message: 'Callback processed' });
+  } catch (error) {
+    console.error('bKash Callback Error:', error);
+    return res.status(500).send('Internal Server Error');
+  }
+});
+
+// Force deploy update 2

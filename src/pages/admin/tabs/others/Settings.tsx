@@ -44,7 +44,21 @@ export const Settings = () => {
   const [apiKeys, setApiKeys] = useState<{
     dynadotApiKey?: string;
     usdToBdtRate?: number;
+    domainMarkupPercent?: number;
+    hostingMarkupPercent?: number;
     isSandboxMode?: boolean;
+    bkashAppKey?: string;
+    bkashAppSecret?: string;
+    bkashUsername?: string;
+    bkashPassword?: string;
+    sandbox_bkashAppKey?: string;
+    sandbox_bkashAppSecret?: string;
+    sandbox_bkashUsername?: string;
+    sandbox_bkashPassword?: string;
+    production_bkashAppKey?: string;
+    production_bkashAppSecret?: string;
+    production_bkashUsername?: string;
+    production_bkashPassword?: string;
   }>({});
 
   useEffect(() => {
@@ -1546,6 +1560,80 @@ export const Settings = () => {
                     </p>
                   </div>
 
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Domain Profit Margin %
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={apiKeys.domainMarkupPercent ?? 15}
+                        onChange={(e) =>
+                          setApiKeys({
+                            ...apiKeys,
+                            domainMarkupPercent: parseFloat(e.target.value),
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                      />
+                      <span className="absolute right-3 top-2.5 text-gray-500 text-sm">
+                        %
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Markup added to Dynadot wholesale price
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Hosting Profit Margin %
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={apiKeys.hostingMarkupPercent ?? 35}
+                        onChange={(e) =>
+                          setApiKeys({
+                            ...apiKeys,
+                            hostingMarkupPercent: parseFloat(e.target.value),
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                      />
+                      <span className="absolute right-3 top-2.5 text-gray-500 text-sm">
+                        %
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Markup added to CloudLinux license cost for hosting plans
+                    </p>
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                    <h4 className="text-sm font-bold text-blue-900 mb-2">Pricing Preview</h4>
+                    <div className="text-xs text-blue-800 space-y-1 font-mono">
+                      <p className="font-bold text-blue-700">Domain Pricing (margin: {apiKeys.domainMarkupPercent ?? 15}%)</p>
+                      <p>Wholesale: $10.00 USD</p>
+                      <p>Exchange Rate: {apiKeys.usdToBdtRate || 120} BDT/USD</p>
+                      <p>Retail USD: ${((10 * (1 + (apiKeys.domainMarkupPercent ?? 15) / 100)).toFixed(2))}</p>
+                      <p className="font-bold">Final BDT: ৳{Math.round(10 * (apiKeys.usdToBdtRate || 120) * (1 + (apiKeys.domainMarkupPercent ?? 15) / 100)).toLocaleString()}</p>
+                    </div>
+                    <div className="text-xs text-blue-800 space-y-1 font-mono mt-3 pt-3 border-t border-blue-200">
+                      <p className="font-bold text-blue-700">Hosting Pricing (margin: {apiKeys.hostingMarkupPercent ?? 35}%)</p>
+                      <p>License Cost: $10.00 USD</p>
+                      <p>Exchange Rate: {apiKeys.usdToBdtRate || 120} BDT/USD</p>
+                      <p>Retail USD: ${((10 * (1 + (apiKeys.hostingMarkupPercent ?? 35) / 100)).toFixed(2))}</p>
+                      <p className="font-bold">Final BDT: ৳{Math.round(10 * (apiKeys.usdToBdtRate || 120) * (1 + (apiKeys.hostingMarkupPercent ?? 35) / 100)).toLocaleString()}</p>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
                     <div>
                       <label className="block text-sm font-bold text-gray-700">
@@ -1578,6 +1666,136 @@ export const Settings = () => {
                         }
                       />
                     </button>
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-6 border-t">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex gap-4 mb-6">
+                    <div className="text-sm text-emerald-800">
+                      <p className="font-bold mb-1">
+                        bKash Payment Gateway Integration
+                      </p>
+                      <p>
+                        Enter your bKash Tokenized Checkout API credentials below.
+                        You can set separate Sandbox and Production credentials.
+                        The Sandbox mode toggle above controls which set is used.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Sandbox APP Key
+                      </label>
+                      <input
+                        type="password"
+                        value={apiKeys.sandbox_bkashAppKey || ""}
+                        onChange={(e) =>
+                          setApiKeys({ ...apiKeys, sandbox_bkashAppKey: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                        placeholder="Sandbox APP Key"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Sandbox APP Secret
+                      </label>
+                      <input
+                        type="password"
+                        value={apiKeys.sandbox_bkashAppSecret || ""}
+                        onChange={(e) =>
+                          setApiKeys({ ...apiKeys, sandbox_bkashAppSecret: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                        placeholder="Sandbox APP Secret"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Sandbox Username
+                      </label>
+                      <input
+                        type="text"
+                        value={apiKeys.sandbox_bkashUsername || ""}
+                        onChange={(e) =>
+                          setApiKeys({ ...apiKeys, sandbox_bkashUsername: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                        placeholder="Sandbox Username"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Sandbox Password
+                      </label>
+                      <input
+                        type="password"
+                        value={apiKeys.sandbox_bkashPassword || ""}
+                        onChange={(e) =>
+                          setApiKeys({ ...apiKeys, sandbox_bkashPassword: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                        placeholder="Sandbox Password"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Production APP Key
+                      </label>
+                      <input
+                        type="password"
+                        value={apiKeys.production_bkashAppKey || ""}
+                        onChange={(e) =>
+                          setApiKeys({ ...apiKeys, production_bkashAppKey: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                        placeholder="Production APP Key"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Production APP Secret
+                      </label>
+                      <input
+                        type="password"
+                        value={apiKeys.production_bkashAppSecret || ""}
+                        onChange={(e) =>
+                          setApiKeys({ ...apiKeys, production_bkashAppSecret: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                        placeholder="Production APP Secret"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Production Username
+                      </label>
+                      <input
+                        type="text"
+                        value={apiKeys.production_bkashUsername || ""}
+                        onChange={(e) =>
+                          setApiKeys({ ...apiKeys, production_bkashUsername: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                        placeholder="Production Username"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Production Password
+                      </label>
+                      <input
+                        type="password"
+                        value={apiKeys.production_bkashPassword || ""}
+                        onChange={(e) =>
+                          setApiKeys({ ...apiKeys, production_bkashPassword: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                        placeholder="Production Password"
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="mt-8 pt-6 border-t">

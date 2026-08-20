@@ -72,18 +72,18 @@ export default function DomainSearchResults() {
   };
 
   const getPrice = (domainObj: any) => {
-    // 1. If API provides a valid price (> 0), prioritize it (it includes the 15% markup)
+    // 1. If API provides a valid price (> 0), prioritize it
     if (domainObj.price && domainObj.price > 0) {
       return domainObj.price;
     }
 
-    // 2. Fallback to fixed DB pricing for TLDs Dynadot doesn't sell (like .com.bd)
-    const tld = domainObj.domain.substring(domainObj.domain.indexOf('.'));
-    const p = pricing.find(p => p.tld === tld);
-    if (p) return p.registerPrice;
-    
-    // 3. Absolute fallback
-    return 1299;
+    // 2. No fallback - return null to show "price unavailable"
+    return null;
+  };
+
+  const formatPrice = (price: number | null) => {
+    if (price === null || price === 0) return 'Price unavailable';
+    return `৳${price.toLocaleString()}`;
   };
 
   const handleAddToCart = (domain: string, price: number) => {
@@ -211,14 +211,17 @@ export default function DomainSearchResults() {
                   <div>
                     {exactMatch.available ? (
                       <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <div className="font-bold text-lg">&#2547;{getPrice(exactMatch).toLocaleString()}</div>
-                          <div className="text-xs text-gray-500">/yr</div>
-                        </div>
-                        <button 
-                          onClick={() => handleAddToCart(exactMatch.domain, getPrice(exactMatch))}
-                          className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2.5 rounded text-sm font-bold flex items-center gap-2 transition-colors"
-                        >
+                         <div className="text-right">
+                           <div className="font-bold text-lg">{formatPrice(getPrice(exactMatch))}</div>
+                           <div className="text-xs text-gray-500">/yr</div>
+                         </div>
+                         <button 
+                           onClick={() => {
+                             const price = getPrice(exactMatch);
+                             if (price) handleAddToCart(exactMatch.domain, price);
+                           }}
+                           className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2.5 rounded text-sm font-bold flex items-center gap-2 transition-colors"
+                         >
                           <ShoppingCart size={16} /> Add to cart
                         </button>
                       </div>
@@ -260,16 +263,19 @@ export default function DomainSearchResults() {
                     </div>
                     
                     <div className="mt-3 sm:mt-0 flex items-center gap-6">
-                      {alt.available ? (
-                        <>
-                          <div className="text-right">
-                            <div className="text-sm font-bold">&#2547;{getPrice(alt).toLocaleString()}</div>
-                            <div className="text-[10px] text-gray-500">Renews at &#2547;{(getPrice(alt) * 1.2).toLocaleString()}/yr</div>
-                          </div>
-                          <button 
-                            onClick={() => handleAddToCart(alt.domain, getPrice(alt))}
-                            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-colors w-32 justify-center"
-                          >
+                       {alt.available ? (
+                         <>
+                           <div className="text-right">
+                             <div className="text-sm font-bold">{formatPrice(getPrice(alt))}</div>
+                             <div className="text-[10px] text-gray-500">Renews at {formatPrice(getPrice(alt) ? getPrice(alt)! * 1.2 : null)}/yr</div>
+                           </div>
+                           <button 
+                             onClick={() => {
+                               const price = getPrice(alt);
+                               if (price) handleAddToCart(alt.domain, price);
+                             }}
+                             className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-colors w-32 justify-center"
+                           >
                             <ShoppingCart size={16} /> Add to cart
                           </button>
                         </>

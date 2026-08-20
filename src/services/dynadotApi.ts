@@ -25,24 +25,37 @@ export const searchDomainDynadot = async (domain: string): Promise<DomainAvailab
 
     const data: any = result.data;
     
+    console.log('[Dynadot] Full response data:', JSON.stringify(data, null, 2));
+    
     if (data?.Response?.Error || data?.SearchResponse?.Status === "invalid_key" || data?.SearchResponse?.Error) {
-      console.error(`Dynadot Error: Blocked by API or Invalid Key`);
+      console.error(`Dynadot Error: Blocked by API or Invalid Key`, data);
       throw new Error('Domain search failed, please try again.');
     }
     
     const searchResult = data?.SearchResponse?.SearchResults?.[0];
     if (!searchResult) {
+      console.error('[Dynadot] No search results found in response:', data);
       throw new Error('Domain search failed, please try again.');
     }
     
     const isAvailable = searchResult.Available?.toLowerCase() === 'yes';
     const priceUsd = searchResult.Price ? parseFloat(searchResult.Price) : 0;
+    const priceBdt = searchResult.priceBdt || 0;
+    
+    console.log('[Dynadot] SearchResult:', {
+      domain: searchResult.Domain || searchResult.domain,
+      Available: searchResult.Available,
+      Price: searchResult.Price,
+      priceBdt: searchResult.priceBdt,
+      priceUsd,
+      calculatedPriceBdt: priceBdt
+    });
     
     return {
       domain,
       available: isAvailable,
       priceUsd,
-      priceBdt: searchResult.priceBdt || 0,
+      priceBdt,
       status: isAvailable ? 'available' : 'taken',
     };
 

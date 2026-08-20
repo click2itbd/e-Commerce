@@ -3,17 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Globe, ArrowRight } from 'lucide-react';
 import { getDomainPricing } from '../../services/hostingApi';
 
-const FALLBACK = [
-  { tld: '.com', registerPrice: 1299, renewPrice: 1499, isActive: true },
-  { tld: '.net', registerPrice: 1099, renewPrice: 1299, isActive: true },
-  { tld: '.org', registerPrice: 1199, renewPrice: 1399, isActive: true },
-  { tld: '.com.bd', registerPrice: 2499, renewPrice: 2799, isActive: true },
-  { tld: '.xyz', registerPrice: 499, renewPrice: 799, isActive: true },
-  { tld: '.store', registerPrice: 799, renewPrice: 1199, isActive: true },
-  { tld: '.online', registerPrice: 699, renewPrice: 999, isActive: true },
-  { tld: '.io', registerPrice: 3999, renewPrice: 4299, isActive: true },
-];
-
 export default function DomainPricingSection() {
   const [pricing, setPricing] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,8 +10,8 @@ export default function DomainPricingSection() {
 
   useEffect(() => {
     getDomainPricing()
-      .then(data => setPricing(data && data.length > 0 ? data : FALLBACK))
-      .catch(() => setPricing(FALLBACK))
+      .then(data => setPricing(data || []))
+      .catch(() => setPricing([]))
       .finally(() => setLoading(false));
   }, []);
 
@@ -47,6 +36,11 @@ export default function DomainPricingSection() {
         {loading ? (
           <div className="flex justify-center items-center py-20">
             <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : active.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-gray-500 text-lg">Domain pricing is calculated dynamically at search time.</p>
+            <p className="text-gray-400 text-sm mt-2">Search for a domain to see real-time pricing from our registrar.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -14,26 +14,8 @@ interface DomainSearchProps {
 
 export const DomainSearch: React.FC<DomainSearchProps> = ({ onAddToCart }) => {
   const [searchText, setSearchText] = useState('');
-  const [selectedTlds, setSelectedTlds] = useState<string[]>(['.com', '.net', '.org', '.com.bd', '.xyz']);
-  const [pricing, setPricing] = useState<DomainPricing[]>([]);
+  const [selectedTlds, setSelectedTlds] = useState<string[]>(['.com', '.net', '.org', '.com.bd', '.xyz', '.online', '.dev']);
   const { loading, error, results, suggestions, search, fetchSuggestions, reset } = useDomainSearch();
-
-  useEffect(() => {
-    const loadPricing = async () => {
-      try {
-        const data = await getDomainPricing();
-        setPricing(data);
-        setSelectedTlds(prev => {
-          const activeTlds = data.filter(p => p.isActive).map(p => p.tld.startsWith('.') ? p.tld : `.${p.tld}`);
-          const filtered = prev.filter(tld => activeTlds.includes(tld));
-          return filtered.length > 0 ? filtered : activeTlds.slice(0, 5);
-        });
-      } catch (err) {
-        console.error('Failed to load domain pricing', err);
-      }
-    };
-    loadPricing();
-  }, []);
 
   const handleSearch = async () => {
     if (!searchText.trim()) return;

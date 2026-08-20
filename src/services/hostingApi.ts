@@ -1,3 +1,6 @@
+import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '../firebase';
+
 export interface DomainAvailabilityResult {
   domain: string;
   available: boolean;
@@ -20,10 +23,8 @@ export interface DomainPricing {
   isActive: boolean;
 }
 
-const API_BASE = '/api';
-
 export async function checkDomainAvailability(domains: string[]): Promise<DomainAvailabilityResult[]> {
-  const res = await fetch(`${API_BASE}/domain/check`, {
+  const res = await fetch('/api/domain/check', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ domains }),
@@ -36,8 +37,8 @@ export async function checkDomainAvailability(domains: string[]): Promise<Domain
   return data.data;
 }
 
-export async function getDomainSuggestions(domain: string): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/domain/suggestions`, {
+export async function getDomainSuggestions(domain: string): Promise<DomainSuggestionResult[]> {
+  const res = await fetch('/api/domain/suggestions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ domain }),
@@ -51,13 +52,8 @@ export async function getDomainSuggestions(domain: string): Promise<string[]> {
 }
 
 export async function getDomainPricing(): Promise<DomainPricing[]> {
-  const res = await fetch(`${API_BASE}/domain/pricing`);
-  if (!res.ok) throw new Error('Network response was not ok');
-  const data = await res.json();
-  if (!data.success) {
-    throw new Error(data.error || 'Failed to get domain pricing');
-  }
-  return data.data;
+  const snap = await getDocs(query(collection(db, 'domainPricing'), orderBy('tld', 'asc')));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as DomainPricing));
 }
 
 export interface HostingUsageStats {
@@ -72,7 +68,7 @@ export interface HostingUsageStats {
 }
 
 export async function getHostingUsage(providerAccountId: string): Promise<HostingUsageStats> {
-  const res = await fetch(`${API_BASE}/hosting/usage`, {
+  const res = await fetch('/api/hosting/usage', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ providerAccountId }),

@@ -46,28 +46,6 @@ export const DomainPricingManager: React.FC = () => {
     fetchData();
   }, []);
 
-  const seedDefaultPricing = async () => {
-    const defaults: DomainPricing[] = [
-      { tld: '.com', registerPrice: 1200, renewPrice: 1200, transferPrice: 1200, currency: 'BDT', isActive: true },
-      { tld: '.net', registerPrice: 1400, renewPrice: 1400, transferPrice: 1400, currency: 'BDT', isActive: true },
-      { tld: '.org', registerPrice: 1300, renewPrice: 1300, transferPrice: 1300, currency: 'BDT', isActive: true },
-      { tld: '.com.bd', registerPrice: 800, renewPrice: 800, transferPrice: 800, currency: 'BDT', isActive: true },
-      { tld: '.xyz', registerPrice: 600, renewPrice: 600, transferPrice: 600, currency: 'BDT', isActive: true },
-      { tld: '.info', registerPrice: 900, renewPrice: 900, transferPrice: 900, currency: 'BDT', isActive: true },
-    ];
-
-    try {
-      for (const item of defaults) {
-        await addDoc(collection(db, 'domainPricing'), item);
-      }
-      toast.success('Default domain pricing seeded');
-      fetchData();
-    } catch (error) {
-      console.error('Error seeding pricing:', error);
-      toast.error('Failed to seed default pricing');
-    }
-  };
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -134,14 +112,6 @@ export const DomainPricingManager: React.FC = () => {
             <p className="text-sm text-gray-500 mt-1">Manage TLD pricing for domain registration, renewal, and transfer</p>
           </div>
           <div className="flex items-center gap-2">
-            {pricing.length === 0 && (
-              <button
-                onClick={seedDefaultPricing}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors"
-              >
-                Seed Defaults
-              </button>
-            )}
             <button
               onClick={() => {
                 setEditingTld(null);
@@ -206,7 +176,7 @@ export const DomainPricingManager: React.FC = () => {
               {pricing.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-gray-400 italic">
-                    No domain pricing configured. Click "Add TLD" or "Seed Defaults" to get started.
+                    No domain pricing configured. Click "Add TLD" to get started.
                   </td>
                 </tr>
               )}

@@ -38,6 +38,7 @@ import RefundPolicy from './pages/policies/RefundPolicy';
 import DomainTransferPage from './pages/hosting/DomainTransferPage';
 import PaymentSimulation from './pages/PaymentSimulation';
 import PaymentCallback from './pages/PaymentCallback';
+import PaymentReturn from './pages/PaymentReturn';
 
 import { HostingCart } from './pages/hosting/HostingCart';
 import { HostingCheckout } from './pages/hosting/HostingCheckout';
@@ -74,9 +75,10 @@ export default function App() {
                   {/* <Route path="/checkout" element={<Checkout />} /> */}
                   <Route path="/order-success/:id" element={<OrderSuccess />} />
                   <Route path="/order-success" element={<OrderSuccess />} />
-                  <Route path="/payment/simulate" element={<PaymentSimulation />} />
-                  <Route path="/payment/callback" element={<PaymentCallback />} />
-                  <Route path="/category/:categorySlug" element={<CategoryPage />} />
+                   <Route path="/payment/simulate" element={<PaymentSimulation />} />
+                   <Route path="/payment/callback" element={<PaymentCallback />} />
+                   <Route path="/payment/return" element={<PaymentReturn />} />
+                   <Route path="/category/:categorySlug" element={<CategoryPage />} />
                   <Route path="/category/:categorySlug/:subCategorySlug" element={<CategoryPage />} />
 
                   {/* PC BUILD */}

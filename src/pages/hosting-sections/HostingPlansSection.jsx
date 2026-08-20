@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Database, Monitor, Server, Check, ArrowRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useCart } from '../../context/CartContext';
+import { useSettings } from '../../context/SettingsContext';
 import { toast } from 'react-hot-toast';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -12,7 +13,26 @@ export default function HostingPlansSection({
   onNavigate,
 }) {
   const { addToCart } = useCart();
+  const { settings } = useSettings();
   const [specialPlans, setSpecialPlans] = useState([]);
+  
+  const calculatePlanPrice = (plan) => {
+    if (!plan) return 0;
+    
+    const licenseCostUsd = plan.licenseCostUsd || plan.pricing?.licenseCostUsd || 0;
+    if (licenseCostUsd > 0) {
+      const exchangeRate = settings.apiSettings?.usdToBdtRate || settings.usdToBdtRate || 120;
+      const markupPercent = settings.apiSettings?.hostingMarkupPercent || settings.hostingMarkupPercent || 35;
+      const calculatedMonthly = Math.round(licenseCostUsd * exchangeRate * (1 + markupPercent / 100));
+      
+      if (plan.priceOverride && plan.overridePrice > 0) {
+        return plan.overridePrice;
+      }
+      return calculatedMonthly;
+    }
+    
+    return plan.price || 0;
+  };
   
   useEffect(() => {
     const fetchSpecialPlans = async () => {
@@ -31,10 +51,16 @@ export default function HostingPlansSection({
   }, []);
 
   const handleBuyNow = (plan) => {
+    const price = calculatePlanPrice(plan);
+    if (price <= 0) {
+      toast.error('Price unavailable for this plan. Please contact us.');
+      return;
+    }
+    
     addToCart({
       id: `hosting-${plan.id}-${billingCycle}`,
       name: `${plan.name} Plan`,
-      price: plan.price,
+      price: price,
       quantity: 1,
       category: 'Hosting & Domains',
       image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&q=80&w=200',
@@ -110,11 +136,22 @@ export default function HostingPlansSection({
               
               <div className="mb-8">
                 <p className="text-sm uppercase tracking-wider mb-2 text-gray-500">Starting at</p>
-                <div className="flex items-center justify-center font-bold">
-                  <span className="text-2xl align-top mt-1 text-gray-400">$</span>
-                  <span className={cn("text-6xl tracking-tighter", plan.popular ? "text-gray-900" : "text-gray-800")}>{plan.price}</span>
-                  <span className="text-gray-500 align-bottom ml-1">/{plan.billingCycle || 'mo'}</span>
-                </div>
+                {(() => {
+                  const price = calculatePlanPrice(plan);
+                  return (
+                    <div className="flex items-center justify-center font-bold">
+                      {price > 0 ? (
+                        <>
+                          <span className="text-2xl align-top mt-1 text-gray-400">৳</span>
+                          <span className={cn("text-6xl tracking-tighter", plan.popular ? "text-gray-900" : "text-gray-800")}>{price}</span>
+                          <span className="text-gray-500 align-bottom ml-1">/{plan.billingCycle || 'mo'}</span>
+                        </>
+                      ) : (
+                        <span className="text-xl text-gray-500">Contact for pricing</span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
                 <ul className="space-y-4 mb-8 text-left inline-block">

@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useHostingApiConfig } from '../hooks/useHostingApiConfig';
 import { useAuth } from '../context/AuthContext';
-import { getDomainPricing } from '../services/hostingApi';
 import { SEO } from '../components/SEO';
 
 import HeroSection from './hosting-sections/HeroSection';

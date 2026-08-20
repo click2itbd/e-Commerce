@@ -294,7 +294,7 @@ export const HostingCheckout: React.FC = () => {
 
       // Process payment
       if (formData.paymentMethod === 'bkash') {
-        const res = await initiateBkashPayment(orderId, grandTotal, formData.email);
+        const res = await initiateBkashPayment(orderId, grandTotal, formData.email, `${formData.firstName} ${formData.lastName}`, formData.phone);
         if (res.success && res.paymentUrl) {
           window.location.href = res.paymentUrl;
           return;
