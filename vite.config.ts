@@ -25,15 +25,16 @@ export default defineConfig(({mode}) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            // Firebase split
             'firebase-core': ['firebase/app', 'firebase/firestore'],
             'firebase-auth': ['firebase/auth'],
             'firebase-storage': ['firebase/storage'],
-            // UI libraries
-            'lucide': ['lucide-react'],
-            // PDF generation (heavy)
             'pdf-libs': ['jspdf', 'jspdf-autotable'],
-            // React ecosystem
+            'html2canvas': ['html2canvas'],
+            'recharts': ['recharts'],
+            'framer-motion': ['framer-motion', 'motion'],
+            'papaparse': ['papaparse'],
+            'react-helmet': ['react-helmet-async'],
+            'lucide': ['lucide-react'],
             'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           },
         },

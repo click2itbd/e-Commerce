@@ -71,7 +71,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                 const authCode = item.authCode || '';
                 
                 // Call Dynadot Transfer Command
-                const dynadotUrl = `${baseUrl}?key=${apiKey}&command=transfer&domain0=${domain}&authcode0=${encodeURIComponent(authCode)}`;
+                const dynadotUrl = `${baseUrl}?key=${apiKey}&command=transfer&domain=${domain}&authcode0=${encodeURIComponent(authCode)}`;
                 try {
                   const regResponse = await fetch(dynadotUrl);
                   const regData = await regResponse.json();
@@ -112,7 +112,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                 const years = item.termYears || 1;
                 
                 // Call Dynadot Renew Command
-                const dynadotUrl = `${baseUrl}?key=${apiKey}&command=renew&domain0=${domain}&duration0=${years}`;
+                const dynadotUrl = `${baseUrl}?key=${apiKey}&command=renew&domain=${domain}&duration=${years}`;
                 try {
                   const regResponse = await fetch(dynadotUrl);
                   const regData = await regResponse.json();
@@ -157,7 +157,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                 const years = item.termYears || 1;
                 
                 // Call Dynadot Register Command
-                const dynadotUrl = `${baseUrl}?key=${apiKey}&command=register&domain0=${domain}&duration0=${years}`;
+                const dynadotUrl = `${baseUrl}?key=${apiKey}&command=register&domain=${domain}&duration=${years}`;
                 try {
                   const regResponse = await fetch(dynadotUrl);
                   const regData = await regResponse.json();
@@ -251,22 +251,77 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
 });
 
 
+
+exports.dynadotSearchProxy = functions.https.onCall(async (data, context) => {
+  try {
+    // In Gen2/v7, data might be a CallableRequest. We extract domain safely.
+    const payload = data.data || data; 
+    const domain = payload.domain;
+    
+    if (!domain) {
+      throw new functions.https.HttpsError('invalid-argument', 'Missing domain parameter');
+    }
+
+    const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+    const settingsSnap = await db.collection('settings').doc('api_keys').get();
+    const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
+    const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
+
+    if (!apiKey) {
+      throw new functions.https.HttpsError('internal', 'Domain API key not configured.');
+    }
+
+    const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
+    const dynadotUrl = `${baseUrl}?key=${apiKey}&command=search&domain0=${domain}`;
+
+    const response = await fetch(dynadotUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP Error ${response.status}`);
+    }
+    const rawText = await response.text(); 
+    
+    let apiData;
+    try { 
+      apiData = JSON.parse(rawText); 
+    } catch(e) { 
+      throw new functions.https.HttpsError('internal', 'Failed to parse JSON response from Dynadot.'); 
+    }
+
+    const publicConfigSnap = await db.collection('settings').doc('public_config').get();
+    const rate = publicConfigSnap.exists ? (parseFloat(publicConfigSnap.data().usdToBdtRate) || 120) : 120;
+
+    if (apiData?.SearchResponse?.SearchResults) {
+        apiData.SearchResponse.SearchResults = apiData.SearchResponse.SearchResults.map(res => {
+          const wholesaleUsd = res.Price ? parseFloat(res.Price) : 0; const publicConfig = publicConfigSnap.exists ? publicConfigSnap.data() : {}; const markup = parseFloat(publicConfig.domainMarkupPercent || 15); const retailUsd = wholesaleUsd + (wholesaleUsd * markup / 100); res.Price = retailUsd.toString(); const priceUsd = retailUsd;
+          res.priceBdt = priceUsd * rate;
+          return { ...res }; // Ensure plain objects
+        });
+    }
+    
+    // Return completely serialized plain JSON object
+    return JSON.parse(JSON.stringify(apiData));
+  } catch (error) {
+    console.error('Dynadot Search Proxy Error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError('internal', 'Domain search failed unexpectedly.');
+  }
+});
+
 exports.dynadotProxy = functions.https.onCall(async (data, context) => {
   const { command, domain, extraParams } = data;
   
-  if (command !== 'search' && !context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'You must be logged in to use this service.');
+  if (!context.auth || context.auth.token.admin !== true) {
+    throw new functions.https.HttpsError('unauthenticated', 'Admin access required for domain operations.');
   }
+
   if (!command || !domain) {
     throw new functions.https.HttpsError('invalid-argument', 'Missing command or domain');
   }
 
   const adminCmds = ['register', 'renew', 'set_ns', 'delete'];
-  if (adminCmds.includes(command)) {
-    if (context.auth.token.admin !== true) {
-      throw new functions.https.HttpsError('permission-denied', 'Admin access required for this action.');
-    }
-  } else if (command !== 'search') {
+  if (!adminCmds.includes(command)) {
     throw new functions.https.HttpsError('invalid-argument', 'Command not allowed.');
   }
 
@@ -278,12 +333,11 @@ exports.dynadotProxy = functions.https.onCall(async (data, context) => {
     const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
 
     if (!apiKey) {
-      console.error('Dynadot API key missing in firestore api_keys document');
-      throw new functions.https.HttpsError('internal', 'Domain search failed, please try again.');
+      throw new functions.https.HttpsError('internal', 'Domain action failed.');
     }
 
     const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
-    let dynadotUrl = `${baseUrl}?key=${apiKey}&command=${command}&domain0=${domain}`;
+    let dynadotUrl = `${baseUrl}?key=${apiKey}&command=${command}&domain=${domain}`;
     
     if (extraParams && typeof extraParams === 'object') {
       for (const [k, v] of Object.entries(extraParams)) {
@@ -293,46 +347,23 @@ exports.dynadotProxy = functions.https.onCall(async (data, context) => {
 
     const response = await fetch(dynadotUrl);
     const rawText = await response.text(); 
-    
     let apiData;
-    try { 
-      apiData = JSON.parse(rawText); 
-    } catch(e) { 
-      console.error('JSON PARSE ERROR - RAW RESPONSE:', rawText, e); 
-      throw new functions.https.HttpsError('internal', 'Domain search failed, please try again.');
-    }
+    try { apiData = JSON.parse(rawText); } catch(e) { throw new functions.https.HttpsError('internal', 'Domain action failed.'); }
 
-    if (command === 'search') {
-      const publicConfigSnap = await db.collection('settings').doc('public_config').get();
-      const rate = publicConfigSnap.exists ? (parseFloat(publicConfigSnap.data().usdToBdtRate) || 120) : 120;
-
-      if (apiData?.SearchResponse?.SearchResults) {
-         apiData.SearchResponse.SearchResults = apiData.SearchResponse.SearchResults.map(res => {
-           const priceUsd = res.Price ? parseFloat(res.Price) : 0;
-           res.priceBdt = priceUsd * rate;
-           return res;
-         });
-      }
-    }
-
-    if (command === 'register') {
-      await db.collection('apiLogs').add({
-        action: 'dynadot_register',
-        domain,
-        isSandbox,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        response: apiData
-      });
-    }
+    await db.collection('apiLogs').add({
+      action: 'dynadot_' + command,
+      domain,
+      isSandbox,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      response: apiData
+    });
 
     return apiData;
-
   } catch (error) {
-    console.error('Dynadot Proxy Error:', error);
-    if (error instanceof functions.https.HttpsError) throw error;
-    throw new functions.https.HttpsError('internal', 'Domain search failed, please try again.');
+    throw new functions.https.HttpsError('internal', 'Domain action failed.');
   }
 });
+
 
 exports.manageDomain = functions.https.onCall(async (data, context) => {
   // Verify authentication
@@ -340,7 +371,7 @@ exports.manageDomain = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('unauthenticated', 'You must be logged in to manage domains.');
   }
 
-  const { command, domain, extraParams } = data;
+  console.log('RECEIVED DATA:', data); console.log('RECEIVED CONTEXT:', context); const { command, domain, extraParams } = data;
   const uid = context.auth.uid;
 
   if (!command || !domain) {
@@ -375,7 +406,7 @@ exports.manageDomain = functions.https.onCall(async (data, context) => {
   const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api-sandbox.dynadot.com/api3.json'; // wait, for testing let's just use the correct one
   const actualBaseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api-sandbox.dynadot.com/api3.json';
 
-  let dynadotUrl = `${actualBaseUrl}?key=${apiKey}&command=${command}&domain0=${domain}`;
+  let dynadotUrl = `${actualBaseUrl}?key=${apiKey}&command=${command}&domain=${domain}`;
   
   if (extraParams && typeof extraParams === 'object') {
     for (const [k, v] of Object.entries(extraParams)) {
@@ -398,3 +429,85 @@ exports.manageDomain = functions.https.onCall(async (data, context) => {
 
 
 
+
+
+const crypto = require('crypto');
+
+exports.cloudLinuxProxy = functions.https.onCall(async (data, context) => {
+  // Only admins can interact with CloudLinux API for adding/removing licenses
+  if (!context.auth || context.auth.token.admin !== true) {
+    throw new functions.https.HttpsError('permission-denied', 'Admin access required for this action.');
+  }
+
+  const { method, endpoint, payload } = data;
+  if (!method || !endpoint) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing HTTP method or endpoint.');
+  }
+
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+
+  try {
+    const settingsSnap = await db.collection('settings').doc('api_keys').get();
+    const apiKeys = settingsSnap.exists ? settingsSnap.data() : null;
+    
+    const clnLogin = apiKeys?.clnLogin;
+    const clnSecretKey = apiKeys?.clnSecretKey;
+
+    if (!clnLogin || !clnSecretKey) {
+      console.error('CloudLinux API keys missing in firestore');
+      throw new functions.https.HttpsError('failed-precondition', 'CloudLinux credentials not configured.');
+    }
+
+    // Generate Token
+    const timestamp = Math.floor(Date.now() / 1000);
+    const hash = crypto.createHash('sha1').update(clnSecretKey + timestamp).digest('hex');
+    const token = `${clnLogin}|${timestamp}|${hash}`;
+
+    const baseUrl = 'https://cln.cloudlinux.com/api';
+    const url = `${baseUrl}${endpoint}`;
+
+    const options = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    };
+
+    if (payload && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
+      options.body = JSON.stringify(payload);
+    }
+
+    const response = await fetch(url, options);
+    const rawText = await response.text();
+    
+    let apiData;
+    try {
+      apiData = JSON.parse(rawText);
+    } catch (e) {
+      console.error('CloudLinux non-JSON response:', rawText);
+      throw new functions.https.HttpsError('internal', 'CloudLinux API returned invalid format.');
+    }
+
+    if (!response.ok) {
+      console.error('CloudLinux API Error:', apiData);
+      throw new functions.https.HttpsError('internal', apiData?.message || 'Error from CloudLinux API.');
+    }
+
+    // Log the API call
+    await db.collection('apiLogs').add({
+      action: 'cloudlinux_' + method.toLowerCase(),
+      endpoint,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      response: apiData
+    });
+
+    return apiData;
+
+  } catch (error) {
+    console.error('CloudLinux Proxy Error:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    throw new functions.https.HttpsError('internal', 'CloudLinux API request failed.');
+  }
+});
+// Force deploy update 1

@@ -275,7 +275,7 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
       allow create: if isValidOrder(request.resource.data) && (request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess())));
-      allow update: if true;
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
       allow delete: if isAdmin();
     }
 
@@ -311,7 +311,7 @@ service cloud.firestore {
 
     
     match /settings/api_keys {
-      allow read, write: if false;
+      allow read, write: if isAdmin();
     }
     
     match /settings/public_config {
@@ -373,9 +373,17 @@ service cloud.firestore {
       allow create, update: if isAdmin() && isValidHostingService(request.resource.data);
       allow delete: if isAdmin();
     }
-    match /hostingPlans/{planId} {
+    match /hosting_features/{featureId} {
       allow read: if true;
-      allow create, update: if isAdmin() && isValidHostingPlan(request.resource.data);
+      allow write: if isAdmin();
+    }
+    match /custom_hosting_pricing/{pricingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /specialPlans/{planId} { allow read: if true; allow write: if isAdmin(); } match /hostingPlans/{planId} {
+      allow read: if true;
+      allow create, update: if isAdmin() ;
       allow delete: if isAdmin();
     }
     match /employees/{id} {
@@ -408,13 +416,13 @@ service cloud.firestore {
       allow read, write: if hasStaffAccess() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
     }
     match /counters/{counterId} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
 
     match /domainOrders/{orderId} {
       allow read: if isOwner(resource.data.userId) || hasStaffAccess();
       allow create: if isValidDomainOrder(request.resource.data) && (isOwner(request.resource.data.userId) || hasStaffAccess());
-      allow update: if true;
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
       allow delete: if isAdmin();
     }
 
@@ -432,7 +440,7 @@ service cloud.firestore {
 
     match /domain_offers/{offerId} {
       allow read, update, delete: if hasManagerAccess();
-      allow create: if true;
+      allow create: if isAdmin();
     }
 
     match /domainPricing/{tld} {

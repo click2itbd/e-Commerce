@@ -35,9 +35,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
               displayName: firebaseUser.displayName || 'User',
-              role: (import.meta.env.DEV || firebaseUser.email === 'click2itbd@gmail.com') ? 'admin' : 'user',
-              permissions: (import.meta.env.DEV || firebaseUser.email === 'click2itbd@gmail.com') 
-                ? ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing'] 
+              role: firebaseUser.email === 'click2itbd@gmail.com' ? 'admin' : 'user',
+              permissions: firebaseUser.email === 'click2itbd@gmail.com'
+                ? ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing']
                 : [],
               createdAt: new Date().toISOString(),
             };

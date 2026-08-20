@@ -56,7 +56,7 @@ export default function TestimonialsSection({ testimonials = DEFAULT_TESTIMONIAL
             return (
               <div
                 key={item.id}
-                className="snap-start shrink-0 w-[85vw] md:w-auto bg-white rounded-xl border border-[var(--c2i-line)] p-6 shadow-[var(--c2i-shadow-sm)] hover:shadow-[var(--c2i-shadow-md)] transition-all"
+                className="snap-start shrink-0 w-[85vw] sm:w-auto bg-white rounded-xl border border-[var(--c2i-line)] p-6 shadow-[var(--c2i-shadow-sm)] hover:shadow-[var(--c2i-shadow-md)] transition-all"
               >
                 <div className="relative mb-6">
                   <span className="absolute -top-2 -left-1 text-6xl leading-none select-none" style={{ color: 'var(--c2i-line)' }}>

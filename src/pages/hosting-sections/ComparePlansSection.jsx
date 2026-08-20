@@ -54,9 +54,9 @@ export default function ComparePlansSection() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="py-5 px-6 font-semibold text-gray-900 min-w-[200px]">Feature</th>
+               <th className="py-5 px-6 font-semibold text-gray-900 min-w-[120px] sm:min-w-[200px]">Feature</th>
               {plans.map((plan, idx) => (
-                <th key={plan.id} className={`py-5 px-6 font-semibold text-gray-900 text-center min-w-[150px] ${idx === plans.length - 1 ? 'bg-blue-50' : ''}`}>
+                 <th key={plan.id} className={`py-5 px-6 font-semibold text-gray-900 text-center min-w-[100px] sm:min-w-[150px] ${idx === plans.length - 1 ? 'bg-blue-50' : ''}`}>
                   {plan.name}
                 </th>
               ))}

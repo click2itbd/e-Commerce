@@ -16,12 +16,12 @@ export interface DomainAvailabilityResponse {
 export const searchDomainDynadot = async (domain: string): Promise<DomainAvailabilityResponse> => {
   try {
     const functions = getFunctions(auth.app);
-    const dynadotProxy = httpsCallable(functions, 'dynadotProxy');
+    const dynadotSearchProxy = httpsCallable(functions, 'dynadotSearchProxy');
     
-    const result = await dynadotProxy({
-      command: 'search',
-      domain: domain
-    });
+    const payload = { command: 'search', domain };
+    console.log('[Dynadot] Calling searchDomainDynadot with payload:', payload);
+    
+    const result = await dynadotSearchProxy(payload);
 
     const data: any = result.data;
     

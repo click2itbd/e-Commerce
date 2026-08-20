@@ -21,7 +21,7 @@ export default function ServicesGrid({ services = [], onNavigate }) {
           return (
             <div
               key={service.id || idx}
-              className="bg-[#0a1628] border border-gray-800 p-8 rounded-xl hover:border-blue-500 hover:shadow-[0_0_30px_rgba(59,130,246,0.15)] transition-all duration-300 group cursor-pointer"
+              className="bg-[#0a1628] border border-gray-800 p-6 sm:p-8 rounded-xl hover:border-blue-500 hover:shadow-[0_0_30px_rgba(59,130,246,0.15)] transition-all duration-300 group cursor-pointer"
               onClick={() => service.id && !service.id.startsWith('s') && onNavigate(`/hosting/${service.id}`)}
             >
               <div className="w-14 h-14 mb-6 flex items-center justify-center rounded-lg bg-blue-500/10 group-hover:bg-blue-500 transition-colors duration-300">

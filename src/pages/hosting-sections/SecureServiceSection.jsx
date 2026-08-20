@@ -5,7 +5,7 @@ export default function SecureServiceSection() {
   return (
     <section className="py-20 bg-white">
       <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-center max-w-6xl mx-auto">
           <div>
             <h2 className="text-3xl md:text-4xl font-extrabold text-[var(--c2i-blue-dark)] mb-6 leading-tight">
               Secure service your website

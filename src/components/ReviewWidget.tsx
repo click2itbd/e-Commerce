@@ -2,17 +2,19 @@ import React, { useEffect, useRef } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { Star, ExternalLink, ShieldCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
+import DOMPurify from 'dompurify';
 
 export const ReviewWidget: React.FC = () => {
   const { settings } = useSettings();
   const widgetContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+   useEffect(() => {
     if (settings.reviewWidgetEnabled && settings.reviewWidgetConfig && widgetContainerRef.current) {
-      // If there's a script tag in the config, we try to inject it
-      if (settings.reviewWidgetConfig.includes('<script')) {
+      const sanitizedConfig = DOMPurify.sanitize(settings.reviewWidgetConfig, { USE_PROFILES: { html: true, attributes: { 'script': [] } } });
+      
+      if (sanitizedConfig.includes('<script')) {
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = settings.reviewWidgetConfig;
+        tempDiv.innerHTML = sanitizedConfig;
         
         const scripts = tempDiv.getElementsByTagName('script');
         for (let i = 0; i < scripts.length; i++) {
@@ -31,11 +33,9 @@ export const ReviewWidget: React.FC = () => {
           document.body.appendChild(script);
         }
         
-        // Remove scripts from innerHTML so we don't render them as text
-        const cleanContent = settings.reviewWidgetConfig.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-        widgetContainerRef.current.innerHTML = cleanContent;
+        widgetContainerRef.current.innerHTML = tempDiv.innerHTML;
       } else {
-        widgetContainerRef.current.innerHTML = settings.reviewWidgetConfig;
+        widgetContainerRef.current.innerHTML = sanitizedConfig;
       }
     }
   }, [settings.reviewWidgetEnabled, settings.reviewWidgetConfig]);

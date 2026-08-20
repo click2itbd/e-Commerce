@@ -30,7 +30,7 @@ export default function WhyChooseUsSection() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
           {features.map((feature, idx) => (
-            <div key={idx} className="bg-white p-8 rounded-2xl shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] text-center transition-transform hover:-translate-y-2 duration-300">
+            <div key={idx} className="bg-white p-6 sm:p-8 rounded-2xl shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] text-center transition-transform hover:-translate-y-2 duration-300">
               <div className="w-16 h-16 mx-auto mb-6 bg-[var(--c2i-blue-dark)]/5 rounded-full flex items-center justify-center">
                 {feature.icon}
               </div>

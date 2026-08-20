@@ -5,7 +5,7 @@ export default function SecureDomainSection() {
   return (
     <section className="py-20 bg-gray-50">
       <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-center max-w-6xl mx-auto">
           <div className="flex items-center justify-center order-2 lg:order-1">
             <img src="/assets/secure_domain.jpg" alt="Domain Registration" className="w-full max-w-md h-auto rounded-2xl shadow-2xl" />
           </div>

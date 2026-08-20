@@ -72,6 +72,7 @@ export const AdminDashboard: React.FC = () => {
   const [transactionCategories, setTransactionCategories] = useState<TransactionCategory[]>([]);
   const [isAddingTransactionCategory, setIsAddingTransactionCategory] = useState(false);
   const [newTransactionCategory, setNewTransactionCategory] = useState<Partial<TransactionCategory>>({ name: '', type: 'expense', description: '' });
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [isAddingManualTransaction, setIsAddingManualTransaction] = useState(false);
   const [manualTransactionType, setManualTransactionType] = useState<'income' | 'expense'>('expense');
@@ -2880,8 +2881,13 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'dashboard' | 'analy
 
   return (
     <div className="min-h-screen bg-[#F4F7F6] flex font-sans text-gray-800">
+      {/* Mobile Sidebar Overlay */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setIsMobileMenuOpen(false)} />
+      )}
+      
       {/* Sidebar */}
-      <aside className="w-[260px] bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0 overflow-y-auto shrink-0 shadow-sm z-20 hidden lg:flex">
+      <aside className={cn("w-[260px] bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0 overflow-y-auto shrink-0 shadow-sm z-50", "hidden lg:flex", isMobileMenuOpen ? "fixed inset-y-0 left-0 flex" : "")}>
         <div className="h-[60px] flex items-center px-6 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-2 font-bold text-xl tracking-tight text-[#0f172a]">
              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
@@ -2889,6 +2895,9 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'dashboard' | 'analy
              </div>
              CLICK POS <span className="opacity-50 text-xs mt-1 border border-gray-200 px-1 rounded-full">+</span>
           </div>
+          <button className="lg:hidden ml-auto p-2 hover:bg-gray-100 rounded" onClick={() => setIsMobileMenuOpen(false)}>
+            <X size={20} />
+          </button>
         </div>
 
         <div className="flex-1 py-4 overflow-y-auto">
@@ -3126,12 +3135,17 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'dashboard' | 'analy
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
         {/* Top Header */}
-        <header className="h-[60px] bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0 sticky top-0 z-10">
-           <div className="flex-1 max-w-lg relative">
-             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-             <input type="text" placeholder="Search [CTRL + K]" onClick={() => toast('Coming Soon: Global Search')} className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-md text-sm focus:ring-2 focus:ring-blue-100 outline-none cursor-pointer" readOnly />
+        <header className="h-[60px] bg-white border-b border-gray-200 flex items-center justify-between px-3 sm:px-6 shrink-0 sticky top-0 z-10">
+           <div className="flex items-center gap-3 flex-1">
+             <button className="lg:hidden p-2 hover:bg-gray-100 rounded text-gray-600" onClick={() => setIsMobileMenuOpen(true)}>
+               <MenuIcon size={22} />
+             </button>
+             <div className="flex-1 max-w-lg relative">
+               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+               <input type="text" placeholder="Search [CTRL + K]" onClick={() => toast('Coming Soon: Global Search')} className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-md text-sm focus:ring-2 focus:ring-blue-100 outline-none cursor-pointer" readOnly />
+             </div>
            </div>
-           <div className="flex items-center gap-4 text-gray-500">
+           <div className="flex items-center gap-2 sm:gap-4 text-gray-500">
               <AdminNotifications />
                 <User size={18} className="hover:text-gray-800 cursor-pointer" onClick={() => toast('Coming Soon: Admin Profile Settings')} />
               <LogOut size={18} className="hover:text-red-600 cursor-pointer" onClick={() => navigate('/')} />

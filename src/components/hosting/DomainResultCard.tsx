@@ -45,7 +45,7 @@ export const DomainResultCard: React.FC<DomainResultCardProps> = ({ result, pric
   return (
     <div 
       className={cn(
-        "p-5 rounded-2xl border flex items-center justify-between transition-all duration-300",
+        "p-5 rounded-2xl border flex flex-col md:flex-row md:items-center md:justify-between gap-4 transition-all duration-300",
         isAvailable 
           ? "bg-[#0b1b16] border-green-500/30 shadow-[0_4px_30px_rgba(34,197,94,0.05)]" 
           : "bg-[#1b0b0b] border-red-500/30 shadow-[0_4px_30px_rgba(239,68,68,0.05)]"

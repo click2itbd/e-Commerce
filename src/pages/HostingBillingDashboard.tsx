@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Menu, ShoppingBag, User, FileEdit, Folder, Package, 
   PlusSquare, Tag, Server, Settings, Globe, LogOut,
-  ChevronDown, Search, ArrowUpRight, CheckCircle2, AlertCircle, Download
+  ChevronDown, Search, ArrowUpRight, CheckCircle2, AlertCircle, Download, X
 } from 'lucide-react';
 import { generatePDF } from '../lib/pdf';
 import { 
@@ -15,7 +15,7 @@ import { SiteSettings, Order, ServiceRecord } from '../types';
 import { Link, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { collection, getDocs, query, orderBy, setDoc, doc, updateDoc, addDoc } from 'firebase/firestore';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, cn } from '../lib/utils';
 import { 
   PagesEditorModule, 
   CategoriesModule, 
@@ -208,13 +208,26 @@ export const HostingBillingDashboard: React.FC = () => {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
+        {/* Mobile Sidebar Overlay */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        )}
+        
         {/* Sidebar */}
         <aside 
-          className={`bg-[#222E3C] text-gray-300 flex flex-col transition-all duration-300 ease-in-out ${
-            sidebarOpen ? 'w-[250px]' : 'w-0 overflow-hidden'
-          }`}
+          className={cn(
+            "bg-[#222E3C] text-gray-300 flex flex-col transition-all duration-300 ease-in-out z-50",
+            "fixed inset-y-0 left-0 lg:relative lg:inset-auto",
+            sidebarOpen ? 'w-[250px] translate-x-0' : '-translate-x-full lg:translate-x-0 lg:w-0 lg:overflow-hidden'
+          )}
         >
           <div className="flex-1 overflow-y-auto py-4">
+            <div className="flex items-center justify-between px-6 mb-4 lg:hidden">
+              <span className="font-bold text-white">Menu</span>
+              <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-[#1C2531] rounded text-gray-300">
+                <X size={20} />
+              </button>
+            </div>
             <ul className="space-y-1">
               {[
                 { icon: FileEdit, label: 'Pages Editor', id: 'pages-editor' },

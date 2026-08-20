@@ -33,6 +33,7 @@ import DomainSearchResults from './pages/hosting/DomainSearchResults';
 import SupportPage from './pages/hosting/SupportPage';
 import TermsOfService from './pages/policies/TermsOfService';
 import PrivacyPolicy from './pages/policies/PrivacyPolicy';
+import NotFound from './pages/NotFound';
 import RefundPolicy from './pages/policies/RefundPolicy';
 import DomainTransferPage from './pages/hosting/DomainTransferPage';
 import PaymentSimulation from './pages/PaymentSimulation';
@@ -95,10 +96,11 @@ export default function App() {
                   {/* ACCOUNT */}
                   <Route path="/account/services" element={<ProtectedRoute><MyServices /></ProtectedRoute>} />
                   <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                  <Route path="/terms" element={<TermsOfService />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/refund-policy" element={<RefundPolicy />} />
-        </Routes>
+                   <Route path="/terms" element={<TermsOfService />} />
+                   <Route path="/privacy" element={<PrivacyPolicy />} />
+                   <Route path="/refund-policy" element={<RefundPolicy />} />
+                   <Route path="*" element={<NotFound />} />
+                 </Routes>
               </Router>
             </CartProvider>
           </CompareProvider>

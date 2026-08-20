@@ -224,7 +224,7 @@ const SpecialPlansTab: React.FC = () => {
                                const fName = typeof feature === 'string' ? feature : feature.name;
                                const fValue = typeof feature === 'string' ? 'yes' : feature.value;
                                return (
-                                <div key={index} className="flex items-center gap-2">
+                                 <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2">
                                   <input
                                     type="text"
                                     placeholder="Feature Name (e.g., Storage)"

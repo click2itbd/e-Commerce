@@ -268,7 +268,7 @@ export default function ReviewSection() {
 
           {/* Review form */}
           <div className="lg:col-span-2">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 sticky top-24">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 lg:sticky lg:top-24">
               {rewardCode ? (
                 <div>
                   <div className="flex items-center gap-2 mb-4 text-teal-600">

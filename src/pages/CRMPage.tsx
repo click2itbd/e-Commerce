@@ -8,6 +8,7 @@ import { GoogleGenAI } from "@google/genai";
 import Papa from 'papaparse';
 import { saveAs } from 'file-saver';
 import QRCode from 'react-qr-code';
+import DOMPurify from 'dompurify';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
@@ -430,7 +431,7 @@ export const CRMPage: React.FC = () => {
                     {campaignTemplates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
              </div>
-             <div className="bg-gray-50 p-4 rounded mb-4 max-h-64 overflow-y-auto text-sm" dangerouslySetInnerHTML={{ __html: campaignTemplates.find((t:any) => t.id === selectedCampaignTemplateId)?.content || '' }} />
+              <div className="bg-gray-50 p-4 rounded mb-4 max-h-64 overflow-y-auto text-sm" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(campaignTemplates.find((t:any) => t.id === selectedCampaignTemplateId)?.content || '') }} />
              <button onClick={() => {
                  const template = campaignTemplates.find((t:any) => t.id === selectedCampaignTemplateId);
                  if (template) {

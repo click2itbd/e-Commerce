@@ -193,7 +193,7 @@ export const HostingAccountsManager: React.FC = () => {
                     {account.expiresAt ? new Date(account.expiresAt).toLocaleDateString() : '-'}
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1 sm:gap-2">
                       <button
                         onClick={() => handleViewUsage(account)}
                         className="bg-gray-100 p-2 rounded-md text-gray-600 hover:bg-gray-200 transition-colors"

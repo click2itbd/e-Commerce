@@ -86,7 +86,7 @@ export const AdminNotifications = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
             <h3 className="text-sm font-bold text-gray-800">Notifications</h3>
             <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{unreadCount} Pending</span>
