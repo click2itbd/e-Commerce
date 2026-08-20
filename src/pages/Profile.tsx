@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { MyDomainsTab } from '../components/MyDomainsTab';
+import { CustomerTicketsTab } from '../components/CustomerTicketsTab';
 import { useAuth } from '../context/AuthContext';
 import { db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
-import { User, Mail, Phone, MapPin, Building, Save, Camera, Loader2, ShoppingBag, Package, Clock, CheckCircle2, XCircle, ChevronRight } from 'lucide-react';
+import { User, Mail, Globe, Phone, MapPin, Building, Save, Camera, Loader2, ShoppingBag, Package, Clock, CheckCircle2, XCircle, ChevronRight, Tag, MessageSquare } from 'lucide-react';
 import { SEO } from '../components/SEO';
 import { formatCurrency } from '../lib/utils';
+import { useCart } from '../context/CartContext';
+import { useNavigate } from 'react-router-dom';
 
 interface UserProfileData {
   name: string;
@@ -22,12 +26,16 @@ interface UserProfileData {
 
 export const Profile: React.FC = () => {
   const { user } = useAuth();
+  const { addToCart } = useCart();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [offers, setOffers] = useState<any[]>([]);
+  const [offersLoading, setOffersLoading] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [formData, setFormData] = useState<UserProfileData>({
     name: '',
@@ -93,6 +101,28 @@ export const Profile: React.FC = () => {
     fetchProfile();
   }, [user]);
 
+  useEffect(() => {
+    if (activeTab !== 'offers' || !user) return;
+    const fetchOffers = async () => {
+      setOffersLoading(true);
+      try {
+        const q = query(
+          collection(db, 'domain_offers'),
+          where('email', '==', user.email)
+        );
+        const snap = await getDocs(q);
+        let data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setOffers(data);
+      } catch (err) {
+        console.error('Error fetching offers:', err);
+      } finally {
+        setOffersLoading(false);
+      }
+    };
+    fetchOffers();
+  }, [activeTab, user]);
+
   // Fetch orders when orders tab is active
   useEffect(() => {
     if (activeTab !== 'orders' || !user) return;
@@ -114,6 +144,24 @@ export const Profile: React.FC = () => {
     };
     fetchOrders();
   }, [activeTab, user]);
+
+  const handlePayOffer = (offer: any) => {
+    const product = {
+      id: `domain_${offer.domain}`,
+      name: `Domain Registration - ${offer.domain}`,
+      description: '1 Year Registration (Accepted Offer)',
+      price: offer.amount,
+      category: 'Hosting & Domains',
+      stock: 9999,
+      images: [],
+      createdAt: new Date().toISOString(),
+      itemType: 'domain' as const,
+      domainTld: offer.domain.split('.').pop() || '',
+      termYears: 1,
+    };
+    addToCart(product as any);
+    navigate('/hosting/checkout');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -233,6 +281,9 @@ export const Profile: React.FC = () => {
             {[
               { id: 'profile', label: 'My Profile', icon: User },
               { id: 'orders', label: 'My Orders', icon: ShoppingBag },
+                { id: 'my_domains', label: 'My Domains', icon: Globe },
+                { id: 'tickets', label: 'Support Tickets', icon: MessageSquare },
+                { id: 'offers', label: 'My Offers', icon: Tag },
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -321,7 +372,63 @@ export const Profile: React.FC = () => {
         )}
 
         {/* ── ORDERS TAB ── */}
-        {activeTab === 'orders' && (
+        
+        {/* OFFERS TAB */}
+        {activeTab === 'offers' && (
+          <div>
+            {offersLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+              </div>
+            ) : offers.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-16 text-center">
+                <Tag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-gray-700 mb-2">No Offers Yet</h3>
+                <p className="text-gray-400 mb-6">You haven't submitted any domain offers.</p>
+                <button onClick={() => navigate('/hosting')} className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors">
+                  Search Domains <ChevronRight size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {offers.map(offer => (
+                  <div key={offer.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="font-bold text-lg text-gray-800">{offer.domain}</h4>
+                      <p className="text-sm text-gray-500">Offered Amount: <span className="font-bold text-green-600">BDT {offer.amount}</span></p>
+                      <p className="text-xs text-gray-400 mt-1">Submitted on {new Date(offer.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-4 w-full md:w-auto">
+                      <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                        offer.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                        offer.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {offer.status}
+                      </div>
+                      
+                      {offer.status === 'accepted' && (
+                        <button 
+                          onClick={() => handlePayOffer(offer)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md transition-all whitespace-nowrap"
+                        >
+                          Pay Now
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+          
+          {activeTab === 'my_domains' && (
+            <MyDomainsTab currentUser={user} />
+          )}
+
+          {activeTab === 'orders' && (
           <div>
             {ordersLoading ? (
               <div className="flex items-center justify-center py-20">
@@ -450,4 +557,9 @@ export const Profile: React.FC = () => {
     </Layout>
   );
 };
+
+
+
+
+
 

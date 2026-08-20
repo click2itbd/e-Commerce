@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { cn, formatCurrency } from '../../../../lib/utils';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../../../../firebase';
 import { useSettings } from '../../../../context/SettingsContext';
 import { CRMIntegrationsSetting } from '../../../../components/CRMIntegrationsSetting';
 import { SiteSettings } from '../../../../types';
@@ -16,6 +18,22 @@ export const Settings = () => {
   const [settingsTab, setSettingsTab] = useState<'business' | 'pos' | 'tax' | 'invoice' | 'zatca' | 'email' | 'sms' | 'whatsapp' | 'whitelabel' | 'pwa' | 'crm_integrations' | 'review_integrations' | 'external_ecommerce' | 'domain_reseller'>('business');
   const [taxCalcAmount, setTaxCalcAmount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [apiKeys, setApiKeys] = useState<{ dynadotApiKey?: string, usdToBdtRate?: number, isSandboxMode?: boolean }>({});
+  
+  useEffect(() => {
+    const fetchApiKeys = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'settings', 'api_keys'));
+        if (snap.exists()) {
+          console.log("Fetched api keys:", snap.data()); setApiKeys(snap.data());
+        }
+      } catch (e) {
+        console.error('Error fetching api keys', e);
+      }
+    };
+    fetchApiKeys();
+  }, []);
+
 
   useEffect(() => {
     setSettingsFormData(settings);
@@ -25,7 +43,12 @@ export const Settings = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await updateSettings(settingsFormData);
+      if (settingsTab === 'domain_reseller') {
+          await setDoc(doc(db, 'settings', 'api_keys'), apiKeys, { merge: true });
+        } else {
+          await updateSettings(settingsFormData);
+        }
+
       toast.success('Site settings updated successfully');
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -630,9 +653,66 @@ export const Settings = () => {
                   )}
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            </div>            ) : settingsTab === 'domain_reseller' ? (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-gray-700">Domain Reseller API</h3>
+                </div>
+                <div className="p-6 space-y-6">
+                  
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex gap-4">
+                    <div className="text-sm text-yellow-800">
+                      <p className="font-bold mb-1">Dynadot Reseller Integration</p>
+                      <p>Enter your Dynadot API key below to enable real-time domain availability checks and automated registration. Make sure you have whitelisted this server's IP in your Dynadot account.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Dynadot API Key</label>
+                      <input 
+                        type="password"
+                        value={apiKeys.dynadotApiKey || ''}
+                        onChange={(e) => setApiKeys({...apiKeys, dynadotApiKey: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                        placeholder="Enter your Dynadot API key"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">USD to BDT Exchange Rate</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-gray-500">৳</span>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          value={apiKeys.usdToBdtRate || 120}
+                          onChange={(e) => setApiKeys({...apiKeys, usdToBdtRate: parseFloat(e.target.value)})}
+                          className="w-full pl-8 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Used to convert Dynadot USD prices to BDT</p>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700">Sandbox Mode</label>
+                        <p className="text-xs text-gray-500">Use Dynadot Sandbox API for testing without spending money</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setApiKeys({...apiKeys, isSandboxMode: !apiKeys.isSandboxMode})}
+                        className={apiKeys.isSandboxMode ? "relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-[#7B61FF]" : "relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-200"}
+                      >
+                        <span className={apiKeys.isSandboxMode ? "inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-6" : "inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1"} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            ) : (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div className="p-4 border-b border-gray-100">
                 <h3 className="text-sm font-bold text-gray-700 capitalize">{settingsTab.replace(/([A-Z])/g, ' $1').trim()} Setting</h3>
               </div>
@@ -644,7 +724,7 @@ export const Settings = () => {
             </div>
           )}
           
-          <div className="flex justify-end gap-2 mt-4 pb-12">
+                      <div className="flex justify-end gap-2 mt-4 pb-12">
              <button
               type="submit"
               disabled={loading}
@@ -658,4 +738,10 @@ export const Settings = () => {
     </div>
   );
 };
+
+
+
+
+
+
 

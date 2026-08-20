@@ -12,8 +12,28 @@ interface OrdersTabProps { orders: any[]; customers: any[]; orderSearchQuery: st
 
 const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQuery, setOrderSearchQuery, orderStatusFilter, setOrderStatusFilter, orderStartDate, setOrderStartDate, orderEndDate, setOrderEndDate, orderSort, setOrderSort, selectedOrderIds, setSelectedOrderIds, handleExportFilteredOrders, handleBulkUpdateOrderStatus, handleBulkReturnOrders, handleBulkExportOrders, handleBulkDeleteOrders, setSelectedLedgerEntity, setActiveTab, fetchData, updateOrderDiscount, updateOrderStatus, generatePDF }) => {
   const { isAdmin, hasPermission } = useAuth();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
   const { settings } = useSettings();
 
+
+    const processedOrders = orders.filter(order => {
+    const matchesStatus = orderStatusFilter === 'all' || order.status === orderStatusFilter;
+    const matchesSearch = order.id.toLowerCase().includes(orderSearchQuery.toLowerCase()) || order.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase()) || order.customerPhone.toLowerCase().includes(orderSearchQuery.toLowerCase());
+    const orderDate = order.createdAt.split('T')[0];
+    const matchesStartDate = !orderStartDate || orderDate >= orderStartDate;
+    const matchesEndDate = !orderEndDate || orderDate <= orderEndDate;
+    return matchesStatus && matchesSearch && matchesStartDate && matchesEndDate;
+  }).sort((a, b) => {
+    if (orderSort === 'date_desc') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (orderSort === 'date_asc') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    if (orderSort === 'total_desc') return b.total - a.total;
+    if (orderSort === 'total_asc') return a.total - b.total;
+    return 0;
+  });
+
+  const totalPages = Math.ceil(processedOrders.length / itemsPerPage);
+  const currentOrders = processedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -40,7 +60,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                     type="text"
                     placeholder="Search by ID, Name or Phone..."
                     value={orderSearchQuery}
-                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                    onChange={(e) => { setOrderSearchQuery(e.target.value); setCurrentPage(1); }}
                     className="pl-10 pr-4 py-2 border border-gray-200 rounded-md text-sm focus:ring-[#EF4444] focus:border-[#EF4444] w-64"
                   />
                 </div>
@@ -346,9 +366,35 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                   ))}
                 </tbody>
               </table>
+        </div>
+
+        {totalPages > 1 && (
+          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
+            <span className="text-sm text-gray-600">
+              Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, processedOrders.length)} of {processedOrders.length} orders
+            </span>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                disabled={currentPage === 1}
+                className="px-3 py-1 rounded bg-white border border-gray-300 disabled:opacity-50 text-sm font-medium"
+              >
+                Previous
+              </button>
+              <button 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 rounded bg-white border border-gray-300 disabled:opacity-50 text-sm font-medium"
+              >
+                Next
+              </button>
             </div>
           </div>
+        )}
+      </div>
   );
 };
 
 export default OrdersTab;
+
+

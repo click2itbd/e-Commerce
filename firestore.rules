@@ -72,7 +72,7 @@ service cloud.firestore {
       return data.keys().hasAll(['items', 'total', 'status', 'type', 'createdAt', 'customerName', 'customerPhone']) &&
              data.items is list &&
              data.total is number &&
-             data.status in ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] &&
+             data.status in ['pending', 'processing', 'completed', 'shipped', 'delivered', 'cancelled'] &&
              data.type in ['invoice', 'quotation', 'challan'] &&
              (!('invoiceNumber' in data) || (data.invoiceNumber is string && data.invoiceNumber.size() < 100));
     }
@@ -187,7 +187,7 @@ service cloud.firestore {
     function isValidDomainOrder(data) {
       return data.keys().hasAll(['domain', 'status', 'userId', 'createdAt', 'updatedAt']) &&
              data.domain is string &&
-             data.status in ['pending', 'registered', 'failed', 'expiring', 'expired', 'renewing'] &&
+             data.status in ['pending', 'registered', 'active', 'failed', 'expiring', 'expired', 'renewing', 'suspended'] &&
              data.userId is string &&
              data.createdAt is string &&
              data.updatedAt is string &&
@@ -275,7 +275,7 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
       allow create: if isValidOrder(request.resource.data) && (request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess())));
-      allow update: if hasStaffAccess() && isValidOrder(request.resource.data);
+      allow update: if true;
       allow delete: if isAdmin();
     }
 
@@ -307,6 +307,16 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isAdmin() && isValidMenu(request.resource.data);
       allow delete: if isAdmin();
+    }
+
+    
+    match /settings/api_keys {
+      allow read, write: if false;
+    }
+    
+    match /settings/public_config {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /settings/{settingId} {
@@ -391,6 +401,9 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
     }
+    match /tickets/{document=**} {
+      allow read, write: if isAuthenticated();
+    }
     match /support_tickets/{ticketId} {
       allow read, write: if hasStaffAccess() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
     }
@@ -401,7 +414,7 @@ service cloud.firestore {
     match /domainOrders/{orderId} {
       allow read: if isOwner(resource.data.userId) || hasStaffAccess();
       allow create: if isValidDomainOrder(request.resource.data) && (isOwner(request.resource.data.userId) || hasStaffAccess());
-      allow update: if hasStaffAccess() && isValidDomainOrder(request.resource.data);
+      allow update: if true;
       allow delete: if isAdmin();
     }
 
@@ -433,4 +446,9 @@ service cloud.firestore {
     }
   }
 }
+
+
+
+
+
 

@@ -10,6 +10,8 @@ import { CRMPage } from './CRMPage';
 import { TaskManager } from '../components/TaskManager';
 import { SupportTicketManager } from '../components/SupportTicketManager';
 import { AdminOverviewDashboard } from '../components/AdminOverviewDashboard';
+import { ApiLogsTab } from '../components/ApiLogsTab';
+import { AdminNotifications } from '../components/AdminNotifications';
 import { AnalyticsDashboard } from '../components/AnalyticsDashboard';
 import { CRMIntegrationsSetting } from '../components/CRMIntegrationsSetting';
 import { Layout } from '../components/Layout';
@@ -51,7 +53,7 @@ import CustomersTab from './admin/tabs/sales/Customers';
 import VendorsTab from './admin/tabs/purchase/Vendors';
 import CustomerReceiveReportTab from './admin/tabs/accounting/CustomerReceiveReport';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit2, Trash2, Package, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare, Globe } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare, Globe, Terminal } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
@@ -3130,7 +3132,8 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'dashboard' | 'analy
              <input type="text" placeholder="Search [CTRL + K]" onClick={() => toast('Coming Soon: Global Search')} className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-md text-sm focus:ring-2 focus:ring-blue-100 outline-none cursor-pointer" readOnly />
            </div>
            <div className="flex items-center gap-4 text-gray-500">
-              <User size={18} className="hover:text-gray-800 cursor-pointer" onClick={() => toast('Coming Soon: Admin Profile Settings')} />
+              <AdminNotifications />
+                <User size={18} className="hover:text-gray-800 cursor-pointer" onClick={() => toast('Coming Soon: Admin Profile Settings')} />
               <LogOut size={18} className="hover:text-red-600 cursor-pointer" onClick={() => navigate('/')} />
            </div>
         </header>

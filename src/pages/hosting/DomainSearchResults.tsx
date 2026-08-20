@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { Search, X, Info, Star, ShoppingCart, Lock, CreditCard, Shield, MessageCircle, ChevronDown, CheckCircle2, DollarSign, Loader2 } from 'lucide-react';
@@ -112,7 +112,7 @@ export default function DomainSearchResults() {
         status: 'pending',
         createdAt: new Date().toISOString()
       });
-      toast.success('Offer of ৳' + offerAmount + ' for ' + offerDomain + ' submitted successfully! We will contact you soon.');
+      toast.success('Offer of ?' + offerAmount + ' for ' + offerDomain + ' submitted successfully! We will contact you soon.');
       setOfferDomain(null);
       setOfferAmount('');
       setOfferEmail('');
@@ -141,7 +141,7 @@ export default function DomainSearchResults() {
   return (
           <Layout fullWidth>
         <div className="bg-[#f5f7f9] min-h-screen py-8">
-          <div className="max-w-6xl mx-auto px-4">
+          <div className="max-w-7xl mx-auto px-4">
             
             {/* Main Search Bar */}
             <div className="bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.08)] overflow-hidden flex items-stretch mb-6">
@@ -203,11 +203,11 @@ export default function DomainSearchResults() {
                     {exactMatch.available ? (
                       <div className="flex items-center gap-4">
                         <div className="text-right">
-                          <div className="font-bold text-lg">&#2547;{exactMatch.price.toLocaleString()}</div>
+                          <div className="font-bold text-lg">&#2547;{getPrice(exactMatch.domain.substring(exactMatch.domain.indexOf("."))).toLocaleString()}</div>
                           <div className="text-xs text-gray-500">/yr</div>
                         </div>
                         <button 
-                          onClick={() => handleAddToCart(exactMatch.domain, exactMatch.price)}
+                          onClick={() => handleAddToCart(exactMatch.domain, getPrice(exactMatch.domain.substring(exactMatch.domain.indexOf("."))))}
                           className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2.5 rounded text-sm font-bold flex items-center gap-2 transition-colors"
                         >
                           <ShoppingCart size={16} /> Add to cart
@@ -254,11 +254,11 @@ export default function DomainSearchResults() {
                       {alt.available ? (
                         <>
                           <div className="text-right">
-                            <div className="text-sm font-bold">&#2547;{alt.price.toLocaleString()}</div>
-                            <div className="text-[10px] text-gray-500">Renews at &#2547;{(alt.price * 1.2).toLocaleString()}/yr</div>
+                            <div className="text-sm font-bold">&#2547;{getPrice(alt.domain.substring(alt.domain.indexOf("."))).toLocaleString()}</div>
+                            <div className="text-[10px] text-gray-500">Renews at &#2547;{(getPrice(alt.domain.substring(alt.domain.indexOf("."))) * 1.2).toLocaleString()}/yr</div>
                           </div>
                           <button 
-                            onClick={() => handleAddToCart(alt.domain, alt.price)}
+                            onClick={() => handleAddToCart(alt.domain, getPrice(alt.domain.substring(alt.domain.indexOf("."))))}
                             className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-colors w-32 justify-center"
                           >
                             <ShoppingCart size={16} /> Add to cart
@@ -347,6 +347,7 @@ export default function DomainSearchResults() {
       </Layout>
   );
 }
+
 
 
 

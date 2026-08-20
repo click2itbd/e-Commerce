@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../../firebase';
-import { collection, query, orderBy, getDocs, doc, updateDoc, where } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, updateDoc, where, limit } from 'firebase/firestore';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { Server, Search, Eye, X, Globe, Download, Loader2, FileText } from 'lucide-react';
@@ -13,6 +13,10 @@ import { sendServiceActivationEmail, getEmailLogsForOrder, EmailLog } from '../.
 export default function HostingOrders() {
   const { settings } = useSettings();
   const [orders, setOrders] = useState<HostingOrder[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -32,7 +36,7 @@ export default function HostingOrders() {
 
   const fetchOrders = async () => {
     try {
-      const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(1000));
       const snap = await getDocs(q);
       let fetchedOrders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as HostingOrder[];
       
@@ -106,7 +110,7 @@ export default function HostingOrders() {
       setSelectedOrder({ ...selectedOrder, status: newStatus as any });
     } catch (error) {
       console.error('Error updating order status:', error);
-      toast.error('Failed to update status');
+      toast.error('Order Error: ' + error.message);
     } finally {
       setStatusUpdating(false);
     }
@@ -151,7 +155,7 @@ export default function HostingOrders() {
       }
     } catch (error) {
       console.error('Error updating service status:', error);
-      toast.error('Failed to update service status');
+      toast.error('Service Error: ' + error.message);
     }
   };
 
@@ -225,8 +229,8 @@ export default function HostingOrders() {
     const tableBody = (order.items || []).map(item => [
       item.name,
       item.itemType === 'domain' ? `${item.termYears || 1} Year(s)` : (item.billingCycle || 'Monthly'),
-      formatCurrency(item.price),
-      formatCurrency(item.price)
+      `BDT ${item.price.toLocaleString()}`,
+      `BDT ${item.price.toLocaleString()}`
     ]);
 
     autoTable(doc, {
@@ -242,23 +246,28 @@ export default function HostingOrders() {
 
     const totalX = pageWidth - 60;
     doc.text('Subtotal:', totalX, currentY);
-    doc.text(formatCurrency(order.total), pageWidth - 14, currentY, { align: 'right' });
+    doc.text(`BDT ${order.total.toLocaleString()}`, pageWidth - 14, currentY, { align: 'right' });
     
     currentY += 8;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.text('Grand Total:', totalX, currentY);
-    doc.text(formatCurrency(order.total), pageWidth - 14, currentY, { align: 'right' });
+    doc.text(`BDT ${order.total.toLocaleString()}`, pageWidth - 14, currentY, { align: 'right' });
 
     doc.save(`Invoice_${order.documentNumber || order.id.slice(0, 8)}.pdf`);
     toast.success('Invoice generated successfully!');
   };
 
-  const filteredOrders = orders.filter(o => 
+  
+  const processedOrders = orders.filter(o => 
     o.documentNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     o.customerEmail?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  
+  const totalPages = Math.ceil(processedOrders.length / itemsPerPage);
+  const currentOrders = processedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
 
   return (
     <div className="space-y-6">
@@ -301,14 +310,14 @@ export default function HostingOrders() {
                     Loading orders...
                   </td>
                 </tr>
-              ) : filteredOrders.length === 0 ? (
+              ) : processedOrders.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     No hosting orders found.
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map(order => (
+                currentOrders.map(order => (
                   <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{order.documentNumber || order.id.slice(0, 8)}</td>
                     <td className="px-6 py-4 text-sm text-gray-500">
@@ -319,7 +328,7 @@ export default function HostingOrders() {
                       <div className="text-xs text-gray-500">{order.customerEmail}</div>
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {formatCurrency(order.total)}
+                      {`BDT ${order.total.toLocaleString()}`}
                     </td>
                     <td className="px-6 py-4">
                       <span className={cn("px-2.5 py-1 rounded-full text-xs font-medium capitalize", getStatusColor(order.status))}>
@@ -340,8 +349,32 @@ export default function HostingOrders() {
               )}
             </tbody>
           </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
+              <span className="text-sm text-gray-600">
+                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, processedOrders.length)} of {processedOrders.length} hosting orders
+              </span>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 rounded bg-white border border-gray-300 disabled:opacity-50 text-sm font-medium"
+                >
+                  Previous
+                </button>
+                <button 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 rounded bg-white border border-gray-300 disabled:opacity-50 text-sm font-medium"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
 
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -380,8 +413,8 @@ export default function HostingOrders() {
                   <h4 className="font-semibold text-gray-900 border-b pb-2">Order Summary</h4>
                   <div className="text-sm space-y-1 text-gray-600">
                     <p><span className="font-medium text-gray-900">Payment Method:</span> <span className="uppercase">{selectedOrder.paymentMethod}</span></p>
-                    <p><span className="font-medium text-gray-900">Shipping:</span> {formatCurrency(selectedOrder.shippingCost)}</p>
-                    <p className="text-lg font-bold text-gray-900 mt-2">Total: {formatCurrency(selectedOrder.total)}</p>
+                    <p><span className="font-medium text-gray-900">Shipping:</span> {`BDT ${selectedOrder.shippingCost.toLocaleString()}`}</p>
+                    <p className="text-lg font-bold text-gray-900 mt-2">Total: {`BDT ${selectedOrder.total.toLocaleString()}`}</p>
                     
                     <div className="mt-4 flex items-center gap-3">
                       <span className="font-medium text-gray-900">Status:</span>
@@ -421,7 +454,7 @@ export default function HostingOrders() {
                             <div className="flex justify-between items-start mb-2">
                               <div>
                                 <p className="font-bold text-gray-900 text-lg">{domain.domain}</p>
-                                <p className="text-xs text-gray-500">{domain.years} Year(s) &bull; {formatCurrency(domain.price)}</p>
+                                <p className="text-xs text-gray-500">{domain.years} Year(s) &bull; {`BDT ${domain.price.toLocaleString()}`}</p>
                               </div>
                               <select
                                 value={domain.status}
@@ -568,3 +601,6 @@ export default function HostingOrders() {
     </div>
   );
 }
+
+
+

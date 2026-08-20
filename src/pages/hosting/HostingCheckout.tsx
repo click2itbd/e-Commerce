@@ -8,7 +8,7 @@ import { formatCurrency } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { Lock, ShieldCheck, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server } from 'lucide-react';
 import { db } from '../../firebase';
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { generateDocumentNumber } from '../../lib/numbering';
 import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../../services/paymentApi';
 
@@ -203,35 +203,79 @@ export const HostingCheckout: React.FC = () => {
         discountAmount: discountAmount,
         appliedDiscountCode: appliedDiscount ? appliedDiscount.code : null,
         createdAt: new Date().toISOString(),
-      };
+          updatedAt: new Date().toISOString(),
+        };
 
-      const docRef = await addDoc(collection(db, 'orders'), orderData);
+      const batch = writeBatch(db);
+      const newOrderRef = doc(collection(db, 'orders'));
+      batch.set(newOrderRef, orderData);
+      
       
       const domainItems = items.filter(item => item.itemType === 'domain');
+      
+      const renewalItems = items.filter(item => item.itemType === 'domain_renewal');
+      const transferItems = items.filter(item => item.itemType === 'domain_transfer');
+
+
       const hostingItems = items.filter(item => item.itemType === 'hosting');
 
       for (const domainItem of domainItems) {
         const domain = domainItem.id.replace('domain_', '');
         const tld = domainItem.domainTld || domain.split('.').pop() || '';
-        await addDoc(collection(db, 'domainOrders'), {
-          domain,
-          tld,
-          userId: user.uid,
-          orderId: docRef.id,
-          status: 'pending',
-          years: domainItem.termYears || 1,
-          autoRenew: false,
-          nameservers: domainConfig.useCustomNs ? [domainConfig.ns1, domainConfig.ns2] : ['ns1.click2it.com', 'ns2.click2it.com'],
+        const dOrderRef = doc(collection(db, 'domainOrders'));
+        batch.set(dOrderRef, {
+          userId: user?.uid || 'guest',
+          orderId: newOrderRef.id,
+          domain: domain,
+          tld: tld,
+          termYears: domainItem.termYears || 1,
           price: domainItem.price,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      
+      for (const rItem of renewalItems) {
+        const dOrderRef = doc(collection(db, 'domainOrders'));
+        batch.set(dOrderRef, {
+          userId: user?.uid || 'guest',
+          orderId: newOrderRef.id,
+          domain: rItem.domain,
+          tld: rItem.domain.split('.').pop() || '',
+          termYears: rItem.termYears || 1,
+          price: rItem.price,
+          status: 'pending',
+          action: 'renewal',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      
+      for (const tItem of transferItems) {
+        const dOrderRef = doc(collection(db, 'domainOrders'));
+        batch.set(dOrderRef, {
+          userId: user?.uid || 'guest',
+          orderId: newOrderRef.id,
+          domain: tItem.domain || tItem.id.replace('domain_transfer_', ''),
+          tld: (tItem.domain || tItem.id.replace('domain_transfer_', '')).split('.').pop() || '',
+          termYears: tItem.termYears || 1,
+          price: tItem.price,
+          status: 'pending',
+          action: 'transfer',
+          authCode: tItem.authCode || '',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
       }
 
       for (const hostingItem of hostingItems) {
-        await addDoc(collection(db, 'hostingAccounts'), {
-          userId: user.uid,
-          orderId: docRef.id,
+        const hAccountRef = doc(collection(db, 'hostingAccounts'));
+        batch.set(hAccountRef, {
+          userId: user?.uid || 'guest',
+          orderId: newOrderRef.id,
           planId: hostingItem.id.replace('hosting_', ''),
           domain: hostingConfig.domain, // Associated domain
           provider: 'dummy',
@@ -242,8 +286,9 @@ export const HostingCheckout: React.FC = () => {
           updatedAt: new Date().toISOString(),
         });
       }
-      
-      orderId = docRef.id;
+
+      await batch.commit();
+      orderId = newOrderRef.id;
         setExistingOrderId(orderId);
       } // End if (!orderId)
 
@@ -620,7 +665,7 @@ export const HostingCheckout: React.FC = () => {
                         <CheckCircle className="w-3.5 h-3.5 text-white absolute opacity-0 scale-50 peer-checked:opacity-100 peer-checked:scale-100 transition-all pointer-events-none" />
                       </div>
                       <span className="text-sm text-gray-600 leading-tight">
-                        I have read and agree to the <a href="#" className="text-blue-600 hover:underline">Terms of Service</a> and <a href="#" className="text-blue-600 hover:underline">Privacy Policy</a>.
+                        I have read and agree to the <a href="/terms" target="_blank" className="text-blue-600 hover:underline">Terms of Service</a> and <a href="/privacy" target="_blank" className="text-blue-600 hover:underline">Privacy Policy</a>.
                       </span>
                     </label>
                   </div>
@@ -666,6 +711,9 @@ export const HostingCheckout: React.FC = () => {
     </Layout>
   );
 };
+
+
+
 
 
 

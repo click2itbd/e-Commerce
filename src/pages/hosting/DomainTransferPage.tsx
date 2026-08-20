@@ -43,6 +43,7 @@ const DomainTransferPage = () => {
         images: [],
         createdAt: new Date().toISOString(),
         itemType: 'domain_transfer' as const,
+        authCode: authCode,
         domainTld: domainName.split('.').pop() || '',
         termYears: 1,
         meta: {

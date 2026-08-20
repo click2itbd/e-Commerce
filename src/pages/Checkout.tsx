@@ -7,7 +7,7 @@ import { Layout } from '../components/Layout';
 import { toast } from 'react-hot-toast';
 import { Lock, ArrowRight } from 'lucide-react';
 import { auth, db } from '../firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, writeBatch } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { generateDocumentNumber } from '../lib/numbering';
 import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../services/paymentApi';
@@ -126,9 +126,12 @@ export const Checkout: React.FC = () => {
         paymentMethod: formData.paymentMethod,
         notes: formData.notes,
         createdAt: new Date().toISOString(),
-      };
+          updatedAt: new Date().toISOString(),
+        };
 
-      const docRef = await addDoc(collection(db, 'orders'), orderData);
+      const batch = writeBatch(db);
+      const newOrderRef = doc(collection(db, 'orders'));
+      batch.set(newOrderRef, orderData);
       
       const domainItems = items.filter(item => item.itemType === 'domain');
       const hostingItems = items.filter(item => item.itemType === 'hosting');
@@ -136,11 +139,12 @@ export const Checkout: React.FC = () => {
       for (const domainItem of domainItems) {
         const domain = domainItem.id.replace('domain_', '');
         const tld = domainItem.domainTld || domain.split('.').pop() || '';
-        await addDoc(collection(db, 'domainOrders'), {
+        const dOrderRef = doc(collection(db, 'domainOrders'));
+        batch.set(dOrderRef, {
           domain,
           tld,
           userId: currentUserId,
-          orderId: docRef.id,
+          orderId: newOrderRef.id,
           status: 'pending',
           years: domainItem.termYears || 1,
           autoRenew: false,
@@ -152,9 +156,10 @@ export const Checkout: React.FC = () => {
       }
 
       for (const hostingItem of hostingItems) {
-        await addDoc(collection(db, 'hostingAccounts'), {
+        const hAccountRef = doc(collection(db, 'hostingAccounts'));
+        batch.set(hAccountRef, {
           userId: currentUserId,
-          orderId: docRef.id,
+          orderId: newOrderRef.id,
           planId: hostingItem.id.replace('hosting_', ''),
           provider: 'dummy',
           status: 'pending',
@@ -164,7 +169,12 @@ export const Checkout: React.FC = () => {
           updatedAt: new Date().toISOString(),
         });
       }
+
+      await batch.commit();
       
+      // Update docRef for payment initiation logic below
+      const docRef = newOrderRef;
+
       // Only clear cart and show success if not redirecting to a payment gateway
       if (formData.paymentMethod === 'bkash') {
         const res = await initiateBkashPayment(docRef.id, grandTotal, formData.email);
@@ -379,3 +389,4 @@ export const Checkout: React.FC = () => {
     </Layout>
   );
 };
+

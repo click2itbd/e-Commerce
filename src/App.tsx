@@ -30,8 +30,11 @@ import ServicesPage from './pages/hosting/ServicesPage';
 import PricingPage from './pages/hosting/PricingPage';
 import DomainPage from './pages/hosting/DomainPage';
 import DomainSearchResults from './pages/hosting/DomainSearchResults';
-import DomainTransferPage from './pages/hosting/DomainTransferPage';
 import SupportPage from './pages/hosting/SupportPage';
+import TermsOfService from './pages/policies/TermsOfService';
+import PrivacyPolicy from './pages/policies/PrivacyPolicy';
+import RefundPolicy from './pages/policies/RefundPolicy';
+import DomainTransferPage from './pages/hosting/DomainTransferPage';
 import PaymentSimulation from './pages/PaymentSimulation';
 import PaymentCallback from './pages/PaymentCallback';
 
@@ -92,7 +95,10 @@ export default function App() {
                   {/* ACCOUNT */}
                   <Route path="/account/services" element={<ProtectedRoute><MyServices /></ProtectedRoute>} />
                   <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                </Routes>
+                  <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/refund-policy" element={<RefundPolicy />} />
+        </Routes>
               </Router>
             </CartProvider>
           </CompareProvider>
@@ -101,3 +107,8 @@ export default function App() {
     </HelmetProvider>
   );
 }
+
+
+
+
+

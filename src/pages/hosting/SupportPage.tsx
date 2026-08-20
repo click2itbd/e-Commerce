@@ -1,4 +1,9 @@
 import React, { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '../../firebase';
+import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import { Search, Phone, Mail, MessageCircle, Send, ChevronDown, ChevronUp } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { PageHeader } from '../../components/hosting/PageHeader';
@@ -26,6 +31,9 @@ const faqs = [
 export default function SupportPage() {
   const { settings } = useSettings();
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
     <Layout fullWidth>
@@ -122,26 +130,75 @@ export default function SupportPage() {
               </div>
             </div>
             <div className="lg:col-span-3 p-12">
-              <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+              <form className="space-y-6" onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!user) {
+                    toast.error('Please login to submit a ticket');
+                    navigate('/login?redirect=/support');
+                    return;
+                  }
+                  
+                  const formData = new FormData(e.currentTarget);
+                  const subject = formData.get('subject') as string;
+                  const priority = formData.get('priority') as string;
+                  const message = formData.get('message') as string;
+                  
+                  if (!subject || !message) {
+                    toast.error('Please fill in all required fields');
+                    return;
+                  }
+
+                  try {
+                    setIsSubmitting(true);
+                    const now = new Date().toISOString();
+                    const ticketData = {
+                      userId: user.uid,
+                      customerName: user.displayName || formData.get('firstName') + ' ' + formData.get('lastName'),
+                      customerEmail: user.email || formData.get('email'),
+                      subject,
+                      status: 'open',
+                      priority: priority.split(' ')[0].toLowerCase(),
+                      createdAt: now,
+                      updatedAt: now
+                    };
+
+                    const docRef = await addDoc(collection(db, 'tickets'), ticketData);
+                    
+                    await addDoc(collection(db, 'tickets', docRef.id, 'messages'), {
+                      sender: 'customer',
+                      message,
+                      createdAt: now
+                    });
+
+                    toast.success('Ticket submitted successfully!');
+                    e.currentTarget.reset();
+                    navigate('/profile?tab=tickets');
+                  } catch (error) {
+                    console.error('Error submitting ticket:', error);
+                    toast.error('Failed to submit ticket');
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
-                    <input type="text" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" placeholder="John" />
+                    <input type="text" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" name="firstName" placeholder="John" defaultValue={user?.displayName?.split(" ")[0] || ""} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-                    <input type="text" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" placeholder="Doe" />
+                    <input type="text" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" name="lastName" placeholder="Doe" defaultValue={user?.displayName?.split(" ")[1] || ""} />
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                    <input type="email" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" placeholder="john@example.com" />
+                    <input type="email" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" name="email" placeholder="john@example.com" defaultValue={user?.email || ""} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
-                    <select className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white">
+                    <select name="priority" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white">
                       <option>Low - General Query</option>
                       <option>Medium - Minor Issue</option>
                       <option>High - Service Degradation</option>
@@ -152,17 +209,17 @@ export default function SupportPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-                  <input type="text" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" placeholder="How do I..." />
+                  <input type="text" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" name="subject" placeholder="How do I..." required />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Message</label>
-                  <textarea rows={5} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none" placeholder="Describe your issue in detail..."></textarea>
+                  <textarea rows={5} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none" name="message" placeholder="Describe your issue in detail..." required></textarea>
                 </div>
 
                 <div className="flex justify-end">
-                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl font-medium transition-colors flex items-center space-x-2">
-                    <span>Submit Ticket</span>
+                  <button type="submit" disabled={isSubmitting} className="bg-blue-600 disabled:opacity-70 hover:bg-blue-700 text-white px-8 py-4 rounded-xl font-medium transition-colors flex items-center space-x-2">
+                    <span>{isSubmitting ? "Submitting..." : "Submit Ticket"}</span>
                     <Send className="w-5 h-5" />
                   </button>
                 </div>

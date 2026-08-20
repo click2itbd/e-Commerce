@@ -22,22 +22,6 @@ export default function HostingPlansSection({
         const fetchedPlans = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if (fetchedPlans.length > 0) {
           setSpecialPlans(fetchedPlans);
-        } else {
-          // Fallback to dummy plans if empty
-          setSpecialPlans([
-            {
-              id: 'special-shared', name: 'SHARED HOSTING', price: 10, icon: 'Database', 
-              features: ['10 GB Storage', 'Unmetered Bandwidth', 'Free SSL', '1 Domain', '24/7 Support', '99.9% Uptime'], popular: false
-            },
-            {
-              id: 'special-vps', name: 'VPS HOSTING', price: 15, icon: 'Monitor',
-              features: ['50 GB NVMe Storage', '2 TB Bandwidth', 'Free SSL', 'Unlimited Domains', '24/7 Priority Support', 'Dedicated IP'], popular: true
-            },
-            {
-              id: 'special-dedicated', name: 'DEDICATED SERVER', price: 30, icon: 'Server',
-              features: ['1 TB Storage', 'Unmetered Bandwidth', 'Free SSL', 'Unlimited Domains', '24/7 Priority Support', 'Root Access'], popular: false
-            }
-          ]);
         }
       } catch (error) {
         console.error('Error fetching special plans:', error);
@@ -59,6 +43,8 @@ export default function HostingPlansSection({
     toast.success(`${plan.name} added to cart!`);
     onNavigate('/hosting/cart');
   };
+
+  if (specialPlans.length === 0) return null;
 
   return (
     <section className="py-24 bg-gray-50 border-t border-gray-100">
@@ -165,3 +151,7 @@ export default function HostingPlansSection({
     </section>
   );
 }
+
+
+
+

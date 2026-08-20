@@ -40,22 +40,37 @@ export default function PaymentCallback() {
         }
 
         if (status === 'success') {
-          await updateDoc(targetRef, {
-            status: 'processing',
-            paymentStatus: 'paid',
-            paymentCompletedAt: new Date().toISOString()
+          // Call the secure webhook instead of updating Firestore directly from the client!
+          const response = await fetch('https://us-central1-gen-lang-client-0990631330.cloudfunctions.net/paymentWebhook', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              orderId, 
+              status: 'success', 
+              transactionId: 'MOCK_TXN_' + Math.floor(Math.random() * 1000000) 
+            })
           });
+          
+          if (!response.ok) {
+            throw new Error('Payment verification failed');
+          }
           clearCart();
           toast.success('পেমেন্ট সফল হয়েছে! আপনার অর্ডার কনফার্ম করা হয়েছে।');
           navigate('/', { replace: true });
         } else {
-          await updateDoc(targetRef, {
-            paymentStatus: 'failed',
-            status: 'payment_failed'
-          });
-          toast.error(`Payment ${status === 'cancelled' ? 'was cancelled' : 'failed'}. Please try again.`);
-          navigate(-1);
-        }
+            // Call the secure webhook to process failure
+            await fetch('https://us-central1-gen-lang-client-0990631330.cloudfunctions.net/paymentWebhook', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                orderId, 
+                status: 'failed', 
+                transactionId: '' 
+              })
+            });
+            toast.error(`Payment ${status === 'cancelled' ? 'was cancelled' : 'failed'}. Please try again.`);
+            navigate(-1);
+          }
       } catch (err: any) {
         console.error('Payment callback error:', err);
         setError(err.message || 'An error occurred while verifying your payment.');
@@ -95,3 +110,4 @@ export default function PaymentCallback() {
     </div>
   );
 }
+

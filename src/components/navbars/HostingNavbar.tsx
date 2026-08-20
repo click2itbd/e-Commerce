@@ -57,7 +57,7 @@ export const HostingNavbar: React.FC = () => {
   const navLinks = [
     { name: "Home", path: "/" },
     { name: "Services", path: "/services" },
-    { name: "Hosting", path: "/pricing" },
+    { name: "Pricing", path: "/pricing" },
     {
       name: "Domain",
       path: "/domain",
@@ -375,3 +375,6 @@ export const HostingNavbar: React.FC = () => {
     </header>
   );
 };
+
+
+

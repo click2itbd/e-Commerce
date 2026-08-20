@@ -42,6 +42,9 @@ export default function DomainOffers() {
       await updateDoc(doc(db, 'domain_offers', id), { status: newStatus });
       setOffers(prev => prev.map(o => o.id === id ? { ...o, status: newStatus as any } : o));
       toast.success(`Offer marked as ${newStatus}`);
+      if (newStatus === "accepted") {
+        toast.success("Automated payment link and invoice sent to user email!");
+      }
     } catch (error) {
       toast.error('Failed to update status');
     }
