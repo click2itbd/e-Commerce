@@ -158,11 +158,14 @@ const DomainPage = () => {
                 Transfer to us and save! Enjoy lower renewal rates, free privacy protection, and a consolidated dashboard for all your assets.
               </p>
             </div>
-            <div className="mt-8 lg:mt-0 lg:ml-8 relative z-10 flex-shrink-0">
-              <button className="bg-white hover:bg-gray-50 text-blue-600 font-bold py-4 px-8 rounded-full shadow-lg transition-all duration-200 transform hover:-translate-y-1 flex items-center gap-2">
-                Transfer Domain Now <ArrowRight className="h-5 w-5" />
-              </button>
-            </div>
+              <div className="mt-8 lg:mt-0 lg:ml-8 relative z-10 flex-shrink-0">
+                <button 
+                  onClick={() => navigate('/domain/transfer')}
+                  className="bg-white hover:bg-gray-50 text-blue-600 font-bold py-4 px-8 rounded-full shadow-lg transition-all duration-200 transform hover:-translate-y-1 flex items-center gap-2"
+                >
+                  Transfer Domain Now <ArrowRight className="h-5 w-5" />
+                </button>
+              </div>
           </div>
         </div>
       </section>

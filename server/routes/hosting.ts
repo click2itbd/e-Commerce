@@ -5,12 +5,19 @@ import { getHostingProvider } from '../providers/providerFactory';
 import { HostingProvisionRequest, HostingUsageStats } from '../providers/hosting/IHostingProvider';
 import { sendEmail } from '../utils/email';
 import { requireApiKey } from '../middleware/auth';
+import { getAdminDocument } from '../admin';
 
 const hostingRouter = Router();
 
 async function getHostingConfig() {
-  const snap = await getDoc(doc(db, 'settings', 'hostingApiConfig'));
-  if (snap.exists()) return snap.data() as { hostingApiType?: string; hostingApiKey?: string; hostingApiUrl?: string };
+  try {
+    const result = await getAdminDocument('settings', 'hostingApiConfig');
+    if (result.exists && result.data) {
+      return result.data as { hostingApiType?: string; hostingApiKey?: string; hostingApiUrl?: string };
+    }
+  } catch (error) {
+    console.error('Failed to read hostingApiConfig via Admin SDK:', error);
+  }
   return { hostingApiType: 'dummy' };
 }
 
@@ -33,8 +40,15 @@ hostingRouter.post('/provision', requireApiKey, async (req: any, res: Response) 
     }
 
     if (result.success) {
-      const settingsSnap = await getDoc(doc(db, 'settings', 'site'));
-      const fromName = settingsSnap.exists() ? (settingsSnap.data() as any).siteName || 'Click2IT' : 'Click2IT';
+      let fromName = 'Click2IT';
+      try {
+        const siteResult = await getAdminDocument('settings', 'site');
+        if (siteResult.exists && siteResult.data) {
+          fromName = (siteResult.data as any).siteName || 'Click2IT';
+        }
+      } catch (error) {
+        console.error('Failed to read site settings:', error);
+      }
 
       const html = `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
@@ -49,8 +63,15 @@ hostingRouter.post('/provision', requireApiKey, async (req: any, res: Response) 
       `;
       await sendEmail(contactEmail, `Hosting Ready: ${domain}`, html);
     } else {
-      const settingsSnap = await getDoc(doc(db, 'settings', 'site'));
-      const adminEmail = settingsSnap.exists() ? (settingsSnap.data() as any).contactEmail : null;
+      let adminEmail: string | null = null;
+      try {
+        const siteResult = await getAdminDocument('settings', 'site');
+        if (siteResult.exists && siteResult.data) {
+          adminEmail = (siteResult.data as any).contactEmail || null;
+        }
+      } catch (error) {
+        console.error('Failed to read site settings:', error);
+      }
       if (adminEmail) {
         await sendEmail(adminEmail, `Hosting Provision Failed: ${domain}`, `<p>Hosting provisioning for <strong>${domain}</strong> failed: ${result.error || 'Unknown error'}</p>`);
       }
@@ -108,7 +129,7 @@ hostingRouter.post('/terminate', requireApiKey, async (req: any, res: Response) 
   }
 });
 
-hostingRouter.post('/usage', async (req: any, res: Response) => {
+hostingRouter.post('/usage', requireApiKey, async (req: any, res: Response) => {
   try {
     const { providerAccountId } = req.body;
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
@@ -140,16 +161,24 @@ hostingRouter.post('/change-plan', requireApiKey, async (req: any, res: Response
   }
 });
 
-hostingRouter.post('/test-connection', async (req: any, res: Response) => {
+hostingRouter.post('/test-connection', requireApiKey, async (req: any, res: Response) => {
   try {
     const config = await getHostingConfig();
     const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl });
-    const usage = await provider.getUsage('test-connection-dummy');
+    
+    if (typeof provider.testConnection === 'function') {
+      const result = await provider.testConnection();
+      return res.json({
+        success: result.success,
+        providerType: config.hostingApiType || 'dummy',
+        message: result.message,
+      });
+    }
+    
     return res.json({
       success: true,
       providerType: config.hostingApiType || 'dummy',
-      message: 'Connection test successful',
-      data: usage,
+      message: 'Provider loaded. Connection test not available for this provider.',
     });
   } catch (error: any) {
     console.error('Hosting test connection error:', error);

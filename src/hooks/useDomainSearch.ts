@@ -22,16 +22,28 @@ export function useDomainSearch() {
     setState(prev => ({ ...prev, loading: true, error: null, results: [], suggestions: [] }));
     try {
       const promises = domains.map(domain => searchDomainDynadot(domain));
-      const settled = await Promise.allSettled(promises);
+      const dynadotResults = await Promise.allSettled(promises);
       
-      const results: DomainAvailabilityResult[] = settled
-        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
-        .map(r => ({
-          domain: r.value.domain,
-          available: r.value.available,
-          price: r.value.priceBdt,
-          originalPrice: r.value.priceBdt,
-        }));
+      // Map to the format expected by the UI
+      const results: DomainAvailabilityResult[] = dynadotResults
+        .map((res, index) => {
+          if (res.status === 'fulfilled') {
+            return {
+              domain: res.value.domain,
+              available: res.value.available,
+              price: res.value.priceBdt, // Provide BDT price directly
+              originalPrice: res.value.priceBdt,
+            };
+          } else {
+            console.warn(`Failed to check availability for ${domains[index]}:`, res.reason);
+            return {
+              domain: domains[index],
+              available: false,
+              price: 0,
+              originalPrice: 0,
+            };
+          }
+        });
 
       setState(prev => ({ ...prev, loading: false, results }));
     } catch (err: any) {

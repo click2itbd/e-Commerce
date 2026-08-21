@@ -36,7 +36,7 @@ export function getDomainProvider(config: { domainApiType: string; domainApiKey?
   }
 }
 
-export function getHostingProvider(config: { hostingApiType: string; hostingApiKey?: string }): IHostingProvider {
+export function getHostingProvider(config: { hostingApiType: string; hostingApiKey?: string; hostingApiUrl?: string }): IHostingProvider {
   if (config.hostingApiType === 'dummy' || !config.hostingApiType) {
     return {
       provisionAccount: async () => ({ success: false, error: 'Hosting provider not configured. Please configure a real hosting provider in admin settings.' }),

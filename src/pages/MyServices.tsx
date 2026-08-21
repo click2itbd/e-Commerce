@@ -7,7 +7,7 @@ import { collection, query, where, onSnapshot, updateDoc, doc, getDocs } from 'f
 import { toast } from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { getHostingUsage, HostingUsageStats } from '../services/hostingApi';
-import { RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, RotateCcw, Server, FileText, Receipt, Download } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, RotateCcw, Server, FileText, Receipt, Download, ExternalLink } from 'lucide-react';
 import { HostingOrder } from '../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -394,6 +394,7 @@ export const MyServices: React.FC = () => {
                     <th className="px-6 py-4">Plan</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4">Server IP</th>
+                    <th className="px-6 py-4">cPanel</th>
                     <th className="px-6 py-4">Usage</th>
                     <th className="px-6 py-4">Expires</th>
                     <th className="px-6 py-4">Auto-Renew</th>
@@ -412,6 +413,21 @@ export const MyServices: React.FC = () => {
                       <td className="px-6 py-4">{getStatusBadge(account.status)}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {account.status === 'active' && account.serverIp ? account.serverIp : '-'}
+                      </td>
+                      <td className="px-6 py-4">
+                        {account.status === 'active' && account.controlPanelUrl ? (
+                          <a
+                            href={account.controlPanelUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition-colors"
+                          >
+                            <ExternalLink size={12} />
+                            cPanel
+                          </a>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         {usageData[account.id] ? (

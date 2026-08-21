@@ -66,7 +66,9 @@ const DomainRenewal = () => {
     }
   };
 
-  const totalBdt = renewalData ? renewalData.renewalPriceBdt * renewalPeriod : 0;
+  const discountPercent = renewalData?.discountPercent || 0;
+  const discountMultiplier = renewalPeriod > 1 ? (1 - (discountPercent / 100)) : 1;
+  const totalBdt = renewalData ? Math.round(renewalData.renewalPriceBdt * renewalPeriod * discountMultiplier) : 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -277,9 +279,6 @@ const DomainRenewal = () => {
                       </button>
                     ))}
                   </div>
-                  {renewalData.maxDuration > 5 && (
-                    <p className="text-xs text-gray-500 mt-2">Maximum {renewalData.maxDuration} years allowed for this TLD</p>
-                  )}
                 </div>
 
                 {/* Price Summary */}
@@ -350,8 +349,8 @@ const DomainRenewal = () => {
                         className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                       >
                         <option value="bkash">bKash</option>
-                        <option value="card">Card (Coming Soon)</option>
-                        <option value="bank">Bank / Manual Transfer</option>
+                        <option value="card" disabled>Card (Coming Soon)</option>
+                        <option value="bank" disabled>Bank / Manual Transfer (Coming Soon)</option>
                       </select>
                     </div>
                     {formData.paymentMethod === 'bank' && (

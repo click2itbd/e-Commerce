@@ -33,4 +33,5 @@ export interface IHostingProvider {
   terminateAccount(providerAccountId: string): Promise<void>;
   getUsage(providerAccountId: string): Promise<HostingUsageStats>;
   changePlan(providerAccountId: string, newPlanCode: string): Promise<void>;
+  testConnection?(): Promise<{ success: boolean; message: string }>;
 }

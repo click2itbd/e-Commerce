@@ -11,7 +11,23 @@ import { List, Plus, Edit, Trash2, Tag, Layers, Settings, ChevronRight, Menu as 
 
 interface MenusTabProps { menus: any[]; isAddingMenu: boolean; setIsAddingMenu: (v: boolean) => void; editingMenu: any; setEditingMenu: (v: any) => void; menuFormData: any; setMenuFormData: (v: any) => void; isAddingSubCategory: boolean; setIsAddingSubCategory: (v: boolean) => void; subCategoryFormData: any; setSubCategoryFormData: (v: any) => void; handleSaveMenu: (e: any) => void; handleDeleteMenu: (id: string) => void; handleSaveSubCategory: (e: any) => void; fetchData: () => Promise<void>; }
 
-const MenusTab: React.FC<MenusTabProps> = ({ menus, isAddingMenu, setIsAddingMenu, editingMenu, setEditingMenu, menuFormData, setMenuFormData, isAddingSubCategory, setIsAddingSubCategory, subCategoryFormData, setSubCategoryFormData, handleSaveMenu, handleDeleteMenu, handleSaveSubCategory, fetchData }) => {
+const MenusTab: React.FC<MenusTabProps> = ({ 
+  menus = [], 
+  isAddingMenu = false, 
+  setIsAddingMenu = () => {}, 
+  editingMenu = null, 
+  setEditingMenu = () => {}, 
+  menuFormData = { name: '', slug: '', order: 0, subCategories: [] }, 
+  setMenuFormData = () => {}, 
+  isAddingSubCategory = false, 
+  setIsAddingSubCategory = () => {}, 
+  subCategoryFormData = { parentId: '', name: '', slug: '' }, 
+  setSubCategoryFormData = () => {}, 
+  handleSaveMenu = () => {}, 
+  handleDeleteMenu = () => {}, 
+  handleSaveSubCategory = () => {}, 
+  fetchData = async () => {} 
+}) => {
   const { isAdmin, hasPermission } = useAuth();
   const { settings } = useSettings();
 

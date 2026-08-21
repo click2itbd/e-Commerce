@@ -126,6 +126,144 @@ function getBkashBaseUrl(isSandbox) {
   return isSandbox ? 'https://tokenized.sandbox.bka.sh/v1.2.0-beta' : 'https://tokenized.pay.bka.sh/v1.2.0-beta';
 }
 
+exports.storeTransferAuthCodes = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+  }
+
+  const { orderId, authCodes } = data;
+  
+  if (!orderId || !Array.isArray(authCodes) || authCodes.length === 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'orderId and authCodes array are required.');
+  }
+
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  
+  try {
+    const batch = db.batch();
+    
+    for (const codeData of authCodes) {
+      const { domain, authCode } = codeData;
+      if (!domain || !authCode) continue;
+      
+      const docRef = db.collection('transferAuthCodes').doc(`${orderId}_${domain}`);
+      batch.set(docRef, {
+        orderId,
+        domain,
+        authCode,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)), // 24 hours
+      });
+    }
+    
+    await batch.commit();
+    return { success: true, message: 'Transfer auth codes stored securely' };
+  } catch (error) {
+    console.error('Failed to store transfer auth codes:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to store transfer auth codes.');
+  }
+});
+
+exports.cleanupTransferAuthCodes = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+  }
+
+  const { orderId, domains } = data;
+  
+  if (!orderId || !Array.isArray(domains)) {
+    throw new functions.https.HttpsError('invalid-argument', 'orderId and domains array are required.');
+  }
+
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  
+  try {
+    const batch = db.batch();
+    
+    for (const domain of domains) {
+      const docRef = db.collection('transferAuthCodes').doc(`${orderId}_${domain}`);
+      batch.delete(docRef);
+    }
+    
+    await batch.commit();
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to cleanup transfer auth codes:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to cleanup transfer auth codes.');
+  }
+});
+
+exports.checkTransferEligibility = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+  }
+
+  const { domain } = data;
+  
+  if (!domain || typeof domain !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'Domain is required.');
+  }
+
+  const normalizedDomain = domain.toLowerCase().trim();
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  
+  try {
+    // Check if domain is already transferred/registered with us
+    const existingOrderSnap = await db.collection('domainOrders')
+      .where('domain', '==', normalizedDomain)
+      .where('status', 'in', ['active', 'pending', 'renewing'])
+      .limit(1)
+      .get();
+    
+    if (!existingOrderSnap.empty) {
+      return {
+        eligible: false,
+        reason: 'This domain is already registered or being processed with us.',
+        code: 'DOMAIN_ALREADY_MANAGED'
+      };
+    }
+
+    // Check if there's a pending transfer for this domain
+    const pendingTransferSnap = await db.collection('domainOrders')
+      .where('domain', '==', normalizedDomain)
+      .where('action', '==', 'transfer')
+      .where('status', '==', 'pending')
+      .limit(1)
+      .get();
+    
+    if (!pendingTransferSnap.empty) {
+      return {
+        eligible: false,
+        reason: 'A transfer for this domain is already in progress.',
+        code: 'TRANSFER_ALREADY_PENDING'
+      };
+    }
+
+    // Basic domain format validation
+    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
+    if (!domainRegex.test(normalizedDomain)) {
+      return {
+        eligible: false,
+        reason: 'Invalid domain format.',
+        code: 'INVALID_DOMAIN_FORMAT'
+      };
+    }
+
+    return {
+      eligible: true,
+      message: 'Domain appears eligible for transfer. Final eligibility will be confirmed by the current registrar during the transfer process.',
+      checks: {
+        formatValid: true,
+        notAlreadyManaged: true,
+        noPendingTransfer: true
+      }
+    };
+  } catch (error) {
+    console.error('Transfer eligibility check error:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to check transfer eligibility.');
+  }
+});
+
 exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') {
@@ -174,7 +312,6 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
         });
         return res.status(400).send({ error: "Payment verification failed" });
       }
-    }
 
     // Securely update using Admin SDK (bypasses Firestore Rules)
     await targetRef.update({
@@ -210,7 +347,31 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
             
               for (const item of transferItems) {
                 const domain = item.domain || item.id.replace('domain_transfer_', '');
-                const authCode = item.authCode || '';
+                
+                // Fetch auth code from secure collection
+                const authCodeSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277')
+                  .collection('transferAuthCodes')
+                  .doc(`${orderId}_${domain}`)
+                  .get();
+                
+                const authCode = authCodeSnap.exists ? authCodeSnap.data()?.authCode : '';
+                
+                if (!authCode) {
+                  console.warn(`No auth code found for transfer: ${domain}`);
+                  const dOrdersSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('domainOrders')
+                    .where('orderId', '==', orderId)
+                    .where('domain', '==', domain)
+                    .get();
+                  if (!dOrdersSnap.empty) {
+                    await updateDoc(dOrdersSnap.docs[0].ref, {
+                      status: 'failed',
+                      provisioningStatus: 'failed',
+                      error: 'Missing authorization code',
+                      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                  }
+                  continue;
+                }
                 
                 // Call Dynadot Transfer Command
                 const dynadotUrl = `${baseUrl}?key=${apiKey}&command=transfer&domain=${domain}&authcode0=${encodeURIComponent(authCode)}`;
@@ -228,39 +389,56 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     response: regData
                   });
                   
-                  // Update domainOrders document if successful
+                  // Clean up auth code after use
+                  await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277')
+                    .collection('transferAuthCodes')
+                    .doc(`${orderId}_${domain}`)
+                    .delete();
+                  
+                  // Update domainOrders document with proper state machine
                   const dOrdersSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('domainOrders')
                     .where('orderId', '==', orderId)
                     .where('domain', '==', domain)
                     .get();
                     
                    if (!dOrdersSnap.empty) {
-                     const dOrderRef = dOrdersSnap.docs[0].ref;
-                     const isSuccess = regData?.TransferResponse?.TransferResults?.[0]?.Status?.toLowerCase() === 'success';
-                     
-                     await dOrderRef.update({
-                       status: isSuccess ? 'active' : 'failed',
-                       transferResponse: JSON.stringify(regData),
-                       provisioningStatus: isSuccess ? 'completed' : 'failed',
-                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                     });
-                   }
-                   
-                 } catch (e) {
-                   console.error('Auto-transfer failed for', domain, e);
-                   const dOrdersSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('domainOrders')
-                     .where('orderId', '==', orderId)
-                     .where('domain', '==', domain)
-                     .get();
-                   if (!dOrdersSnap.empty) {
-                     await updateDoc(dOrdersSnap.docs[0].ref, {
-                       provisioningStatus: 'failed',
-                       error: e.message,
-                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                     });
-                   }
-                 }
-               }
+                      const dOrderRef = dOrdersSnap.docs[0].ref;
+                      const isSuccess = regData?.TransferResponse?.TransferResults?.[0]?.Status?.toLowerCase() === 'success';
+                      
+                      await dOrderRef.update({
+                        status: isSuccess ? 'active' : 'failed',
+                        transferResponse: JSON.stringify(regData),
+                        provisioningStatus: isSuccess ? 'completed' : 'failed',
+                        error: isSuccess ? null : (regData?.TransferResponse?.TransferResults?.[0]?.Message || 'Transfer failed'),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                      });
+                    }
+                    
+                  } catch (e) {
+                    console.error('Auto-transfer failed for', domain, e);
+                    const dOrdersSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('domainOrders')
+                      .where('orderId', '==', orderId)
+                      .where('domain', '==', domain)
+                      .get();
+                    if (!dOrdersSnap.empty) {
+                      await updateDoc(dOrdersSnap.docs[0].ref, {
+                        provisioningStatus: 'failed',
+                        error: e.message,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                      });
+                    }
+                    
+                    // Clean up auth code even on failure
+                    try {
+                      await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277')
+                        .collection('transferAuthCodes')
+                        .doc(`${orderId}_${domain}`)
+                        .delete();
+                    } catch (cleanupError) {
+                      console.error('Failed to cleanup auth code:', cleanupError);
+                    }
+                  }
+                }
                 for (const item of renewalItems) {
                 const domain = item.domain;
                 const years = item.termYears || 1;
@@ -469,6 +647,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                   console.warn('Hosting account missing IP address for CloudLinux provisioning:', accountDoc.id);
                   await updateDoc(accountDoc.ref, {
                     cloudLinuxStatus: 'skipped_no_ip',
+                    provisioningStatus: 'completed',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                   });
                   continue;
@@ -478,6 +657,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                   console.warn('CloudLinux credentials not configured. Skipping provisioning.');
                   await updateDoc(accountDoc.ref, {
                     cloudLinuxStatus: 'CLOUDLINUX_NOT_CONFIGURED',
+                    provisioningStatus: 'completed',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                   });
                   continue;
@@ -487,7 +667,8 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                   console.error('[CloudLinux] SANDBOX_MODE_ENABLED - Production provisioning blocked.');
                   await updateDoc(accountDoc.ref, {
                     cloudLinuxStatus: 'CLOUDLINUX_SANDBOX_MODE_ENABLED',
-                    cloudLinuxError: 'Sandbox mode is enabled. Set isSandboxMode=false in settings/api_keys for production.',
+                    cloudLinuxError: 'Sandbox mode is enabled. Set isSandboxMode=false in settings/hostingApiConfig for production.',
+                    provisioningStatus: 'completed',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                   });
                   continue;
@@ -517,6 +698,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     await updateDoc(accountDoc.ref, {
                       cloudLinuxStatus: 'failed',
                       cloudLinuxError: JSON.stringify(apiData),
+                      provisioningStatus: 'completed',
                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                   } else {
@@ -534,6 +716,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                   await updateDoc(accountDoc.ref, {
                     cloudLinuxStatus: 'failed',
                     cloudLinuxError: error.message,
+                    provisioningStatus: 'completed',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                   });
                 }
@@ -546,7 +729,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                 timestamp: admin.firestore.FieldValue.serverTimestamp(),
                 isSandbox,
                 provider: hostingProviderType,
-                note: isSandbox ? 'TEST MODE: CloudLinux logged, not executed.' : 'Provisioning executed.'
+                note: isSandbox ? 'CloudLinux blocked due to sandbox mode.' : 'Provisioning executed.'
               });
             }
 
@@ -932,6 +1115,7 @@ exports.getDomainRenewalPrice = functions.https.onCall(async (data, context) => 
       tld,
       renewalPriceBdt: priceBdt,
       maxDuration: parseInt(maxDuration),
+      discountPercent: parseFloat(apiKeysData.domainRenewalDiscountPercent) || 0,
     };
 
   } catch (error) {
@@ -1031,6 +1215,7 @@ exports.getDomainRenewalPriceBreakdown = functions.https.onCall(async (data, con
       exchangeRate,
       sellingPriceBdt: priceBdt,
       isSandbox,
+      discountPercent: parseFloat(apiKeysData.domainRenewalDiscountPercent) || 0,
     };
 
   } catch (error) {
@@ -1046,8 +1231,15 @@ exports.createDomainRenewalOrder = functions.https.onCall(async (data, context) 
   try {
     const { domain, renewalPeriod, customerName, customerEmail, customerPhone, paymentMethod, transactionId } = data;
     
-    if (!domain || !renewalPeriod || !customerName || !customerEmail || !customerPhone) {
-      throw new functions.https.HttpsError('invalid-argument', 'Missing required fields');
+    const missingFields = [];
+    if (!domain) missingFields.push('domain');
+    if (!renewalPeriod) missingFields.push('renewalPeriod');
+    if (!customerName) missingFields.push('customerName');
+    if (!customerEmail) missingFields.push('customerEmail');
+    if (!customerPhone) missingFields.push('customerPhone');
+
+    if (missingFields.length > 0) {
+      throw new functions.https.HttpsError('invalid-argument', `Missing required fields: ${missingFields.join(', ')}`);
     }
 
     const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
@@ -1113,7 +1305,10 @@ exports.createDomainRenewalOrder = functions.https.onCall(async (data, context) 
     const retailUsd = renewPriceUsd * (1 + markupPercent / 100);
     const priceUsd = Math.round(retailUsd * 100) / 100;
     const priceBdt = Math.round(retailUsd * exchangeRate);
-    const totalBdt = priceBdt * renewalPeriod;
+    
+    const discountPercent = parseFloat(apiKeysData.domainRenewalDiscountPercent) || 0;
+    const discountMultiplier = renewalPeriod > 1 ? (1 - (discountPercent / 100)) : 1;
+    const totalBdt = Math.round(priceBdt * renewalPeriod * discountMultiplier);
 
     const docType = 'INV';
     const docNumber = await generateDocumentNumber(docType);

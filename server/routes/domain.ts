@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, collection, addDoc, updateDoc, serverTimestamp, ge
 import { getDomainProvider } from '../providers/providerFactory';
 import { DomainAvailabilityResult, DomainRegistrationRequest, DomainRegistrationResult, WhoisResult } from '../providers/domain/IDomainProvider';
 import { sendEmail } from '../utils/email';
+import { getAdminDocument } from '../admin';
 import { requireApiKey } from '../middleware/auth';
 
 interface DomainPricing {
@@ -19,8 +20,19 @@ interface DomainPricing {
 const domainRouter = Router();
 
 async function getDomainConfig() {
-  const snap = await getDoc(doc(db, 'settings', 'domainApiConfig'));
-  if (snap.exists()) return snap.data() as { domainApiType?: string; domainApiKey?: string };
+  try {
+    const result = await getAdminDocument('settings', 'api_keys');
+    if (result.exists && result.data) {
+      const data = result.data as any;
+      const dynadotApiKey = data.dynadotApiKey;
+      return {
+        domainApiType: dynadotApiKey ? 'dynadot' : 'dummy',
+        domainApiKey: dynadotApiKey || ''
+      };
+    }
+  } catch (error) {
+    console.error('Failed to read domain API config via Admin SDK:', error);
+  }
   return { domainApiType: 'dummy' };
 }
 
@@ -99,8 +111,15 @@ domainRouter.post('/register', requireApiKey, async (req: any, res: Response) =>
             updatedAt: serverTimestamp(),
           });
 
-          const settingsSnap = await getDoc(doc(db, 'settings', 'site'));
-          const adminEmail = settingsSnap.exists() ? (settingsSnap.data() as any).contactEmail : null;
+          let adminEmail: string | null = null;
+          try {
+            const siteResult = await getAdminDocument('settings', 'site');
+            if (siteResult.exists && siteResult.data) {
+              adminEmail = (siteResult.data as any).contactEmail || null;
+            }
+          } catch (error) {
+            console.error('Failed to read site settings:', error);
+          }
           if (adminEmail) {
             await sendEmail(adminEmail, `Domain Registration Failed: ${request.domain}`, `<p>Domain registration for <strong>${request.domain}</strong> failed: ${providerError?.message || 'Unknown error'}</p>`);
           }
@@ -136,20 +155,27 @@ domainRouter.post('/register', requireApiKey, async (req: any, res: Response) =>
         }
 
         return res.json({ success: result.success, data: { orderId: orderRef.id, ...result }, error: result.error });
-      } catch (providerError: any) {
-        await updateDoc(orderRef, {
-          status: 'failed',
-          error: providerError?.message || 'Provider error',
-          updatedAt: serverTimestamp(),
-        });
+        } catch (providerError: any) {
+          await updateDoc(orderRef, {
+            status: 'failed',
+            error: providerError?.message || 'Provider error',
+            updatedAt: serverTimestamp(),
+          });
 
-        const settingsSnap = await getDoc(doc(db, 'settings', 'site'));
-        const adminEmail = settingsSnap.exists() ? (settingsSnap.data() as any).contactEmail : null;
-        if (adminEmail) {
-          await sendEmail(adminEmail, `Domain Registration Failed: ${request.domain}`, `<p>Domain registration for <strong>${request.domain}</strong> failed: ${providerError?.message || 'Unknown error'}</p>`);
-        }
+          let adminEmail: string | null = null;
+          try {
+            const siteResult = await getAdminDocument('settings', 'site');
+            if (siteResult.exists && siteResult.data) {
+              adminEmail = (siteResult.data as any).contactEmail || null;
+            }
+          } catch (error) {
+            console.error('Failed to read site settings:', error);
+          }
+          if (adminEmail) {
+            await sendEmail(adminEmail, `Domain Registration Failed: ${request.domain}`, `<p>Domain registration for <strong>${request.domain}</strong> failed: ${providerError?.message || 'Unknown error'}</p>`);
+          }
 
-        throw providerError;
+          throw providerError;
       }
   } catch (error: any) {
     console.error('Domain register error:', error);

@@ -6,9 +6,10 @@ import { useSettings } from '../../context/SettingsContext';
 import { Layout } from '../../components/Layout';
 import { formatCurrency } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { Lock, ShieldCheck, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server } from 'lucide-react';
+import { Lock, ShieldCheck, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server, Key } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, addDoc, query, where, getDocs, doc, writeBatch, getDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { generateDocumentNumber } from '../../lib/numbering';
 import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../../services/paymentApi';
 
@@ -20,7 +21,7 @@ export const HostingCheckout: React.FC = () => {
   
   const items = allItems.filter(i => i.category === 'Hosting & Domains');
   const hostingSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shippingCost = 0; // Hosting shouldn't usually have shipping, but let's keep it 0 or from settings if strictly needed. Let's make it 0.
+  const shippingCost = 0;
 
   const [discountCode, setDiscountCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
@@ -56,8 +57,11 @@ export const HostingCheckout: React.FC = () => {
     domain: ''
   });
 
+  const [transferAuthCodes, setTransferAuthCodes] = useState<Record<string, string>>({});
+
   const hasDomain = items.some(i => i.itemType === 'domain');
   const hasHosting = items.some(i => i.itemType === 'hosting');
+  const hasTransfer = items.some(i => i.itemType === 'domain_transfer');
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [existingOrderId, setExistingOrderId] = useState<string | null>(null);
@@ -175,6 +179,19 @@ export const HostingCheckout: React.FC = () => {
       return;
     }
 
+    const transferItems = items.filter(i => i.itemType === 'domain_transfer');
+    for (const item of transferItems) {
+      const code = transferAuthCodes[item.id]?.trim();
+      if (!code) {
+        toast.error(`Please enter the Auth/EPP Code for ${item.domain || item.id.replace('domain_transfer_', '')}`);
+        return;
+      }
+      if (code.length < 5) {
+        toast.error(`Auth/EPP Code for ${item.domain || item.id.replace('domain_transfer_', '')} appears too short.`);
+        return;
+      }
+    }
+
     setIsProcessing(true);
 
     try {
@@ -265,7 +282,6 @@ export const HostingCheckout: React.FC = () => {
           price: tItem.price,
           status: 'pending',
           action: 'transfer',
-          authCode: tItem.authCode || '',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
@@ -302,6 +318,30 @@ export const HostingCheckout: React.FC = () => {
       orderId = newOrderRef.id;
         setExistingOrderId(orderId);
       } // End if (!orderId)
+
+      // Store transfer auth codes securely via Cloud Function
+      if (transferItems.length > 0) {
+        try {
+          const functions = getFunctions();
+          const storeAuthCodes = httpsCallable(functions, 'storeTransferAuthCodes');
+          const authCodesPayload = transferItems
+            .filter(item => transferAuthCodes[item.id]?.trim())
+            .map(item => ({
+              orderId,
+              domain: item.domain || item.id.replace('domain_transfer_', ''),
+              authCode: transferAuthCodes[item.id].trim(),
+            }));
+          
+          if (authCodesPayload.length > 0) {
+            await storeAuthCodes({ orderId, authCodes: authCodesPayload });
+          }
+        } catch (error) {
+          console.error('Failed to store transfer auth codes:', error);
+          toast.error('Failed to secure transfer authorization codes. Please try again.');
+          setIsProcessing(false);
+          return;
+        }
+      }
 
       // Process payment
       if (formData.paymentMethod === 'bkash') {
@@ -453,6 +493,36 @@ export const HostingCheckout: React.FC = () => {
                         )}
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Transfer Auth Codes */}
+              {hasTransfer && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <Key className="w-5 h-5 text-blue-600" />
+                      Transfer Authorization Codes
+                    </h2>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <p className="text-sm text-gray-500">Please provide the Auth/EPP Code for each domain you are transferring. These codes are required by your current registrar to authorize the transfer.</p>
+                    {items.filter(i => i.itemType === 'domain_transfer').map((item) => (
+                      <div key={item.id} className="space-y-1.5">
+                        <label className="text-sm font-medium text-gray-700">
+                          Auth/EPP Code for <span className="text-blue-600 font-semibold">{item.domain || item.id.replace('domain_transfer_', '')}</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={transferAuthCodes[item.id] || ''}
+                          onChange={(e) => setTransferAuthCodes(prev => ({ ...prev, [item.id]: e.target.value.trim() }))}
+                          placeholder="Enter your Auth/EPP Code"
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                          required
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

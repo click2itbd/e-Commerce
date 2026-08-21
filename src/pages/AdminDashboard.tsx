@@ -31,6 +31,7 @@ import HostingServicesTab from './admin/tabs/hosting/HostingServices';
 import DomainOffersTab from './admin/tabs/hosting/DomainOffers';
 import DomainRenewalsTab from './admin/tabs/hosting/DomainRenewals';
 import HostingPlansTab from './admin/tabs/hosting/HostingPlans';
+import { HostingApiSettings } from '../components/admin/hosting/HostingApiSettings';
 import { SalesForm } from './admin/tabs/sales/SalesForm';
 import ServicesTab from './admin/tabs/services/Services';
 
@@ -187,7 +188,7 @@ export const AdminDashboard: React.FC = () => {
   const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
   const [isAddingPaymentAccount, setIsAddingPaymentAccount] = useState(false);
   const [paymentAccountFormData, setPaymentAccountFormData] = useState({ type: '', name: '', description: '', openingBalance: 0, status: 'active' });
-const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
+const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'hosting_api_settings' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
   
   const [serialSelectionModal, setSerialSelectionModal] = useState<{
     isOpen: boolean;
@@ -3126,9 +3127,14 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
                )}
               {hasPermission('manage_settings') && (
                 <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
-               </button>
-             )}
+                  <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
+                </button>
+              )}
+              {hasPermission('manage_settings') && (
+                <button onClick={() => setActiveTab('hosting_api_settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hosting_api_settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                  <Plug size={16} className={activeTab === 'hosting_api_settings' ? "text-blue-600" : "text-gray-400"} /> API Settings
+                </button>
+              )}
              {isAdmin && (
                <button onClick={() => navigate('/admin/billing')} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors text-purple-600 font-bold hover:bg-purple-50">
                  <ArrowLeftRight size={16} className="text-purple-600" /> Web Host Billing
@@ -3294,6 +3300,8 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
           <HostingServicesTab />
         ) : activeTab === 'settings' && hasPermission('manage_settings') ? (
           <SettingsTab />
+        ) : activeTab === 'hosting_api_settings' && hasPermission('manage_settings') ? (
+          <HostingApiSettings />
         ) : activeTab === 'services' ? (
           <ServicesTab />
         ) : activeTab === 'employees' ? (

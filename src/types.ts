@@ -88,7 +88,7 @@ export interface TransactionCategory {
 export interface CartItem extends Product {
   quantity: number;
   selectedSerials?: string[];
-  itemType?: 'product' | 'domain' | 'hosting';
+  itemType?: 'product' | 'domain' | 'hosting' | 'domain_transfer' | 'domain_renewal';
   domainTld?: string;
   billingCycle?: 'monthly' | 'yearly';
   termYears?: number;

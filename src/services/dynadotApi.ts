@@ -156,6 +156,7 @@ export interface DomainRenewalPriceBreakdown {
   exchangeRate: number;
   sellingPriceBdt: number;
   isSandbox: boolean;
+  discountPercent?: number;
 }
 
 export const getDomainRenewalPriceBreakdown = async (domain: string): Promise<DomainRenewalPriceBreakdown> => {
@@ -179,6 +180,7 @@ export const getDomainRenewalPriceBreakdown = async (domain: string): Promise<Do
         exchangeRate: data.exchangeRate || 120,
         sellingPriceBdt: data.sellingPriceBdt || 0,
         isSandbox: data.isSandbox || false,
+        discountPercent: data.discountPercent || 0,
       };
     } else {
       throw new Error(data?.error || 'Failed to fetch renewal price breakdown');

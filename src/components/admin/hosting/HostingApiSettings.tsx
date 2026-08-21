@@ -6,11 +6,13 @@ import { Plug, Settings2, Server } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 
 interface HostingApiConfig {
-  domainApiType?: string;
-  domainApiKey?: string;
   hostingApiType?: string;
   hostingApiKey?: string;
   hostingApiUrl?: string;
+  bundleDiscountPercent?: number;
+  clnLogin?: string;
+  clnSecretKey?: string;
+  isSandboxMode?: boolean;
   updatedAt?: string;
 }
 
@@ -18,9 +20,8 @@ export const HostingApiSettings: React.FC = () => {
   const { isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState<'domain' | 'hosting' | null>(null);
+  const [testing, setTesting] = useState<'hosting' | null>(null);
   const [config, setConfig] = useState<HostingApiConfig>({
-    domainApiType: 'dummy',
     hostingApiType: 'dummy',
   });
 
@@ -111,70 +112,7 @@ export const HostingApiSettings: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">API Settings</h1>
-          <p className="text-sm text-gray-500 mt-1">Configure domain and hosting provider connections</p>
-        </div>
-      </div>
-
-      {/* Domain Provider Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <Plug size={20} className="text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Domain Provider</h2>
-              <p className="text-xs text-gray-500">Configure domain registration and WHOIS provider</p>
-            </div>
-          </div>
-          {getProviderBadge(config.domainApiType)}
-        </div>
-
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">Provider</label>
-            <select
-              value={config.domainApiType || 'dummy'}
-              onChange={(e) => setConfig({ ...config, domainApiType: e.target.value })}
-              className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF]"
-            >
-              <option value="dummy">Dummy (Testing)</option>
-              <option value="resellerclub" disabled>ResellerClub (coming soon)</option>
-              <option value="namecheap" disabled>Namecheap (coming soon)</option>
-              <option value="godaddy" disabled>GoDaddy (coming soon)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">API Key</label>
-            <input
-              type="password"
-              value={config.domainApiKey || ''}
-              onChange={(e) => setConfig({ ...config, domainApiKey: e.target.value })}
-              placeholder="Enter domain provider API key"
-              className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF]"
-            />
-          </div>
-
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={() => handleTestConnection('domain')}
-              disabled={testing === 'domain'}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {testing === 'domain' ? (
-                <>
-                  <div className="h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                  Testing...
-                </>
-              ) : (
-                <>
-                  <Plug size={14} />
-                  Test Connection
-                </>
-              )}
-            </button>
-          </div>
+          <p className="text-sm text-gray-500 mt-1">Configure hosting provider connections</p>
         </div>
       </div>
 
@@ -203,7 +141,7 @@ export const HostingApiSettings: React.FC = () => {
             >
               <option value="dummy">Dummy (Testing)</option>
               <option value="resellerclub" disabled>ResellerClub Hosting (coming soon)</option>
-              <option value="cpanel" disabled>cPanel/WHM (coming soon)</option>
+              <option value="cpanel">cPanel / WHM</option>
               <option value="plesk" disabled>Plesk (coming soon)</option>
             </select>
           </div>
@@ -242,6 +180,47 @@ export const HostingApiSettings: React.FC = () => {
               className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF]"
             />
             <p className="text-xs text-gray-400 mt-1">Discount % when a domain + hosting are purchased together</p>
+          </div>
+
+          <div className="border-t border-gray-100 pt-4 mt-4">
+            <h3 className="text-xs font-bold text-gray-500 mb-3 uppercase">CloudLinux Integration</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">CloudLinux Partner Login</label>
+                <input
+                  type="text"
+                  value={config.clnLogin || ''}
+                  onChange={(e) => setConfig({ ...config, clnLogin: e.target.value })}
+                  placeholder="Enter CloudLinux partner login"
+                  className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">CloudLinux Secret Key</label>
+                <input
+                  type="password"
+                  value={config.clnSecretKey || ''}
+                  onChange={(e) => setConfig({ ...config, clnSecretKey: e.target.value })}
+                  placeholder="Enter CloudLinux secret key"
+                  className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-4">
+              <input
+                type="checkbox"
+                id="isSandboxMode"
+                checked={config.isSandboxMode || false}
+                onChange={(e) => setConfig({ ...config, isSandboxMode: e.target.checked })}
+                className="h-4 w-4 text-[#7B61FF] focus:ring-[#7B61FF] border-gray-300 rounded"
+              />
+              <label htmlFor="isSandboxMode" className="text-sm text-gray-700">
+                Sandbox Mode (disable for production)
+              </label>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 pt-2">

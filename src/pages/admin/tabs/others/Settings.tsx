@@ -45,6 +45,7 @@ export const Settings = () => {
     dynadotApiKey?: string;
     usdToBdtRate?: number;
     domainMarkupPercent?: number;
+    domainRenewalDiscountPercent?: number;
     hostingMarkupPercent?: number;
     isSandboxMode?: boolean;
     bkashAppKey?: string;
@@ -1585,6 +1586,34 @@ export const Settings = () => {
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
                       Markup added to Dynadot wholesale price
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Domain Renewal Year-Based Discount %
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={apiKeys.domainRenewalDiscountPercent ?? 0}
+                        onChange={(e) =>
+                          setApiKeys({
+                            ...apiKeys,
+                            domainRenewalDiscountPercent: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
+                      />
+                      <span className="absolute right-3 top-2.5 text-gray-500 text-sm">
+                        %
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Discount applied per year for multi-year domain renewals
                     </p>
                   </div>
 

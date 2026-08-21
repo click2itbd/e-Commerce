@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -34,6 +34,7 @@ export default function SupportPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   return (
     <Layout fullWidth>
@@ -130,7 +131,7 @@ export default function SupportPage() {
               </div>
             </div>
             <div className="lg:col-span-3 p-12">
-              <form className="space-y-6" onSubmit={async (e) => {
+              <form ref={formRef} className="space-y-6" onSubmit={async (e) => {
                   e.preventDefault();
                   if (!user) {
                     toast.error('Please login to submit a ticket');
@@ -171,7 +172,7 @@ export default function SupportPage() {
                     });
 
                     toast.success('Ticket submitted successfully!');
-                    e.currentTarget.reset();
+                    formRef.current?.reset();
                     navigate('/profile?tab=tickets');
                   } catch (error) {
                     console.error('Error submitting ticket:', error);

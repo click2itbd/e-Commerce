@@ -3,8 +3,6 @@ import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface HostingApiConfig {
-  domainApiType?: string;
-  domainApiKey?: string;
   hostingApiType?: string;
   hostingApiKey?: string;
   hostingApiUrl?: string;
