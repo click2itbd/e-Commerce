@@ -106,7 +106,11 @@ export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, se
       message: `Are you sure you want to delete ${selectedProductIds.length} products? This action cannot be undone.`,
       onConfirm: async () => {
         try {
-          await Promise.all(selectedProductIds.map(id => deleteDoc(doc(db, 'products', id))));
+          const batch = writeBatch(db);
+          for (const id of selectedProductIds) {
+            batch.delete(doc(db, 'products', id));
+          }
+          await batch.commit();
           toast.success(`${selectedProductIds.length} products deleted`);
           setSelectedProductIds([]);
           fetchData();

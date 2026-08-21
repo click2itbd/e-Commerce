@@ -1,10 +1,5 @@
-import { IHostingProvider, HostingProvisionRequest, HostingProvisionResult, HostingUsageStats } from './IHostingProvider';
-
-export class CpanelHostingProvider implements IHostingProvider {
-  private apiUrl: string;
-  private apiKey: string;
-
-  constructor(apiKey: string, apiUrl?: string) {
+class CpanelHostingProvider {
+  constructor(apiKey, apiUrl) {
     if (!apiKey) {
       throw new Error('WHM API token is required');
     }
@@ -15,7 +10,7 @@ export class CpanelHostingProvider implements IHostingProvider {
     this.apiUrl = apiUrl.replace(/\/$/, '');
   }
 
-  private async whmRequest(action: string, params: Record<string, string> = {}, timeoutMs: number = 15000): Promise<any> {
+  async whmRequest(action, params = {}, timeoutMs = 15000) {
     const url = new URL(`${this.apiUrl}/${action}`);
     url.searchParams.set('api.version', '1');
     for (const [key, value] of Object.entries(params)) {
@@ -51,7 +46,7 @@ export class CpanelHostingProvider implements IHostingProvider {
       }
 
       return data;
-    } catch (error: any) {
+    } catch (error) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') {
         throw new Error('WHM server connection timed out. Please verify the server URL, port 2087, firewall, and API token.');
@@ -60,9 +55,9 @@ export class CpanelHostingProvider implements IHostingProvider {
     }
   }
 
-  async provisionAccount(request: HostingProvisionRequest): Promise<HostingProvisionResult> {
+  async provisionAccount(request) {
     const { domain, contactEmail, billingCycle, planCode } = request;
-    
+
     if (!domain || !contactEmail) {
       return {
         success: false,
@@ -94,7 +89,7 @@ export class CpanelHostingProvider implements IHostingProvider {
         nameservers: accountData.nameservers || [],
         error: undefined,
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
         error: error.message || 'Failed to create hosting account',
@@ -102,28 +97,28 @@ export class CpanelHostingProvider implements IHostingProvider {
     }
   }
 
-  async suspendAccount(providerAccountId: string): Promise<void> {
+  async suspendAccount(providerAccountId) {
     if (!providerAccountId) {
       throw new Error('Provider account ID is required');
     }
     await this.whmRequest('suspendacct', { user: providerAccountId });
   }
 
-  async unsuspendAccount(providerAccountId: string): Promise<void> {
+  async unsuspendAccount(providerAccountId) {
     if (!providerAccountId) {
       throw new Error('Provider account ID is required');
     }
     await this.whmRequest('unsuspendacct', { user: providerAccountId });
   }
 
-  async terminateAccount(providerAccountId: string): Promise<void> {
+  async terminateAccount(providerAccountId) {
     if (!providerAccountId) {
       throw new Error('Provider account ID is required');
     }
     await this.whmRequest('killacct', { user: providerAccountId, preserve_dns: '1' });
   }
 
-  async getUsage(providerAccountId: string): Promise<HostingUsageStats> {
+  async getUsage(providerAccountId) {
     if (!providerAccountId) {
       throw new Error('Provider account ID is required');
     }
@@ -144,7 +139,7 @@ export class CpanelHostingProvider implements IHostingProvider {
     };
   }
 
-  async testConnection(): Promise<{ success: boolean; message: string }> {
+  async testConnection() {
     try {
       const result = await this.whmRequest('listaccts', {}, 15000);
       const accounts = result?.data?.acct || [];
@@ -152,7 +147,7 @@ export class CpanelHostingProvider implements IHostingProvider {
         success: true,
         message: `WHM connection successful. Found ${accounts.length} account(s).`,
       };
-    } catch (error: any) {
+    } catch (error) {
       if (error.message.includes('Invalid authentication') || error.message.includes('Access denied')) {
         return {
           success: false,
@@ -178,20 +173,20 @@ export class CpanelHostingProvider implements IHostingProvider {
     }
   }
 
-  async changePlan(providerAccountId: string, newPlanCode: string): Promise<void> {
+  async changePlan(providerAccountId, newPlanCode) {
     if (!providerAccountId || !newPlanCode) {
       throw new Error('Provider account ID and new plan code are required');
     }
     await this.whmRequest('changepackage', { user: providerAccountId, pkg: newPlanCode });
   }
 
-  private generateUsername(domain: string): string {
+  generateUsername(domain) {
     const cleanDomain = domain.replace(/\./g, '').toLowerCase();
     const username = cleanDomain.substring(0, 8);
     return username;
   }
 
-  private normalizeBillingCycle(billingCycle?: string): string {
+  normalizeBillingCycle(billingCycle) {
     if (!billingCycle) return 'monthly';
     const cycle = billingCycle.toLowerCase();
     if (cycle === 'annually' || cycle === 'yearly') return 'yearly';
@@ -200,7 +195,7 @@ export class CpanelHostingProvider implements IHostingProvider {
     return 'monthly';
   }
 
-  private generatePassword(): string {
+  generatePassword() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
     const length = 16;
     let password = '';
@@ -210,7 +205,7 @@ export class CpanelHostingProvider implements IHostingProvider {
     return password;
   }
 
-  private parseLimit(value: string): number {
+  parseLimit(value) {
     if (!value) return 0;
     const num = parseFloat(value);
     if (value.toLowerCase().includes('gb')) return num * 1024;
@@ -218,3 +213,5 @@ export class CpanelHostingProvider implements IHostingProvider {
     return num;
   }
 }
+
+module.exports = { CpanelHostingProvider };

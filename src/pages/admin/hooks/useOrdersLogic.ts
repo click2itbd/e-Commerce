@@ -168,7 +168,11 @@ export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers
       message: `Are you sure you want to delete ${selectedOrderIds.length} orders? This action cannot be undone.`,
       onConfirm: async () => {
         try {
-          await Promise.all(selectedOrderIds.map(id => deleteDoc(doc(db, 'orders', id))));
+          const batch = writeBatch(db);
+          for (const id of selectedOrderIds) {
+            batch.delete(doc(db, 'orders', id));
+          }
+          await batch.commit();
           toast.success(`${selectedOrderIds.length} orders deleted`);
           setSelectedOrderIds([]);
           fetchData();
@@ -190,22 +194,31 @@ export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers
       confirmColor: 'bg-yellow-600 hover:bg-yellow-700',
       onConfirm: async () => {
         try {
-          await Promise.all(selectedOrderIds.map(async (id) => {
+          const batch = writeBatch(db);
+          const returnPromises: Promise<void>[] = [];
+          
+          for (const id of selectedOrderIds) {
             const order = orders.find(o => o.id === id);
-            await updateDoc(doc(db, 'orders', id), { status: 'returned' });
+            batch.update(doc(db, 'orders', id), { status: 'returned' });
             
-            // Record Return Transaction
-            await addDoc(collection(db, 'transactions'), {
-              type: 'return',
-              amount: -(order?.total || 0),
-              date: new Date().toISOString(),
-              description: `Return for order ${order?.documentNumber || id}`,
-              entityId: 'system',
-              entityName: 'Sales Return',
-              referenceId: id,
-              createdAt: new Date().toISOString(),
-            });
-          }));
+            if (order) {
+              returnPromises.push(
+                addDoc(collection(db, 'transactions'), {
+                  type: 'return',
+                  amount: -(order?.total || 0),
+                  date: new Date().toISOString(),
+                  description: `Return for order ${order?.documentNumber || id}`,
+                  entityId: 'system',
+                  entityName: 'Sales Return',
+                  referenceId: id,
+                  createdAt: new Date().toISOString(),
+                })
+              );
+            }
+          }
+          
+          await batch.commit();
+          await Promise.all(returnPromises);
           toast.success(`${selectedOrderIds.length} orders marked as returned`);
           setSelectedOrderIds([]);
           fetchData();
@@ -228,42 +241,48 @@ export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers
       confirmColor: 'bg-[#081621] hover:bg-black shadow-gray-200',
       onConfirm: async () => {
         try {
-          await Promise.all(selectedOrderIds.map(async (id) => {
-            await updateDoc(doc(db, 'orders', id), { status });
+          const batch = writeBatch(db);
+          const emailPromises: Promise<void>[] = [];
+          
+          for (const id of selectedOrderIds) {
+            batch.update(doc(db, 'orders', id), { status });
             const order = orders.find(o => o.id === id);
             if (order && order.customerEmail) {
-              const emailHtml = `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                  <div style="text-align: center; margin-bottom: 30px;">
-                    <h1 style="color: #EF4444; margin: 0;">Star Tech</h1>
-                    <p style="color: #666; margin: 5px 0 0 0;">Order Status Update</p>
-                  </div>
-                  
-                  <p>Hi ${order.customerName},</p>
-                  <p>The status of your order <strong>#${order.documentNumber || order.id.slice(0, 8)}</strong> has been updated to: <span style="color: #EF4444; font-weight: bold; text-transform: uppercase;">${status}</span></p>
-                  
-                  <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                    <h3 style="margin-top: 0;">Order Details</h3>
-                    <p style="margin: 5px 0;"><strong>Status:</strong> ${status}</p>
-                    <p style="margin: 5px 0;"><strong>Total:</strong> ${formatCurrency(order.total, settings)}</p>
-                  </div>
-                  
-                  <p style="margin-top: 30px; color: #888; font-size: 0.9em;">If you have any questions, please reply to this email.</p>
-                </div>
-              `;
-              try {
-                await fetch('/api/send-email', {
+              emailPromises.push(
+                fetch('/api/send-email', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     to: order.customerEmail,
                     subject: `Order Status Update: ${status.toUpperCase()} - Star Tech`,
-                    html: emailHtml,
+                    html: `
+                      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                        <div style="text-align: center; margin-bottom: 30px;">
+                          <h1 style="color: #EF4444; margin: 0;">Star Tech</h1>
+                          <p style="color: #666; margin: 5px 0 0 0;">Order Status Update</p>
+                        </div>
+                        
+                        <p>Hi ${order.customerName},</p>
+                        <p>The status of your order <strong>#${order.documentNumber || order.id.slice(0, 8)}</strong> has been updated to: <span style="color: #EF4444; font-weight: bold; text-transform: uppercase;">${status}</span></p>
+                        
+                        <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                          <h3 style="margin-top: 0;">Order Details</h3>
+                          <p style="margin: 5px 0;"><strong>Status:</strong> ${status}</p>
+                          <p style="margin: 5px 0;"><strong>Total:</strong> ${formatCurrency(order.total, settings)}</p>
+                        </div>
+                        
+                        <p style="margin-top: 30px; color: #888; font-size: 0.9em;">If you have any questions, please reply to this email.</p>
+                      </div>
+                    `,
                   }),
-                });
-              } catch (e) { console.error(e); }
+                }).then(() => Promise.resolve())
+                .catch((e) => Promise.resolve());
+              );
             }
-          }));
+          }
+          
+          await batch.commit();
+          await Promise.all(emailPromises);
           toast.success(`${selectedOrderIds.length} orders updated to ${status}`);
           setSelectedOrderIds([]);
           fetchData();

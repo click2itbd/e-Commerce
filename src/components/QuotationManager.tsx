@@ -33,9 +33,9 @@ export const QuotationManager: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const qSnap = await getDocs(query(collection(db, 'orders'), where('type', '==', 'quotation'), orderBy('createdAt', 'desc')));
-      const pSnap = await getDocs(collection(db, 'products'));
-      const cSnap = await getDocs(collection(db, 'customers'));
+      const qSnap = await getDocs(query(collection(db, 'orders'), where('type', '==', 'quotation'), orderBy('createdAt', 'desc'), limit(200)));
+      const pSnap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500)));
+      const cSnap = await getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(200)));
 
       setQuotations(qSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Order[]);
       setProducts(pSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Product[]);

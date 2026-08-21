@@ -9,8 +9,13 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import domainRouter from "./server/routes/domain";
 import hostingRouter from "./server/routes/hosting";
+import adminRouter from "./server/routes/admin";
+import { requireFirebaseAuth } from "./server/middleware/firebaseAuth";
+import { getAdminDb } from "./server/admin";
 
 dotenv.config();
+
+getAdminDb();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -201,6 +206,7 @@ async function startServer() {
 
   app.use('/api/domain', domainRouter);
   app.use('/api/hosting', hostingRouter);
+  app.use('/api/admin', requireFirebaseAuth, adminRouter);
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

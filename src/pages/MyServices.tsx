@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { db } from '../firebase';
+import { db, functions } from '../firebase';
 import { collection, query, where, onSnapshot, updateDoc, doc, getDocs } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { toast } from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { getHostingUsage, HostingUsageStats } from '../services/hostingApi';
@@ -113,16 +114,17 @@ export const MyServices: React.FC = () => {
   const handleRenew = async (domain: DomainOrder) => {
     setDomainLoading(domain.id);
     try {
-      const res = await fetch('/api/domain/renew', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: domain.domain, years: 1 }),
+      const dynadotProxy = httpsCallable(functions, 'dynadotProxy');
+      const res = await dynadotProxy({
+        command: 'renew',
+        domain: domain.domain,
+        extraParams: { duration: 1 }
       });
-      const data = await res.json();
+      const data = res.data as any;
       if (data.success) {
         const renewalProduct = {
           id: `domain_renew_${domain.domain}`,
-          name: `Domain Renewal — ${domain.domain}`,
+          name: `Domain Renewal - ${domain.domain}`,
           description: '1 Year Renewal',
           price: domain.price || 1000,
           category: 'Hosting & Domains',

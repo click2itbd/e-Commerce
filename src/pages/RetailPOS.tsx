@@ -17,8 +17,8 @@ export const RetailPOS = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const prodSnap = await getDocs(collection(db, 'products'));
-        const custSnap = await getDocs(collection(db, 'customers'));
+        const prodSnap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500)));
+        const custSnap = await getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(200)));
         setProducts(prodSnap.docs.map(d => ({id: d.id, ...d.data()})) as Product[]);
         setCustomers(custSnap.docs.map(d => ({id: d.id, ...d.data()})) as Customer[]);
       } catch (err) {

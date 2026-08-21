@@ -1,5 +1,6 @@
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
 
 export interface EmailLog {
   id?: string;
@@ -31,17 +32,14 @@ Thank you for choosing us!
   `.trim();
 
   try {
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: customerEmail,
-        subject,
-        html: content.replace(/\n/g, '<br>')
-      })
+    const sendEmailFn = httpsCallable(functions, 'sendEmail');
+    const response = await sendEmailFn({
+      to: customerEmail,
+      subject,
+      html: content.replace(/\n/g, '<br>')
     });
 
-    const data = await response.json();
+    const data = response.data as any;
     
     await addDoc(collection(db, 'emailLogs'), {
       orderId,
@@ -49,10 +47,10 @@ Thank you for choosing us!
       subject,
       content,
       sentAt: new Date().toISOString(),
-      status: response.ok ? 'sent' : 'failed'
+      status: data?.success ? 'sent' : 'failed'
     });
 
-    return response.ok;
+    return !!(data?.success);
   } catch (err) {
     console.error('Failed to send email:', err);
     await addDoc(collection(db, 'emailLogs'), {

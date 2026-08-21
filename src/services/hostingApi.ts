@@ -1,5 +1,6 @@
 import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
+import { searchDomainDynadot } from './dynadotApi';
 
 export interface DomainAvailabilityResult {
   domain: string;
@@ -24,31 +25,29 @@ export interface DomainPricing {
 }
 
 export async function checkDomainAvailability(domains: string[]): Promise<DomainAvailabilityResult[]> {
-  const res = await fetch('/api/domain/check', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ domains }),
-  });
-  if (!res.ok) throw new Error('Network response was not ok');
-  const data = await res.json();
-  if (!data.success) {
-    throw new Error(data.error || 'Failed to check domain availability');
+  try {
+    const promises = domains.map(domain => searchDomainDynadot(domain));
+    const dynadotResults = await Promise.allSettled(promises);
+    return dynadotResults.map((res, index) => {
+      if (res.status === 'fulfilled') {
+        return {
+          domain: res.value.domain,
+          available: res.value.available,
+          price: res.value.priceBdt,
+          currency: 'BDT',
+        };
+      }
+      return { domain: domains[index], available: false, error: 'Failed' };
+    });
+  } catch (error) {
+    throw new Error('Failed to check domain availability');
   }
-  return data.data;
 }
 
 export async function getDomainSuggestions(domain: string): Promise<DomainSuggestionResult[]> {
-  const res = await fetch('/api/domain/suggestions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ domain }),
-  });
-  if (!res.ok) throw new Error('Network response was not ok');
-  const data = await res.json();
-  if (!data.success) {
-    throw new Error(data.error || 'Failed to get domain suggestions');
-  }
-  return data.data;
+  const parts = domain.split('.');
+  const base = parts[0];
+  return [{ suggestions: [`${base}.net`, `${base}.org`, `${base}.co`, `${base}.info`, `${base}.biz`] }];
 }
 
 export async function getDomainPricing(): Promise<DomainPricing[]> {

@@ -10,17 +10,22 @@ import {
   ShoppingBag,
   Star,
   CheckSquare,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn, formatCurrency } from "../../../../lib/utils";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../../../../firebase";
+import { db, functions } from "../../../../firebase";
+import { httpsCallable } from "firebase/functions";
 import { useSettings } from "../../../../context/SettingsContext";
 import { CRMIntegrationsSetting } from "../../../../components/CRMIntegrationsSetting";
 import { SiteSettings } from "../../../../types";
+import { useAuth } from "../../../../context/AuthContext";
 
 export const Settings = () => {
   const { settings, updateSettings } = useSettings();
+  const { user } = useAuth();
   const [settingsFormData, setSettingsFormData] =
     useState<SiteSettings>(settings);
   const [settingsTab, setSettingsTab] = useState<
@@ -41,60 +46,101 @@ export const Settings = () => {
   >("business");
   const [taxCalcAmount, setTaxCalcAmount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
-  const [apiKeys, setApiKeys] = useState<{
-    dynadotApiKey?: string;
-    usdToBdtRate?: number;
-    domainMarkupPercent?: number;
-    domainRenewalDiscountPercent?: number;
-    hostingMarkupPercent?: number;
-    isSandboxMode?: boolean;
-    bkashAppKey?: string;
-    bkashAppSecret?: string;
-    bkashUsername?: string;
-    bkashPassword?: string;
-    sandbox_bkashAppKey?: string;
-    sandbox_bkashAppSecret?: string;
-    sandbox_bkashUsername?: string;
-    sandbox_bkashPassword?: string;
-    production_bkashAppKey?: string;
-    production_bkashAppSecret?: string;
-    production_bkashUsername?: string;
-    production_bkashPassword?: string;
-  }>({});
+  const [apiKeys, setApiKeys] = useState<Record<string, any>>({});
+  const [apiKeysLoading, setApiKeysLoading] = useState(true);
 
   useEffect(() => {
-    const fetchApiKeys = async () => {
+    const loadKeys = async () => {
       try {
-        const snap = await getDoc(doc(db, "settings", "api_keys"));
-        if (snap.exists()) {
-          console.log("Fetched api keys:", snap.data());
-          setApiKeys(snap.data());
+        if (!user) return;
+        const adminApiConfig = httpsCallable(functions, 'adminApiConfig');
+        const res = await adminApiConfig({ method: 'GET' });
+        const data = { success: true, data: res.data };
+        if (data.success && data.data) {
+          setApiKeys(data.data as any);
         }
       } catch (e) {
         console.error("Error fetching api keys", e);
+      } finally {
+        setApiKeysLoading(false);
       }
     };
-    fetchApiKeys();
-  }, []);
+    loadKeys();
+  }, [user]);
 
   useEffect(() => {
     setSettingsFormData(settings);
   }, [settings]);
+
+  const buildApiKeysPayload = () => {
+    const secretFields = [
+      'dynadotApiKey',
+      'hostingApiKey',
+      'whmApiToken',
+      'resendApiKey',
+      'bkashAppKey',
+      'bkashAppSecret',
+      'bkashUsername',
+      'bkashPassword',
+      'sandbox_bkashAppKey',
+      'sandbox_bkashAppSecret',
+      'sandbox_bkashUsername',
+      'sandbox_bkashPassword',
+      'production_bkashAppKey',
+      'production_bkashAppSecret',
+      'production_bkashUsername',
+      'production_bkashPassword',
+      'clnSecretKey',
+      'smtpPassword',
+      'smsApiKey',
+      'whatsappAccessToken',
+    ];
+
+    const payload: Record<string, any> = {};
+    for (const [key, value] of Object.entries(apiKeys)) {
+      if (secretFields.includes(key)) {
+        if (typeof value === 'string' && value.trim().length > 0 && !value.startsWith('••••••••••••••••')) {
+          payload[key] = value.trim();
+        }
+      } else {
+        payload[key] = value;
+      }
+    }
+    return payload;
+  };
+
+  const isSecretConfigured = (fieldName: string) => {
+    const value = apiKeys[fieldName];
+    return typeof value === 'string' && value.startsWith('••••••••••••••••');
+  };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       if (settingsTab === "domain_reseller") {
-        await setDoc(doc(db, "settings", "api_keys"), apiKeys, { merge: true });
+        const payload = buildApiKeysPayload();
+        const adminApiConfig = httpsCallable(functions, 'adminApiConfig');
+        const res = await adminApiConfig({ method: 'POST', payload });
+        const data = { success: true, data: (res.data as any).data };
+        if (!data.success) {
+          throw new Error('Failed to save API configuration');
+        }
+        
+        const freshRes = await adminApiConfig({ method: 'GET' });
+        const freshData = { success: true, data: freshRes.data };
+        if (freshData.success && freshData.data) {
+          setApiKeys(freshData.data as any);
+        }
+        
+        toast.success("API configuration saved successfully");
       } else {
         await updateSettings(settingsFormData);
+        toast.success("Site settings updated successfully");
       }
-
-      toast.success("Site settings updated successfully");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving settings:", error);
-      toast.error("Failed to save site settings");
+      toast.error(error?.message || "Failed to save site settings");
     } finally {
       setLoading(false);
     }
@@ -1533,6 +1579,9 @@ export const Settings = () => {
                       className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
                       placeholder="Enter your Dynadot API key"
                     />
+                    {isSecretConfigured('dynadotApiKey') && (
+                      <p className="text-xs text-green-600 mt-1">Existing API key is securely configured.</p>
+                    )}
                   </div>
 
                   <div>
@@ -1726,6 +1775,9 @@ export const Settings = () => {
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
                         placeholder="Sandbox APP Key"
                       />
+                      {isSecretConfigured('sandbox_bkashAppKey') && (
+                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1740,6 +1792,9 @@ export const Settings = () => {
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
                         placeholder="Sandbox APP Secret"
                       />
+                      {isSecretConfigured('sandbox_bkashAppSecret') && (
+                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1754,6 +1809,9 @@ export const Settings = () => {
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
                         placeholder="Sandbox Username"
                       />
+                      {isSecretConfigured('sandbox_bkashUsername') && (
+                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1768,6 +1826,9 @@ export const Settings = () => {
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
                         placeholder="Sandbox Password"
                       />
+                      {isSecretConfigured('sandbox_bkashPassword') && (
+                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1782,6 +1843,9 @@ export const Settings = () => {
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
                         placeholder="Production APP Key"
                       />
+                      {isSecretConfigured('production_bkashAppKey') && (
+                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1796,6 +1860,9 @@ export const Settings = () => {
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
                         placeholder="Production APP Secret"
                       />
+                      {isSecretConfigured('production_bkashAppSecret') && (
+                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1810,6 +1877,9 @@ export const Settings = () => {
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
                         placeholder="Production Username"
                       />
+                      {isSecretConfigured('production_bkashUsername') && (
+                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1824,6 +1894,9 @@ export const Settings = () => {
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
                         placeholder="Production Password"
                       />
+                      {isSecretConfigured('production_bkashPassword') && (
+                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1872,6 +1945,9 @@ export const Settings = () => {
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
                         placeholder="Partner API Secret Key"
                       />
+                      {isSecretConfigured('clnSecretKey') && (
+                        <p className="text-xs text-green-600 mt-1">Existing API secret is securely configured.</p>
+                      )}
                     </div>
                   </div>
                 </div>

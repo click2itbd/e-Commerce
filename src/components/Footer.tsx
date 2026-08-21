@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Facebook, Instagram, Youtube, MapPin, Phone, Mail, Send } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
-import { db } from '../firebase';
+import { db, functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
 import { collection, addDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 
@@ -23,13 +24,11 @@ export const Footer: React.FC = () => {
       });
 
       // 2. Send welcome email via backend
-      await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: email,
-          subject: `Welcome to ${settings.brandName} Newsletter!`,
-          html: `
+      const sendEmail = httpsCallable(functions, 'sendEmail');
+      await sendEmail({
+        to: email,
+        subject: `Welcome to ${settings.brandName} Newsletter!`,
+        html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
               <h1 style="color: ${settings.primaryColor};">${settings.brandName}</h1>
               <p>Hello!</p>
@@ -39,8 +38,7 @@ export const Footer: React.FC = () => {
               <p style="font-size: 12px; color: #666;">${settings.footerText}</p>
             </div>
           `
-        })
-      });
+        });
 
       toast.success('Thank you for subscribing!');
       setEmail('');

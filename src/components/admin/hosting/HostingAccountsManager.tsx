@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, updateDoc, doc, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../../../firebase';
+import { db, functions } from '../../../firebase';
+import { httpsCallable } from 'firebase/functions';
 import { toast } from 'react-hot-toast';
 import { Search, Server, Eye, Power, RotateCcw, RefreshCw, X, AlertTriangle } from 'lucide-react';
 
@@ -56,19 +57,24 @@ export const HostingAccountsManager: React.FC = () => {
   const handleAction = async (account: HostingAccount, action: string) => {
     setActionLoading(account.id);
     try {
-      const res = await fetch(`/api/hosting/${action}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ providerAccountId: account.providerAccountId }),
+      const manageHosting = httpsCallable(functions, 'manageHosting');
+      let whmAction = '';
+      if (action === 'suspend') whmAction = 'suspendacct';
+      if (action === 'unsuspend') whmAction = 'unsuspendacct';
+      if (action === 'terminate') whmAction = 'killacct';
+
+      const res = await manageHosting({
+        action: whmAction,
+        providerAccountId: account.providerAccountId,
       });
-      const data = await res.json();
+      const data = res.data as any;
       if (data.success) {
         toast.success(`${action} successful`);
       } else {
         toast.error(data.error || `${action} failed`);
       }
     } catch (error: any) {
-      toast.error(error?.message || `Failed to ${action}`);
+      toast.error(error?.message || `Failed to ${action} account`);
     } finally {
       setActionLoading(null);
     }
@@ -79,19 +85,19 @@ export const HostingAccountsManager: React.FC = () => {
     setLoadingUsage(true);
     setUsageData(null);
     try {
-      const res = await fetch('/api/hosting/usage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ providerAccountId: account.providerAccountId }),
+      const manageHosting = httpsCallable(functions, 'manageHosting');
+      const res = await manageHosting({
+        action: 'accountsummary',
+        providerAccountId: account.providerAccountId,
       });
-      const data = await res.json();
-      if (data.success) {
-        setUsageData(data.data);
+      const data = res.data as any;
+      if (data.success && data.data?.data) {
+        setUsageData(data.data.data[0] || data.data.data);
       } else {
         toast.error(data.error || 'Failed to fetch usage');
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to fetch usage');
+      toast.error(error?.message || 'Failed to fetch usage data');
     } finally {
       setLoadingUsage(false);
     }

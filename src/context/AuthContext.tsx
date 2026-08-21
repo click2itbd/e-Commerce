@@ -43,6 +43,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             };
             await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
             setProfile(newProfile);
+
+            // Send welcome email
+            try {
+              const { httpsCallable } = await import('firebase/functions');
+              const { getFunctions } = await import('firebase/app');
+              const { app } = await import('../firebase');
+              const functions = getFunctions(app);
+              const sendWelcomeEmail = httpsCallable(functions, 'sendWelcomeEmail');
+              await sendWelcomeEmail({
+                email: firebaseUser.email,
+                name: firebaseUser.displayName || 'User',
+              });
+            } catch (emailError) {
+              console.error('Failed to send welcome email:', emailError);
+            }
           }
         } else {
           setProfile(null);

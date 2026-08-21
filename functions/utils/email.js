@@ -1,20 +1,11 @@
-import { Resend } from 'resend';
-import { getAdminDb } from '../admin';
+const { getFirestore } = require('firebase-admin/firestore');
+const { Resend } = require('resend');
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
 
-export interface EmailOptions {
-  to: string;
-  subject: string;
-  html: string;
-  orderId?: string;
-  customerEmail?: string;
-  category?: 'order' | 'provisioning' | 'payment' | 'domain' | 'hosting' | 'system';
-}
-
-async function logEmailToFirestore(options: EmailOptions, status: 'sent' | 'failed', error?: string) {
+async function logEmailToFirestore(options, status, error) {
   try {
-    const db = getAdminDb();
     await db.collection('emailLogs').add({
       orderId: options.orderId || null,
       customerEmail: options.customerEmail || options.to,
@@ -31,7 +22,7 @@ async function logEmailToFirestore(options: EmailOptions, status: 'sent' | 'fail
   }
 }
 
-export async function sendEmail(options: EmailOptions): Promise<{ success: boolean; error?: string }> {
+async function sendEmail(options) {
   const { to, subject, html } = options;
 
   if (!resend) {
@@ -57,7 +48,7 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
 
     await logEmailToFirestore(options, 'sent');
     return { success: true, data };
-  } catch (error: any) {
+  } catch (error) {
     const errorMessage = error?.message || 'Failed to send email';
     console.error('Email send error:', error);
     await logEmailToFirestore(options, 'failed', errorMessage);
@@ -65,8 +56,8 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
   }
 }
 
-export const EmailTemplates = {
-  orderConfirmation: (orderId: string, customerName: string, items: any[], total: number) => ({
+const EmailTemplates = {
+  orderConfirmation: (orderId, customerName, items, total) => ({
     subject: `Order Confirmed - ${orderId}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -84,7 +75,7 @@ export const EmailTemplates = {
     `,
   }),
 
-  paymentSuccess: (orderId: string, customerName: string, amount: number, paymentMethod: string) => ({
+  paymentSuccess: (orderId, customerName, amount, paymentMethod) => ({
     subject: `Payment Successful - ${orderId}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -99,7 +90,7 @@ export const EmailTemplates = {
     `,
   }),
 
-  paymentFailed: (orderId: string, customerName: string, reason: string) => ({
+  paymentFailed: (orderId, customerName, reason) => ({
     subject: `Payment Failed - ${orderId}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -113,7 +104,7 @@ export const EmailTemplates = {
     `,
   }),
 
-  hostingReady: (domain: string, serverIp: string, controlPanelUrl: string, username: string, password: string) => ({
+  hostingReady: (domain, serverIp, controlPanelUrl, username, password) => ({
     subject: `Your Hosting is Ready - ${domain}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -133,7 +124,7 @@ export const EmailTemplates = {
     `,
   }),
 
-  hostingFailed: (domain: string, reason: string) => ({
+  hostingFailed: (domain, reason) => ({
     subject: `Hosting Provisioning Failed - ${domain}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -146,7 +137,7 @@ export const EmailTemplates = {
     `,
   }),
 
-  domainRegistered: (domain: string, expiryDate: string) => ({
+  domainRegistered: (domain, expiryDate) => ({
     subject: `Domain Registered - ${domain}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -159,7 +150,7 @@ export const EmailTemplates = {
     `,
   }),
 
-  domainTransferSuccess: (domain: string) => ({
+  domainTransferSuccess: (domain) => ({
     subject: `Domain Transfer Successful - ${domain}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -171,7 +162,7 @@ export const EmailTemplates = {
     `,
   }),
 
-  domainTransferFailed: (domain: string, reason: string) => ({
+  domainTransferFailed: (domain, reason) => ({
     subject: `Domain Transfer Failed - ${domain}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -184,7 +175,7 @@ export const EmailTemplates = {
     `,
   }),
 
-  domainRenewalSuccess: (domain: string, expiryDate: string, amount: number) => ({
+  domainRenewalSuccess: (domain, expiryDate, amount) => ({
     subject: `Domain Renewed - ${domain}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -197,7 +188,7 @@ export const EmailTemplates = {
     `,
   }),
 
-  domainRenewalFailed: (domain: string, reason: string) => ({
+  domainRenewalFailed: (domain, reason) => ({
     subject: `Domain Renewal Failed - ${domain}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -210,7 +201,7 @@ export const EmailTemplates = {
     `,
   }),
 
-  welcome: (customerName: string, email: string) => ({
+  welcome: (customerName, email) => ({
     subject: 'Welcome to Click2IT!',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -229,4 +220,9 @@ export const EmailTemplates = {
       </div>
     `,
   }),
+};
+
+module.exports = {
+  sendEmail,
+  EmailTemplates,
 };

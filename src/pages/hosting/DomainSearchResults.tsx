@@ -149,93 +149,93 @@ export default function DomainSearchResults() {
 
   return (
           <Layout fullWidth>
-        <div className="bg-[#f5f7f9] min-h-screen py-8">
-          <div className="max-w-7xl mx-auto px-4">
+        <div className="bg-[#f5f7f9] min-h-screen py-6 md:py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
-            {/* Main Search Bar */}
-            <div className="bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.08)] overflow-hidden flex items-stretch mb-6">
-              <form onSubmit={handleSearchSubmit} className="flex-grow flex items-stretch">
-                <div className="flex items-center pl-5 text-gray-400">
-                  <Search size={20} />
-                </div>
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="Type your domain name here..."
-                  className="flex-1 px-4 py-5 text-lg text-gray-800 outline-none bg-transparent placeholder-gray-400"
-                />
-                {searchInput && (
-                  <button type="button" onClick={() => setSearchInput('')} className="flex items-center text-gray-400 hover:text-gray-600 px-2">
-                    <X size={16} />
-                  </button>
-                )}
-                <div className="flex items-center gap-2 pr-2">
-                  <select className="hidden md:block text-sm text-gray-600 bg-gray-100 border-0 rounded-lg px-3 py-2 outline-none h-[44px]">
-                    <option>.com</option>
-                    <option>.net</option>
-                    <option>.org</option>
-                    <option>.xyz</option>
-                  </select>
-                  <button
-                    type="submit"
-                    className="flex items-center gap-2 text-white font-bold px-7 h-[44px] rounded-xl transition-all active:scale-95 hover:opacity-90 my-auto"
-                    style={{ background: 'linear-gradient(135deg, #f97316, #ea6100)' }}
-                  >
-                    <Search size={18} />
-                    <span className="hidden sm:inline">Search</span>
-                  </button>
-                </div>
-              </form>
-            </div>
+           {/* Main Search Bar */}
+           <div className="bg-white rounded-xl md:rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.08)] overflow-hidden flex items-stretch mb-4 md:mb-6">
+             <form onSubmit={handleSearchSubmit} className="flex-grow flex items-stretch">
+               <div className="flex items-center pl-3 md:pl-5 text-gray-400">
+                 <Search size={18} md:size={20} />
+               </div>
+               <input
+                 type="text"
+                 value={searchInput}
+                 onChange={(e) => setSearchInput(e.target.value)}
+                 placeholder="Type your domain name here..."
+                 className="flex-1 px-3 md:px-4 py-4 md:py-5 text-base md:text-lg text-gray-800 outline-none bg-transparent placeholder-gray-400"
+               />
+               {searchInput && (
+                 <button type="button" onClick={() => setSearchInput('')} className="flex items-center text-gray-400 hover:text-gray-600 px-2">
+                   <X size={16} />
+                 </button>
+               )}
+               <div className="flex items-center gap-2 pr-2">
+                 <select className="hidden md:block text-sm text-gray-600 bg-gray-100 border-0 rounded-lg px-3 py-2 outline-none h-[44px]">
+                   <option>.com</option>
+                   <option>.net</option>
+                   <option>.org</option>
+                   <option>.xyz</option>
+                 </select>
+                 <button
+                   type="submit"
+                   className="flex items-center gap-2 text-white font-bold px-5 md:px-7 h-[40px] md:h-[44px] rounded-xl transition-all active:scale-95 hover:opacity-90 my-auto"
+                   style={{ background: 'linear-gradient(135deg, #f97316, #ea6100)' }}
+                 >
+                   <Search size={16} md:size={18} />
+                   <span className="hidden sm:inline">Search</span>
+                 </button>
+               </div>
+             </form>
+           </div>
   
-            {/* Exact Match Result */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              {loading ? (
-                <div className="flex items-center gap-3 text-gray-500 py-4">
-                  <Loader2 className="animate-spin" size={20} />
-                  <span>Checking availability...</span>
-                </div>
-              ) : exactMatch ? (
-                <>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl text-gray-700">{exactMatch.domain}</span>
-                    {!exactMatch.available && (
-                      <span className="bg-[#a4a9ad] text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
-                        Registered
-                      </span>
-                    )}
-                    <Info size={16} className="text-gray-400 cursor-pointer" />
-                    <Star size={16} className="text-gray-400 cursor-pointer hover:text-yellow-400" />
-                  </div>
-                  <div>
-                    {exactMatch.available ? (
-                      <div className="flex items-center gap-4">
-                         <div className="text-right">
-                           <div className="font-bold text-lg">{formatPrice(getPrice(exactMatch))}</div>
-                           <div className="text-xs text-gray-500">/yr</div>
-                         </div>
-                         <button 
-                           onClick={() => {
-                             const price = getPrice(exactMatch);
-                             if (price) handleAddToCart(exactMatch.domain, price);
-                           }}
-                           className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2.5 rounded text-sm font-bold flex items-center gap-2 transition-colors"
-                         >
-                          <ShoppingCart size={16} /> Add to cart
-                        </button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setOfferDomain(exactMatch.domain)} className="border border-gray-300 text-gray-700 hover:bg-gray-50 px-6 py-2.5 rounded text-sm font-bold flex items-center gap-2 transition-colors">
-                        <DollarSign size={16} /> Make offer
-                      </button>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="text-gray-500 py-4">No exact match found.</div>
-              )}
-            </div>
+             {/* Exact Match Result */}
+             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-4 md:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4">
+               {loading ? (
+                 <div className="flex items-center gap-3 text-gray-500 py-4">
+                   <Loader2 className="animate-spin" size={20} />
+                   <span>Checking availability...</span>
+                 </div>
+               ) : exactMatch ? (
+                 <>
+                   <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+                     <span className="text-xl md:text-2xl text-gray-700">{exactMatch.domain}</span>
+                     {!exactMatch.available && (
+                       <span className="bg-[#a4a9ad] text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                         Registered
+                       </span>
+                     )}
+                     <Info size={14} md:size={16} className="text-gray-400 cursor-pointer" />
+                     <Star size={14} md:size={16} className="text-gray-400 cursor-pointer hover:text-yellow-400" />
+                   </div>
+                   <div>
+                     {exactMatch.available ? (
+                       <div className="flex items-center gap-3 md:gap-4">
+                          <div className="text-right">
+                            <div className="font-bold text-base md:text-lg">{formatPrice(getPrice(exactMatch))}</div>
+                            <div className="text-[10px] md:text-xs text-gray-500">/yr</div>
+                          </div>
+                          <button 
+                            onClick={() => {
+                              const price = getPrice(exactMatch);
+                              if (price) handleAddToCart(exactMatch.domain, price);
+                            }}
+                            className="bg-gray-600 hover:bg-gray-700 text-white px-4 md:px-6 py-2 md:py-2.5 rounded text-xs md:text-sm font-bold flex items-center gap-2 transition-colors"
+                          >
+                           <ShoppingCart size={14} md:size={16} /> Add to cart
+                         </button>
+                       </div>
+                     ) : (
+                       <button onClick={() => setOfferDomain(exactMatch.domain)} className="border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 md:px-6 py-2 md:py-2.5 rounded text-xs md:text-sm font-bold flex items-center gap-2 transition-colors">
+                         <DollarSign size={14} md:size={16} /> Make offer
+                       </button>
+                     )}
+                   </div>
+                 </>
+               ) : (
+                 <div className="text-gray-500 py-4">No exact match found.</div>
+               )}
+             </div>
   
             {/* Results List */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -243,51 +243,51 @@ export default function DomainSearchResults() {
                 <h3 className="text-gray-700 font-medium">Results</h3>
               </div>
               
-              <div className="divide-y divide-gray-100">
-                {loading ? (
-                  <div className="py-12 flex justify-center items-center">
-                    <Loader2 className="animate-spin text-blue-500" size={32} />
-                  </div>
-                ) : alternatives.map((alt, idx) => (
-                  <div key={idx} className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <span className={alt.available ? "text-gray-800 text-lg" : "text-gray-400 text-lg"}>{alt.domain}</span>
-                      
-                      {!alt.available && (
-                        <span className="bg-[#a4a9ad] text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                          Registered
-                        </span>
-                      )}
-                      
-                      <Star size={14} className="text-gray-300 hover:text-yellow-400 cursor-pointer" />
-                    </div>
-                    
-                    <div className="mt-3 sm:mt-0 flex items-center gap-6">
-                       {alt.available ? (
-                         <>
-                           <div className="text-right">
-                             <div className="text-sm font-bold">{formatPrice(getPrice(alt))}</div>
-                             <div className="text-[10px] text-gray-500">Renews at {formatPrice(getPrice(alt) ? getPrice(alt)! * 1.2 : null)}/yr</div>
-                           </div>
-                           <button 
-                             onClick={() => {
-                               const price = getPrice(alt);
-                               if (price) handleAddToCart(alt.domain, price);
-                             }}
-                             className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-colors w-32 justify-center"
-                           >
-                            <ShoppingCart size={16} /> Add to cart
-                          </button>
-                        </>
-                      ) : (
-                        <button onClick={() => setOfferDomain(alt.domain)} className="border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-colors w-32 justify-center">
-                          <DollarSign size={16} /> Make offer
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+               <div className="divide-y divide-gray-100">
+                 {loading ? (
+                   <div className="py-12 flex justify-center items-center">
+                     <Loader2 className="animate-spin text-blue-500" size={32} />
+                   </div>
+                 ) : alternatives.map((alt, idx) => (
+                   <div key={idx} className="px-4 md:px-6 py-3 md:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-0 hover:bg-gray-50 transition-colors">
+                     <div className="flex items-center gap-2 md:gap-3">
+                       <span className={alt.available ? "text-gray-800 text-base md:text-lg" : "text-gray-400 text-base md:text-lg"}>{alt.domain}</span>
+                       
+                       {!alt.available && (
+                         <span className="bg-[#a4a9ad] text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                           Registered
+                         </span>
+                       )}
+                       
+                       <Star size={14} className="text-gray-300 hover:text-yellow-400 cursor-pointer" />
+                     </div>
+                     
+                     <div className="mt-2 sm:mt-0 flex items-center gap-4 md:gap-6">
+                        {alt.available ? (
+                          <>
+                            <div className="text-right">
+                              <div className="text-sm font-bold">{formatPrice(getPrice(alt))}</div>
+                              <div className="text-[10px] text-gray-500">Renews at {formatPrice(getPrice(alt) ? getPrice(alt)! * 1.2 : null)}/yr</div>
+                            </div>
+                            <button 
+                              onClick={() => {
+                                const price = getPrice(alt);
+                                if (price) handleAddToCart(alt.domain, price);
+                              }}
+                              className="bg-gray-600 hover:bg-gray-700 text-white px-3 md:px-4 py-2 rounded text-xs md:text-sm font-bold flex items-center gap-2 transition-colors w-28 md:w-32 justify-center"
+                            >
+                             <ShoppingCart size={14} md:size={16} /> Add to cart
+                           </button>
+                         </>
+                       ) : (
+                         <button onClick={() => setOfferDomain(alt.domain)} className="border border-gray-300 text-gray-700 hover:bg-gray-50 px-3 md:px-4 py-2 rounded text-xs md:text-sm font-bold flex items-center gap-2 transition-colors w-28 md:w-32 justify-center">
+                           <DollarSign size={14} md:size={16} /> Make offer
+                         </button>
+                       )}
+                     </div>
+                   </div>
+                 ))}
+               </div>
             </div>
             
           </div>
@@ -301,15 +301,15 @@ export default function DomainSearchResults() {
                   <X size={20} />
                 </button>
               </div>
-              <form onSubmit={handleMakeOffer} className="p-6 space-y-4">
+              <div className="p-4 md:p-6 space-y-4">
                 <div>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <p className="text-xs md:text-sm text-gray-600 mb-3 md:mb-4">
                     The domain <strong>{offerDomain}</strong> is already registered. Submit your offer and our brokers will attempt to negotiate on your behalf.
                   </p>
                   
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Your Offer Amount (BDT)</label>
+                      <label className="block text-[10px] md:text-xs font-bold text-gray-500 mb-1 uppercase">Your Offer Amount (BDT)</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">&#2547;</span>
                         <input
@@ -319,43 +319,43 @@ export default function DomainSearchResults() {
                           value={offerAmount}
                           onChange={e => setOfferAmount(e.target.value)}
                           placeholder="e.g. 50000"
-                          className="w-full pl-8 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#7B61FF] outline-none"
+                          className="w-full pl-8 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#7B61FF] outline-none text-sm"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Email Address</label>
+                      <label className="block text-[10px] md:text-xs font-bold text-gray-500 mb-1 uppercase">Email Address</label>
                       <input
                         type="email"
                         required
                         value={offerEmail}
                         onChange={e => setOfferEmail(e.target.value)}
                         placeholder="you@example.com"
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#7B61FF] outline-none"
+                        className="w-full px-3 md:px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#7B61FF] outline-none text-sm"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Phone Number</label>
+                      <label className="block text-[10px] md:text-xs font-bold text-gray-500 mb-1 uppercase">Phone Number</label>
                       <input
                         type="tel"
                         required
                         value={offerPhone}
                         onChange={e => setOfferPhone(e.target.value)}
                         placeholder="01XXXXXXXXX"
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#7B61FF] outline-none"
+                        className="w-full px-3 md:px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#7B61FF] outline-none text-sm"
                       />
                     </div>
                   </div>
                 </div>
-                <div className="pt-2 flex gap-3">
-                  <button type="button" onClick={() => setOfferDomain(null)} className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-colors">
+                <div className="pt-2 flex gap-2 md:gap-3">
+                  <button type="button" onClick={() => setOfferDomain(null)} className="flex-1 py-2 md:py-3 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-colors text-sm">
                     Cancel
                   </button>
-                  <button type="submit" disabled={isSubmittingOffer} className="flex-1 py-3 bg-[#7B61FF] text-white font-bold rounded-lg hover:bg-[#6A52E5] transition-colors disabled:opacity-50">
+                  <button type="submit" disabled={isSubmittingOffer} className="flex-1 py-2 md:py-3 bg-[#7B61FF] text-white font-bold rounded-lg hover:bg-[#6A52E5] transition-colors disabled:opacity-50 text-sm">
                     {isSubmittingOffer ? 'Submitting...' : 'Submit Offer'}
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         )}

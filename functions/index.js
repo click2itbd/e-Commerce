@@ -702,7 +702,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                   } else {
-                    console.log('CloudLinux provisioning success:', { ip, licenseType, response: apiData });
+                    
                     await updateDoc(accountDoc.ref, {
                       cloudLinuxStatus: 'active',
                       cloudLinuxLicenseId: apiData?.data?.id || apiData?.id || null,
@@ -839,7 +839,7 @@ exports.dynadotSearchProxy = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('internal', 'Failed to parse Dynadot search response.');
     }
 
-    console.log('[DynadotSearchProxy] Raw search response:', JSON.stringify(searchData));
+    
 
     const searchResult = searchData?.SearchResponse?.SearchResults?.[0];
     if (!searchResult) {
@@ -878,7 +878,7 @@ exports.dynadotSearchProxy = functions.https.onCall(async (data, context) => {
         }
 
         console.log('[DynadotSearchProxy] Extracted TLD:', tld);
-        console.log('[DynadotSearchProxy] TLD pricing response:', JSON.stringify(tldData));
+        
 
         // Try multiple possible response structures
         const tldPriceArray = 
@@ -986,7 +986,7 @@ exports.dynadotTldPricing = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('internal', 'Failed to parse JSON response from Dynadot.');
     }
 
-    console.log('[DynadotTLDPricing] Raw response:', JSON.stringify(apiData));
+    
 
     if (apiData?.ResponseCode === '0' && apiData?.TLDPricing) {
       const tldData = apiData.TLDPricing;
@@ -1008,6 +1008,249 @@ exports.dynadotTldPricing = functions.https.onCall(async (data, context) => {
       throw error;
     }
     throw new functions.https.HttpsError('internal', 'Failed to fetch TLD pricing.');
+  }
+});
+
+const DYNADOT_PRICING_UNAVAILABLE = 'Domain pricing is temporarily unavailable. Please try again shortly.';
+
+function throwPricingError(category, details) {
+  console.error('[dynadotTldPricingBatch]', category, details || '');
+  throw new functions.https.HttpsError('internal', DYNADOT_PRICING_UNAVAILABLE);
+}
+
+function classifyDynadotFailure(apiData, httpStatus) {
+  const responseCode =
+    apiData?.TldPriceResponse?.ResponseCode ??
+    apiData?.Response?.ResponseCode ??
+    apiData?.ResponseCode;
+  const errorText = String(
+    apiData?.TldPriceResponse?.Error ||
+    apiData?.Response?.Error ||
+    apiData?.Error ||
+    apiData?.TldPriceResponse?.Status ||
+    apiData?.SearchResponse?.Status ||
+    apiData?.SearchResponse?.Error ||
+    ''
+  ).toLowerCase();
+  const codeNum = Number(responseCode);
+
+  if (
+    httpStatus === 401 ||
+    httpStatus === 403 ||
+    errorText.includes('invalid_key') ||
+    errorText.includes('invalid key') ||
+    errorText.includes('authentication') ||
+    errorText.includes('unauthorized')
+  ) {
+    return 'DYNADOT_AUTHENTICATION_FAILURE';
+  }
+  if (
+    errorText.includes('permission') ||
+    errorText.includes('not authorized') ||
+    errorText.includes('access denied') ||
+    errorText.includes('not permitted')
+  ) {
+    return 'DYNADOT_PERMISSION_FAILURE';
+  }
+  if (
+    errorText.includes('sandbox') ||
+    errorText.includes('production key') ||
+    errorText.includes('wrong environment')
+  ) {
+    return 'SANDBOX_PRODUCTION_MISMATCH';
+  }
+  if (responseCode !== undefined && responseCode !== null && responseCode !== '' && codeNum !== 0) {
+    return 'DYNADOT_API_ERROR';
+  }
+  return null;
+}
+
+function extractTldPriceArray(apiData) {
+  if (Array.isArray(apiData?.TldPriceResponse?.TldPrice)) return apiData.TldPriceResponse.TldPrice;
+  if (Array.isArray(apiData?.TLDPricing?.TldPrice)) return apiData.TLDPricing.TldPrice;
+  if (Array.isArray(apiData?.TldPrice)) return apiData.TldPrice;
+  if (Array.isArray(apiData)) return apiData;
+  return null;
+}
+
+function normalizeTld(tld) {
+  return String(tld || '').trim().replace(/^\./, '').toLowerCase();
+}
+
+function matchTldEntry(tldPriceArray, tld) {
+  const needle = normalizeTld(tld);
+  return tldPriceArray.find((item) => normalizeTld(item?.Tld) === needle) || null;
+}
+
+function extractRegisterPriceUsd(matchedTld) {
+  const raw =
+    matchedTld?.Price?.Register ??
+    matchedTld?.Price?.register ??
+    matchedTld?.RegistrationPrice ??
+    matchedTld?.registration_price ??
+    0;
+  const value = parseFloat(raw);
+  return Number.isFinite(value) ? value : 0;
+}
+
+async function fetchDynadotTldPrice(baseUrl, apiKey, tld) {
+  const tldParam = normalizeTld(tld);
+  const dynadotUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tldParam)}&currency=USD`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const response = await fetch(dynadotUrl, { signal: controller.signal });
+    const rawText = await response.text();
+    let apiData;
+    try {
+      apiData = JSON.parse(rawText);
+    } catch (e) {
+      return { category: 'UNEXPECTED_DYNADOT_RESPONSE', httpStatus: response.status };
+    }
+
+    const classified = classifyDynadotFailure(apiData, response.status);
+    if (classified) {
+      return { category: classified, httpStatus: response.status, responseCode: apiData?.TldPriceResponse?.ResponseCode ?? apiData?.ResponseCode };
+    }
+
+    if (!response.ok) {
+      return { category: 'DYNADOT_API_ERROR', httpStatus: response.status };
+    }
+
+    const tldPriceArray = extractTldPriceArray(apiData);
+    if (!tldPriceArray) {
+      return { category: 'UNEXPECTED_DYNADOT_RESPONSE', httpStatus: response.status };
+    }
+
+    const matchedTld = matchTldEntry(tldPriceArray, tldParam);
+    if (!matchedTld) {
+      return { category: 'INVALID_TLD' };
+    }
+
+    const registerPriceUsd = extractRegisterPriceUsd(matchedTld);
+    if (!(registerPriceUsd > 0)) {
+      return { category: 'UNEXPECTED_DYNADOT_RESPONSE', httpStatus: response.status };
+    }
+
+    return { category: null, registerPriceUsd };
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return { category: 'NETWORK_TIMEOUT' };
+    }
+    return { category: 'NETWORK_TIMEOUT', details: error?.message };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+exports.dynadotTldPricingBatch = functions.https.onCall(async (data, context) => {
+  try {
+    const payload = data?.data || data || {};
+    const tlds = Array.isArray(payload.tlds) ? payload.tlds : [];
+
+    if (!tlds.length) {
+      throwPricingError('INVALID_TLD', 'Missing tlds array');
+    }
+
+    const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+    let settingsSnap;
+    try {
+      settingsSnap = await db.collection('settings').doc('api_keys').get();
+    } catch (error) {
+      throwPricingError('FIRESTORE_ACCESS_ERROR', error?.message);
+    }
+
+    const apiKeysData = settingsSnap.exists ? (settingsSnap.data() || {}) : {};
+    const apiKey = typeof apiKeysData.dynadotApiKey === 'string' ? apiKeysData.dynadotApiKey.trim() : '';
+    const exchangeRate = parseFloat(apiKeysData.usdToBdtRate);
+    const parsedMarkup = parseFloat(apiKeysData.domainMarkupPercent);
+    const markupConfigured = Number.isFinite(parsedMarkup) && parsedMarkup >= 0;
+    const markupPercent = markupConfigured ? parsedMarkup : 15;
+    const isSandbox = apiKeysData.isSandboxMode === true;
+
+    console.log('[dynadotTldPricingBatch] Config:', {
+      dynadotApiKeyConfigured: apiKey.length > 0 ? 'yes' : 'no',
+      exchangeRateConfigured: Number.isFinite(exchangeRate) && exchangeRate > 0 ? 'yes' : 'no',
+      markupConfigured: markupConfigured ? 'yes' : 'no',
+      markupSource: markupConfigured ? 'firestore' : 'default_15',
+      sandboxMode: isSandbox,
+      tldCount: tlds.length,
+    });
+
+    if (!settingsSnap.exists || !apiKey || !(exchangeRate > 0) || (Number.isFinite(parsedMarkup) && parsedMarkup < 0)) {
+      throwPricingError('FIRESTORE_CONFIGURATION_ERROR', {
+        documentExists: !!settingsSnap.exists,
+        dynadotApiKeyConfigured: apiKey.length > 0 ? 'yes' : 'no',
+        exchangeRateConfigured: Number.isFinite(exchangeRate) && exchangeRate > 0 ? 'yes' : 'no',
+        markupConfigured: markupConfigured ? 'yes' : 'no',
+      });
+    }
+
+    const baseUrl = isSandbox
+      ? 'https://api-sandbox.dynadot.com/api3.json'
+      : 'https://api.dynadot.com/api3.json';
+
+    const uniqueTlds = [];
+    const seen = new Set();
+    for (const tld of tlds) {
+      const normalized = normalizeTld(tld);
+      if (!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      uniqueTlds.push(normalized);
+    }
+
+    if (!uniqueTlds.length) {
+      throwPricingError('INVALID_TLD', 'No valid TLDs after normalization');
+    }
+
+    const results = await Promise.all(
+      uniqueTlds.map(async (tld) => {
+        const fetched = await fetchDynadotTldPrice(baseUrl, apiKey, tld);
+        if (fetched.category) {
+          console.error('[dynadotTldPricingBatch] TLD failed', { tld, category: fetched.category, httpStatus: fetched.httpStatus || null });
+          return { tld, category: fetched.category };
+        }
+        const retailUsd = fetched.registerPriceUsd * (1 + markupPercent / 100);
+        const customerPriceBdt = Math.round(retailUsd * exchangeRate);
+        return {
+          tld: `.${tld}`,
+          customerPriceBdt,
+          currency: 'BDT',
+        };
+      })
+    );
+
+    const systemicCategories = new Set([
+      'DYNADOT_AUTHENTICATION_FAILURE',
+      'DYNADOT_PERMISSION_FAILURE',
+      'SANDBOX_PRODUCTION_MISMATCH',
+    ]);
+    const systemic = results.find((item) => item.category && systemicCategories.has(item.category));
+    if (systemic) {
+      throwPricingError(systemic.category, { tld: systemic.tld });
+    }
+
+    const pricing = results
+      .filter((item) => !item.category && item.customerPriceBdt > 0)
+      .map(({ tld, customerPriceBdt, currency }) => ({ tld, customerPriceBdt, currency }));
+
+    if (!pricing.length) {
+      const firstFailure = results.find((item) => item.category);
+      throwPricingError(firstFailure?.category || 'INTERNAL_FUNCTION_EXCEPTION', {
+        failedTlds: results.map((item) => ({ tld: item.tld, category: item.category || null })),
+      });
+    }
+
+    return {
+      success: true,
+      pricing,
+    };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throwPricingError('INTERNAL_FUNCTION_EXCEPTION', error?.message);
   }
 });
 
@@ -1066,7 +1309,7 @@ exports.getDomainRenewalPrice = functions.https.onCall(async (data, context) => 
       throw new functions.https.HttpsError('internal', 'Failed to parse Dynadot TLD pricing response.');
     }
 
-    console.log('[DomainRenewalPrice] Raw TLD pricing response:', JSON.stringify(tldData));
+    
 
     const tldPriceArray = 
       tldData?.TldPriceResponse?.TldPrice ||
@@ -1960,3 +2203,228 @@ exports.bkashCallback = functions.https.onRequest(async (req, res) => {
 });
 
 // Force deploy update 2
+
+exports.testApiConnection = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.token.admin) {
+    throw new functions.https.HttpsError('permission-denied', 'Only admins can test API connections.');
+  }
+
+  const { type } = data;
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+
+  if (type === 'domain') {
+    try {
+      const settingsSnap = await db.collection('settings').doc('api_keys').get();
+      const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
+      if (!apiKey) {
+        return { success: false, message: 'Dynadot API key is not configured.' };
+      }
+      
+      const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
+      const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
+      
+      const url = baseUrl + '?key=' + apiKey + '&command=search&domain0=test-click2itbd.com';
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        return { success: false, message: 'HTTP error from Dynadot API.' };
+      }
+      
+      const rawText = await response.text();
+      try {
+        const apiData = JSON.parse(rawText);
+        if (apiData?.ResponseCode === '0' || apiData?.SearchResponse?.ResponseCode === '0') {
+          return { success: true, message: 'Connected to Dynadot successfully.' };
+        } else {
+          return { success: false, message: apiData?.SearchResponse?.Status || 'Dynadot returned error code.' };
+        }
+      } catch (e) {
+        return { success: false, message: 'Invalid JSON response from Dynadot.' };
+      }
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  } else {
+    try {
+      const hostingSnap = await db.collection('settings').doc('hostingApiConfig').get();
+      const config = hostingSnap.data();
+      
+      if (!config || !config.hostingApiKey || !config.hostingApiUrl) {
+        return { success: false, message: 'WHM API key or URL is not configured.' };
+      }
+
+      const url = config.hostingApiUrl + '/json-api/version';
+      const response = await fetch(url, {
+        headers: { 'Authorization': 'whm root:' + config.hostingApiKey }
+      });
+      
+      if (response.ok) {
+        return { success: true, message: 'Connected to WHM server successfully.' };
+      } else {
+        return { success: false, message: 'WHM connection failed: ' + response.statusText };
+      }
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+});
+
+exports.manageHosting = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.token.admin) {
+    throw new functions.https.HttpsError('permission-denied', 'Admin access required.');
+  }
+
+  const { action, providerAccountId, params = {} } = data;
+  if (!action || !providerAccountId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing action or providerAccountId.');
+  }
+
+  const validActions = ['suspendacct', 'unsuspendacct', 'killacct', 'accountsummary'];
+  if (!validActions.includes(action)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid action.');
+  }
+
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  const hostingSnap = await db.collection('settings').doc('hostingApiConfig').get();
+  const config = hostingSnap.data();
+
+  if (!config || !config.hostingApiKey || !config.hostingApiUrl) {
+    throw new functions.https.HttpsError('failed-precondition', 'WHM API key or URL is not configured.');
+  }
+
+  const apiUrl = config.hostingApiUrl.replace(/\/$/, '');
+  const url = new URL(apiUrl + '/' + action);
+  url.searchParams.set('api.version', '1');
+  url.searchParams.set('user', providerAccountId);
+  
+  if (action === 'killacct') {
+    url.searchParams.set('preserve_dns', '1');
+  }
+
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': 'whm root:' + config.hostingApiKey,
+        'Accept': 'application/json',
+      }
+    });
+
+    const rawText = await response.text();
+    let resData;
+    try {
+      resData = JSON.parse(rawText);
+    } catch (e) {
+      throw new Error('Invalid WHM response: ' + rawText);
+    }
+
+    if (!response.ok || resData?.metadata?.result?.message) {
+      const message = resData?.metadata?.result?.message || 'WHM API error: ' + response.statusText;
+      throw new Error(message);
+    }
+
+    return { success: true, data: resData };
+  } catch (error) {
+    throw new functions.https.HttpsError('internal', error.message || 'Hosting operation failed.');
+  }
+});
+exports.adminApiConfig = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.token.admin) {
+    throw new functions.https.HttpsError('permission-denied', 'Admin access required.');
+  }
+
+  const { method, payload } = data;
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  const docRef = db.collection('settings').doc('api_keys');
+
+  const secretFields = [
+    'dynadotApiKey', 'hostingApiKey', 'whmApiToken', 'resendApiKey',
+    'bkashAppKey', 'bkashAppSecret', 'bkashUsername', 'bkashPassword',
+    'sandbox_bkashAppKey', 'sandbox_bkashAppSecret', 'sandbox_bkashUsername', 'sandbox_bkashPassword',
+    'production_bkashAppKey', 'production_bkashAppSecret', 'production_bkashUsername', 'production_bkashPassword',
+    'clnSecretKey', 'smtpPassword', 'smsApiKey', 'whatsappAccessToken'
+  ];
+
+  if (method === 'GET') {
+    const snap = await docRef.get();
+    const currentData = snap.exists ? snap.data() : {};
+    const sanitized = { ...currentData };
+
+    for (const key of Object.keys(sanitized)) {
+      if (secretFields.includes(key)) {
+        const value = sanitized[key];
+        if (typeof value === 'string' && value.length > 0) {
+          sanitized[key] = '****************' + value.slice(-4);
+        }
+      }
+    }
+    return sanitized;
+  } 
+  
+  if (method === 'POST') {
+    const snap = await docRef.get();
+    const existing = snap.exists ? snap.data() : {};
+    const updates = { ...payload };
+
+    for (const key of Object.keys(updates)) {
+      if (secretFields.includes(key)) {
+        const value = updates[key];
+        if (typeof value === 'string' && value.startsWith('****************')) {
+          updates[key] = existing[key];
+        }
+      }
+    }
+
+    await docRef.set(updates, { merge: true });
+    return { success: true };
+  }
+
+  throw new functions.https.HttpsError('invalid-argument', 'Invalid method');
+});
+
+exports.sendEmail = functions.https.onCall(async (data, context) => {
+  const { to, subject, html } = data;
+
+  if (!to || !subject || !html) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing to, subject, or html.');
+  }
+
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  const settingsSnap = await db.collection('settings').doc('api_keys').get();
+  const apiKeys = settingsSnap.exists ? settingsSnap.data() : null;
+
+  if (!apiKeys || !apiKeys.resendApiKey) {
+    throw new functions.https.HttpsError('failed-precondition', 'Email service not configured.');
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + apiKeys.resendApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'Star Tech <onboarding@resend.dev>',
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html
+      })
+    });
+
+    const resData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(resData.message || 'Resend API error');
+    }
+
+    return { success: true, data: resData };
+  } catch (error) {
+    console.error('Send Email Error:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to send email.');
+  }
+});

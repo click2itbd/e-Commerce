@@ -2,8 +2,8 @@
  * Dynadot API Integration Service
  */
 
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { auth } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { functions as functionsInstance } from '../firebase';
 
 export interface DomainAvailabilityResponse {
   domain: string;
@@ -24,7 +24,7 @@ export interface TldPricingResponse {
 
 export const getTldPricing = async (tld: string): Promise<TldPricingResponse> => {
   try {
-    const functions = getFunctions(auth.app);
+    const functions = functionsInstance;
     const dynadotTldPricing = httpsCallable(functions, 'dynadotTldPricing');
     
     const result = await dynadotTldPricing({ tld });
@@ -50,19 +50,50 @@ export const getTldPricing = async (tld: string): Promise<TldPricingResponse> =>
   }
 };
 
+export interface BatchTldPricingItem {
+  tld: string;
+  customerPriceBdt: number;
+  currency: string;
+}
+
+export interface BatchTldPricingResponse {
+  success: boolean;
+  pricing: BatchTldPricingItem[];
+}
+
+export const getBatchTldPricing = async (tlds: string[]): Promise<BatchTldPricingResponse> => {
+  try {
+    const dynadotTldPricingBatch = httpsCallable(functionsInstance, 'dynadotTldPricingBatch');
+    const result = await dynadotTldPricingBatch({ tlds });
+    const data = result.data as any;
+    const pricing = Array.isArray(data?.pricing) ? data.pricing : [];
+
+    if (!data?.success || pricing.length === 0) {
+      throw new Error(data?.error || 'Failed to fetch batch TLD pricing');
+    }
+
+    return {
+      success: true,
+      pricing: pricing.map((item: any) => ({
+        tld: String(item.tld || ''),
+        customerPriceBdt: Number(item.customerPriceBdt),
+        currency: String(item.currency || 'BDT'),
+      })),
+    };
+  } catch (error: any) {
+    console.error('Dynadot batch TLD pricing error:', error?.code || error?.message || error);
+    throw new Error('Domain pricing is temporarily unavailable. Please try again shortly.');
+  }
+};
+
 export const searchDomainDynadot = async (domain: string): Promise<DomainAvailabilityResponse> => {
   try {
-    const functions = getFunctions(auth.app);
+    const functions = functionsInstance;
     const dynadotSearchProxy = httpsCallable(functions, 'dynadotSearchProxy');
     
     const payload = { domain };
-    console.log('[Dynadot] Calling searchDomainDynadot with payload:', payload);
-    
     const result = await dynadotSearchProxy(payload);
-
     const data: any = result.data;
-    
-    console.log('[Dynadot] Full response data:', JSON.stringify(data, null, 2));
     
     if (data?.Response?.Error || data?.SearchResponse?.Status === "invalid_key" || data?.SearchResponse?.Error) {
       console.error(`Dynadot Error: Blocked by API or Invalid Key`, data);
@@ -85,17 +116,7 @@ export const searchDomainDynadot = async (domain: string): Promise<DomainAvailab
     
     const priceUsd = searchResult.Price ? parseFloat(searchResult.Price) : 0;
     const priceBdt = searchResult.priceBdt || 0;
-    
-    console.log('[Dynadot] SearchResult:', {
-      domain: searchResult.Domain || searchResult.domain,
-      Available: searchResult.Available,
-      isAvailable,
-      Price: searchResult.Price,
-      priceBdt: searchResult.priceBdt,
-      priceUsd,
-      calculatedPriceBdt: priceBdt
-    });
-    
+
     return {
       domain,
       available: isAvailable,
@@ -120,7 +141,7 @@ export interface DomainRenewalPriceResponse {
 
 export const getDomainRenewalPrice = async (domain: string): Promise<DomainRenewalPriceResponse> => {
   try {
-    const functions = getFunctions(auth.app);
+    const functions = functionsInstance;
     const getRenewalPrice = httpsCallable(functions, 'getDomainRenewalPrice');
     
     const result = await getRenewalPrice({ domain });
@@ -161,7 +182,7 @@ export interface DomainRenewalPriceBreakdown {
 
 export const getDomainRenewalPriceBreakdown = async (domain: string): Promise<DomainRenewalPriceBreakdown> => {
   try {
-    const functions = getFunctions(auth.app);
+    const functions = functionsInstance;
     const getBreakdown = httpsCallable(functions, 'getDomainRenewalPriceBreakdown');
     
     const result = await getBreakdown({ domain });
@@ -208,7 +229,7 @@ export const createDomainRenewalOrder = async (params: {
   transactionId?: string;
 }): Promise<CreateRenewalOrderResult> => {
   try {
-    const functions = getFunctions(auth.app);
+    const functions = functionsInstance;
     const createOrder = httpsCallable(functions, 'createDomainRenewalOrder');
     
     const result = await createOrder(params);

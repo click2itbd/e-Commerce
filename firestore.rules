@@ -243,11 +243,9 @@ service cloud.firestore {
     }
 
     function isValidHostingApiConfig(data) {
-      return data.keys().hasAll(['domainApiType', 'hostingApiType', 'updatedAt']) &&
-             data.domainApiType is string &&
+      return data.keys().hasAll(['hostingApiType', 'updatedAt']) &&
              data.hostingApiType is string &&
              data.updatedAt is string &&
-             (!('domainApiKey' in data) || data.domainApiKey is string) &&
              (!('hostingApiKey' in data) || data.hostingApiKey is string) &&
              (!('hostingApiUrl' in data) || data.hostingApiUrl is string) &&
              (!('bundleDiscountPercent' in data) || data.bundleDiscountPercent is number) &&
@@ -276,7 +274,7 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow get: if true;
+      allow get: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
       allow list: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
       allow create: if isValidOrder(request.resource.data) && (request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess())));
       allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
@@ -315,11 +313,12 @@ service cloud.firestore {
 
     
     match /settings/api_keys {
-      allow read, write: if isAdmin();
+      allow read: if false;
+      allow write: if isAdmin();
     }
     
     match /settings/hostingApiConfig {
-      allow read: if isAdmin();
+      allow read: if false;
       allow write: if isAdmin() && isValidHostingApiConfig(request.resource.data);
     }
     

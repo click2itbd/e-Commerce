@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, doc, query, orderBy, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../../../firebase';
+import { db, functions } from '../../../firebase';
+import { httpsCallable } from 'firebase/functions';
 import { toast } from 'react-hot-toast';
 import { RefreshCw, CheckCircle, RotateCcw, Search, Filter, AlertTriangle } from 'lucide-react';
 
@@ -67,25 +68,20 @@ export const DomainOrdersManager: React.FC = () => {
   const handleRetryRegistration = async (order: DomainOrder) => {
     setActionLoading(order.id);
     try {
-      const res = await fetch('/api/domain/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain: order.domain,
-          years: 1,
-          contactId: order.userId,
-          nameServers: order.nameservers,
-          autoRenew: order.autoRenew,
-        }),
+      const dynadotProxy = httpsCallable(functions, 'dynadotProxy');
+      const res = await dynadotProxy({
+        command: 'register',
+        domain: order.domain,
+        extraParams: { duration: 1 }
       });
-      const data = await res.json();
+      const data = res.data as any;
       if (data.success) {
-        toast.success('Registration retry successful');
+        toast.success('Domain registration successful');
       } else {
-        toast.error(data.error || 'Registration retry failed');
+        toast.error(data.message || 'Registration failed');
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to retry registration');
+      toast.error(error?.message || 'Registration failed');
     } finally {
       setActionLoading(null);
     }
@@ -111,19 +107,20 @@ export const DomainOrdersManager: React.FC = () => {
   const handleRenew = async (order: DomainOrder) => {
     setActionLoading(order.id);
     try {
-      const res = await fetch('/api/domain/renew', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: order.domain, years: 1 }),
+      const dynadotProxy = httpsCallable(functions, 'dynadotProxy');
+      const res = await dynadotProxy({
+        command: 'renew',
+        domain: order.domain,
+        extraParams: { duration: 1 }
       });
-      const data = await res.json();
+      const data = res.data as any;
       if (data.success) {
         toast.success('Domain renewal successful');
       } else {
-        toast.error(data.error || 'Renewal failed');
+        toast.error(data.message || 'Renewal failed');
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to renew domain');
+      toast.error(error?.message || 'Renewal failed');
     } finally {
       setActionLoading(null);
     }

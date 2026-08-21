@@ -49,7 +49,7 @@ export const PCBuilder: React.FC = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, 'products'));
+        const querySnapshot = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500)));
         const productsData = querySnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit } from 'firebase/firestore';
-import { db, auth, storage } from '../firebase';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit, writeBatch } from 'firebase/firestore';
+import { db, auth, storage, functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -631,26 +632,26 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
   const fetchData = async () => {
     setLoading(true);
     try {
-      const productsSnap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc')));
+      const productsSnap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500)));
       const ordersSnap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(500)));
       const customersSnap = await getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(500)));
       const vendorsSnap = await getDocs(query(collection(db, 'vendors'), orderBy('createdAt', 'desc'), limit(500)));
       const transactionsSnap = await getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(500)));
       const menusSnap = await getDocs(query(collection(db, 'menus'), orderBy('order', 'asc')));
-      const usersSnap = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc')));
-      const campaignsSnap = await getDocs(query(collection(db, 'campaigns'), orderBy('createdAt', 'desc')));
-      const discountCodesSnap = await getDocs(query(collection(db, 'couponCodes'), orderBy('createdAt', 'desc')));
+      const usersSnap = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(500)));
+      const campaignsSnap = await getDocs(query(collection(db, 'campaigns'), orderBy('createdAt', 'desc'), limit(200)));
+      const discountCodesSnap = await getDocs(query(collection(db, 'couponCodes'), orderBy('createdAt', 'desc'), limit(200)));
       const hostingPlansSnap = await getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc')));
       const hostingServicesSnap = await getDocs(query(collection(db, 'hostingServices'), orderBy('order', 'asc')));
-      const soldSerialsSnap = await getDocs(query(collection(db, 'sold_serials'), orderBy('soldAt', 'desc')));
-      const serviceRecordsSnap = await getDocs(query(collection(db, 'service_records'), orderBy('receivedAt', 'desc')));
+      const soldSerialsSnap = await getDocs(query(collection(db, 'sold_serials'), orderBy('soldAt', 'desc'), limit(500)));
+      const serviceRecordsSnap = await getDocs(query(collection(db, 'service_records'), orderBy('receivedAt', 'desc'), limit(500)));
       const paymentAccountsSnap = await getDocs(query(collection(db, 'payment_accounts'), orderBy('createdAt', 'desc')));
       const transactionCategoriesSnap = await getDocs(query(collection(db, 'transaction_categories'), orderBy('createdAt', 'desc')));
       
       try {
-        const employeesSnap = await getDocs(query(collection(db, 'employees'), orderBy('createdAt', 'desc')));
-        const employeeLeavesSnap = await getDocs(query(collection(db, 'employee_leaves'), orderBy('createdAt', 'desc')));
-        const employeeSalariesSnap = await getDocs(query(collection(db, 'employee_salaries'), orderBy('createdAt', 'desc')));
+        const employeesSnap = await getDocs(query(collection(db, 'employees'), orderBy('createdAt', 'desc'), limit(500)));
+        const employeeLeavesSnap = await getDocs(query(collection(db, 'employee_leaves'), orderBy('createdAt', 'desc'), limit(500)));
+        const employeeSalariesSnap = await getDocs(query(collection(db, 'employee_salaries'), orderBy('createdAt', 'desc'), limit(500)));
         setEmployees(employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         setEmployeeLeaves(employeeLeavesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         setEmployeeSalaries(employeeSalariesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -712,17 +713,21 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         return;
       }
 
-      const batch = selectedProductIds.map(async id => {
-        await updateDoc(doc(db, 'products', id), updates);
-        if (updates.stock !== undefined) {
+      const batch = writeBatch(db);
+      for (const id of selectedProductIds) {
+        batch.update(doc(db, 'products', id), updates);
+      }
+      await batch.commit();
+      
+      if (updates.stock !== undefined) {
+        for (const id of selectedProductIds) {
           const product = products.find(p => p.id === id);
           if (product) {
-            checkLowStock(product.name, updates.stock);
+            checkLowStock(product.name, updates.stock as number);
           }
         }
-      });
-
-      await Promise.all(batch);
+      }
+      
       toast.success(`Successfully updated ${selectedProductIds.length} products`);
       setIsBulkEditing(false);
       setSelectedProductIds([]);
@@ -754,14 +759,11 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
             <p>Threshold: <strong>${settings.lowStockThreshold}</strong></p>
           </div>
         `;
-        await fetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: settings.lowStockEmail,
-            subject: `Low Stock Alert: ${productName}`,
-            html: emailHtml,
-          }),
+        const sendEmailFn = httpsCallable(functions, 'sendEmail');
+        await sendEmailFn({
+          to: settings.lowStockEmail,
+          subject: `Low Stock Alert: ${productName}`,
+          html: emailHtml,
         });
       } catch (error) {
         console.error('Error sending low stock alert:', error);
@@ -1138,14 +1140,11 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
             </div>
           `;
 
-          await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: order.customerEmail,
-              subject: `Order Status Update: ${status.toUpperCase()} - Star Tech`,
-              html: emailHtml,
-            }),
+          const sendEmailFn = httpsCallable(functions, 'sendEmail');
+          await sendEmailFn({
+            to: order.customerEmail,
+            subject: `Order Status Update: ${status.toUpperCase()} - Star Tech`,
+            html: emailHtml,
           });
         }
       } catch (emailError) {
@@ -1350,15 +1349,12 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
                 </div>
               `;
               try {
-                await fetch('/api/send-email', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
+                const sendEmailFn = httpsCallable(functions, 'sendEmail');
+                await sendEmailFn({
                     to: order.customerEmail,
                     subject: `Order Status Update: ${status.toUpperCase()} - Star Tech`,
                     html: emailHtml,
-                  }),
-                });
+                  });
               } catch (e) { console.error(e); }
             }
           }));

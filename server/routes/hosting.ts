@@ -4,7 +4,7 @@ import { doc, getDoc, serverTimestamp, getDocs, query, where } from 'firebase/fi
 import { getHostingProvider } from '../providers/providerFactory';
 import { HostingProvisionRequest, HostingUsageStats } from '../providers/hosting/IHostingProvider';
 import { sendEmail } from '../utils/email';
-import { requireApiKey } from '../middleware/auth';
+import { requireAdmin } from '../middleware/firebaseAuth';
 import { getAdminDocument } from '../admin';
 
 const hostingRouter = Router();
@@ -21,7 +21,7 @@ async function getHostingConfig() {
   return { hostingApiType: 'dummy' };
 }
 
-hostingRouter.post('/provision', requireApiKey, async (req: any, res: Response) => {
+hostingRouter.post('/provision', requireAdmin, async (req: any, res: Response) => {
   try {
     const { domain, contactEmail, billingCycle, planCode } = req.body;
     if (!domain || !contactEmail || !billingCycle) {
@@ -84,7 +84,7 @@ hostingRouter.post('/provision', requireApiKey, async (req: any, res: Response) 
   }
 });
 
-hostingRouter.post('/suspend', requireApiKey, async (req: any, res: Response) => {
+hostingRouter.post('/suspend', requireAdmin, async (req: any, res: Response) => {
   try {
     const { providerAccountId } = req.body;
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
@@ -99,7 +99,7 @@ hostingRouter.post('/suspend', requireApiKey, async (req: any, res: Response) =>
   }
 });
 
-hostingRouter.post('/unsuspend', requireApiKey, async (req: any, res: Response) => {
+hostingRouter.post('/unsuspend', requireAdmin, async (req: any, res: Response) => {
   try {
     const { providerAccountId } = req.body;
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
@@ -114,7 +114,7 @@ hostingRouter.post('/unsuspend', requireApiKey, async (req: any, res: Response) 
   }
 });
 
-hostingRouter.post('/terminate', requireApiKey, async (req: any, res: Response) => {
+hostingRouter.post('/terminate', requireAdmin, async (req: any, res: Response) => {
   try {
     const { providerAccountId } = req.body;
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
@@ -129,7 +129,7 @@ hostingRouter.post('/terminate', requireApiKey, async (req: any, res: Response) 
   }
 });
 
-hostingRouter.post('/usage', requireApiKey, async (req: any, res: Response) => {
+hostingRouter.post('/usage', requireAdmin, async (req: any, res: Response) => {
   try {
     const { providerAccountId } = req.body;
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
@@ -144,7 +144,7 @@ hostingRouter.post('/usage', requireApiKey, async (req: any, res: Response) => {
   }
 });
 
-hostingRouter.post('/change-plan', requireApiKey, async (req: any, res: Response) => {
+hostingRouter.post('/change-plan', requireAdmin, async (req: any, res: Response) => {
   try {
     const { providerAccountId, newPlanCode } = req.body;
     if (!providerAccountId || !newPlanCode) {
@@ -161,28 +161,61 @@ hostingRouter.post('/change-plan', requireApiKey, async (req: any, res: Response
   }
 });
 
-hostingRouter.post('/test-connection', requireApiKey, async (req: any, res: Response) => {
+hostingRouter.post('/test-connection', requireAdmin, async (req: any, res: Response) => {
   try {
     const config = await getHostingConfig();
-    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl });
-    
-    if (typeof provider.testConnection === 'function') {
-      const result = await provider.testConnection();
-      return res.json({
-        success: result.success,
+
+    if (!config.hostingApiType || config.hostingApiType === 'dummy') {
+      return res.status(400).json({
+        success: false,
         providerType: config.hostingApiType || 'dummy',
-        message: result.message,
+        message: 'Hosting provider not configured. Please select cPanel/WHM and enter credentials.',
       });
     }
-    
+
+    if (!config.hostingApiKey) {
+      return res.status(400).json({
+        success: false,
+        providerType: config.hostingApiType,
+        message: 'WHM API key is not configured.',
+      });
+    }
+
+    if (!config.hostingApiUrl) {
+      return res.status(400).json({
+        success: false,
+        providerType: config.hostingApiType,
+        message: 'WHM API URL is not configured.',
+      });
+    }
+
+    const provider = getHostingProvider({
+      hostingApiType: config.hostingApiType,
+      hostingApiKey: config.hostingApiKey,
+      hostingApiUrl: config.hostingApiUrl,
+    });
+
+    if (typeof provider.testConnection !== 'function') {
+      return res.status(400).json({
+        success: false,
+        providerType: config.hostingApiType,
+        message: 'Connection test is not supported for the selected provider.',
+      });
+    }
+
+    const result = await provider.testConnection();
     return res.json({
-      success: true,
-      providerType: config.hostingApiType || 'dummy',
-      message: 'Provider loaded. Connection test not available for this provider.',
+      success: result.success,
+      providerType: config.hostingApiType,
+      message: result.message,
     });
   } catch (error: any) {
     console.error('Hosting test connection error:', error);
-    return res.json({ success: false, providerType: 'dummy', message: error?.message || 'Internal server error' });
+    return res.status(500).json({
+      success: false,
+      providerType: 'dummy',
+      message: error?.message || 'WHM connection test failed',
+    });
   }
 });
 

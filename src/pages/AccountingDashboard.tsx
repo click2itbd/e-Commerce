@@ -41,9 +41,9 @@ export const AccountingDashboard: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const txSnap = await getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc')));
-      const accSnap = await getDocs(collection(db, 'payment_accounts'));
-      const catSnap = await getDocs(collection(db, 'transaction_categories'));
+      const txSnap = await getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc'), limit(200)));
+      const accSnap = await getDocs(query(collection(db, 'payment_accounts'), limit(100)));
+      const catSnap = await getDocs(query(collection(db, 'transaction_categories'), limit(100)));
       
       setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Transaction[]);
       setPaymentAccounts(accSnap.docs.map(d => ({ id: d.id, ...d.data() })) as PaymentAccount[]);

@@ -1,48 +1,63 @@
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { SettingsProvider } from './context/SettingsContext';
-import { Home } from './pages/Home';
-import { ProductDetails } from './pages/ProductDetails';
-import { Cart } from './pages/Cart';
-import { AdminDashboard } from './pages/AdminDashboard';
-import { Login } from './pages/Login';
-import { PCBuilder } from './pages/PCBuilder';
-import { ComparePage } from './pages/Compare';
-import { CategoryPage } from './pages/CategoryPage';
-import { HostingDetails } from './pages/HostingDetails';
-import { HostingBillingDashboard } from './pages/HostingBillingDashboard';
-import { AccountingDashboard } from './pages/AccountingDashboard';
-import { MyServices } from './pages/MyServices';
-import { Profile } from './pages/Profile';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { WebsitePopup } from './components/WebsitePopup';
 import { ReviewRewardPopup } from './components/ReviewRewardPopup';
 import { ChatWidget } from './components/ChatWidget';
-import { Checkout } from './pages/Checkout';
-import { OrderSuccess } from './pages/OrderSuccess';
-import { RetailPOS } from './pages/RetailPOS';
 import { CompareProvider } from './context/CompareContext';
+
 import Hosting from './pages/Hosting';
 
-import ServicesPage from './pages/hosting/ServicesPage';
-import PricingPage from './pages/hosting/PricingPage';
-import DomainPage from './pages/hosting/DomainPage';
-import DomainSearchResults from './pages/hosting/DomainSearchResults';
-import SupportPage from './pages/hosting/SupportPage';
-import TermsOfService from './pages/policies/TermsOfService';
-import PrivacyPolicy from './pages/policies/PrivacyPolicy';
-import NotFound from './pages/NotFound';
-import RefundPolicy from './pages/policies/RefundPolicy';
-import DomainTransferPage from './pages/hosting/DomainTransferPage';
-import PaymentSimulation from './pages/PaymentSimulation';
-import PaymentCallback from './pages/PaymentCallback';
-import PaymentReturn from './pages/PaymentReturn';
+const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
+const ProductDetails = lazy(() => import('./pages/ProductDetails').then(m => ({ default: m.ProductDetails })));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const PCBuilder = lazy(() => import('./pages/PCBuilder').then(m => ({ default: m.PCBuilder })));
+const ComparePage = lazy(() => import('./pages/Compare').then(m => ({ default: m.ComparePage })));
+const CategoryPage = lazy(() => import('./pages/CategoryPage').then(m => ({ default: m.CategoryPage })));
+const HostingDetails = lazy(() => import('./pages/HostingDetails').then(m => ({ default: m.HostingDetails })));
+const HostingBillingDashboard = lazy(() => import('./pages/HostingBillingDashboard').then(m => ({ default: m.HostingBillingDashboard })));
+const AccountingDashboard = lazy(() => import('./pages/AccountingDashboard').then(m => ({ default: m.AccountingDashboard })));
+const MyServices = lazy(() => import('./pages/MyServices').then(m => ({ default: m.MyServices })));
+const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
+const Checkout = lazy(() => import('./pages/Checkout').then(m => ({ default: m.Checkout })));
+const OrderSuccess = lazy(() => import('./pages/OrderSuccess').then(m => ({ default: m.OrderSuccess })));
+const RetailPOS = lazy(() => import('./pages/RetailPOS').then(m => ({ default: m.RetailPOS })));
+const Cart = lazy(() => import('./pages/Cart').then(m => ({ default: m.Cart })));
 
-import { HostingCart } from './pages/hosting/HostingCart';
-import { HostingCheckout } from './pages/hosting/HostingCheckout';
-import DomainRenewal from './pages/hosting/DomainRenewal';
+const ServicesPage = lazy(() => import('./pages/hosting/ServicesPage'));
+const PricingPage = lazy(() => import('./pages/hosting/PricingPage'));
+const DomainPage = lazy(() => import('./pages/hosting/DomainPage').then(m => ({ default: m.default || m.DomainPage })));
+const DomainSearchResults = lazy(() => import('./pages/hosting/DomainSearchResults'));
+const SupportPage = lazy(() => import('./pages/hosting/SupportPage'));
+const TermsOfService = lazy(() => import('./pages/policies/TermsOfService'));
+const PrivacyPolicy = lazy(() => import('./pages/policies/PrivacyPolicy'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const RefundPolicy = lazy(() => import('./pages/policies/RefundPolicy'));
+const DomainTransferPage = lazy(() => import('./pages/hosting/DomainTransferPage').then(m => ({ default: m.default || m.DomainTransferPage })));
+const PaymentSimulation = lazy(() => import('./pages/PaymentSimulation'));
+const PaymentCallback = lazy(() => import('./pages/PaymentCallback'));
+const PaymentReturn = lazy(() => import('./pages/PaymentReturn').then(m => ({ default: m.default || m.PaymentReturn })));
+
+const HostingCart = lazy(() => import('./pages/hosting/HostingCart'));
+const HostingCheckout = lazy(() => import('./pages/hosting/HostingCheckout'));
+const DomainRenewal = lazy(() => import('./pages/hosting/DomainRenewal').then(m => ({ default: m.default || m.DomainRenewal })));
+
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F2F4F8]">
+      <div className="h-12 w-12 border-4 border-[#EF4444] border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
+}
+
+function LazyWrapper({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
+}
 
 export default function App() {
   return (
@@ -59,52 +74,52 @@ export default function App() {
                   {/* HOSTING - Default Home */}
                   <Route path="/" element={<Hosting />} />
                   <Route path="/hosting/:serviceId" element={<HostingDetails />} />
-                  <Route path="/services" element={<ServicesPage />} />
-                  <Route path="/pricing" element={<PricingPage />} />
-                   <Route path="/domain" element={<DomainPage />} />
-                   <Route path="/domain/search" element={<DomainSearchResults />} />
-                   <Route path="/domain/transfer" element={<DomainTransferPage />} />
-                   <Route path="/domain-renewal" element={<DomainRenewal />} />
-                  <Route path="/support" element={<SupportPage />} />
-                  <Route path="/hosting/cart" element={<HostingCart />} />
-                  <Route path="/hosting/checkout" element={<HostingCheckout />} />
+                  <Route path="/services" element={<LazyWrapper><ServicesPage /></LazyWrapper>} />
+                  <Route path="/pricing" element={<LazyWrapper><PricingPage /></LazyWrapper>} />
+                    <Route path="/domain" element={<LazyWrapper><DomainPage /></LazyWrapper>} />
+                    <Route path="/domain/search" element={<LazyWrapper><DomainSearchResults /></LazyWrapper>} />
+                    <Route path="/domain/transfer" element={<LazyWrapper><DomainTransferPage /></LazyWrapper>} />
+                    <Route path="/domain-renewal" element={<LazyWrapper><DomainRenewal /></LazyWrapper>} />
+                  <Route path="/support" element={<LazyWrapper><SupportPage /></LazyWrapper>} />
+                  <Route path="/hosting/cart" element={<LazyWrapper><HostingCart /></LazyWrapper>} />
+                  <Route path="/hosting/checkout" element={<LazyWrapper><HostingCheckout /></LazyWrapper>} />
 
                   {/* E-COMMERCE */}
-                  <Route path="/shop" element={<Home />} />
-                  <Route path="/product/:id" element={<ProductDetails />} />
-                  <Route path="/cart" element={<Navigate to="/hosting/cart" replace />} />
-                  <Route path="/checkout" element={<Navigate to="/hosting/checkout" replace />} />
+                  <Route path="/shop" element={<LazyWrapper><Home /></LazyWrapper>} />
+                  <Route path="/product/:id" element={<LazyWrapper><ProductDetails /></LazyWrapper>} />
+                  <Route path="/cart" element={<LazyWrapper><Cart /></LazyWrapper>} />
+                  <Route path="/checkout" element={<LazyWrapper><Checkout /></LazyWrapper>} />
                   {/* <Route path="/checkout" element={<Checkout />} /> */}
-                  <Route path="/order-success/:id" element={<OrderSuccess />} />
-                  <Route path="/order-success" element={<OrderSuccess />} />
-                   <Route path="/payment/simulate" element={<PaymentSimulation />} />
-                   <Route path="/payment/callback" element={<PaymentCallback />} />
-                   <Route path="/payment/return" element={<PaymentReturn />} />
-                   <Route path="/category/:categorySlug" element={<CategoryPage />} />
-                  <Route path="/category/:categorySlug/:subCategorySlug" element={<CategoryPage />} />
+                  <Route path="/order-success/:id" element={<LazyWrapper><OrderSuccess /></LazyWrapper>} />
+                  <Route path="/order-success" element={<LazyWrapper><OrderSuccess /></LazyWrapper>} />
+                    <Route path="/payment/simulate" element={<LazyWrapper><PaymentSimulation /></LazyWrapper>} />
+                    <Route path="/payment/callback" element={<LazyWrapper><PaymentCallback /></LazyWrapper>} />
+                    <Route path="/payment/return" element={<LazyWrapper><PaymentReturn /></LazyWrapper>} />
+                  <Route path="/category/:categorySlug" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
+                  <Route path="/category/:categorySlug/:subCategorySlug" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
 
                   {/* PC BUILD */}
-                  <Route path="/pc-build" element={<PCBuilder />} />
+                  <Route path="/pc-build" element={<LazyWrapper><PCBuilder /></LazyWrapper>} />
                   <Route path="/pc-builder" element={<Navigate to="/pc-build" replace />} />
-                  <Route path="/compare" element={<ComparePage />} />
+                  <Route path="/compare" element={<LazyWrapper><ComparePage /></LazyWrapper>} />
 
                   {/* AUTH */}
-                  <Route path="/login" element={<Login />} />
+                  <Route path="/login" element={<LazyWrapper><Login /></LazyWrapper>} />
 
                   {/* ADMIN */}
-                  <Route path="/pos" element={<ProtectedRoute adminOnly><RetailPOS /></ProtectedRoute>} />
-                  <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
-                  <Route path="/admin/billing" element={<ProtectedRoute adminOnly><HostingBillingDashboard /></ProtectedRoute>} />
-                  <Route path="/admin/accounting" element={<ProtectedRoute adminOnly><AccountingDashboard /></ProtectedRoute>} />
+                  <Route path="/pos" element={<ProtectedRoute adminOnly><LazyWrapper><RetailPOS /></LazyWrapper></ProtectedRoute>} />
+                  <Route path="/admin" element={<ProtectedRoute adminOnly><LazyWrapper><AdminDashboard /></LazyWrapper></ProtectedRoute>} />
+                  <Route path="/admin/billing" element={<ProtectedRoute adminOnly><LazyWrapper><HostingBillingDashboard /></LazyWrapper></ProtectedRoute>} />
+                  <Route path="/admin/accounting" element={<ProtectedRoute adminOnly><LazyWrapper><AccountingDashboard /></LazyWrapper></ProtectedRoute>} />
 
                   {/* ACCOUNT */}
-                  <Route path="/account/services" element={<ProtectedRoute><MyServices /></ProtectedRoute>} />
-                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                   <Route path="/terms" element={<TermsOfService />} />
-                   <Route path="/privacy" element={<PrivacyPolicy />} />
-                   <Route path="/refund-policy" element={<RefundPolicy />} />
-                   <Route path="*" element={<NotFound />} />
-                 </Routes>
+                  <Route path="/account/services" element={<ProtectedRoute><LazyWrapper><MyServices /></LazyWrapper></ProtectedRoute>} />
+                  <Route path="/profile" element={<ProtectedRoute><LazyWrapper><Profile /></LazyWrapper></ProtectedRoute>} />
+                    <Route path="/terms" element={<LazyWrapper><TermsOfService /></LazyWrapper>} />
+                    <Route path="/privacy" element={<LazyWrapper><PrivacyPolicy /></LazyWrapper>} />
+                    <Route path="/refund-policy" element={<LazyWrapper><RefundPolicy /></LazyWrapper>} />
+                  <Route path="*" element={<LazyWrapper><NotFound /></LazyWrapper>} />
+                </Routes>
               </Router>
             </CartProvider>
           </CompareProvider>
@@ -113,8 +128,3 @@ export default function App() {
     </HelmetProvider>
   );
 }
-
-
-
-
-

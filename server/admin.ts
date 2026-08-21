@@ -3,7 +3,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 let adminDb: ReturnType<typeof getFirestore> | null = null;
 
-function getAdminDb() {
+export function getAdminDb() {
   if (!adminDb) {
     if (!admin.apps.length) {
       const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
@@ -41,4 +41,19 @@ export async function setAdminDocument(collection: string, docId: string, data: 
   const db = getAdminDb();
   const docRef = db.collection(collection).doc(docId);
   await docRef.set(data);
+}
+
+export async function isUserAdmin(uid: string): Promise<boolean> {
+  try {
+    const db = getAdminDb();
+    const userDoc = await db.collection('users').doc(uid).get();
+    if (userDoc.exists) {
+      const data = userDoc.data();
+      return data?.role === 'admin';
+    }
+    return false;
+  } catch (error) {
+    console.error('Failed to check admin status:', error);
+    return false;
+  }
 }
