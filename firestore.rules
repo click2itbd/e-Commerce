@@ -314,15 +314,20 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
     
+    match /settings/hostingApiConfig {
+      allow read: if isAdmin();
+      allow write: if isAdmin() && isValidHostingApiConfig(request.resource.data);
+    }
+    
     match /settings/public_config {
       allow read: if true;
       allow write: if isAdmin();
     }
 
     match /settings/{settingId} {
-      allow read: if true;
-      allow create, update: if hasPermission('manage_settings') && isValidSettings(request.resource.data);
-      allow delete: if hasPermission('manage_settings');
+      allow read: if isAdmin();
+      allow create, update: if isAdmin() && isValidSettings(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /reviews/{reviewId} {

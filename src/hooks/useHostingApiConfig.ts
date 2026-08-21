@@ -22,6 +22,10 @@ export function useHostingApiConfig() {
         setConfig(snap.data() as HostingApiConfig);
       }
       setLoading(false);
+    }, (error) => {
+      console.warn('Cannot read hostingApiConfig:', error.message);
+      setConfig({});
+      setLoading(false);
     });
 
     return () => unsub();

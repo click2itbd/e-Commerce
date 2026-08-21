@@ -6,6 +6,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { toast } from 'react-hot-toast';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { validateHostingPrice } from '../../services/hostingApi';
 
 export default function HostingPlansSection({
   billingCycle,
@@ -15,6 +16,7 @@ export default function HostingPlansSection({
   const { addToCart } = useCart();
   const { settings } = useSettings();
   const [specialPlans, setSpecialPlans] = useState([]);
+  const [validatingPrice, setValidatingPrice] = useState(false);
   
   const calculatePlanPrice = (plan) => {
     if (!plan) return 0;
@@ -50,24 +52,40 @@ export default function HostingPlansSection({
     fetchSpecialPlans();
   }, []);
 
-  const handleBuyNow = (plan) => {
+  const handleBuyNow = async (plan) => {
     const price = calculatePlanPrice(plan);
     if (price <= 0) {
       toast.error('Price unavailable for this plan. Please contact us.');
       return;
     }
-    
-    addToCart({
-      id: `hosting-${plan.id}-${billingCycle}`,
-      name: `${plan.name} Plan`,
-      price: price,
-      quantity: 1,
-      category: 'Hosting & Domains',
-      image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&q=80&w=200',
-      billingCycle: billingCycle
-    });
-    toast.success(`${plan.name} added to cart!`);
-    onNavigate('/hosting/cart');
+
+    setValidatingPrice(true);
+    try {
+      const validated = await validateHostingPrice(plan.id, billingCycle, plan.licenseCostUsd || plan.pricing?.licenseCostUsd || 0);
+      
+      if (validated.finalPrice !== price) {
+        toast.error('Price mismatch detected. Please refresh and try again.');
+        console.error('Price validation failed:', { calculated: price, validated: validated.finalPrice });
+        return;
+      }
+
+      addToCart({
+        id: `hosting-${plan.id}-${billingCycle}`,
+        name: `${plan.name} Plan`,
+        price: validated.finalPrice,
+        quantity: 1,
+        category: 'Hosting & Domains',
+        image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&q=80&w=200',
+        billingCycle: billingCycle
+      });
+      toast.success(`${plan.name} added to cart!`);
+      onNavigate('/hosting/cart');
+    } catch (error) {
+      toast.error(error.message || 'Failed to validate price');
+      console.error('Price validation error:', error);
+    } finally {
+      setValidatingPrice(false);
+    }
   };
 
   if (specialPlans.length === 0) return null;
@@ -171,15 +189,25 @@ export default function HostingPlansSection({
 
               <button 
                 onClick={() => handleBuyNow(plan)}
+                disabled={validatingPrice}
                 className={cn(
-                  "w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold uppercase tracking-widest transition-all",
+                  "w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold uppercase tracking-widest transition-all disabled:opacity-50",
                   plan.popular 
                     ? "bg-blue-600 text-white shadow-lg hover:shadow-blue-500/25 hover:bg-blue-700" 
                     : "bg-gray-50 text-gray-900 border border-gray-200 hover:bg-gray-100 hover:border-gray-300"
                 )}
               >
-                Buy Now
-                <ArrowRight size={16} className={cn("transition-transform", plan.popular ? "group-hover:translate-x-1" : "")} />
+                {validatingPrice ? (
+                  <>
+                    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Validating...
+                  </>
+                ) : (
+                  <>
+                    Buy Now
+                    <ArrowRight size={16} className={cn("transition-transform", plan.popular ? "group-hover:translate-x-1" : "")} />
+                  </>
+                )}
               </button>
             </div>
           )})}

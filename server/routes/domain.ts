@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, collection, addDoc, updateDoc, serverTimestamp, ge
 import { getDomainProvider } from '../providers/providerFactory';
 import { DomainAvailabilityResult, DomainRegistrationRequest, DomainRegistrationResult, WhoisResult } from '../providers/domain/IDomainProvider';
 import { sendEmail } from '../utils/email';
+import { requireApiKey } from '../middleware/auth';
 
 interface DomainPricing {
   id?: string;
@@ -68,7 +69,7 @@ domainRouter.post('/suggestions', async (req: any, res: Response) => {
   }
 });
 
-domainRouter.post('/register', async (req: any, res: Response) => {
+domainRouter.post('/register', requireApiKey, async (req: any, res: Response) => {
   try {
     const request: DomainRegistrationRequest = req.body;
     if (!request?.domain) return res.json({ success: false, error: 'domain is required' });
@@ -88,7 +89,25 @@ domainRouter.post('/register', async (req: any, res: Response) => {
     });
 
       try {
-        const result: DomainRegistrationResult = await provider.registerDomain(request);
+        let result: DomainRegistrationResult;
+        try {
+          result = await provider.registerDomain(request);
+        } catch (providerError: any) {
+          await updateDoc(orderRef, {
+            status: 'failed',
+            error: providerError.message || 'Provider error',
+            updatedAt: serverTimestamp(),
+          });
+
+          const settingsSnap = await getDoc(doc(db, 'settings', 'site'));
+          const adminEmail = settingsSnap.exists() ? (settingsSnap.data() as any).contactEmail : null;
+          if (adminEmail) {
+            await sendEmail(adminEmail, `Domain Registration Failed: ${request.domain}`, `<p>Domain registration for <strong>${request.domain}</strong> failed: ${providerError?.message || 'Unknown error'}</p>`);
+          }
+
+          return res.json({ success: false, data: { orderId: orderRef.id }, error: providerError.message || 'Provider error' });
+        }
+
         await updateDoc(orderRef, {
           status: result.success ? 'registered' : 'failed',
           registrationId: result.registrationId || null,
@@ -164,7 +183,7 @@ domainRouter.get('/pricing', async (req: any, res: Response) => {
   }
 });
 
-domainRouter.post('/renew', async (req: any, res: Response) => {
+domainRouter.post('/renew', requireApiKey, async (req: any, res: Response) => {
   try {
     const { domain, years } = req.body;
     if (!domain) return res.json({ success: false, error: 'domain is required' });

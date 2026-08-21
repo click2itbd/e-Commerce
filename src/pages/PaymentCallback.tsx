@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, XCircle } from 'lucide-react';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useCart } from '../context/CartContext';
 import { toast } from 'react-hot-toast';
@@ -19,14 +19,13 @@ export default function PaymentCallback() {
 
   useEffect(() => {
     const processCallback = async () => {
-      if (!orderId || !status) {
+      if (!orderId) {
         setError('Invalid payment callback parameters.');
         setLoading(false);
         return;
       }
 
       try {
-        // Update Firestore order
         let targetRef = doc(db, 'orders', orderId);
         let docSnap = await getDoc(targetRef);
         
@@ -39,38 +38,41 @@ export default function PaymentCallback() {
           throw new Error('Order not found. Please contact support.');
         }
 
+        const orderData = docSnap.data();
+
         if (status === 'success') {
-          // Call the secure webhook instead of updating Firestore directly from the client!
-          const response = await fetch('https://us-central1-gen-lang-client-0990631330.cloudfunctions.net/paymentWebhook', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              orderId, 
-              status: 'success', 
-              transactionId: 'MOCK_TXN_' + Math.floor(Math.random() * 1000000) 
-            })
+          const paymentId = orderData?.bkashPaymentId;
+          
+          if (!paymentId) {
+            throw new Error('Payment ID not found for this order. Please contact support.');
+          }
+
+          const { httpsCallable } = await import('firebase/functions');
+          const { getFunctions, getApp } = await import('firebase/app');
+          const { app } = await import('../firebase');
+          const functions = getFunctions(app);
+          const bkashExecutePayment = httpsCallable(functions, 'bkashExecutePayment');
+          
+          const result = await bkashExecutePayment({ paymentId, orderId });
+          const data = result.data as any;
+          
+          if (data?.success) {
+            clearCart();
+            toast.success('পেমেন্ট সফল হয়েছে! আপনার অর্ডার কনফার্ম করা হয়েছে।');
+            navigate('/', { replace: true });
+          } else {
+            throw new Error(data?.errorMessage || 'Payment execution failed');
+          }
+        } else {
+          await updateDoc(targetRef, {
+            paymentStatus: 'failed',
+            status: 'cancelled',
+            updatedAt: new Date().toISOString()
           });
           
-          if (!response.ok) {
-            throw new Error('Payment verification failed');
-          }
-          clearCart();
-          toast.success('পেমেন্ট সফল হয়েছে! আপনার অর্ডার কনফার্ম করা হয়েছে।');
-          navigate('/', { replace: true });
-        } else {
-            // Call the secure webhook to process failure
-            await fetch('https://us-central1-gen-lang-client-0990631330.cloudfunctions.net/paymentWebhook', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                orderId, 
-                status: 'failed', 
-                transactionId: '' 
-              })
-            });
-            toast.error(`Payment ${status === 'cancelled' ? 'was cancelled' : 'failed'}. Please try again.`);
-            navigate(-1);
-          }
+          toast.error(`Payment ${status === 'cancelled' ? 'was cancelled' : 'failed'}. Please try again.`);
+          navigate(-1);
+        }
       } catch (err: any) {
         console.error('Payment callback error:', err);
         setError(err.message || 'An error occurred while verifying your payment.');

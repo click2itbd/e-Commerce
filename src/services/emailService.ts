@@ -11,19 +11,6 @@ export interface EmailLog {
   status: 'sent' | 'failed';
 }
 
-/**
- * MOCK EMAIL SERVICE
- * When ready, replace the console.log below with actual EmailJS or Resend API calls.
- */
-const simulateEmailSend = async (to: string, subject: string, body: string) => {
-  console.log(`[EMAIL MOCK] Sending email to: ${to}`);
-  console.log(`[EMAIL MOCK] Subject: ${subject}`);
-  console.log(`[EMAIL MOCK] Body:`, body);
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  return true;
-};
-
 export const sendServiceActivationEmail = async (
   orderId: string, 
   customerEmail: string, 
@@ -44,22 +31,38 @@ Thank you for choosing us!
   `.trim();
 
   try {
-    const success = await simulateEmailSend(customerEmail, subject, content);
-    
-    if (success) {
-      // Log to Firestore
-      await addDoc(collection(db, 'emailLogs'), {
-        orderId,
-        customerEmail,
+    const response = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: customerEmail,
         subject,
-        content,
-        sentAt: new Date().toISOString(),
-        status: 'sent'
-      });
-      return true;
-    }
+        html: content.replace(/\n/g, '<br>')
+      })
+    });
+
+    const data = await response.json();
+    
+    await addDoc(collection(db, 'emailLogs'), {
+      orderId,
+      customerEmail,
+      subject,
+      content,
+      sentAt: new Date().toISOString(),
+      status: response.ok ? 'sent' : 'failed'
+    });
+
+    return response.ok;
   } catch (err) {
     console.error('Failed to send email:', err);
+    await addDoc(collection(db, 'emailLogs'), {
+      orderId,
+      customerEmail,
+      subject,
+      content,
+      sentAt: new Date().toISOString(),
+      status: 'failed'
+    });
     return false;
   }
 };

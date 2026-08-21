@@ -8,7 +8,7 @@ import { formatCurrency } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { Lock, ShieldCheck, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server } from 'lucide-react';
 import { db } from '../../firebase';
-import { collection, addDoc, query, where, getDocs, doc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, doc, writeBatch, getDoc } from 'firebase/firestore';
 import { generateDocumentNumber } from '../../lib/numbering';
 import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../../services/paymentApi';
 
@@ -273,13 +273,24 @@ export const HostingCheckout: React.FC = () => {
 
       for (const hostingItem of hostingItems) {
         const hAccountRef = doc(collection(db, 'hostingAccounts'));
+        let hostingConfig = {};
+        try {
+          const hostingConfigSnap = await getDoc(doc(db, 'settings', 'hostingApiConfig'));
+          if (hostingConfigSnap.exists()) {
+            hostingConfig = hostingConfigSnap.data();
+          }
+        } catch (error) {
+          console.warn('Cannot read hostingApiConfig:', error);
+        }
+        
         batch.set(hAccountRef, {
           userId: user?.uid || 'guest',
           orderId: newOrderRef.id,
           planId: hostingItem.id.replace('hosting_', ''),
           domain: hostingConfig.domain, // Associated domain
-          provider: 'dummy',
+          provider: hostingConfig.hostingApiType || 'unknown',
           status: 'pending',
+          provisioningStatus: 'pending',
           billingCycle: hostingItem.billingCycle || 'monthly',
           autoRenew: false,
           createdAt: new Date().toISOString(),

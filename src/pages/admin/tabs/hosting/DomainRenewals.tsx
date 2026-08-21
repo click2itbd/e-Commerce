@@ -4,6 +4,7 @@ import { collection, query, orderBy, getDocs, updateDoc, doc, where } from 'fire
 import { toast } from 'react-hot-toast';
 import { Loader2, Mail, Phone, Clock, CheckCircle, XCircle, Eye, RefreshCw } from 'lucide-react';
 import { formatCurrency, cn } from '../../../../lib/utils';
+import { getDomainRenewalPriceBreakdown } from '../../../../services/dynadotApi';
 
 interface DomainRenewal {
   id: string;
@@ -12,15 +13,9 @@ interface DomainRenewal {
   userId: string;
   type: string;
   documentNumber: string;
-  renewPriceUsd: number;
-  priceUsd: number;
-  priceBdt: number;
-  currency: string;
+  renewalPriceBdt: number;
   renewalPeriod: number;
   totalBdt: number;
-  totalUsd: number;
-  exchangeRate: number;
-  markupPercent: number;
   status: string;
   paymentStatus: string;
   renewalStatus: string;
@@ -38,6 +33,8 @@ export default function DomainRenewals() {
   const [loading, setLoading] = useState(true);
   const [selectedRenewal, setSelectedRenewal] = useState<DomainRenewal | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [breakdown, setBreakdown] = useState<any>(null);
+  const [loadingBreakdown, setLoadingBreakdown] = useState(false);
 
   useEffect(() => {
     fetchRenewals();
@@ -75,6 +72,19 @@ export default function DomainRenewals() {
       toast.error('Failed to update status');
     } finally {
       setStatusUpdating(false);
+    }
+  };
+
+  const handleViewBreakdown = async (domain: string) => {
+    setLoadingBreakdown(true);
+    setBreakdown(null);
+    try {
+      const data = await getDomainRenewalPriceBreakdown(domain);
+      setBreakdown(data);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to load pricing breakdown');
+    } finally {
+      setLoadingBreakdown(false);
     }
   };
 
@@ -213,7 +223,7 @@ export default function DomainRenewals() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-bold text-gray-800">Renewal Details</h3>
-              <button onClick={() => setSelectedRenewal(null)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => { setSelectedRenewal(null); setBreakdown(null); }} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
             </div>
@@ -265,6 +275,46 @@ export default function DomainRenewals() {
                   <p className="text-xs font-bold text-gray-500 uppercase">Renewal Status</p>
                   <div className="mt-1">{getStatusBadge(selectedRenewal.renewalStatus, 'renewal')}</div>
                 </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-4">
+                <button
+                  onClick={() => handleViewBreakdown(selectedRenewal.domain)}
+                  disabled={loadingBreakdown}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {loadingBreakdown ? <Loader2 className="animate-spin" size={14} /> : <Eye size={14} />}
+                  {breakdown ? 'Refresh Pricing Breakdown' : 'View Pricing Breakdown'}
+                </button>
+
+                {breakdown && (
+                  <div className="mt-4 bg-gray-50 rounded-xl p-4 space-y-2">
+                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Internal Pricing Breakdown</p>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Supplier Price (USD)</span>
+                      <span className="font-mono text-gray-900">${breakdown.supplierPriceUsd?.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Markup ({breakdown.markupPercent}%)</span>
+                      <span className="font-mono text-gray-900">+${breakdown.markupAmountUsd?.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Selling Price (USD)</span>
+                      <span className="font-mono text-gray-900">${breakdown.sellingPriceUsd?.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Exchange Rate</span>
+                      <span className="font-mono text-gray-900">{breakdown.exchangeRate} BDT</span>
+                    </div>
+                    <div className="border-t border-gray-200 pt-2 flex justify-between">
+                      <span className="font-bold text-gray-900">Final Customer Price</span>
+                      <span className="font-bold text-blue-600">৳{breakdown.sellingPriceBdt?.toLocaleString()}</span>
+                    </div>
+                    {breakdown.isSandbox && (
+                      <p className="text-xs text-yellow-600 font-medium">Note: Sandbox mode active</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-gray-100 pt-4">

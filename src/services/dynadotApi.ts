@@ -114,13 +114,8 @@ export interface DomainRenewalPriceResponse {
   success: boolean;
   domain: string;
   tld: string;
-  renewPriceUsd: number;
-  priceUsd: number;
-  priceBdt: number;
-  currency: string;
+  renewalPriceBdt: number;
   maxDuration: number;
-  exchangeRate: number;
-  markupPercent: number;
 }
 
 export const getDomainRenewalPrice = async (domain: string): Promise<DomainRenewalPriceResponse> => {
@@ -137,13 +132,8 @@ export const getDomainRenewalPrice = async (domain: string): Promise<DomainRenew
         success: true,
         domain: data.domain,
         tld: data.tld,
-        renewPriceUsd: data.renewPriceUsd || 0,
-        priceUsd: data.priceUsd || 0,
-        priceBdt: data.priceBdt || 0,
-        currency: data.currency || 'USD',
+        renewalPriceBdt: data.renewalPriceBdt || 0,
         maxDuration: data.maxDuration || 10,
-        exchangeRate: data.exchangeRate || 120,
-        markupPercent: data.markupPercent || 15,
       };
     } else {
       throw new Error(data?.error || 'Failed to fetch renewal price');
@@ -152,5 +142,89 @@ export const getDomainRenewalPrice = async (domain: string): Promise<DomainRenew
   } catch (error: any) {
     console.error('Dynadot renewal price error:', error);
     throw new Error(error.message || 'Failed to fetch renewal price');
+  }
+};
+
+export interface DomainRenewalPriceBreakdown {
+  success: boolean;
+  domain: string;
+  tld: string;
+  supplierPriceUsd: number;
+  markupPercent: number;
+  markupAmountUsd: number;
+  sellingPriceUsd: number;
+  exchangeRate: number;
+  sellingPriceBdt: number;
+  isSandbox: boolean;
+}
+
+export const getDomainRenewalPriceBreakdown = async (domain: string): Promise<DomainRenewalPriceBreakdown> => {
+  try {
+    const functions = getFunctions(auth.app);
+    const getBreakdown = httpsCallable(functions, 'getDomainRenewalPriceBreakdown');
+    
+    const result = await getBreakdown({ domain });
+    
+    const data = result.data as any;
+    
+    if (data?.success) {
+      return {
+        success: true,
+        domain: data.domain,
+        tld: data.tld,
+        supplierPriceUsd: data.supplierPriceUsd || 0,
+        markupPercent: data.markupPercent || 0,
+        markupAmountUsd: data.markupAmountUsd || 0,
+        sellingPriceUsd: data.sellingPriceUsd || 0,
+        exchangeRate: data.exchangeRate || 120,
+        sellingPriceBdt: data.sellingPriceBdt || 0,
+        isSandbox: data.isSandbox || false,
+      };
+    } else {
+      throw new Error(data?.error || 'Failed to fetch renewal price breakdown');
+    }
+    
+  } catch (error: any) {
+    console.error('Dynadot renewal price breakdown error:', error);
+    throw new Error(error.message || 'Failed to fetch renewal price breakdown');
+  }
+};
+
+export interface CreateRenewalOrderResult {
+  success: boolean;
+  orderId: string;
+  order: any;
+}
+
+export const createDomainRenewalOrder = async (params: {
+  domain: string;
+  renewalPeriod: number;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  paymentMethod: string;
+  transactionId?: string;
+}): Promise<CreateRenewalOrderResult> => {
+  try {
+    const functions = getFunctions(auth.app);
+    const createOrder = httpsCallable(functions, 'createDomainRenewalOrder');
+    
+    const result = await createOrder(params);
+    
+    const data = result.data as any;
+    
+    if (data?.success) {
+      return {
+        success: true,
+        orderId: data.orderId,
+        order: data.order,
+      };
+    } else {
+      throw new Error(data?.error || 'Failed to create renewal order');
+    }
+    
+  } catch (error: any) {
+    console.error('Create renewal order error:', error);
+    throw new Error(error.message || 'Failed to create renewal order');
   }
 };

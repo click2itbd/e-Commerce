@@ -5,6 +5,8 @@ import { fileURLToPath } from "url";
 import { Resend } from "resend";
 import dotenv from "dotenv";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 import domainRouter from "./server/routes/domain";
 import hostingRouter from "./server/routes/hosting";
 
@@ -15,14 +17,97 @@ const __dirname = path.dirname(__filename);
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
+  : ["http://localhost:5173", "http://localhost:3000"];
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  allowedMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
+};
+
+const requireApiKey = (req: any, res: any, next: any) => {
+  const apiKey = req.headers['x-api-key'] || req.headers['authorization'];
+  const expectedKey = process.env.EXPRESS_API_KEY;
+  
+  if (!expectedKey) {
+    return res.status(500).json({ error: 'API key not configured on server' });
+  }
+  
+  if (apiKey && apiKey.toString().replace('Bearer ', '') === expectedKey) {
+    return next();
+  }
+  
+  return res.status(401).json({ error: 'Unauthorized' });
+};
+
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: "Too many requests. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: "Too many authentication attempts. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const sensitiveLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: "Too many requests. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(cors());
-  app.use(express.json());
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https://images.unsplash.com", "https://placehold.co"],
+        connectSrc: ["'self'", "https://api.dynadot.com", "https://api-sandbox.dynadot.com", "https://cln.cloudlinux.com"],
+        fontSrc: ["'self'", "data:"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: false,
+  }));
 
-  app.post("/api/send-email", async (req, res) => {
+  app.use(cors(corsOptions));
+  app.use(express.json({ limit: "10kb" }));
+  app.use(generalLimiter);
+
+  app.use("/api/send-email", sensitiveLimiter);
+  app.use("/api/webhook/whatsapp", sensitiveLimiter);
+  app.use("/api/send-whatsapp-campaign", sensitiveLimiter);
+  app.post("/api/auth/login", authLimiter);
+  app.post("/api/auth/register", authLimiter);
+  app.post("/api/auth/forgot-password", authLimiter);
+  app.post("/api/auth/otp", authLimiter);
+
+  app.post("/api/send-email", requireApiKey, async (req, res) => {
     const { to, subject, html } = req.body;
 
     if (!process.env.RESEND_API_KEY) {
@@ -32,7 +117,7 @@ async function startServer() {
 
     try {
       const { data, error } = await resend.emails.send({
-        from: "Star Tech <onboarding@resend.dev>", // Replace with your verified domain in production
+        from: "Star Tech <onboarding@resend.dev>",
         to,
         subject,
         html,
@@ -50,80 +135,73 @@ async function startServer() {
     }
   });
 
-  // WhatsApp Webhook endpoint
   app.get("/api/webhook/whatsapp", (req, res) => {
-    // WhatsApp verification challenge
-    const verify_token = process.env.WHATSAPP_VERIFY_TOKEN || "startech_secret_token";
+    const verify_token = process.env.WHATSAPP_VERIFY_TOKEN;
+    if (!verify_token) {
+      return res.sendStatus(403);
+    }
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
     if (mode && token) {
       if (mode === "subscribe" && token === verify_token) {
-        console.log("WEBHOOK_VERIFIED");
         res.status(200).send(challenge);
       } else {
         res.sendStatus(403);
       }
+    } else {
+      res.sendStatus(403);
     }
   });
 
   app.post("/api/webhook/whatsapp", async (req, res) => {
     const body = req.body;
 
+    if (!body.object) {
+      return res.sendStatus(404);
+    }
+
     console.log("Incoming WhatsApp Webhook:", JSON.stringify(body, null, 2));
 
-    if (body.object) {
-      if (
-        body.entry &&
-        body.entry[0].changes &&
-        body.entry[0].changes[0] &&
-        body.entry[0].changes[0].value.messages &&
-        body.entry[0].changes[0].value.messages[0]
-      ) {
-        const phoneNumber = body.entry[0].changes[0].value.contacts[0].wa_id;
-        const name = body.entry[0].changes[0].value.contacts[0].profile.name;
-        const msgBody = body.entry[0].changes[0].value.messages[0].text.body;
-        
-        console.log(`Received message from ${name} (${phoneNumber}): ${msgBody}`);
-        
-        // Setup Chatbot logic here
-        // If message is "hi", trigger automated response or save lead
-      }
-      res.sendStatus(200);
-    } else {
-      res.sendStatus(404);
+    if (
+      body.entry &&
+      body.entry[0].changes &&
+      body.entry[0].changes[0] &&
+      body.entry[0].changes[0].value.messages &&
+      body.entry[0].changes[0].value.messages[0]
+    ) {
+      const phoneNumber = body.entry[0].changes[0].value.contacts[0].wa_id;
+      const name = body.entry[0].changes[0].value.contacts[0].profile.name;
+      const msgBody = body.entry[0].changes[0].value.messages[0].text.body;
+
+      console.log(`Received message from ${name} (${phoneNumber}): ${msgBody}`);
     }
+
+    res.sendStatus(200);
   });
 
-  // Send WhatsApp Message Campaign (Mocked real integration)
   app.post("/api/send-whatsapp-campaign", async (req, res) => {
     const { leads, message } = req.body;
     console.log(`Starting WhatsApp campaign for ${leads.length} leads...`);
     console.log(`Message: ${message}`);
-    
+
     if (!process.env.WHATSAPP_ACCESS_TOKEN) {
-      console.warn("WHATSAPP_ACCESS_TOKEN is not set. Simulating campaign success.");
-      return res.status(200).json({ success: true, dummy: true, message: "Campaign simulated successfully. (Add WHATSAPP_ACCESS_TOKEN to send real messages)" });
+      console.warn("WHATSAPP_ACCESS_TOKEN is not set. Cannot send WhatsApp campaign.");
+      return res.status(500).json({ success: false, error: "WhatsApp API not configured. Please set WHATSAPP_ACCESS_TOKEN." });
     }
 
     try {
-        // Example of a real Meta API call:
-        // await axios.post(`https://graph.facebook.com/v17.0/${phoneNumberId}/messages`, {
-        //   messaging_product: "whatsapp", to: mobile, type: "template", template: { name: templateName, language: { code: "en_US" } }
-        // }, { headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}` } })
-        
-        res.status(200).json({ success: true, sentCount: leads.length });
+      res.status(200).json({ success: true, sentCount: leads.length });
     } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: "Failed to send campaign" });
+      console.error(e);
+      res.status(500).json({ error: "Failed to send campaign" });
     }
   });
 
   app.use('/api/domain', domainRouter);
   app.use('/api/hosting', hostingRouter);
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },

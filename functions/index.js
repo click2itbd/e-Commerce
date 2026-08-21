@@ -4,8 +4,129 @@ const { getFirestore } = require("firebase-admin/firestore");
 
 admin.initializeApp();
 
+async function verifyPaymentWithGateway(orderId, orderData) {
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  
+  // bKash payment verification
+  if (orderData.bkashPaymentId) {
+    try {
+      const settingsSnap = await db.collection('settings').doc('api_keys').get();
+      const apiSettings = settingsSnap.exists ? settingsSnap.data() : null;
+      const isSandbox = apiSettings?.isSandboxMode === true;
+      
+      let accessToken;
+      try {
+        accessToken = await getBkashAccessToken(db);
+      } catch (e) {
+        console.error('Failed to get bKash access token:', e);
+        return false;
+      }
+
+      const creds = await getBkashCredentials(db);
+      const response = await fetch(`${creds.baseUrl}/tokenized/checkout/payment/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'X-APP-Key': creds.appKey
+        },
+        body: JSON.stringify({
+          paymentID: orderData.bkashPaymentId
+        })
+      });
+
+      const rawText = await response.text();
+      let apiData;
+      try { apiData = JSON.parse(rawText); } catch (e) { apiData = {}; }
+
+      if (!response.ok || apiData.status_code !== '0000') {
+        console.error('bKash payment verification failed:', apiData);
+        return false;
+      }
+
+      const paymentStatus = apiData.status || apiData.transactionStatus || '';
+      const isPaid = paymentStatus.toLowerCase() === 'completed' || 
+                     paymentStatus.toLowerCase() === 'success' ||
+                     apiData.status_code === '0000';
+      
+      if (!isPaid) {
+        console.error('bKash payment not completed:', { paymentId: orderData.bkashPaymentId, status: paymentStatus });
+        return false;
+      }
+
+      const paidAmount = parseFloat(apiData.amount || '0');
+      const orderAmount = parseFloat(orderData.total || orderData.grandTotal || '0');
+      
+      if (paidAmount > 0 && Math.abs(paidAmount - orderAmount) > 1) {
+        console.error('bKash payment amount mismatch:', { expected: orderAmount, actual: paidAmount });
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('bKash payment verification error:', error);
+      return false;
+    }
+  }
+
+  // No payment ID found - cannot verify
+  console.warn('Payment verification skipped: no payment ID found for order', orderId);
+  return false;
+}
+
+async function getBkashCredentials(db) {
+  const data = await db.collection('settings').doc('api_keys').get();
+  if (!data.exists) {
+    throw new Error('bKash credentials not configured');
+  }
+  const apiSettings = data.data();
+  const isSandbox = apiSettings?.isSandboxMode === true;
+  const prefix = isSandbox ? 'sandbox_' : 'production_';
+  
+  return {
+    appKey: apiSettings[`${prefix}bkashAppKey`],
+    appSecret: apiSettings[`${prefix}bkashAppSecret`],
+    username: apiSettings[`${prefix}bkashUsername`],
+    password: apiSettings[`${prefix}bkashPassword`],
+    baseUrl: getBkashBaseUrl(isSandbox),
+    isSandbox
+  };
+}
+
+async function getBkashAccessToken(db) {
+  const creds = await getBkashCredentials(db);
+  
+  const auth = Buffer.from(`${creds.username}:${creds.password}`).toString('base64');
+  
+  const response = await fetch(`${creds.baseUrl}/tokenized/checkout/token/grant`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Basic ${auth}`,
+      'X-APP-Key': creds.appKey
+    },
+    body: JSON.stringify({
+      app_key: creds.appKey,
+      app_secret: creds.appSecret
+    })
+  });
+
+  const rawText = await response.text();
+  let apiData;
+  try { apiData = JSON.parse(rawText); } catch (e) { apiData = {}; }
+
+  if (!response.ok || apiData.status_code !== '0000') {
+    throw new Error(apiData.status_message || 'Failed to get bKash access token');
+  }
+
+  return apiData.id_token;
+}
+
+function getBkashBaseUrl(isSandbox) {
+  return isSandbox ? 'https://tokenized.sandbox.bka.sh/v1.2.0-beta' : 'https://tokenized.pay.bka.sh/v1.2.0-beta';
+}
+
 exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
-  // CORS Support
   res.set('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') {
     res.set('Access-Control-Allow-Methods', 'GET, POST');
@@ -20,28 +141,49 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
       return res.status(400).send("Missing required parameters: orderId or status");
     }
 
+    // Check in 'orders' collection
+    let targetRef = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection("orders").doc(orderId);
+    let docSnap = await targetRef.get();
+
+    // If not in 'orders', check in 'invoices' (for domain offers/renewals)
+    if (!docSnap.exists) {
+      targetRef = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection("invoices").doc(orderId);
+      docSnap = await targetRef.get();
+    }
+
+    if (!docSnap.exists) {
+      return res.status(404).send("Order/Invoice not found");
+    }
+
+    const orderData = docSnap.data();
+
+    // Idempotency: prevent duplicate provisioning
+    if (orderData.provisioningStatus === 'completed') {
+      return res.status(200).send({ message: "Order already processed", orderId });
+    }
+
+    // Verify payment with gateway before provisioning
     if (status === "success") {
-      // Check in 'orders' collection
-      let targetRef = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection("orders").doc(orderId);
-      let docSnap = await targetRef.get();
-
-      // If not in 'orders', check in 'invoices' (for domain offers/renewals)
-      if (!docSnap.exists) {
-        targetRef = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection("invoices").doc(orderId);
-        docSnap = await targetRef.get();
+      const verified = await verifyPaymentWithGateway(orderId, orderData);
+      if (!verified) {
+        await targetRef.update({
+          paymentStatus: 'failed',
+          provisioningStatus: 'failed',
+          provisioningError: 'Payment verification failed with gateway',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return res.status(400).send({ error: "Payment verification failed" });
       }
+    }
 
-      if (!docSnap.exists) {
-        return res.status(404).send("Order/Invoice not found");
-      }
-
-      // Securely update using Admin SDK (bypasses Firestore Rules)
-      await targetRef.update({
-        status: "processing",
-        paymentStatus: "paid",
-        transactionId: transactionId || "N/A",
-        paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+    // Securely update using Admin SDK (bypasses Firestore Rules)
+    await targetRef.update({
+      status: "processing",
+      paymentStatus: "paid",
+      provisioningStatus: "processing",
+      transactionId: transactionId || "N/A",
+      paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
 
       // Check if this order contains domains and register them via Dynadot
       if (docSnap.exists) {
@@ -58,10 +200,10 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
           if (domainItems.length > 0) {
             // Fetch API settings
             const settingsSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('settings').doc('api_keys').get();
-    const apiSettings = settingsSnap.exists ? settingsSnap.data() : null;
+            const apiSettings = settingsSnap.exists ? settingsSnap.data() : null;
             const apiKey = apiSettings?.dynadotApiKey;
             const isSandbox = apiSettings?.isSandboxMode === true;
-            const baseUrl = 'https://api-sandbox.dynadot.com/api3.json';
+            const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
 
             if (apiKey) {
 
@@ -92,21 +234,33 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     .where('domain', '==', domain)
                     .get();
                     
-                  if (!dOrdersSnap.empty) {
-                    const dOrderRef = dOrdersSnap.docs[0].ref;
-                    const isSuccess = regData?.TransferResponse?.TransferResults?.[0]?.Status?.toLowerCase() === 'success';
-                    
-                    await dOrderRef.update({
-                      status: isSuccess ? 'active' : 'failed',
-                      transferResponse: JSON.stringify(regData),
-                      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-                  }
-                  
-                } catch (e) {
-                  console.error('Auto-transfer failed for', domain, e);
-                }
-              }
+                   if (!dOrdersSnap.empty) {
+                     const dOrderRef = dOrdersSnap.docs[0].ref;
+                     const isSuccess = regData?.TransferResponse?.TransferResults?.[0]?.Status?.toLowerCase() === 'success';
+                     
+                     await dOrderRef.update({
+                       status: isSuccess ? 'active' : 'failed',
+                       transferResponse: JSON.stringify(regData),
+                       provisioningStatus: isSuccess ? 'completed' : 'failed',
+                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                     });
+                   }
+                   
+                 } catch (e) {
+                   console.error('Auto-transfer failed for', domain, e);
+                   const dOrdersSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('domainOrders')
+                     .where('orderId', '==', orderId)
+                     .where('domain', '==', domain)
+                     .get();
+                   if (!dOrdersSnap.empty) {
+                     await updateDoc(dOrdersSnap.docs[0].ref, {
+                       provisioningStatus: 'failed',
+                       error: e.message,
+                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                     });
+                   }
+                 }
+               }
                 for (const item of renewalItems) {
                 const domain = item.domain;
                 const years = item.termYears || 1;
@@ -133,22 +287,34 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     .where('domain', '==', domain)
                     .get();
                     
-                  if (!dOrdersSnap.empty) {
-                    const dOrderRef = dOrdersSnap.docs[0].ref;
-                    const isSuccess = regData?.RenewResponse?.RenewResults?.[0]?.Status?.toLowerCase() === 'success';
-                    
-                    await dOrderRef.update({
-                      status: isSuccess ? 'active' : 'failed',
-                      renewalResponse: JSON.stringify(regData),
-                      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-                  }
-                  
-                } catch (e) {
-                  console.error('Auto-renewal failed for', domain, e);
-                }
-              }
-            }
+                   if (!dOrdersSnap.empty) {
+                     const dOrderRef = dOrdersSnap.docs[0].ref;
+                     const isSuccess = regData?.RenewResponse?.RenewResults?.[0]?.Status?.toLowerCase() === 'success';
+                     
+                     await dOrderRef.update({
+                       status: isSuccess ? 'active' : 'failed',
+                       renewalResponse: JSON.stringify(regData),
+                       provisioningStatus: isSuccess ? 'completed' : 'failed',
+                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                     });
+                   }
+                   
+                 } catch (e) {
+                   console.error('Auto-renewal failed for', domain, e);
+                   const dOrdersSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('domainOrders')
+                     .where('orderId', '==', orderId)
+                     .where('domain', '==', domain)
+                     .get();
+                   if (!dOrdersSnap.empty) {
+                     await updateDoc(dOrdersSnap.docs[0].ref, {
+                       provisioningStatus: 'failed',
+                       error: e.message,
+                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                     });
+                   }
+                 }
+               }
+             }
 
             
             if (apiKey) {
@@ -179,21 +345,33 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     .where('domain', '==', domain)
                     .get();
                     
-                  if (!dOrdersSnap.empty) {
-                    const dOrderRef = dOrdersSnap.docs[0].ref;
-                    const isSuccess = regData?.RegisterResponse?.RegisterResults?.[0]?.Status?.toLowerCase() === 'success';
-                    
-                    await dOrderRef.update({
-                      status: isSuccess ? 'active' : 'failed',
-                      registrationResponse: JSON.stringify(regData),
-                      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-                  }
-                  
-                } catch (e) {
-                  console.error('Auto-registration failed for', domain, e);
-                }
-              }
+                   if (!dOrdersSnap.empty) {
+                     const dOrderRef = dOrdersSnap.docs[0].ref;
+                     const isSuccess = regData?.RegisterResponse?.RegisterResults?.[0]?.Status?.toLowerCase() === 'success';
+                     
+                     await dOrderRef.update({
+                       status: isSuccess ? 'active' : 'failed',
+                       registrationResponse: JSON.stringify(regData),
+                       provisioningStatus: isSuccess ? 'completed' : 'failed',
+                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                     });
+                   }
+                   
+                 } catch (e) {
+                   console.error('Auto-registration failed for', domain, e);
+                   const dOrdersSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('domainOrders')
+                     .where('orderId', '==', orderId)
+                     .where('domain', '==', domain)
+                     .get();
+                   if (!dOrdersSnap.empty) {
+                     await updateDoc(dOrdersSnap.docs[0].ref, {
+                       provisioningStatus: 'failed',
+                       error: e.message,
+                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                     });
+                   }
+                 }
+               }
             }
           }
 
@@ -203,77 +381,162 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
             const hAccountsSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('hostingAccounts')
               .where('orderId', '==', orderId)
               .get();
-            
+
             if (!hAccountsSnap.empty) {
-              const batch = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').batch();
-              hAccountsSnap.docs.forEach(doc => {
-                batch.update(doc.ref, {
-                  status: 'active',
-                  activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              const hostingConfigSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('settings').doc('hostingApiConfig').get();
+              const hostingConfig = hostingConfigSnap.exists ? hostingConfigSnap.data() : {};
+              const hostingProviderType = hostingConfig?.hostingApiType || 'dummy';
+              const hostingApiKey = hostingConfig?.hostingApiKey;
+              const hostingApiUrl = hostingConfig?.hostingApiUrl;
+              const isSandbox = hostingConfig?.isSandboxMode === true;
+
+              let provider;
+              if (hostingProviderType === 'cpanel' && hostingApiKey) {
+                const { CpanelHostingProvider } = require('./providers/hosting/CpanelHostingProvider');
+                provider = new CpanelHostingProvider(hostingApiKey, hostingApiUrl);
+              } else if (hostingProviderType === 'resellerclub' && hostingApiKey) {
+                const { ResellerClubHostingProvider } = require('./providers/hosting/ResellerClubHostingProvider');
+                provider = new ResellerClubHostingProvider(hostingApiKey, hostingApiUrl);
+              } else {
+                provider = null;
+              }
+
+              const clnLogin = hostingConfig?.clnLogin;
+              const clnSecretKey = hostingConfig?.clnSecretKey;
+
+              for (const accountDoc of hAccountsSnap.docs) {
+                const accountData = accountDoc.data();
+
+                await updateDoc(accountDoc.ref, {
+                  provisioningStatus: 'processing',
+                  provider: hostingProviderType,
                   updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
-              });
-              await batch.commit();
 
-              // CloudLinux provisioning
-              const settingsSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('settings').doc('api_keys').get();
-              const apiKeys = settingsSnap.exists ? settingsSnap.data() : {};
-              const clnLogin = apiKeys?.clnLogin;
-              const clnSecretKey = apiKeys?.clnSecretKey;
-              const isSandbox = apiKeys?.isSandboxMode === true;
+                if (!provider) {
+                  await updateDoc(accountDoc.ref, {
+                    provisioningStatus: 'failed',
+                    status: 'failed',
+                    provisioningError: 'Hosting provider not configured. Please configure cPanel or ResellerClub in admin settings.',
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                  });
+                  continue;
+                }
 
-              if (clnLogin && clnSecretKey) {
+                try {
+                  const provisionResult = await provider.provisionAccount({
+                    planCode: accountData.planId || 'default',
+                    domain: accountData.domain || '',
+                    contactEmail: orderData.customerEmail || '',
+                    billingCycle: accountData.billingCycle || 'monthly',
+                  });
+
+                  if (provisionResult.success) {
+                    await updateDoc(accountDoc.ref, {
+                      status: 'active',
+                      provisioningStatus: 'provider_created',
+                      providerAccountId: provisionResult.providerAccountId || null,
+                      cPanelUrl: provisionResult.cPanelUrl || null,
+                      nameservers: provisionResult.nameservers || [],
+                      activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                  } else {
+                    await updateDoc(accountDoc.ref, {
+                      status: 'failed',
+                      provisioningStatus: 'failed',
+                      provisioningError: provisionResult.error || 'Provider returned failure',
+                      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                    continue;
+                  }
+                } catch (providerError) {
+                  await updateDoc(accountDoc.ref, {
+                    status: 'failed',
+                    provisioningStatus: 'failed',
+                    provisioningError: providerError.message || 'Provider error',
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                  });
+                  continue;
+                }
+
+                const refreshedAccount = await accountDoc.ref.get();
+                const refreshedData = refreshedAccount.data();
+                const ip = refreshedData?.ipAddress || refreshedData?.ip;
+                const licenseType = refreshedData?.licenseType || 1;
+
+                if (!ip) {
+                  console.warn('Hosting account missing IP address for CloudLinux provisioning:', accountDoc.id);
+                  await updateDoc(accountDoc.ref, {
+                    cloudLinuxStatus: 'skipped_no_ip',
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                  });
+                  continue;
+                }
+
+                if (!clnLogin || !clnSecretKey) {
+                  console.warn('CloudLinux credentials not configured. Skipping provisioning.');
+                  await updateDoc(accountDoc.ref, {
+                    cloudLinuxStatus: 'CLOUDLINUX_NOT_CONFIGURED',
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                  });
+                  continue;
+                }
+
+                if (isSandbox) {
+                  console.error('[CloudLinux] SANDBOX_MODE_ENABLED - Production provisioning blocked.');
+                  await updateDoc(accountDoc.ref, {
+                    cloudLinuxStatus: 'CLOUDLINUX_SANDBOX_MODE_ENABLED',
+                    cloudLinuxError: 'Sandbox mode is enabled. Set isSandboxMode=false in settings/api_keys for production.',
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                  });
+                  continue;
+                }
+
                 const timestamp = Math.floor(Date.now() / 1000);
                 const hash = crypto.createHash('sha1').update(clnSecretKey + timestamp).digest('hex');
                 const token = `${clnLogin}|${timestamp}|${hash}`;
                 const baseUrl = 'https://cln.cloudlinux.com/api';
+                const endpoint = `/v2/ip-license/licenses?ip=${encodeURIComponent(ip)}&type=${licenseType}`;
 
-                for (const account of hAccountsSnap.docs) {
-                  const accountData = account.data();
-                  const ip = accountData.ipAddress || accountData.ip;
-                  const licenseType = accountData.licenseType || 1; // 1 = CloudLinux OS
+                try {
+                  const response = await fetch(`${baseUrl}${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    }
+                  });
 
-                  if (!ip) {
-                    console.warn('Hosting account missing IP address for CloudLinux provisioning:', account.id);
-                    continue;
-                  }
+                  const rawText = await response.text();
+                  let apiData;
+                  try { apiData = JSON.parse(rawText); } catch (e) { apiData = {}; }
 
-                  const endpoint = `/v2/ip-license/licenses?ip=${encodeURIComponent(ip)}&type=${licenseType}`;
-
-                  if (isSandbox) {
-                    console.log('[CloudLinux TEST MODE] Would provision license:', {
-                      ip,
-                      licenseType,
-                      endpoint,
-                      method: 'POST',
-                      token: token.substring(0, 10) + '...'
+                  if (!response.ok) {
+                    console.error('CloudLinux provisioning error:', apiData);
+                    await updateDoc(accountDoc.ref, {
+                      cloudLinuxStatus: 'failed',
+                      cloudLinuxError: JSON.stringify(apiData),
+                      updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                   } else {
-                    try {
-                      const response = await fetch(`${baseUrl}${endpoint}`, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'Authorization': `Bearer ${token}`
-                        }
-                      });
-
-                      const rawText = await response.text();
-                      let apiData;
-                      try { apiData = JSON.parse(rawText); } catch (e) { apiData = {}; }
-
-                      if (!response.ok) {
-                        console.error('CloudLinux provisioning error:', apiData);
-                      } else {
-                        console.log('CloudLinux provisioning success:', { ip, licenseType, response: apiData });
-                      }
-                    } catch (error) {
-                      console.error('CloudLinux provisioning failed:', error);
-                    }
+                    console.log('CloudLinux provisioning success:', { ip, licenseType, response: apiData });
+                    await updateDoc(accountDoc.ref, {
+                      cloudLinuxStatus: 'active',
+                      cloudLinuxLicenseId: apiData?.data?.id || apiData?.id || null,
+                      cloudLinuxResponse: JSON.stringify(apiData),
+                      provisioningStatus: 'completed',
+                      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
                   }
+                } catch (error) {
+                  console.error('CloudLinux provisioning failed:', error);
+                  await updateDoc(accountDoc.ref, {
+                    cloudLinuxStatus: 'failed',
+                    cloudLinuxError: error.message,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                  });
                 }
-              } else {
-                console.warn('CloudLinux credentials not configured. Skipping provisioning.');
               }
 
               await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('apiLogs').add({
@@ -282,9 +545,16 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                 accountCount: hAccountsSnap.size,
                 timestamp: admin.firestore.FieldValue.serverTimestamp(),
                 isSandbox,
-                note: isSandbox ? 'TEST MODE: Provisioning logged, not executed.' : 'Provisioning executed.'
+                provider: hostingProviderType,
+                note: isSandbox ? 'TEST MODE: CloudLinux logged, not executed.' : 'Provisioning executed.'
               });
             }
+
+            // Mark order provisioning as completed
+            await targetRef.update({
+              provisioningStatus: 'completed',
+              updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
           }
         }
       }
@@ -560,7 +830,8 @@ exports.dynadotTldPricing = functions.https.onCall(async (data, context) => {
 
 exports.getDomainRenewalPrice = functions.https.onCall(async (data, context) => {
   try {
-    const { domain } = data;
+    const payload = data.data || data;
+    const domain = payload.domain;
     
     if (!domain) {
       throw new functions.https.HttpsError('invalid-argument', 'Missing domain parameter');
@@ -659,13 +930,8 @@ exports.getDomainRenewalPrice = functions.https.onCall(async (data, context) => 
       success: true,
       domain,
       tld,
-      renewPriceUsd,
-      priceUsd,
-      priceBdt,
-      currency: 'USD',
+      renewalPriceBdt: priceBdt,
       maxDuration: parseInt(maxDuration),
-      exchangeRate,
-      markupPercent
     };
 
   } catch (error) {
@@ -674,6 +940,257 @@ exports.getDomainRenewalPrice = functions.https.onCall(async (data, context) => 
       throw error;
     }
     throw new functions.https.HttpsError('internal', 'Failed to fetch renewal price.');
+  }
+});
+
+exports.getDomainRenewalPriceBreakdown = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.token.admin) {
+    throw new functions.https.HttpsError('unauthenticated', 'Admin access required');
+  }
+
+  try {
+    const { domain } = data;
+    
+    if (!domain) {
+      throw new functions.https.HttpsError('invalid-argument', 'Missing domain parameter');
+    }
+
+    const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+    const settingsSnap = await db.collection('settings').doc('api_keys').get();
+    const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
+    const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
+    const apiKeysData = settingsSnap.exists ? settingsSnap.data() : {};
+    const exchangeRate = parseFloat(apiKeysData.usdToBdtRate) || 120;
+    const markupPercent = parseFloat(apiKeysData.domainMarkupPercent) || 15;
+
+    if (!apiKey) {
+      throw new functions.https.HttpsError('internal', 'Domain API key not configured.');
+    }
+
+    const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
+    
+    const tldMatch = domain.match(/\.[^.]+$/);
+    const tld = tldMatch ? tldMatch[0] : '';
+    
+    if (!tld) {
+      throw new functions.https.HttpsError('invalid-argument', 'Invalid domain format');
+    }
+
+    const tldUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tld)}&currency=USD`;
+    const tldResponse = await fetch(tldUrl);
+    
+    if (!tldResponse.ok) {
+      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${tldResponse.status}`);
+    }
+    
+    const tldText = await tldResponse.text();
+    let tldData;
+    try { 
+      tldData = JSON.parse(tldText); 
+    } catch(e) { 
+      throw new functions.https.HttpsError('internal', 'Failed to parse Dynadot TLD pricing response.');
+    }
+
+    const tldPriceArray = 
+      tldData?.TldPriceResponse?.TldPrice ||
+      tldData?.TLDPricing?.TldPrice ||
+      tldData?.TldPrice ||
+      (Array.isArray(tldData) ? tldData : null);
+
+    if (!tldPriceArray || !Array.isArray(tldPriceArray)) {
+      throw new functions.https.HttpsError('not-found', `TLD pricing not available for ${tld}`);
+    }
+
+    const matchedTld = tldPriceArray.find(
+      item => item?.Tld?.toLowerCase() === tld.toLowerCase()
+    );
+
+    if (!matchedTld) {
+      throw new functions.https.HttpsError('not-found', `TLD ${tld} not found in Dynadot pricing`);
+    }
+
+    const renewPriceUsd = parseFloat(matchedTld.Price?.Renew || matchedTld.Price?.renew || 0);
+    
+    if (renewPriceUsd <= 0) {
+      throw new functions.https.HttpsError('not-found', `Renewal price not available for ${tld}`);
+    }
+
+    const retailUsd = renewPriceUsd * (1 + markupPercent / 100);
+    const priceUsd = Math.round(retailUsd * 100) / 100;
+    const priceBdt = Math.round(retailUsd * exchangeRate);
+    const markupAmount = retailUsd - renewPriceUsd;
+
+    return {
+      success: true,
+      domain,
+      tld,
+      supplierPriceUsd: renewPriceUsd,
+      markupPercent,
+      markupAmountUsd: Math.round(markupAmount * 100) / 100,
+      sellingPriceUsd: priceUsd,
+      exchangeRate,
+      sellingPriceBdt: priceBdt,
+      isSandbox,
+    };
+
+  } catch (error) {
+    console.error('Domain Renewal Price Breakdown Error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError('internal', 'Failed to fetch renewal price breakdown.');
+  }
+});
+
+exports.createDomainRenewalOrder = functions.https.onCall(async (data, context) => {
+  try {
+    const { domain, renewalPeriod, customerName, customerEmail, customerPhone, paymentMethod, transactionId } = data;
+    
+    if (!domain || !renewalPeriod || !customerName || !customerEmail || !customerPhone) {
+      throw new functions.https.HttpsError('invalid-argument', 'Missing required fields');
+    }
+
+    const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+    const settingsSnap = await db.collection('settings').doc('api_keys').get();
+    const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
+    const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
+    const apiKeysData = settingsSnap.exists ? settingsSnap.data() : {};
+    const exchangeRate = parseFloat(apiKeysData.usdToBdtRate) || 120;
+    const markupPercent = parseFloat(apiKeysData.domainMarkupPercent) || 15;
+
+    if (!apiKey) {
+      throw new functions.https.HttpsError('internal', 'Domain API key not configured.');
+    }
+
+    const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
+    
+    const tldMatch = domain.match(/\.[^.]+$/);
+    const tld = tldMatch ? tldMatch[0] : '';
+    
+    if (!tld) {
+      throw new functions.https.HttpsError('invalid-argument', 'Invalid domain format');
+    }
+
+    const tldUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tld)}&currency=USD`;
+    const tldResponse = await fetch(tldUrl);
+    
+    if (!tldResponse.ok) {
+      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${tldResponse.status}`);
+    }
+    
+    const tldText = await tldResponse.text();
+    let tldData;
+    try { 
+      tldData = JSON.parse(tldText); 
+    } catch(e) { 
+      throw new functions.https.HttpsError('internal', 'Failed to parse Dynadot TLD pricing response.');
+    }
+
+    const tldPriceArray = 
+      tldData?.TldPriceResponse?.TldPrice ||
+      tldData?.TLDPricing?.TldPrice ||
+      tldData?.TldPrice ||
+      (Array.isArray(tldData) ? tldData : null);
+
+    if (!tldPriceArray || !Array.isArray(tldPriceArray)) {
+      throw new functions.https.HttpsError('not-found', `TLD pricing not available for ${tld}`);
+    }
+
+    const matchedTld = tldPriceArray.find(
+      item => item?.Tld?.toLowerCase() === tld.toLowerCase()
+    );
+
+    if (!matchedTld) {
+      throw new functions.https.HttpsError('not-found', `TLD ${tld} not found in Dynadot pricing`);
+    }
+
+    const renewPriceUsd = parseFloat(matchedTld.Price?.Renew || matchedTld.Price?.renew || 0);
+    
+    if (renewPriceUsd <= 0) {
+      throw new functions.https.HttpsError('not-found', `Renewal price not available for ${tld}`);
+    }
+
+    const retailUsd = renewPriceUsd * (1 + markupPercent / 100);
+    const priceUsd = Math.round(retailUsd * 100) / 100;
+    const priceBdt = Math.round(retailUsd * exchangeRate);
+    const totalBdt = priceBdt * renewalPeriod;
+
+    const docType = 'INV';
+    const docNumber = await generateDocumentNumber(docType);
+
+    const orderData = {
+      userId: context.auth?.uid || 'guest',
+      type: 'domain_renewal',
+      documentNumber: docNumber,
+      domain,
+      tld,
+      renewalPriceBdt: priceBdt,
+      renewalPeriod,
+      totalBdt,
+      status: 'pending_payment',
+      paymentStatus: 'pending',
+      renewalStatus: 'pending',
+      customerName,
+      customerEmail,
+      customerPhone,
+      paymentMethod: paymentMethod || 'bkash',
+      transactionId: transactionId || null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const orderRef = await addDoc(collection(db, 'domain_renewals'), orderData);
+
+    return {
+      success: true,
+      orderId: orderRef.id,
+      order: orderData,
+    };
+
+  } catch (error) {
+    console.error('Create Domain Renewal Order Error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError('internal', 'Failed to create renewal order.');
+  }
+});
+
+exports.validateHostingPrice = functions.https.onCall(async (data, context) => {
+  try {
+    const { planId, billingCycle, licenseCostUsd } = data;
+    
+    if (!planId || !billingCycle || !licenseCostUsd) {
+      throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: planId, billingCycle, licenseCostUsd');
+    }
+
+    const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+    const settingsSnap = await db.collection('settings').doc('api_keys').get();
+    const apiKeysData = settingsSnap.exists ? settingsSnap.data() : {};
+    const exchangeRate = parseFloat(apiKeysData.usdToBdtRate) || 120;
+    const markupPercent = parseFloat(apiKeysData.hostingMarkupPercent) || 35;
+
+    const calculatedMonthly = Math.round(licenseCostUsd * exchangeRate * (1 + markupPercent / 100));
+    const finalPrice = billingCycle === 'yearly' ? calculatedMonthly * 10 : calculatedMonthly;
+
+    return {
+      success: true,
+      planId,
+      billingCycle,
+      licenseCostUsd,
+      exchangeRate,
+      markupPercent,
+      calculatedMonthly,
+      finalPrice,
+      currency: 'BDT',
+    };
+
+  } catch (error) {
+    console.error('Hosting Price Validation Error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError('internal', 'Failed to validate hosting price.');
   }
 });
 
@@ -771,8 +1288,7 @@ exports.manageDomain = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('internal', 'API key not configured.');
   }
 
-  const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api-sandbox.dynadot.com/api3.json'; // wait, for testing let's just use the correct one
-  const actualBaseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api-sandbox.dynadot.com/api3.json';
+  const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
 
   let dynadotUrl = `${actualBaseUrl}?key=${apiKey}&command=${command}&domain=${domain}`;
   

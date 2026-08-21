@@ -4,11 +4,10 @@ import { Layout } from '../../components/Layout';
 import { SEO } from '../../components/SEO';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase';
-import { collection, addDoc, doc, updateDoc, getDoc, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { Search, RefreshCw, CheckCircle, XCircle, Loader2, Shield, Clock, ArrowRight, Mail, Phone, User, CreditCard, Landmark, Wallet, HelpCircle } from 'lucide-react';
 import { getDomainRenewalPrice, DomainRenewalPriceResponse } from '../../services/dynadotApi';
-import { generateDocumentNumber } from '../../lib/numbering';
 
 const DomainRenewal = () => {
   const navigate = useNavigate();
@@ -67,8 +66,7 @@ const DomainRenewal = () => {
     }
   };
 
-  const totalBdt = renewalData ? renewalData.priceBdt * renewalPeriod : 0;
-  const totalUsd = renewalData ? renewalData.priceUsd * renewalPeriod : 0;
+  const totalBdt = renewalData ? renewalData.renewalPriceBdt * renewalPeriod : 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,50 +97,32 @@ const DomainRenewal = () => {
     setIsSubmitting(true);
 
     try {
-      const docType = 'INV';
-      const docNumber = await generateDocumentNumber(docType);
-
-      const orderData = {
-        userId: user?.uid || 'guest',
-        type: 'domain_renewal',
-        documentNumber: docNumber,
+      const { createDomainRenewalOrder } = await import('../../services/dynadotApi');
+      
+      const result = await createDomainRenewalOrder({
         domain: renewalData.domain,
-        tld: renewalData.tld,
-        renewPriceUsd: renewalData.renewPriceUsd,
-        priceUsd: renewalData.priceUsd,
-        priceBdt: renewalData.priceBdt,
-        currency: 'USD',
         renewalPeriod,
-        totalBdt,
-        totalUsd,
-        exchangeRate: renewalData.exchangeRate,
-        markupPercent: renewalData.markupPercent,
-        status: 'pending_payment',
-        paymentStatus: 'pending',
-        renewalStatus: 'pending',
         customerName: formData.customerName,
         customerEmail: formData.email,
         customerPhone: formData.phone,
         paymentMethod: formData.paymentMethod,
         transactionId: formData.paymentMethod === 'bank' ? formData.transactionId : null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      });
 
-      const orderRef = await addDoc(collection(db, 'domain_renewals'), orderData);
-      setSubmittedOrder({ id: orderRef.id, ...orderData });
+      const orderData = result.order;
+      setSubmittedOrder({ id: result.orderId, ...orderData });
 
       if (formData.paymentMethod === 'bkash') {
         const { initiateBkashPayment } = await import('../../services/paymentApi');
         const res = await initiateBkashPayment(
-          orderRef.id,
-          totalBdt,
+          result.orderId,
+          orderData.totalBdt,
           formData.email,
           formData.customerName,
           formData.phone
         );
         if (res.success && res.paymentUrl) {
-          await updateDoc(doc(db, 'domain_renewals', orderRef.id), { paymentStatus: 'processing' });
+          await updateDoc(doc(db, 'domain_renewals', result.orderId), { paymentStatus: 'processing' });
           window.location.href = res.paymentUrl;
           return;
         } else {
@@ -151,21 +131,21 @@ const DomainRenewal = () => {
       } else if (formData.paymentMethod === 'card') {
         const { initiateSSLCommerzPayment } = await import('../../services/paymentApi');
         const res = await initiateSSLCommerzPayment(
-          orderRef.id,
-          totalBdt,
+          result.orderId,
+          orderData.totalBdt,
           formData.email,
           formData.customerName,
           formData.phone
         );
         if (res.success && res.paymentUrl) {
-          await updateDoc(doc(db, 'domain_renewals', orderRef.id), { paymentStatus: 'processing' });
+          await updateDoc(doc(db, 'domain_renewals', result.orderId), { paymentStatus: 'processing' });
           window.location.href = res.paymentUrl;
           return;
         } else {
           throw new Error(res.errorMessage || 'Failed to initiate Card payment');
         }
       } else if (formData.paymentMethod === 'bank') {
-        await updateDoc(doc(db, 'domain_renewals', orderRef.id), {
+        await updateDoc(doc(db, 'domain_renewals', result.orderId), {
           paymentStatus: 'pending_verification',
           status: 'pending',
         });
@@ -266,18 +246,14 @@ const DomainRenewal = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                   <div className="bg-gray-50 rounded-xl p-5">
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Domain</p>
                     <p className="text-lg font-bold text-gray-900">{renewalData.domain}</p>
                   </div>
                   <div className="bg-gray-50 rounded-xl p-5">
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">TLD</p>
-                    <p className="text-lg font-bold text-gray-900">{renewalData.tld}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-5">
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Renewal Price</p>
-                    <p className="text-lg font-bold text-gray-900">${renewalData.renewPriceUsd.toFixed(2)} <span className="text-sm font-normal text-gray-500">/ year</span></p>
+                    <p className="text-lg font-bold text-gray-900">৳{renewalData.renewalPriceBdt.toLocaleString()} <span className="text-sm font-normal text-gray-500">/ year</span></p>
                   </div>
                 </div>
 
@@ -311,23 +287,16 @@ const DomainRenewal = () => {
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Price Summary</h3>
                   <div className="space-y-3">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Base Renewal Price ({renewalPeriod} year{renewalPeriod > 1 ? 's' : ''})</span>
-                      <span className="font-medium text-gray-900">${(renewalData.renewPriceUsd * renewalPeriod).toFixed(2)}</span>
+                      <span className="text-gray-600">Renewal Period</span>
+                      <span className="font-medium text-gray-900">{renewalPeriod} Year{renewalPeriod > 1 ? 's' : ''}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Markup ({renewalData.markupPercent}%)</span>
-                      <span className="font-medium text-gray-900">+{renewalData.markupPercent}%</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Exchange Rate (1 USD = {renewalData.exchangeRate} BDT)</span>
-                      <span className="font-medium text-gray-900">x{renewalData.exchangeRate}</span>
+                      <span className="text-gray-600">Price per Year</span>
+                      <span className="font-medium text-gray-900">৳{renewalData.renewalPriceBdt.toLocaleString()}</span>
                     </div>
                     <div className="border-t border-blue-200 pt-3 flex justify-between">
                       <span className="font-bold text-gray-900">Total Amount</span>
-                      <div className="text-right">
-                        <p className="font-bold text-xl text-blue-600">৳{totalBdt.toLocaleString()}</p>
-                        <p className="text-xs text-gray-500">${totalUsd.toFixed(2)} USD</p>
-                      </div>
+                      <p className="font-bold text-xl text-blue-600">৳{totalBdt.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>

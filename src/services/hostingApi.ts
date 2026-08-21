@@ -80,3 +80,40 @@ export async function getHostingUsage(providerAccountId: string): Promise<Hostin
   }
   return data.data;
 }
+
+export interface HostingPriceValidationResult {
+  success: boolean;
+  planId: string;
+  billingCycle: string;
+  licenseCostUsd: number;
+  exchangeRate: number;
+  markupPercent: number;
+  calculatedMonthly: number;
+  finalPrice: number;
+  currency: string;
+}
+
+export async function validateHostingPrice(planId: string, billingCycle: string, licenseCostUsd: number): Promise<HostingPriceValidationResult> {
+  const functions = (await import('../firebase')).getFunctions((await import('../firebase')).auth.app);
+  const validatePrice = (await import('firebase/functions')).httpsCallable(functions, 'validateHostingPrice');
+  
+  const result = await validatePrice({ planId, billingCycle, licenseCostUsd });
+  
+  const data = result.data as any;
+  
+  if (data?.success) {
+    return {
+      success: true,
+      planId: data.planId,
+      billingCycle: data.billingCycle,
+      licenseCostUsd: data.licenseCostUsd,
+      exchangeRate: data.exchangeRate,
+      markupPercent: data.markupPercent,
+      calculatedMonthly: data.calculatedMonthly,
+      finalPrice: data.finalPrice,
+      currency: data.currency,
+    };
+  } else {
+    throw new Error(data?.error || 'Failed to validate hosting price');
+  }
+}
