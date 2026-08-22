@@ -459,13 +459,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin() && isValidDomainPricing(request.resource.data);
     }
-
-    match /settings/hostingApiConfig {
-      allow read: if isAdmin();
-      allow write: if isAdmin() && isValidHostingApiConfig(request.resource.data);
-    }
   }
 }
+
+
 
 
 

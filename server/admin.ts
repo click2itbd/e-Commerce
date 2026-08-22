@@ -1,11 +1,11 @@
-import * as admin from 'firebase-admin';
+import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 
 let adminDb: ReturnType<typeof getFirestore> | null = null;
 
 export function getAdminDb() {
   if (!adminDb) {
-    if (!admin.apps.length) {
+    if (!admin.apps?.length) {
       const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
       
       if (serviceAccountKey) {

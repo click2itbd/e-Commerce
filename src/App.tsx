@@ -43,8 +43,8 @@ const PaymentSimulation = lazy(() => import('./pages/PaymentSimulation'));
 const PaymentCallback = lazy(() => import('./pages/PaymentCallback'));
 const PaymentReturn = lazy(() => import('./pages/PaymentReturn').then(m => ({ default: m.default || m.PaymentReturn })));
 
-const HostingCart = lazy(() => import('./pages/hosting/HostingCart'));
-const HostingCheckout = lazy(() => import('./pages/hosting/HostingCheckout'));
+const HostingCart = lazy(() => import('./pages/hosting/HostingCart').then(m => ({ default: m.HostingCart })));
+const HostingCheckout = lazy(() => import('./pages/hosting/HostingCheckout').then(m => ({ default: m.HostingCheckout })));
 const DomainRenewal = lazy(() => import('./pages/hosting/DomainRenewal').then(m => ({ default: m.default || m.DomainRenewal })));
 
 function PageLoader() {

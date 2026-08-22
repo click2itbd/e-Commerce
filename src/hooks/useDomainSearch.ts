@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { checkDomainAvailability, getDomainSuggestions, DomainAvailabilityResult } from '../services/hostingApi';
 import { searchDomainDynadot } from '../services/dynadotApi';
 
+const SEARCH_TIMEOUT_MS = 12000;
+
 interface DomainSearchState {
   loading: boolean;
   error: string | null;
@@ -21,17 +23,19 @@ export function useDomainSearch() {
     if (!domains.length) return;
     setState(prev => ({ ...prev, loading: true, error: null, results: [], suggestions: [] }));
     try {
-      const promises = domains.map(domain => searchDomainDynadot(domain));
-      const dynadotResults = await Promise.allSettled(promises);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Domain search is temporarily unavailable. Please try again.')), SEARCH_TIMEOUT_MS);
+      });
+      const searchPromise = Promise.allSettled(domains.map(domain => searchDomainDynadot(domain)));
+      const dynadotResults = await Promise.race([searchPromise, timeoutPromise]);
       
-      // Map to the format expected by the UI
       const results: DomainAvailabilityResult[] = dynadotResults
         .map((res, index) => {
           if (res.status === 'fulfilled') {
             return {
               domain: res.value.domain,
               available: res.value.available,
-              price: res.value.priceBdt, // Provide BDT price directly
+              price: res.value.priceBdt,
               originalPrice: res.value.priceBdt,
             };
           } else {

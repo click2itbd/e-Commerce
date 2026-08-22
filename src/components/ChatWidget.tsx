@@ -5,7 +5,7 @@ import { db } from '../firebase';
 import { toast } from 'react-hot-toast';
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 
 export const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -47,6 +47,9 @@ export const ChatWidget: React.FC = () => {
     setInputValue('');
 
     try {
+      if (!ai) {
+        throw new Error('AI service is not configured.');
+      }
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: inputValue

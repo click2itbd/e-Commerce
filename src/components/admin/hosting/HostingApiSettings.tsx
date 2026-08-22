@@ -10,6 +10,7 @@ interface HostingApiConfig {
   hostingApiType?: string;
   hostingApiKey?: string;
   hostingApiUrl?: string;
+  hostingApiUsername?: string;
   bundleDiscountPercent?: number;
   clnLogin?: string;
   clnSecretKey?: string;
@@ -63,6 +64,7 @@ export const HostingApiSettings: React.FC = () => {
       const payload: HostingApiConfig = {
         hostingApiType: config.hostingApiType || 'dummy',
         hostingApiUrl: config.hostingApiUrl || '',
+        hostingApiUsername: config.hostingApiUsername?.trim() || 'root',
         bundleDiscountPercent: config.bundleDiscountPercent || 0,
         clnLogin: config.clnLogin || '',
         isSandboxMode: config.isSandboxMode || false,
@@ -211,7 +213,19 @@ export const HostingApiSettings: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">API Key</label>
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">WHM Username</label>
+            <input
+              type="text"
+              value={config.hostingApiUsername || ''}
+              onChange={(e) => setConfig({ ...config, hostingApiUsername: e.target.value })}
+              placeholder="root (or your WHM reseller username)"
+              className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF]"
+            />
+            <p className="text-xs text-gray-400 mt-1">WHM API auth format: <code className="bg-gray-100 px-1 rounded">username:token</code>. Defaults to <code className="bg-gray-100 px-1 rounded">root</code> if blank.</p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">WHM API Token</label>
             <div className="relative">
               <input
                 type={showApiKey ? 'text' : 'password'}

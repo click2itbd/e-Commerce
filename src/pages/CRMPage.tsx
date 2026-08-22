@@ -10,7 +10,7 @@ import { saveAs } from 'file-saver';
 import QRCode from 'react-qr-code';
 import DOMPurify from 'dompurify';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 
 const WISH_TEMPLATES = [
   { id: 'happy_birthday', name: 'Happy Birthday', content: 'Happy Birthday {name}! Wishing you a fantastic day and a wonderful year ahead.' },
@@ -249,6 +249,10 @@ export const CRMPage: React.FC = () => {
       Keep the summary under 50 words.`;
       
       try {
+          if (!ai) {
+            toast.error('AI service is not configured.');
+            return;
+          }
           const response = await ai.models.generateContent({
               model: 'gemini-3-flash-preview',
               contents: prompt

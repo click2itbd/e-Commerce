@@ -2202,70 +2202,164 @@ exports.bkashCallback = functions.https.onRequest(async (req, res) => {
   }
 });
 
-// Force deploy update 2
+// Force deploy update 3
 
 exports.testApiConnection = functions.https.onCall(async (data, context) => {
-  if (!context.auth || !context.auth.token.admin) {
-    throw new functions.https.HttpsError('permission-denied', 'Only admins can test API connections.');
-  }
+  // Outer try/catch: ensures no uncaught exception produces opaque CORS-looking failure
+  try {
 
-  const { type } = data;
-  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
-
-  if (type === 'domain') {
-    try {
-      const settingsSnap = await db.collection('settings').doc('api_keys').get();
-      const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
-      if (!apiKey) {
-        return { success: false, message: 'Dynadot API key is not configured.' };
-      }
-      
-      const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
-      const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
-      
-      const url = baseUrl + '?key=' + apiKey + '&command=search&domain0=test-click2itbd.com';
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        return { success: false, message: 'HTTP error from Dynadot API.' };
-      }
-      
-      const rawText = await response.text();
-      try {
-        const apiData = JSON.parse(rawText);
-        if (apiData?.ResponseCode === '0' || apiData?.SearchResponse?.ResponseCode === '0') {
-          return { success: true, message: 'Connected to Dynadot successfully.' };
-        } else {
-          return { success: false, message: apiData?.SearchResponse?.Status || 'Dynadot returned error code.' };
-        }
-      } catch (e) {
-        return { success: false, message: 'Invalid JSON response from Dynadot.' };
-      }
-    } catch (error) {
-      return { success: false, message: error.message };
+    // 1. Authentication
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'You must be logged in to test API connections.');
     }
-  } else {
+    // 2. Admin authorization
+    if (!context.auth.token.admin) {
+      throw new functions.https.HttpsError('permission-denied', 'Only admins can test API connections.');
+    }
+
+    const { type } = data;
+    const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+
+    // ── DOMAIN TEST ──────────────────────────────────────────────────────
+    if (type === 'domain') {
+      try {
+        const settingsSnap = await db.collection('settings').doc('api_keys').get();
+        const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
+        if (!apiKey) {
+          return { success: false, message: 'Dynadot API key is not configured.' };
+        }
+        const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
+        const baseUrl = isSandbox
+          ? 'https://api-sandbox.dynadot.com/api3.json'
+          : 'https://api.dynadot.com/api3.json';
+        const url = baseUrl + '?key=' + apiKey + '&command=search&domain0=test-click2itbd.com';
+        const response = await fetch(url);
+        if (!response.ok) {
+          return { success: false, message: 'HTTP ' + response.status + ' error from Dynadot API.' };
+        }
+        const rawText = await response.text();
+        try {
+          const apiData = JSON.parse(rawText);
+          if (apiData?.ResponseCode === '0' || apiData?.SearchResponse?.ResponseCode === '0') {
+            return { success: true, message: 'Connected to Dynadot successfully.' };
+          } else {
+            return { success: false, message: apiData?.SearchResponse?.Status || 'Dynadot returned an error.' };
+          }
+        } catch (e) {
+          return { success: false, message: 'Invalid JSON response from Dynadot.' };
+        }
+      } catch (err) {
+        if (err instanceof functions.https.HttpsError) throw err;
+        console.error('[testApiConnection] domain error:', err.message);
+        return { success: false, message: err.message || 'Dynadot connection test failed.' };
+      }
+    }
+
+    // ── HOSTING / WHM TEST ───────────────────────────────────────────────
     try {
       const hostingSnap = await db.collection('settings').doc('hostingApiConfig').get();
+      if (!hostingSnap.exists) {
+        return { success: false, message: 'Hosting API configuration not found in Firestore.' };
+      }
       const config = hostingSnap.data();
-      
-      if (!config || !config.hostingApiKey || !config.hostingApiUrl) {
-        return { success: false, message: 'WHM API key or URL is not configured.' };
+
+      if (!config.hostingApiKey) {
+        return { success: false, message: 'WHM API token is not configured.' };
+      }
+      if (!config.hostingApiUrl) {
+        return { success: false, message: 'WHM API URL is not configured.' };
       }
 
-      const url = config.hostingApiUrl + '/json-api/version';
-      const response = await fetch(url, {
-        headers: { 'Authorization': 'whm root:' + config.hostingApiKey }
-      });
-      
-      if (response.ok) {
-        return { success: true, message: 'Connected to WHM server successfully.' };
-      } else {
-        return { success: false, message: 'WHM connection failed: ' + response.statusText };
+      // Validate URL
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(config.hostingApiUrl);
+      } catch (e) {
+        return { success: false, message: 'WHM API URL is invalid. Expected: https://hostname:2087' };
       }
-    } catch (error) {
-      return { success: false, message: error.message };
+
+      const baseUrl = config.hostingApiUrl.replace(/\/$/, '');
+      const username = config.hostingApiUsername ? config.hostingApiUsername.trim() : 'root';
+
+      // Safe logging — no secrets
+      console.log('[testApiConnection] Provider: cPanel/WHM');
+      console.log('[testApiConnection] Endpoint:', parsedUrl.hostname);
+      console.log('[testApiConnection] Token configured: yes, length:', config.hostingApiKey.length);
+
+      const whmUrl = baseUrl + '/json-api/listaccts?api.version=1';
+
+      // 15 second timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      let response;
+      try {
+        response = await fetch(whmUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': 'whm ' + username + ':' + config.hostingApiKey,
+            'Accept': 'application/json',
+          },
+          signal: controller.signal,
+        });
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        const msg = String(fetchErr.message || '');
+        if (fetchErr.name === 'AbortError') {
+          return { success: false, message: 'WHM connection timed out after 15 seconds.' };
+        }
+        if (msg.includes('ECONNREFUSED')) {
+          return { success: false, message: 'WHM server refused connection. Verify URL and port 2087.' };
+        }
+        if (msg.includes('ENOTFOUND') || msg.includes('EAI_AGAIN')) {
+          return { success: false, message: 'Cannot resolve WHM hostname. Check the URL.' };
+        }
+        if (msg.includes('ETIMEDOUT') || msg.includes('ESOCKETTIMEDOUT')) {
+          return { success: false, message: 'WHM server timed out. Verify network and firewall.' };
+        }
+        if (msg.includes('certificate') || msg.includes('self-signed') || msg.includes('CERT_')) {
+          return { success: false, message: 'TLS/SSL certificate error connecting to WHM.' };
+        }
+        console.error('[testApiConnection] WHM fetch error:', msg);
+        return { success: false, message: 'WHM connection error: ' + msg };
+      }
+
+      clearTimeout(timeoutId);
+      console.log('[testApiConnection] HTTP status:', response.status);
+
+      if (response.status === 401) return { success: false, message: 'WHM authentication failed (401). Verify username and API token.' };
+      if (response.status === 403) return { success: false, message: 'WHM permission denied (403). API token may lack privileges.' };
+      if (response.status === 404) return { success: false, message: 'WHM API endpoint not found (404). Verify URL and port 2087.' };
+      if (!response.ok) return { success: false, message: 'WHM returned HTTP ' + response.status + '.' };
+
+      const rawText = await response.text();
+      try {
+        const whmData = JSON.parse(rawText);
+        const result = whmData?.metadata?.result;
+        if (result === 1 || result === '1') {
+          return { success: true, message: 'WHM connection successful.' };
+        } else if (result === 0 || result === '0') {
+          const reason = whmData?.metadata?.reason || 'Unknown error';
+          return { success: false, message: 'WHM error: ' + reason };
+        }
+        // HTTP 200 but no metadata — treat as success
+        return { success: true, message: 'WHM connection successful (HTTP 200).' };
+      } catch (parseErr) {
+        return { success: false, message: 'WHM returned an unexpected non-JSON response.' };
+      }
+
+    } catch (err) {
+      if (err instanceof functions.https.HttpsError) throw err;
+      console.error('[testApiConnection] WHM error:', err.message);
+      return { success: false, message: err.message || 'WHM connection test failed.' };
     }
+
+  } catch (outerErr) {
+    // Re-throw proper HttpsErrors (auth failures) so Firebase SDK handles them correctly
+    if (outerErr instanceof functions.https.HttpsError) throw outerErr;
+    // Convert all unexpected exceptions — prevents opaque CORS-like browser failures
+    console.error('[testApiConnection] Unhandled exception:', outerErr);
+    throw new functions.https.HttpsError('internal', 'Unexpected server error: ' + (outerErr.message || 'Unknown'));
   }
 });
 
@@ -2293,7 +2387,7 @@ exports.manageHosting = functions.https.onCall(async (data, context) => {
   }
 
   const apiUrl = config.hostingApiUrl.replace(/\/$/, '');
-  const url = new URL(apiUrl + '/' + action);
+  const url = new URL('/json-api/' + action, apiUrl + '/');
   url.searchParams.set('api.version', '1');
   url.searchParams.set('user', providerAccountId);
   
@@ -2309,7 +2403,7 @@ exports.manageHosting = functions.https.onCall(async (data, context) => {
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
-        'Authorization': 'whm root:' + config.hostingApiKey,
+        'Authorization': 'whm ' + (config.hostingApiUsername ? config.hostingApiUsername.trim() : 'root') + ':' + config.hostingApiKey,
         'Accept': 'application/json',
       }
     });

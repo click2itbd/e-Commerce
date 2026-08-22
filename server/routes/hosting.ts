@@ -13,7 +13,7 @@ async function getHostingConfig() {
   try {
     const result = await getAdminDocument('settings', 'hostingApiConfig');
     if (result.exists && result.data) {
-      return result.data as { hostingApiType?: string; hostingApiKey?: string; hostingApiUrl?: string };
+      return result.data as { hostingApiType?: string; hostingApiKey?: string; hostingApiUrl?: string; hostingApiUsername?: string };
     }
   } catch (error) {
     console.error('Failed to read hostingApiConfig via Admin SDK:', error);
@@ -29,7 +29,7 @@ hostingRouter.post('/provision', requireAdmin, async (req: any, res: Response) =
     }
 
     const config = await getHostingConfig();
-    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl });
+    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     const request: HostingProvisionRequest = { domain, contactEmail, billingCycle, planCode };
     let result: HostingProvisionResult;
     try {
@@ -90,7 +90,7 @@ hostingRouter.post('/suspend', requireAdmin, async (req: any, res: Response) => 
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
 
     const config = await getHostingConfig();
-    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl });
+    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     await provider.suspendAccount(providerAccountId);
     return res.json({ success: true });
   } catch (error: any) {
@@ -105,7 +105,7 @@ hostingRouter.post('/unsuspend', requireAdmin, async (req: any, res: Response) =
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
 
     const config = await getHostingConfig();
-    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl });
+    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     await provider.unsuspendAccount(providerAccountId);
     return res.json({ success: true });
   } catch (error: any) {
@@ -120,7 +120,7 @@ hostingRouter.post('/terminate', requireAdmin, async (req: any, res: Response) =
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
 
     const config = await getHostingConfig();
-    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl });
+    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     await provider.terminateAccount(providerAccountId);
     return res.json({ success: true });
   } catch (error: any) {
@@ -135,7 +135,7 @@ hostingRouter.post('/usage', requireAdmin, async (req: any, res: Response) => {
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
 
     const config = await getHostingConfig();
-    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl });
+    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     const usage: HostingUsageStats = await provider.getUsage(providerAccountId);
     return res.json({ success: true, data: usage });
   } catch (error: any) {
@@ -152,7 +152,7 @@ hostingRouter.post('/change-plan', requireAdmin, async (req: any, res: Response)
     }
 
     const config = await getHostingConfig();
-    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl });
+    const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     await provider.changePlan(providerAccountId, newPlanCode);
     return res.json({ success: true });
   } catch (error: any) {
@@ -193,6 +193,7 @@ hostingRouter.post('/test-connection', requireAdmin, async (req: any, res: Respo
       hostingApiType: config.hostingApiType,
       hostingApiKey: config.hostingApiKey,
       hostingApiUrl: config.hostingApiUrl,
+      hostingApiUsername: (config as any).hostingApiUsername,
     });
 
     if (typeof provider.testConnection !== 'function') {

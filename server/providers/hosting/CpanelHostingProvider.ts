@@ -3,8 +3,9 @@ import { IHostingProvider, HostingProvisionRequest, HostingProvisionResult, Host
 export class CpanelHostingProvider implements IHostingProvider {
   private apiUrl: string;
   private apiKey: string;
+  private apiUsername: string;
 
-  constructor(apiKey: string, apiUrl?: string) {
+  constructor(apiKey: string, apiUrl?: string, apiUsername?: string) {
     if (!apiKey) {
       throw new Error('WHM API token is required');
     }
@@ -13,10 +14,11 @@ export class CpanelHostingProvider implements IHostingProvider {
     }
     this.apiKey = apiKey;
     this.apiUrl = apiUrl.replace(/\/$/, '');
+    this.apiUsername = (apiUsername || 'root').trim();
   }
 
   private async whmRequest(action: string, params: Record<string, string> = {}, timeoutMs: number = 15000): Promise<any> {
-    const url = new URL(`${this.apiUrl}/${action}`);
+    const url = new URL(`/json-api/${action}`, this.apiUrl + '/');
     url.searchParams.set('api.version', '1');
     for (const [key, value] of Object.entries(params)) {
       url.searchParams.set(key, value);
@@ -29,7 +31,7 @@ export class CpanelHostingProvider implements IHostingProvider {
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
-          'Authorization': `whm ${this.apiKey}`,
+          'Authorization': `whm ${this.apiUsername}:${this.apiKey}`,
           'Accept': 'application/json',
         },
         signal: controller.signal,

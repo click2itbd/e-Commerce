@@ -86,14 +86,29 @@ async function startServer() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://apis.google.com", "https://www.google.com", "https://www.gstatic.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "https://images.unsplash.com", "https://placehold.co"],
-        connectSrc: ["'self'", "https://api.dynadot.com", "https://api-sandbox.dynadot.com", "https://cln.cloudlinux.com"],
-        fontSrc: ["'self'", "data:"],
+        connectSrc: [
+          "'self'", 
+          "https://api.dynadot.com", 
+          "https://api-sandbox.dynadot.com", 
+          "https://cln.cloudlinux.com", 
+          "ws://localhost:24678", 
+          "https://securetoken.googleapis.com", 
+          "https://identitytoolkit.googleapis.com", 
+          "https://firestore.googleapis.com", 
+          "https://*.cloudfunctions.net", 
+          "https://firebasestorage.googleapis.com", 
+          "https://www.google.com", 
+          "https://www.gstatic.com",
+          "https://content-firebaseappcheck.googleapis.com",
+          "https://firebaseappcheck.googleapis.com"
+        ],
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
         objectSrc: ["'none'"],
         mediaSrc: ["'self'"],
-        frameSrc: ["'none'"],
+        frameSrc: ["'self'", "https://*.firebaseapp.com", "https://*.google.com"],
       },
     },
     crossOriginEmbedderPolicy: false,
@@ -102,7 +117,9 @@ async function startServer() {
 
   app.use(cors(corsOptions));
   app.use(express.json({ limit: "10kb" }));
-  app.use(generalLimiter);
+  app.set('trust proxy', 1);
+
+  app.use('/api', generalLimiter);
 
   app.use("/api/send-email", sensitiveLimiter);
   app.use("/api/webhook/whatsapp", sensitiveLimiter);
