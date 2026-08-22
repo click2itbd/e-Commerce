@@ -1,19 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '../../../firebase';
+import { db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
-import { Plug, Settings2, Server, Eye, EyeOff, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { Plug, Settings2, Server, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 
 interface HostingApiConfig {
   hostingApiType?: string;
-  hostingApiKey?: string;
   hostingApiUrl?: string;
-  hostingApiUsername?: string;
   bundleDiscountPercent?: number;
   clnLogin?: string;
-  clnSecretKey?: string;
   isSandboxMode?: boolean;
   updatedAt?: string;
 }
@@ -24,24 +20,24 @@ export const HostingApiSettings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<'hosting' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  
+  const [testResult, setTestResult] = useState<{ success: boolean; code?: string; message: string } | null>(null);
+
   const [config, setConfig] = useState<HostingApiConfig>({
     hostingApiType: 'dummy',
   });
-
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [showClnSecret, setShowClnSecret] = useState(false);
-  const [hasExistingToken, setHasExistingToken] = useState(false);
-  const [hasExistingClnSecret, setHasExistingClnSecret] = useState(false);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'hostingApiConfig'), (snap) => {
       if (snap.exists()) {
         const data = snap.data() as HostingApiConfig;
-        setConfig(data);
-        setHasExistingToken(!!data.hostingApiKey);
-        setHasExistingClnSecret(!!data.clnSecretKey);
+        setConfig({
+          hostingApiType: data.hostingApiType || 'dummy',
+          hostingApiUrl: data.hostingApiUrl || '',
+          bundleDiscountPercent: data.bundleDiscountPercent || 0,
+          clnLogin: data.clnLogin || '',
+          isSandboxMode: data.isSandboxMode || false,
+          updatedAt: data.updatedAt,
+        });
       }
       setLoading(false);
       setError(null);
@@ -64,31 +60,14 @@ export const HostingApiSettings: React.FC = () => {
       const payload: HostingApiConfig = {
         hostingApiType: config.hostingApiType || 'dummy',
         hostingApiUrl: config.hostingApiUrl || '',
-        hostingApiUsername: config.hostingApiUsername?.trim() || 'root',
         bundleDiscountPercent: config.bundleDiscountPercent || 0,
         clnLogin: config.clnLogin || '',
         isSandboxMode: config.isSandboxMode || false,
         updatedAt: new Date().toISOString(),
       };
 
-      if (config.hostingApiKey && config.hostingApiKey.trim() !== '') {
-        payload.hostingApiKey = config.hostingApiKey.trim();
-      } else if (existingData.hostingApiKey) {
-        payload.hostingApiKey = existingData.hostingApiKey;
-      }
-
-      if (config.clnSecretKey && config.clnSecretKey.trim() !== '') {
-        payload.clnSecretKey = config.clnSecretKey.trim();
-      } else if (existingData.clnSecretKey) {
-        payload.clnSecretKey = existingData.clnSecretKey;
-      }
-
       await setDoc(doc(db, 'settings', 'hostingApiConfig'), payload);
-      toast.success('API settings saved successfully');
-      setHasExistingToken(!!payload.hostingApiKey);
-      setHasExistingClnSecret(!!payload.clnSecretKey);
-      setShowApiKey(false);
-      setShowClnSecret(false);
+      toast.success('Hosting settings saved successfully');
     } catch (error: any) {
       console.error('Error saving settings:', error);
       const message = error?.message || 'Failed to save settings';
@@ -99,8 +78,8 @@ export const HostingApiSettings: React.FC = () => {
     }
   };
 
-  const handleTestConnection = async (type: 'domain' | 'hosting') => {
-    setTesting(type);
+  const handleTestConnection = async () => {
+    setTesting('hosting');
     setError(null);
     setTestResult(null);
 
@@ -111,15 +90,22 @@ export const HostingApiSettings: React.FC = () => {
     }
 
     try {
-      const testApiConnection = httpsCallable(functions, 'testApiConnection');
-      
-      const { data } = await testApiConnection({ type }) as any;
+      const token = await user.getIdToken();
+      const response = await fetch('/api/hosting/health', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
 
       if (data.success) {
-        setTestResult({ success: true, message: data.message || 'Connection successful' });
+        setTestResult({ success: true, code: data.code, message: data.message || 'Connection successful' });
         toast.success(`Connection successful: ${data.message || 'Provider is reachable'}`);
       } else {
-        setTestResult({ success: false, message: data.message || 'Connection failed' });
+        setTestResult({ success: false, code: data.code, message: data.message || 'Connection failed' });
         toast.error(`Connection failed: ${data.message || 'Unknown error'}`);
       }
     } catch (error: any) {
@@ -168,8 +154,8 @@ export const HostingApiSettings: React.FC = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">API Settings</h1>
-          <p className="text-sm text-gray-500 mt-1">Configure hosting provider connections</p>
+          <h1 className="text-2xl font-bold text-gray-900">Hosting Provider Settings</h1>
+          <p className="text-sm text-gray-500 mt-1">WHM credentials are managed via server environment variables. Configure display settings below.</p>
         </div>
       </div>
 
@@ -182,7 +168,6 @@ export const HostingApiSettings: React.FC = () => {
         </div>
       )}
 
-      {/* Hosting Provider Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -190,8 +175,8 @@ export const HostingApiSettings: React.FC = () => {
               <Server size={20} className="text-purple-600" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Hosting Provider</h2>
-              <p className="text-xs text-gray-500">Configure hosting account provisioning provider</p>
+              <h2 className="text-lg font-bold text-gray-900">WHM / cPanel Provider</h2>
+              <p className="text-xs text-gray-500">Credentials are stored securely on the server. Configure non-sensitive settings here.</p>
             </div>
           </div>
           {getProviderBadge(config.hostingApiType)}
@@ -213,49 +198,15 @@ export const HostingApiSettings: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">WHM Username</label>
-            <input
-              type="text"
-              value={config.hostingApiUsername || ''}
-              onChange={(e) => setConfig({ ...config, hostingApiUsername: e.target.value })}
-              placeholder="root (or your WHM reseller username)"
-              className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF]"
-            />
-            <p className="text-xs text-gray-400 mt-1">WHM API auth format: <code className="bg-gray-100 px-1 rounded">username:token</code>. Defaults to <code className="bg-gray-100 px-1 rounded">root</code> if blank.</p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">WHM API Token</label>
-            <div className="relative">
-              <input
-                type={showApiKey ? 'text' : 'password'}
-                value={config.hostingApiKey || ''}
-                onChange={(e) => setConfig({ ...config, hostingApiKey: e.target.value })}
-                placeholder={hasExistingToken ? '••••••••••••••••' : 'Enter hosting provider API key'}
-                className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF] pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowApiKey(!showApiKey)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-              >
-                {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            {hasExistingToken && !showApiKey && (
-              <p className="text-xs text-gray-400 mt-1">Existing token is masked. Click the eye icon to reveal or replace it.</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">API URL / Endpoint</label>
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">WHM Server URL</label>
             <input
               type="text"
               value={config.hostingApiUrl || ''}
               onChange={(e) => setConfig({ ...config, hostingApiUrl: e.target.value })}
-              placeholder="https://your-whm-server.com:2087"
+              placeholder="https://server2025.click2it.bd:2087"
               className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF]"
             />
+            <p className="text-xs text-gray-400 mt-1">Non-sensitive. Used for display and cPanel link generation.</p>
           </div>
 
           <div>
@@ -272,62 +223,9 @@ export const HostingApiSettings: React.FC = () => {
             <p className="text-xs text-gray-400 mt-1">Discount % when a domain + hosting are purchased together</p>
           </div>
 
-          <div className="border-t border-gray-100 pt-4 mt-4">
-            <h3 className="text-xs font-bold text-gray-500 mb-3 uppercase">CloudLinux Integration</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">CloudLinux Partner Login</label>
-                <input
-                  type="text"
-                  value={config.clnLogin || ''}
-                  onChange={(e) => setConfig({ ...config, clnLogin: e.target.value })}
-                  placeholder="Enter CloudLinux partner login"
-                  className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase">CloudLinux Secret Key</label>
-                <div className="relative">
-                  <input
-                    type={showClnSecret ? 'text' : 'password'}
-                    value={config.clnSecretKey || ''}
-                    onChange={(e) => setConfig({ ...config, clnSecretKey: e.target.value })}
-                    placeholder={hasExistingClnSecret ? '••••••••••••••••' : 'Enter CloudLinux secret key'}
-                    className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF] pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowClnSecret(!showClnSecret)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                  >
-                    {showClnSecret ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {hasExistingClnSecret && !showClnSecret && (
-                  <p className="text-xs text-gray-400 mt-1">Existing secret is masked. Click the eye icon to reveal or replace it.</p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 mt-4">
-              <input
-                type="checkbox"
-                id="isSandboxMode"
-                checked={config.isSandboxMode || false}
-                onChange={(e) => setConfig({ ...config, isSandboxMode: e.target.checked })}
-                className="h-4 w-4 text-[#7B61FF] focus:ring-[#7B61FF] border-gray-300 rounded"
-              />
-              <label htmlFor="isSandboxMode" className="text-sm text-gray-700">
-                Sandbox Mode (disable for production)
-              </label>
-            </div>
-          </div>
-
           <div className="flex items-center gap-3 pt-2">
             <button
-              onClick={() => handleTestConnection('hosting')}
+              onClick={handleTestConnection}
               disabled={testing === 'hosting'}
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
@@ -357,7 +255,6 @@ export const HostingApiSettings: React.FC = () => {
         </div>
       </div>
 
-      {/* Save Button */}
       <div className="flex justify-end">
         <button
           onClick={handleSave}

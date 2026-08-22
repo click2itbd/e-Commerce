@@ -3,7 +3,7 @@ import { db } from '../../../../firebase';
 import { collection, query, orderBy, getDocs, doc, updateDoc, where, limit } from 'firebase/firestore';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { Server, Search, Eye, X, Globe, Download, Loader2, FileText } from 'lucide-react';
+import { Server, Search, Eye, X, Globe, Download, Loader2, FileText, CheckCircle, Wallet, AlertTriangle } from 'lucide-react';
 import { HostingOrder, DomainOrder, HostingAccount } from '../../../../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -29,6 +29,10 @@ export default function HostingOrders() {
   const [showEmailLogs, setShowEmailLogs] = useState(false);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [loadingEmailLogs, setLoadingEmailLogs] = useState(false);
+
+  const [paymentAction, setPaymentAction] = useState<'accept' | 'reject' | null>(null);
+  const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   useEffect(() => {
     fetchOrders();
@@ -111,6 +115,69 @@ export default function HostingOrders() {
     } catch (error) {
       console.error('Error updating order status:', error);
       toast.error('Order Error: ' + error.message);
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  const handleManualPaymentAction = async (action: 'accept' | 'reject') => {
+    if (!selectedOrder) return;
+    if (action === 'reject') {
+      setPaymentAction('reject');
+      setRejectionReason('');
+      setShowPaymentConfirm(true);
+      return;
+    }
+    setPaymentAction('accept');
+    setShowPaymentConfirm(true);
+  };
+
+  const confirmPaymentAction = async () => {
+    if (!selectedOrder || !paymentAction) return;
+    setStatusUpdating(true);
+    try {
+      const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
+      const body: any = { action: paymentAction };
+      if (paymentAction === 'reject') {
+        body.reason = rejectionReason || 'Manual verification failed';
+      }
+      const response = await fetch(`/api/admin/orders/${selectedOrder.id}/payment/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast.success(data.message);
+        setSelectedOrder({
+          ...selectedOrder,
+          paymentStatus: paymentAction === 'accept' ? 'verified' : 'rejected',
+          paymentVerificationStatus: paymentAction === 'accept' ? 'verified' : 'rejected',
+          providerStatus: paymentAction === 'accept' ? 'processing' : 'cancelled',
+        });
+        setShowPaymentConfirm(false);
+        setPaymentAction(null);
+        setRejectionReason('');
+      } else if (data.alreadyVerified) {
+        toast.success('Payment has already been verified.');
+        setSelectedOrder({
+          ...selectedOrder,
+          paymentStatus: 'verified',
+          paymentVerificationStatus: 'verified',
+        });
+        setShowPaymentConfirm(false);
+        setPaymentAction(null);
+      } else {
+        toast.error(data.error || 'Failed to update payment');
+      }
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      toast.error('Payment Error: ' + error.message);
     } finally {
       setStatusUpdating(false);
     }
@@ -433,6 +500,109 @@ export default function HostingOrders() {
                     </div>
                   </div>
                 </div>
+
+                {/* Manual bKash Payment Verification */}
+                {(selectedOrder.paymentMethod === 'bkash' || selectedOrder.paymentMethod === 'manual_bkash') && (
+                  <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                    <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-pink-600" />
+                      Manual bKash Payment
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Transaction ID</p>
+                        <p className="font-mono font-bold text-gray-900">{selectedOrder.transactionId || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Payment Status</p>
+                        <span className={cn("px-2.5 py-1 rounded-full text-xs font-medium capitalize", 
+                          selectedOrder.paymentStatus === 'verified' ? 'bg-green-100 text-green-800' :
+                          selectedOrder.paymentStatus === 'submitted' ? 'bg-yellow-100 text-yellow-800' :
+                          selectedOrder.paymentStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        )}>
+                          {selectedOrder.paymentStatus || 'pending'}
+                        </span>
+                      </div>
+                      {selectedOrder.paymentVerificationStatus && (
+                        <div>
+                          <p className="text-gray-500">Verification Status</p>
+                          <span className={cn("px-2.5 py-1 rounded-full text-xs font-medium capitalize",
+                            selectedOrder.paymentVerificationStatus === 'verified' ? 'bg-green-100 text-green-800' :
+                            selectedOrder.paymentVerificationStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                            selectedOrder.paymentVerificationStatus === 'review' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          )}>
+                            {selectedOrder.paymentVerificationStatus}
+                          </span>
+                        </div>
+                      )}
+                      {(selectedOrder as any).paymentVerifiedAt && (
+                        <div>
+                          <p className="text-gray-500">Verified At</p>
+                          <p className="text-gray-900">{new Date((selectedOrder as any).paymentVerifiedAt).toLocaleString()}</p>
+                        </div>
+                      )}
+                      {(selectedOrder as any).paymentRejectedAt && (
+                        <div>
+                          <p className="text-gray-500">Rejected At</p>
+                          <p className="text-gray-900">{new Date((selectedOrder as any).paymentRejectedAt).toLocaleString()}</p>
+                        </div>
+                      )}
+                      {(selectedOrder as any).paymentRejectionReason && (
+                        <div className="md:col-span-2">
+                          <p className="text-gray-500">Rejection Reason</p>
+                          <p className="text-red-600">{(selectedOrder as any).paymentRejectionReason}</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {(selectedOrder.paymentStatus === 'submitted' || selectedOrder.paymentStatus === 'pending') && (
+                      <div className="mt-4 flex gap-3">
+                        <button
+                          onClick={() => handleManualPaymentAction('accept')}
+                          disabled={statusUpdating}
+                          className="flex-1 py-2.5 px-4 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Accept Payment
+                        </button>
+                        <button
+                          onClick={() => handleManualPaymentAction('reject')}
+                          disabled={statusUpdating}
+                          className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2"
+                        >
+                          <X className="w-4 h-4" />
+                          Reject Payment
+                        </button>
+                      </div>
+                    )}
+
+                    {selectedOrder.paymentStatus === 'verified' && (
+                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4" />
+                          <span className="font-medium">Payment Verified</span>
+                        </div>
+                        {(selectedOrder as any).paymentVerifiedAt && (
+                          <p className="text-xs mt-1">Verified at: {new Date((selectedOrder as any).paymentVerifiedAt).toLocaleString()}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {selectedOrder.paymentStatus === 'rejected' && (
+                      <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                        <div className="flex items-center gap-2">
+                          <X className="w-4 h-4" />
+                          <span className="font-medium">Payment Rejected</span>
+                        </div>
+                        {(selectedOrder as any).paymentRejectionReason && (
+                          <p className="text-xs mt-1">Reason: {(selectedOrder as any).paymentRejectionReason}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {loadingDetails ? (
@@ -552,6 +722,84 @@ export default function HostingOrders() {
               <button onClick={closeModal} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPaymentConfirm && selectedOrder && (
+        <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                {paymentAction === 'accept' ? (
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                ) : (
+                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                )}
+                <h3 className="text-lg font-bold text-gray-900">
+                  {paymentAction === 'accept' ? 'Verify this bKash payment?' : 'Reject this payment?'}
+                </h3>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-4 mb-4 text-sm space-y-2">
+                <p><span className="font-medium text-gray-500">Order:</span> <span className="font-bold text-gray-900">{selectedOrder.documentNumber || selectedOrder.id.slice(0, 8)}</span></p>
+                <p><span className="font-medium text-gray-500">Transaction ID:</span> <span className="font-mono text-gray-900">{selectedOrder.transactionId}</span></p>
+                <p><span className="font-medium text-gray-500">Amount:</span> <span className="font-bold text-gray-900">BDT {selectedOrder.total.toLocaleString()}</span></p>
+                {paymentAction === 'reject' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Rejection Reason</label>
+                    <textarea
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      placeholder="Enter reason for rejection..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-sm"
+                      rows={3}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowPaymentConfirm(false);
+                    setPaymentAction(null);
+                    setRejectionReason('');
+                  }}
+                  disabled={statusUpdating}
+                  className="flex-1 py-2.5 px-4 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmPaymentAction}
+                  disabled={statusUpdating}
+                  className={cn(
+                    "flex-1 py-2.5 px-4 text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2",
+                    paymentAction === 'accept'
+                      ? 'bg-green-600 hover:bg-green-700 disabled:bg-green-300'
+                      : 'bg-red-600 hover:bg-red-700 disabled:bg-red-300'
+                  )}
+                >
+                  {statusUpdating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : paymentAction === 'accept' ? (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Confirm Accept
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4" />
+                      Confirm Reject
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

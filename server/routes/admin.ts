@@ -15,8 +15,6 @@ adminRouter.get('/api-config', async (req: any, res: Response) => {
 
     const secretFields = [
       'dynadotApiKey',
-      'hostingApiKey',
-      'whmApiToken',
       'resendApiKey',
       'bkashAppKey',
       'bkashAppSecret',
@@ -30,14 +28,22 @@ adminRouter.get('/api-config', async (req: any, res: Response) => {
       'production_bkashAppSecret',
       'production_bkashUsername',
       'production_bkashPassword',
-      'clnSecretKey',
       'smtpPassword',
       'smsApiKey',
       'whatsappAccessToken',
     ];
 
+    const whmOnlyFields = [
+      'hostingApiKey',
+      'whmApiToken',
+      'clnSecretKey',
+    ];
+
     const sanitized: Record<string, any> = {};
     for (const [key, value] of Object.entries(data)) {
+      if (whmOnlyFields.includes(key)) {
+        continue;
+      }
       if (secretFields.includes(key)) {
         if (typeof value === 'string' && value.length > 0) {
           sanitized[key] = '••••••••••••••••' + value.slice(-4);
@@ -66,8 +72,6 @@ adminRouter.post('/api-config', async (req: any, res: Response) => {
 
     const secretFields = [
       'dynadotApiKey',
-      'hostingApiKey',
-      'whmApiToken',
       'resendApiKey',
       'bkashAppKey',
       'bkashAppSecret',
@@ -81,14 +85,22 @@ adminRouter.post('/api-config', async (req: any, res: Response) => {
       'production_bkashAppSecret',
       'production_bkashUsername',
       'production_bkashPassword',
-      'clnSecretKey',
       'smtpPassword',
       'smsApiKey',
       'whatsappAccessToken',
     ];
 
+    const whmOnlyFields = [
+      'hostingApiKey',
+      'whmApiToken',
+      'clnSecretKey',
+    ];
+
     const payload: Record<string, any> = { ...existing };
     for (const [key, value] of Object.entries(req.body)) {
+      if (whmOnlyFields.includes(key)) {
+        continue;
+      }
       if (secretFields.includes(key)) {
         if (typeof value === 'string' && value.trim().length > 0) {
           payload[key] = value.trim();

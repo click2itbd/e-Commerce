@@ -9,17 +9,63 @@ import { getAdminDocument } from '../admin';
 
 const hostingRouter = Router();
 
-async function getHostingConfig() {
-  try {
-    const result = await getAdminDocument('settings', 'hostingApiConfig');
-    if (result.exists && result.data) {
-      return result.data as { hostingApiType?: string; hostingApiKey?: string; hostingApiUrl?: string; hostingApiUsername?: string };
-    }
-  } catch (error) {
-    console.error('Failed to read hostingApiConfig via Admin SDK:', error);
+function getWhmConfigFromEnv() {
+  const apiType = process.env.WHM_API_TYPE || 'cpanel';
+  const apiUrl = process.env.WHM_API_URL || '';
+  const apiToken = process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || '';
+  const apiUsername = process.env.WHM_USERNAME || 'root';
+
+  console.log({ WHM_API_TOKEN_EXISTS: Boolean(process.env.WHM_API_TOKEN || process.env.WHM_API_KEY) });
+
+  if (!apiUrl) {
+    throw new Error('WHM_API_URL environment variable is required.');
   }
-  return { hostingApiType: 'dummy' };
+
+  if (!apiToken) {
+    throw new Error('WHM_API_TOKEN environment variable is required.');
+  }
+
+  return {
+    hostingApiType: apiType,
+    hostingApiKey: apiToken,
+    hostingApiUrl: apiUrl,
+    hostingApiUsername: apiUsername,
+    bundleDiscountPercent: 0,
+  };
 }
+
+hostingRouter.get('/health', requireAdmin, async (req: any, res: Response) => {
+  try {
+    const config = getWhmConfigFromEnv();
+    const provider = getHostingProvider({
+      hostingApiType: config.hostingApiType,
+      hostingApiKey: config.hostingApiKey,
+      hostingApiUrl: config.hostingApiUrl,
+      hostingApiUsername: config.hostingApiUsername,
+    });
+
+    const result = await provider.testConnection?.();
+    return res.json({
+      success: result?.success ?? false,
+      provider: config.hostingApiType,
+      server: config.hostingApiUrl,
+      message: result?.message || 'Health check completed',
+      code: result?.code,
+    });
+  } catch (error: any) {
+    const message = error?.message || 'WHM health check failed';
+    const code = message.includes('WHM_API_URL') || message.includes('WHM_API_TOKEN')
+      ? 'WHM_CONFIG_MISSING'
+      : 'WHM_UNKNOWN_ERROR';
+    return res.status(500).json({
+      success: false,
+      provider: 'unknown',
+      server: process.env.WHM_API_URL || '',
+      message,
+      code,
+    });
+  }
+});
 
 hostingRouter.post('/provision', requireAdmin, async (req: any, res: Response) => {
   try {
@@ -28,7 +74,7 @@ hostingRouter.post('/provision', requireAdmin, async (req: any, res: Response) =
       return res.json({ success: false, error: 'domain, contactEmail, and billingCycle are required' });
     }
 
-    const config = await getHostingConfig();
+    const config = getWhmConfigFromEnv();
     const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     const request: HostingProvisionRequest = { domain, contactEmail, billingCycle, planCode };
     let result: HostingProvisionResult;
@@ -89,7 +135,7 @@ hostingRouter.post('/suspend', requireAdmin, async (req: any, res: Response) => 
     const { providerAccountId } = req.body;
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
 
-    const config = await getHostingConfig();
+    const config = getWhmConfigFromEnv();
     const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     await provider.suspendAccount(providerAccountId);
     return res.json({ success: true });
@@ -104,7 +150,7 @@ hostingRouter.post('/unsuspend', requireAdmin, async (req: any, res: Response) =
     const { providerAccountId } = req.body;
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
 
-    const config = await getHostingConfig();
+    const config = getWhmConfigFromEnv();
     const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     await provider.unsuspendAccount(providerAccountId);
     return res.json({ success: true });
@@ -119,7 +165,7 @@ hostingRouter.post('/terminate', requireAdmin, async (req: any, res: Response) =
     const { providerAccountId } = req.body;
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
 
-    const config = await getHostingConfig();
+    const config = getWhmConfigFromEnv();
     const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     await provider.terminateAccount(providerAccountId);
     return res.json({ success: true });
@@ -134,7 +180,7 @@ hostingRouter.post('/usage', requireAdmin, async (req: any, res: Response) => {
     const { providerAccountId } = req.body;
     if (!providerAccountId) return res.json({ success: false, error: 'providerAccountId is required' });
 
-    const config = await getHostingConfig();
+    const config = getWhmConfigFromEnv();
     const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     const usage: HostingUsageStats = await provider.getUsage(providerAccountId);
     return res.json({ success: true, data: usage });
@@ -151,7 +197,7 @@ hostingRouter.post('/change-plan', requireAdmin, async (req: any, res: Response)
       return res.json({ success: false, error: 'providerAccountId and newPlanCode are required' });
     }
 
-    const config = await getHostingConfig();
+    const config = getWhmConfigFromEnv();
     const provider = getHostingProvider({ hostingApiType: config.hostingApiType || 'dummy', hostingApiKey: config.hostingApiKey, hostingApiUrl: config.hostingApiUrl, hostingApiUsername: config.hostingApiUsername });
     await provider.changePlan(providerAccountId, newPlanCode);
     return res.json({ success: true });
@@ -163,27 +209,30 @@ hostingRouter.post('/change-plan', requireAdmin, async (req: any, res: Response)
 
 hostingRouter.post('/test-connection', requireAdmin, async (req: any, res: Response) => {
   try {
-    const config = await getHostingConfig();
+    const config = getWhmConfigFromEnv();
 
     if (!config.hostingApiType || config.hostingApiType === 'dummy') {
       return res.status(400).json({
         success: false,
+        code: 'WHM_CONFIG_MISSING',
         providerType: config.hostingApiType || 'dummy',
-        message: 'Hosting provider not configured. Please select cPanel/WHM and enter credentials.',
+        message: 'Hosting provider not configured. Please set WHM_API_TYPE, WHM_API_URL, and WHM_API_TOKEN environment variables.',
       });
     }
 
     if (!config.hostingApiKey) {
       return res.status(400).json({
         success: false,
+        code: 'WHM_CONFIG_MISSING',
         providerType: config.hostingApiType,
-        message: 'WHM API key is not configured.',
+        message: 'WHM API token is not configured.',
       });
     }
 
     if (!config.hostingApiUrl) {
       return res.status(400).json({
         success: false,
+        code: 'WHM_CONFIG_MISSING',
         providerType: config.hostingApiType,
         message: 'WHM API URL is not configured.',
       });
@@ -193,12 +242,13 @@ hostingRouter.post('/test-connection', requireAdmin, async (req: any, res: Respo
       hostingApiType: config.hostingApiType,
       hostingApiKey: config.hostingApiKey,
       hostingApiUrl: config.hostingApiUrl,
-      hostingApiUsername: (config as any).hostingApiUsername,
+      hostingApiUsername: config.hostingApiUsername,
     });
 
     if (typeof provider.testConnection !== 'function') {
       return res.status(400).json({
         success: false,
+        code: 'WHM_UNSUPPORTED',
         providerType: config.hostingApiType,
         message: 'Connection test is not supported for the selected provider.',
       });
@@ -207,15 +257,21 @@ hostingRouter.post('/test-connection', requireAdmin, async (req: any, res: Respo
     const result = await provider.testConnection();
     return res.json({
       success: result.success,
+      code: result.success ? 'WHM_OK' : result.code || 'WHM_UNKNOWN_ERROR',
       providerType: config.hostingApiType,
       message: result.message,
     });
   } catch (error: any) {
     console.error('Hosting test connection error:', error);
+    const message = error?.message || 'WHM connection test failed';
+    const code = message.includes('WHM_API_URL') || message.includes('WHM_API_TOKEN')
+      ? 'WHM_CONFIG_MISSING'
+      : 'WHM_UNKNOWN_ERROR';
     return res.status(500).json({
       success: false,
+      code,
       providerType: 'dummy',
-      message: error?.message || 'WHM connection test failed',
+      message,
     });
   }
 });

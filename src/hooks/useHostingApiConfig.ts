@@ -3,9 +3,6 @@ import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface HostingApiConfig {
-  hostingApiType?: string;
-  hostingApiKey?: string;
-  hostingApiUrl?: string;
   bundleDiscountPercent?: number;
   updatedAt?: string;
 }
@@ -17,7 +14,11 @@ export function useHostingApiConfig() {
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'hostingApiConfig'), (snap) => {
       if (snap.exists()) {
-        setConfig(snap.data() as HostingApiConfig);
+        const data = snap.data() as HostingApiConfig;
+        setConfig({
+          bundleDiscountPercent: data.bundleDiscountPercent || 0,
+          updatedAt: data.updatedAt,
+        });
       }
       setLoading(false);
     }, (error) => {

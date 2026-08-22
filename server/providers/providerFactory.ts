@@ -36,10 +36,15 @@ export function getDomainProvider(config: { domainApiType: string; domainApiKey?
   }
 }
 
-export function getHostingProvider(config: { hostingApiType: string; hostingApiKey?: string; hostingApiUrl?: string; hostingApiUsername?: string }): IHostingProvider {
-  if (config.hostingApiType === 'dummy' || !config.hostingApiType) {
+export function getHostingProvider(config: { hostingApiType?: string; hostingApiKey?: string; hostingApiUrl?: string; hostingApiUsername?: string }): IHostingProvider {
+  const hostingApiType = config.hostingApiType || process.env.WHM_API_TYPE || 'dummy';
+  const hostingApiKey = config.hostingApiKey || process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || '';
+  const hostingApiUrl = config.hostingApiUrl || process.env.WHM_API_URL || '';
+  const hostingApiUsername = config.hostingApiUsername || process.env.WHM_USERNAME || 'root';
+
+  if (hostingApiType === 'dummy' || !hostingApiType) {
     return {
-      provisionAccount: async () => ({ success: false, error: 'Hosting provider not configured. Please configure a real hosting provider in admin settings.' }),
+      provisionAccount: async () => ({ success: false, error: 'Hosting provider not configured. Please configure WHM_API_TYPE, WHM_API_URL, and WHM_API_TOKEN environment variables.' }),
       suspendAccount: async () => { throw new Error('Hosting provider not configured.'); },
       unsuspendAccount: async () => { throw new Error('Hosting provider not configured.'); },
       terminateAccount: async () => { throw new Error('Hosting provider not configured.'); },
@@ -48,9 +53,9 @@ export function getHostingProvider(config: { hostingApiType: string; hostingApiK
     };
   }
 
-  switch (config.hostingApiType) {
+  switch (hostingApiType) {
     case 'cpanel':
-      if (!config.hostingApiKey) {
+      if (!hostingApiKey) {
         return {
           provisionAccount: async () => ({ success: false, error: 'cPanel API key not configured.' }),
           suspendAccount: async () => { throw new Error('cPanel API key not configured.'); },
@@ -61,9 +66,9 @@ export function getHostingProvider(config: { hostingApiType: string; hostingApiK
         };
       }
       const { CpanelHostingProvider } = require('./hosting/CpanelHostingProvider');
-      return new CpanelHostingProvider(config.hostingApiKey, config.hostingApiUrl, config.hostingApiUsername);
+      return new CpanelHostingProvider(hostingApiKey, hostingApiUrl, hostingApiUsername);
     case 'resellerclub':
-      if (!config.hostingApiKey) {
+      if (!hostingApiKey) {
         return {
           provisionAccount: async () => ({ success: false, error: 'ResellerClub API key not configured.' }),
           suspendAccount: async () => { throw new Error('ResellerClub API key not configured.'); },
@@ -74,15 +79,15 @@ export function getHostingProvider(config: { hostingApiType: string; hostingApiK
         };
       }
       const { ResellerClubHostingProvider } = require('./hosting/ResellerClubHostingProvider');
-      return new ResellerClubHostingProvider(config.hostingApiKey, config.hostingApiUrl);
+      return new ResellerClubHostingProvider(hostingApiKey, hostingApiUrl);
     default:
       return {
-        provisionAccount: async () => ({ success: false, error: `Unsupported hosting provider: ${config.hostingApiType}` }),
-        suspendAccount: async () => { throw new Error(`Unsupported hosting provider: ${config.hostingApiType}`); },
-        unsuspendAccount: async () => { throw new Error(`Unsupported hosting provider: ${config.hostingApiType}`); },
-        terminateAccount: async () => { throw new Error(`Unsupported hosting provider: ${config.hostingApiType}`); },
-        getUsage: async () => { throw new Error(`Unsupported hosting provider: ${config.hostingApiType}`); },
-        changePlan: async () => { throw new Error(`Unsupported hosting provider: ${config.hostingApiType}`); }
+        provisionAccount: async () => ({ success: false, error: `Unsupported hosting provider: ${hostingApiType}` }),
+        suspendAccount: async () => { throw new Error(`Unsupported hosting provider: ${hostingApiType}`); },
+        unsuspendAccount: async () => { throw new Error(`Unsupported hosting provider: ${hostingApiType}`); },
+        terminateAccount: async () => { throw new Error(`Unsupported hosting provider: ${hostingApiType}`); },
+        getUsage: async () => { throw new Error(`Unsupported hosting provider: ${hostingApiType}`); },
+        changePlan: async () => { throw new Error(`Unsupported hosting provider: ${hostingApiType}`); }
       };
   }
 }

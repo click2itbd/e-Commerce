@@ -16,8 +16,7 @@ import {
 import { toast } from "react-hot-toast";
 import { cn, formatCurrency } from "../../../../lib/utils";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db, functions } from "../../../../firebase";
-import { httpsCallable } from "firebase/functions";
+import { db } from "../../../../firebase";
 import { useSettings } from "../../../../context/SettingsContext";
 import { CRMIntegrationsSetting } from "../../../../components/CRMIntegrationsSetting";
 import { SiteSettings } from "../../../../types";
@@ -53,11 +52,16 @@ export const Settings = () => {
     const loadKeys = async () => {
       try {
         if (!user) return;
-        const adminApiConfig = httpsCallable(functions, 'adminApiConfig');
-        const res = await adminApiConfig({ method: 'GET' });
-        const data = { success: true, data: res.data };
-        if (data.success && data.data) {
-          setApiKeys(data.data as any);
+        const token = await user.getIdToken();
+        const res = await fetch('/api/admin/api-config', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        const json = await res.json();
+        if (json.success && json.data) {
+          setApiKeys(json.data as any);
         }
       } catch (e) {
         console.error("Error fetching api keys", e);
@@ -75,8 +79,6 @@ export const Settings = () => {
   const buildApiKeysPayload = () => {
     const secretFields = [
       'dynadotApiKey',
-      'hostingApiKey',
-      'whmApiToken',
       'resendApiKey',
       'bkashAppKey',
       'bkashAppSecret',
@@ -90,7 +92,6 @@ export const Settings = () => {
       'production_bkashAppSecret',
       'production_bkashUsername',
       'production_bkashPassword',
-      'clnSecretKey',
       'smtpPassword',
       'smsApiKey',
       'whatsappAccessToken',
@@ -120,19 +121,31 @@ export const Settings = () => {
     try {
       if (settingsTab === "domain_reseller") {
         const payload = buildApiKeysPayload();
-        const adminApiConfig = httpsCallable(functions, 'adminApiConfig');
-        const res = await adminApiConfig({ method: 'POST', payload });
-        const data = { success: true, data: (res.data as any).data };
-        if (!data.success) {
-          throw new Error('Failed to save API configuration');
+        const token = await user?.getIdToken();
+        const res = await fetch('/api/admin/api-config', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (!json.success) {
+          throw new Error(json.error || 'Failed to save API configuration');
         }
-        
-        const freshRes = await adminApiConfig({ method: 'GET' });
-        const freshData = { success: true, data: freshRes.data };
-        if (freshData.success && freshData.data) {
-          setApiKeys(freshData.data as any);
+
+        const freshRes = await fetch('/api/admin/api-config', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        const freshJson = await freshRes.json();
+        if (freshJson.success && freshJson.data) {
+          setApiKeys(freshJson.data as any);
         }
-        
+
         toast.success("API configuration saved successfully");
       } else {
         await updateSettings(settingsFormData);
@@ -1928,28 +1941,8 @@ export const Settings = () => {
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
                         placeholder="Partner Login Name"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        API Secret Key
-                      </label>
-                      <input
-                        type="password"
-                        value={apiKeys.clnSecretKey || ""}
-                        onChange={(e) =>
-                          setApiKeys({
-                            ...apiKeys,
-                            clnSecretKey: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
-                        placeholder="Partner API Secret Key"
-                      />
-                      {isSecretConfigured('clnSecretKey') && (
-                        <p className="text-xs text-green-600 mt-1">Existing API secret is securely configured.</p>
-                      )}
-                    </div>
-                  </div>
+                     </div>
+                   </div>
                 </div>
               </div>
             </div>

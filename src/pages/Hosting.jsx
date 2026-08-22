@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import { useHostingApiConfig } from '../hooks/useHostingApiConfig';
 import { useAuth } from '../context/AuthContext';
 import { SEO } from '../components/SEO';
 
@@ -24,13 +23,12 @@ export default function Hosting() {
   const [services, setServices] = useState([]);
   const [plans, setPlans] = useState([]);
   const [billingCycle, setBillingCycle] = useState('monthly');
+  const [bundleDiscount, setBundleDiscount] = useState(0);
   const navigate = useNavigate();
   const { items } = useCart();
-  const { config } = useHostingApiConfig();
   const { canAccessAdmin } = useAuth();
 
   const hasDomainInCart = items.some(item => item.category === 'Hosting & Domains' && item.id.startsWith('domain_'));
-  const bundleDiscount = config.bundleDiscountPercent || 0;
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -56,6 +54,22 @@ export default function Hosting() {
       }
     };
     fetchPlans();
+  }, []);
+
+  useEffect(() => {
+    const fetchBundleDiscount = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'hostingApiConfig');
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          setBundleDiscount(data?.bundleDiscountPercent || 0);
+        }
+      } catch (e) {
+        console.error('Error fetching bundle discount', e);
+      }
+    };
+    fetchBundleDiscount();
   }, []);
 
   return (

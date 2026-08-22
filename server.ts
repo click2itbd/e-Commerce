@@ -9,6 +9,8 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import domainRouter from "./server/routes/domain";
 import hostingRouter from "./server/routes/hosting";
+import ordersRouter from "./server/routes/orders";
+import publicRouter from "./server/routes/public";
 import adminRouter from "./server/routes/admin";
 import { requireFirebaseAuth } from "./server/middleware/firebaseAuth";
 import { getAdminDb } from "./server/admin";
@@ -219,11 +221,18 @@ async function startServer() {
       console.error(e);
       res.status(500).json({ error: "Failed to send campaign" });
     }
-  });
+   });
 
   app.use('/api/domain', domainRouter);
   app.use('/api/hosting', hostingRouter);
+  app.use('/api/orders', ordersRouter);
+  app.use('/api/public', publicRouter);
   app.use('/api/admin', requireFirebaseAuth, adminRouter);
+
+  // Catch unhandled /api/* requests and return JSON instead of falling through to Vite SPA
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: 'API Endpoint Not Found' });
+  });
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

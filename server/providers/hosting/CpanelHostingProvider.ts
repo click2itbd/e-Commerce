@@ -146,36 +146,56 @@ export class CpanelHostingProvider implements IHostingProvider {
     };
   }
 
-  async testConnection(): Promise<{ success: boolean; message: string }> {
+  async testConnection(): Promise<{ success: boolean; code: string; message: string }> {
     try {
       const result = await this.whmRequest('listaccts', {}, 15000);
       const accounts = result?.data?.acct || [];
       return {
         success: true,
+        code: 'WHM_OK',
         message: `WHM connection successful. Found ${accounts.length} account(s).`,
       };
     } catch (error: any) {
-      if (error.message.includes('Invalid authentication') || error.message.includes('Access denied')) {
+      const msg = error?.message || '';
+      if (msg.includes('Invalid authentication') || msg.includes('Access denied') || msg.includes('401') || msg.includes('403')) {
         return {
           success: false,
+          code: 'WHM_AUTH_FAILED',
           message: 'WHM authentication failed. Please check your API token.',
         };
       }
-      if (error.message.includes('connection timed out') || error.message.includes('ETIMEDOUT')) {
+      if (msg.includes('connection timed out') || msg.includes('ETIMEDOUT') || msg.includes('AbortError') || msg.includes('did not respond within')) {
         return {
           success: false,
-          message: 'WHM server connection timed out. Please verify the server URL, port 2087, firewall, and API token.',
+          code: 'WHM_TIMEOUT',
+          message: 'WHM server did not respond within 15 seconds. Verify server URL, port 2087, and firewall.',
         };
       }
-      if (error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
+      if (msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND')) {
         return {
           success: false,
-          message: 'Cannot reach WHM server. Please check the URL and ensure the server is online.',
+          code: 'WHM_CONNECTION_REFUSED',
+          message: 'Cannot reach WHM server. Check URL and ensure the server is online.',
+        };
+      }
+      if (msg.includes('self-signed certificate') || msg.includes('unable to verify the first certificate') || msg.includes('CERT_HAS_EXPIRED')) {
+        return {
+          success: false,
+          code: 'WHM_TLS_ERROR',
+          message: 'WHM server TLS/SSL certificate error. If this is a self-signed certificate, import it into the server trust store.',
+        };
+      }
+      if (msg.includes('404') || /not found/i.test(msg)) {
+        return {
+          success: false,
+          code: 'WHM_NOT_FOUND',
+          message: 'WHM endpoint not found. Verify WHM URL.',
         };
       }
       return {
         success: false,
-        message: error.message || 'WHM connection test failed',
+        code: 'WHM_UNKNOWN_ERROR',
+        message: msg || 'WHM connection test failed',
       };
     }
   }

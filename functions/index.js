@@ -126,6 +126,40 @@ function getBkashBaseUrl(isSandbox) {
   return isSandbox ? 'https://tokenized.sandbox.bka.sh/v1.2.0-beta' : 'https://tokenized.pay.bka.sh/v1.2.0-beta';
 }
 
+async function sendOrderEmail(to, subject, html) {
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  const settingsSnap = await db.collection('settings').doc('api_keys').get();
+  const apiKeys = settingsSnap.exists ? settingsSnap.data() : null;
+
+  if (!apiKeys || !apiKeys.resendApiKey) {
+    console.warn('Email service not configured');
+    return;
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + apiKeys.resendApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'Star Tech <onboarding@resend.dev>',
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html
+      })
+    });
+
+    const resData = await response.json();
+    if (!response.ok) {
+      console.error('Resend error:', resData);
+    }
+  } catch (error) {
+    console.error('Send Email Error:', error);
+  }
+}
+
 exports.storeTransferAuthCodes = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
@@ -295,15 +329,18 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
 
     const orderData = docSnap.data();
 
-    // Idempotency: prevent duplicate provisioning
     if (orderData.provisioningStatus === 'completed') {
       return res.status(200).send({ message: "Order already processed", orderId });
     }
 
-    // Verify payment with gateway before provisioning
+    if (orderData.provisioningStatus === 'processing') {
+      return res.status(200).send({ message: "Order is already being processed", orderId });
+    }
+
+    let paymentVerified = false;
     if (status === "success") {
-      const verified = await verifyPaymentWithGateway(orderId, orderData);
-      if (!verified) {
+      paymentVerified = await verifyPaymentWithGateway(orderId, orderData);
+      if (!paymentVerified) {
         await targetRef.update({
           paymentStatus: 'failed',
           provisioningStatus: 'failed',
@@ -312,15 +349,54 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
         });
         return res.status(400).send({ error: "Payment verification failed" });
       }
+    } else if (status === "manual_verified") {
+      const internalSecret = req.headers['x-internal-secret'];
+      if (internalSecret !== process.env.MANUAL_PAYMENT_SECRET) {
+        return res.status(401).send("Unauthorized");
+      }
+      if (orderData.paymentStatus !== 'verified') {
+        await targetRef.update({
+          paymentStatus: 'failed',
+          provisioningStatus: 'failed',
+          provisioningError: 'Payment not verified by admin',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return res.status(400).send({ error: "Payment not verified by admin" });
+      }
+      paymentVerified = true;
+    } else {
+      return res.status(400).send({ error: "Invalid status" });
+    }
 
-    // Securely update using Admin SDK (bypasses Firestore Rules)
-    await targetRef.update({
+    if (!paymentVerified) {
+      return res.status(400).send({ error: "Payment not verified" });
+    }
+
+    const updateData: any = {
       status: "processing",
-      paymentStatus: "paid",
       provisioningStatus: "processing",
-      transactionId: transactionId || "N/A",
-      paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+      transactionId: transactionId || orderData.transactionId || "N/A",
+      paymentCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    if (status === "success") {
+      updateData.paymentStatus = "paid";
+    }
+
+    await targetRef.update(updateData);
+
+    const orderIdShort = orderId.slice(0, 8);
+    sendOrderEmail(orderData.customerEmail, `Order Confirmed - #${orderIdShort}`, `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">Order Confirmed!</h2>
+        <p>Dear ${orderData.customerName || 'Customer'},</p>
+        <p>Thank you for your order. Your order <strong>#${orderIdShort}</strong> has been confirmed.</p>
+        <p><strong>Amount:</strong> ৳${orderData.total}</p>
+        <p><strong>Payment Method:</strong> ${orderData.paymentMethod || 'bKash'}</p>
+        <p>We will notify you when your order is processed.</p>
+      </div>
+    `);
 
       // Check if this order contains domains and register them via Dynadot
       if (docSnap.exists) {
@@ -401,7 +477,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     .where('domain', '==', domain)
                     .get();
                     
-                   if (!dOrdersSnap.empty) {
+                    if (!dOrdersSnap.empty) {
                       const dOrderRef = dOrdersSnap.docs[0].ref;
                       const isSuccess = regData?.TransferResponse?.TransferResults?.[0]?.Status?.toLowerCase() === 'success';
                       
@@ -412,6 +488,24 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                         error: isSuccess ? null : (regData?.TransferResponse?.TransferResults?.[0]?.Message || 'Transfer failed'),
                         updatedAt: admin.firestore.FieldValue.serverTimestamp()
                       });
+
+                      if (isSuccess) {
+                        sendOrderEmail(orderData.customerEmail, `Domain Transfer Successful - ${domain}`, `
+                          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <h2 style="color: #16a34a;">Domain Transfer Successful!</h2>
+                            <p>Your domain <strong>${domain}</strong> has been successfully transferred to Click2IT.</p>
+                            <p>The transfer process typically takes 5-7 days to complete. You will receive another notification once the transfer is fully complete.</p>
+                          </div>
+                        `);
+                      } else {
+                        sendOrderEmail(orderData.customerEmail, `Domain Transfer Failed - ${domain}`, `
+                          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <h2 style="color: #dc2626;">Domain Transfer Failed</h2>
+                            <p>We were unable to transfer your domain <strong>${domain}</strong>.</p>
+                            <p>Please contact support for assistance.</p>
+                          </div>
+                        `);
+                      }
                     }
                     
                   } catch (e) {
@@ -465,17 +559,35 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     .where('domain', '==', domain)
                     .get();
                     
-                   if (!dOrdersSnap.empty) {
-                     const dOrderRef = dOrdersSnap.docs[0].ref;
-                     const isSuccess = regData?.RenewResponse?.RenewResults?.[0]?.Status?.toLowerCase() === 'success';
-                     
-                     await dOrderRef.update({
-                       status: isSuccess ? 'active' : 'failed',
-                       renewalResponse: JSON.stringify(regData),
-                       provisioningStatus: isSuccess ? 'completed' : 'failed',
-                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                     });
-                   }
+                    if (!dOrdersSnap.empty) {
+                      const dOrderRef = dOrdersSnap.docs[0].ref;
+                      const isSuccess = regData?.RenewResponse?.RenewResults?.[0]?.Status?.toLowerCase() === 'success';
+                      
+                      await dOrderRef.update({
+                        status: isSuccess ? 'active' : 'failed',
+                        renewalResponse: JSON.stringify(regData),
+                        provisioningStatus: isSuccess ? 'completed' : 'failed',
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                      });
+
+                      if (isSuccess) {
+                        sendOrderEmail(orderData.customerEmail, `Domain Renewed - ${domain}`, `
+                          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <h2 style="color: #16a34a;">Domain Renewed Successfully!</h2>
+                            <p>Your domain <strong>${domain}</strong> has been successfully renewed.</p>
+                            <p>Thank you for choosing Click2IT!</p>
+                          </div>
+                        `);
+                      } else {
+                        sendOrderEmail(orderData.customerEmail, `Domain Renewal Failed - ${domain}`, `
+                          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <h2 style="color: #dc2626;">Domain Renewal Failed</h2>
+                            <p>We were unable to renew your domain <strong>${domain}</strong>.</p>
+                            <p>Please contact support immediately to avoid domain expiration.</p>
+                          </div>
+                        `);
+                      }
+                    }
                    
                  } catch (e) {
                    console.error('Auto-renewal failed for', domain, e);
@@ -523,17 +635,35 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     .where('domain', '==', domain)
                     .get();
                     
-                   if (!dOrdersSnap.empty) {
-                     const dOrderRef = dOrdersSnap.docs[0].ref;
-                     const isSuccess = regData?.RegisterResponse?.RegisterResults?.[0]?.Status?.toLowerCase() === 'success';
-                     
-                     await dOrderRef.update({
-                       status: isSuccess ? 'active' : 'failed',
-                       registrationResponse: JSON.stringify(regData),
-                       provisioningStatus: isSuccess ? 'completed' : 'failed',
-                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                     });
-                   }
+                    if (!dOrdersSnap.empty) {
+                      const dOrderRef = dOrdersSnap.docs[0].ref;
+                      const isSuccess = regData?.RegisterResponse?.RegisterResults?.[0]?.Status?.toLowerCase() === 'success';
+                      
+                      await dOrderRef.update({
+                        status: isSuccess ? 'active' : 'failed',
+                        registrationResponse: JSON.stringify(regData),
+                        provisioningStatus: isSuccess ? 'completed' : 'failed',
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                      });
+
+                      if (isSuccess) {
+                        sendOrderEmail(orderData.customerEmail, `Domain Registered - ${domain}`, `
+                          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <h2 style="color: #16a34a;">Domain Registered Successfully!</h2>
+                            <p>Your domain <strong>${domain}</strong> has been successfully registered.</p>
+                            <p>You can now use this domain for your website and email.</p>
+                          </div>
+                        `);
+                      } else {
+                        sendOrderEmail(orderData.customerEmail, `Domain Registration Failed - ${domain}`, `
+                          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <h2 style="color: #dc2626;">Domain Registration Failed</h2>
+                            <p>We were unable to register your domain <strong>${domain}</strong>.</p>
+                            <p>Please contact support for assistance.</p>
+                          </div>
+                        `);
+                      }
+                    }
                    
                  } catch (e) {
                    console.error('Auto-registration failed for', domain, e);
@@ -619,6 +749,18 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                       activatedAt: admin.firestore.FieldValue.serverTimestamp(),
                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });
+
+                    const domain = accountData.domain || '';
+                    if (domain) {
+                      sendOrderEmail(orderData.customerEmail, `Hosting Ready - ${domain}`, `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                          <h2 style="color: #2563eb;">Your Hosting is Ready!</h2>
+                          <p>Your hosting account for <strong>${domain}</strong> has been activated.</p>
+                          ${provisionResult.cPanelUrl ? `<p><strong>cPanel URL:</strong> <a href="${provisionResult.cPanelUrl}">${provisionResult.cPanelUrl}</a></p>` : ''}
+                          <p>You can now log in to your control panel and start building your website.</p>
+                        </div>
+                      `);
+                    }
                   } else {
                     await updateDoc(accountDoc.ref, {
                       status: 'failed',
@@ -626,6 +768,17 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                       provisioningError: provisionResult.error || 'Provider returned failure',
                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });
+
+                    const domain = accountData.domain || '';
+                    if (domain && orderData.customerEmail) {
+                      sendOrderEmail(orderData.customerEmail, `Hosting Provisioning Failed - ${domain}`, `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                          <h2 style="color: #dc2626;">Hosting Provisioning Failed</h2>
+                          <p>We were unable to provision hosting for <strong>${domain}</strong>.</p>
+                          <p>Our team has been notified and will contact you shortly.</p>
+                        </div>
+                      `);
+                    }
                     continue;
                   }
                 } catch (providerError) {
@@ -635,6 +788,17 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     provisioningError: providerError.message || 'Provider error',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                   });
+
+                  const domain = accountData.domain || '';
+                  if (domain && orderData.customerEmail) {
+                    sendOrderEmail(orderData.customerEmail, `Hosting Provisioning Failed - ${domain}`, `
+                      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #dc2626;">Hosting Provisioning Failed</h2>
+                        <p>We were unable to provision hosting for <strong>${domain}</strong>.</p>
+                        <p>Our team has been notified and will contact you shortly.</p>
+                      </div>
+                    `);
+                  }
                   continue;
                 }
 
