@@ -141,7 +141,7 @@ export default function HostingOrders() {
       if (paymentAction === 'reject') {
         body.reason = rejectionReason || 'Manual verification failed';
       }
-      const response = await fetch(`/api/admin/orders/${selectedOrder.id}/payment/verify`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/admin/orders/${selectedOrder.id}/payment/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

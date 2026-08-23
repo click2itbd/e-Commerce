@@ -30,7 +30,7 @@ export const HostingApiSettings: React.FC = () => {
     const fetchConfig = async () => {
       try {
         const token = await user?.getIdToken();
-        const response = await fetch('/api/admin/hosting-config', {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/admin/hosting-config`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -65,7 +65,7 @@ export const HostingApiSettings: React.FC = () => {
     setError(null);
     try {
       const token = await user?.getIdToken();
-      const response = await fetch('/api/admin/hosting-config', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/admin/hosting-config`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -101,7 +101,7 @@ export const HostingApiSettings: React.FC = () => {
 
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/admin/hosting/test-connection', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/admin/hosting/test-connection`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

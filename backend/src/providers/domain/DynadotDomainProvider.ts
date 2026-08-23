@@ -137,7 +137,7 @@ export class DynadotDomainProvider implements IDomainProvider {
       return {
         success: isSuccess,
         domain: request.domain,
-        orderId: regResult?.RegistrationID,
+        registrationId: regResult?.RegistrationID,
         expiresAt: regResult?.ExpirationDate,
         error: isSuccess ? undefined : (regResult?.Message || 'Registration failed'),
       };

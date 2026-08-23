@@ -46,7 +46,7 @@ export const ChatWidget: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: inputValue }),

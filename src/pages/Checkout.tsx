@@ -176,7 +176,7 @@ export const Checkout: React.FC = () => {
       try {
         if (user) {
           const token = await user.getIdToken();
-          await fetch('/api/email/notify-admin-new-order', {
+          await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/email/notify-admin-new-order`, {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',

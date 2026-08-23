@@ -249,7 +249,7 @@ export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers
             const order = orders.find(o => o.id === id);
             if (order && order.customerEmail) {
               emailPromises.push(
-                fetch('/api/send-email', {
+                fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/send-email`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({

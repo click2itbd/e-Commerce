@@ -63,7 +63,7 @@ export const HostingCheckout: React.FC = () => {
   useEffect(() => {
     const fetchBkashNumber = async () => {
       try {
-        const res = await fetch('/api/public/config');
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/public/config`);
         const json = await res.json();
         if (json.success && json.data?.manualBkashNumber) {
           setBkashNumber(json.data.manualBkashNumber);
@@ -327,7 +327,7 @@ export const HostingCheckout: React.FC = () => {
       try {
         if (user) {
           const token = await user.getIdToken();
-          await fetch('/api/email/notify-admin-new-order', {
+          await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/email/notify-admin-new-order`, {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',

@@ -1,0 +1,26 @@
+---
+deployment:
+  tasks:
+    # ─── Variables ───────────────────────────────────────────────────────────
+    - export PUBLIC_HTML=/home/$USER/public_html
+    - export BACKEND_DIR=/home/$USER/backend_app
+
+    # ─── Create directories ───────────────────────────────────────────────────
+    - mkdir -p $PUBLIC_HTML
+    - mkdir -p $BACKEND_DIR
+
+    # ─── 1. Deploy frontend build artifacts ──────────────────────────────────
+    # The dist/ folder is built locally and committed before pushing.
+    # This copies the compiled frontend assets to the public web root.
+    - /bin/cp -R dist/. $PUBLIC_HTML/
+
+    # ─── 2. Deploy backend compiled JS ───────────────────────────────────────
+    # backend/dist/ contains compiled TypeScript -> JavaScript (tsc output).
+    # This is NOT publicly accessible; it lives outside public_html.
+    - /bin/cp -R backend/dist/. $BACKEND_DIR/dist/
+    - /bin/cp backend/package.json $BACKEND_DIR/
+    - /bin/cp backend/package-lock.json $BACKEND_DIR/
+
+    # ─── 3. Install backend production dependencies ───────────────────────────
+    # Only runtime dependencies, no devDependencies
+    - /usr/local/bin/npm install --prefix $BACKEND_DIR --omit=dev --no-audit --no-fund

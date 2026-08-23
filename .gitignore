@@ -1,6 +1,8 @@
 node_modules/
 build/
-dist/
+# dist/ is intentionally tracked — cPanel reads it for deployment
+# Only ignore backend's compiled output during local dev (it's rebuilt by .cpanel.yml)
+backend/dist/
 coverage/
 .DS_Store
 *.log
@@ -10,3 +12,7 @@ coverage/
 firebase-applet-config.json
 backend/.env
 backend/.env.local
+firebase-service-account.json
+backend/firebase-service-account.json
+*.pem
+*.key
