@@ -51,8 +51,19 @@ domainRouter.post('/check', async (req: any, res: Response) => {
 
     const config = await getDomainConfig();
     const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const pricingSettings = await getDomainPricingSettings();
     const results: DomainAvailabilityResult[] = await provider.checkAvailability(domains);
-    return res.json({ success: true, data: results });
+
+    const enriched = results.map(r => {
+      const priceBdt = r.price && r.price > 0 ? calculateCustomerPriceBdt(r.price, pricingSettings) : undefined;
+      return {
+        ...r,
+        price: priceBdt || r.price,
+        priceBdt: priceBdt,
+      };
+    });
+
+    return res.json({ success: true, data: enriched });
   } catch (error: any) {
     console.error('Domain check error:', error);
     return res.json({ success: false, error: error?.message || 'Internal server error' });

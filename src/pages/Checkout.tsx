@@ -172,9 +172,25 @@ export const Checkout: React.FC = () => {
 
       await batch.commit();
       
+      // Notify Admin
+      try {
+        if (user) {
+          const token = await user.getIdToken();
+          await fetch('/api/email/notify-admin-new-order', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ orderId: newOrderRef.id, orderData })
+          });
+        }
+      } catch (err) {
+        console.error('Failed to notify admin:', err);
+      }
+      
       // Update docRef for payment initiation logic below
       const docRef = newOrderRef;
-
       // Only clear cart and show success if not redirecting to a payment gateway
       if (formData.paymentMethod === 'bkash') {
         const res = await initiateBkashPayment(docRef.id, grandTotal, formData.email, `${formData.firstName} ${formData.lastName}`, formData.phone);

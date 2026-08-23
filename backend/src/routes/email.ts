@@ -61,5 +61,51 @@ emailRouter.post('/send-welcome-email', requireFirebaseAuth, async (req: any, re
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+emailRouter.post('/notify-admin-new-order', requireFirebaseAuth, async (req: any, res: Response) => {
+  try {
+    const { orderId, orderData } = req.body;
+    
+    if (!orderId || !orderData) {
+      return res.status(400).json({ error: 'Missing orderId or orderData' });
+    }
+
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_FROM_EMAIL || 'info@click2itbd.com';
+    const customerName = orderData.customerName || 'A customer';
+    const totalAmount = orderData.total || 0;
+    
+    const subject = `New Order Received - #${orderId.slice(0, 8)}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">New Order Received!</h2>
+        <p>A new order has been placed on Click2IT.</p>
+        <p><strong>Order ID:</strong> ${orderId}</p>
+        <p><strong>Customer:</strong> ${customerName} (${orderData.customerEmail || 'No email'})</p>
+        <p><strong>Phone:</strong> ${orderData.customerPhone || 'N/A'}</p>
+        <p><strong>Total Amount:</strong> ৳${totalAmount}</p>
+        <p><strong>Payment Method:</strong> ${orderData.paymentMethod || 'N/A'}</p>
+        <br/>
+        <p>Please log in to the admin dashboard to review this order.</p>
+      </div>
+    `;
+
+    const result = await sendEmail({ 
+      to: adminEmail, 
+      subject, 
+      html,
+      orderId,
+      category: 'system'
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error || 'Failed to send admin notification' });
+    }
+
+    res.status(200).json({ success: true, message: 'Admin notification sent' });
+  } catch (error: any) {
+    console.error('Admin notification error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 export default emailRouter;
+

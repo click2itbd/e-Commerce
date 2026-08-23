@@ -47,13 +47,7 @@ const HostingCart = lazy(() => import('./pages/hosting/HostingCart').then(m => (
 const HostingCheckout = lazy(() => import('./pages/hosting/HostingCheckout').then(m => ({ default: m.HostingCheckout })));
 const DomainRenewal = lazy(() => import('./pages/hosting/DomainRenewal').then(m => ({ default: m.default || m.DomainRenewal })));
 
-function PageLoader() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F2F4F8]">
-      <div className="h-12 w-12 border-4 border-[#EF4444] border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
-}
+import { PageLoader } from './components/Loading';
 
 function LazyWrapper({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;

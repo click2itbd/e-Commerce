@@ -1,5 +1,11 @@
 import { initializeApp, getApps, cert } from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let adminDb: ReturnType<typeof getFirestore> | null = null;
 let initializationFailed = false;

@@ -28,6 +28,7 @@ export interface DomainAvailabilityResponse {
   domain: string;
   available: boolean;
   price?: number;
+  priceBdt?: number;
   currency?: string;
   renewalPrice?: number;
   error?: string;

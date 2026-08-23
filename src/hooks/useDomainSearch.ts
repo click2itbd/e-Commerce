@@ -32,11 +32,12 @@ export function useDomainSearch() {
       const results: DomainAvailabilityResult[] = dynadotResults
         .map((res, index) => {
           if (res.status === 'fulfilled') {
+            const domainPrice = res.value.priceBdt || res.value.price || 0;
             return {
               domain: res.value.domain,
               available: res.value.available,
-              price: res.value.priceBdt,
-              originalPrice: res.value.priceBdt,
+              price: domainPrice,
+              originalPrice: domainPrice,
             };
           } else {
             console.warn(`Failed to check availability for ${domains[index]}:`, res.reason);

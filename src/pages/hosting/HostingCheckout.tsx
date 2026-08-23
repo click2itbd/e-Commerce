@@ -322,6 +322,24 @@ export const HostingCheckout: React.FC = () => {
       }
 
       await batch.commit();
+      
+      // Notify Admin
+      try {
+        if (user) {
+          const token = await user.getIdToken();
+          await fetch('/api/email/notify-admin-new-order', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ orderId: newOrderRef.id, orderData })
+          });
+        }
+      } catch (err) {
+        console.error('Failed to notify admin:', err);
+      }
+      
       orderId = newOrderRef.id;
         setExistingOrderId(orderId);
       } // End if (!orderId)
