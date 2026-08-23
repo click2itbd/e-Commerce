@@ -5,6 +5,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useCart } from '../context/CartContext';
 import { toast } from 'react-hot-toast';
+import { apiPost, apiGet } from '../services/apiClient';
 
 export const PaymentReturn: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -28,25 +29,19 @@ export const PaymentReturn: React.FC = () => {
 
       try {
         if (status === 'success' && paymentId) {
-          // Call bKash execute payment Cloud Function
-          const { httpsCallable } = await import('firebase/functions');
-          const { getFunctions, getApp } = await import('firebase/app');
-          const { app } = await import('../firebase');
-          const functions = getFunctions(app);
-          const bkashExecutePayment = httpsCallable(functions, 'bkashExecutePayment');
+          const result = await apiPost<{ success: boolean; errorMessage?: string }>(
+            `/api/orders/${orderId}/payment/execute-bkash`,
+            { paymentId, orderId }
+          );
           
-          const result = await bkashExecutePayment({ paymentId, orderId });
-          const data = result.data as any;
-          
-          if (data?.success) {
+          if (result.success) {
             clearCart();
             toast.success('Payment successful! Your order has been confirmed.');
             navigate(`/order-success/${orderId}`, { replace: true });
           } else {
-            throw new Error(data?.errorMessage || 'Payment execution failed');
+            throw new Error(result.errorMessage || 'Payment execution failed');
           }
         } else if (status === 'cancelled' || status === 'failed') {
-          // Update order status to cancelled
           await updateDoc(doc(db, 'orders', orderId), {
             paymentStatus: 'failed',
             status: 'cancelled',
@@ -56,18 +51,10 @@ export const PaymentReturn: React.FC = () => {
           toast.error(`Payment was ${status}. Please try again.`);
           navigate(`/order-success/${orderId}`, { replace: true });
         } else {
-          // Unknown status - query bKash for payment status
-          const { httpsCallable } = await import('firebase/functions');
-          const { getFunctions, getApp } = await import('firebase/app');
-          const { app } = await import('../firebase');
-          const functions = getFunctions(app);
-          const bkashQueryPayment = httpsCallable(functions, 'bkashQueryPayment');
-          
           if (paymentId) {
-            const result = await bkashQueryPayment({ paymentId, orderId });
-            const data = result.data as any;
+            const result = await apiGet<{ status?: string }>(`/api/orders/${orderId}/payment/query-bkash?paymentId=${encodeURIComponent(paymentId)}`);
             
-            if (data?.status === 'Completed' || data?.status === 'success') {
+            if (result.status === 'Completed' || result.status === 'success') {
               clearCart();
               toast.success('Payment successful! Your order has been confirmed.');
               navigate(`/order-success/${orderId}`, { replace: true });

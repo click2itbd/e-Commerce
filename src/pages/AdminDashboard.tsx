@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit, writeBatch } from 'firebase/firestore';
-import { db, auth, storage, functions } from '../firebase';
-import { httpsCallable } from 'firebase/functions';
+import { db, auth, storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -18,43 +17,42 @@ import { CRMIntegrationsSetting } from '../components/CRMIntegrationsSetting';
 import { Layout } from '../components/Layout';
 import { BulkEditForm } from '../components/BulkEditForm';
 import { QuotationManager } from '../components/QuotationManager';
-import InventoryTab from './admin/tabs/inventory/Inventory';
-import OrdersTab from './admin/tabs/sales/Orders';
-import { Settings as SettingsTab } from './admin/tabs/others/Settings';
-import MenusTab from './admin/tabs/menus/Menus';
-import EmployeesTab from './admin/tabs/hr/Employees';
-import LeaveTab from './admin/tabs/hr/Leave';
-import SalaryTab from './admin/tabs/hr/Salary';
-import CampaignsTab from './admin/tabs/marketing/Campaigns';
-import DiscountCodesTab from './admin/tabs/marketing/DiscountCodes';
-import UsersTab from './admin/tabs/hr/Users';
-import HostingServicesTab from './admin/tabs/hosting/HostingServices';
-import DomainOffersTab from './admin/tabs/hosting/DomainOffers';
-import DomainRenewalsTab from './admin/tabs/hosting/DomainRenewals';
-import HostingPlansTab from './admin/tabs/hosting/HostingPlans';
 import { HostingApiSettings } from '../components/admin/hosting/HostingApiSettings';
-import { SalesForm } from './admin/tabs/sales/SalesForm';
-import ServicesTab from './admin/tabs/services/Services';
+import { apiPost } from '../services/apiClient';
 
-import HostingOrdersTab from './admin/tabs/hosting/HostingOrders';
-import SupportTicketsTab from './admin/tabs/hosting/SupportTickets';
-
-// Finance tabs
-import AllReportsTab from './admin/tabs/finance/AllReports';
-import LedgerTab from './admin/tabs/finance/Ledger';
-import ManualExpenseTab from './admin/tabs/finance/ManualExpense';
-import ManualIncomeTab from './admin/tabs/finance/ManualIncome';
-import PaymentAccountsTab from './admin/tabs/finance/PaymentAccounts';
-import SalesReportTab from './admin/tabs/finance/SalesReport';
-import TransactionsTab from './admin/tabs/finance/Transactions';
-import TxCategoriesTab from './admin/tabs/finance/TxCategories';
+const InventoryTab = lazy(() => import('./admin/tabs/inventory/Inventory').then(m => ({ default: m.default })));
+const OrdersTab = lazy(() => import('./admin/tabs/sales/Orders').then(m => ({ default: m.default })));
+const SettingsTab = lazy(() => import('./admin/tabs/others/Settings').then(m => ({ default: m.Settings })));
+const MenusTab = lazy(() => import('./admin/tabs/menus/Menus').then(m => ({ default: m.default })));
+const EmployeesTab = lazy(() => import('./admin/tabs/hr/Employees').then(m => ({ default: m.default })));
+const LeaveTab = lazy(() => import('./admin/tabs/hr/Leave').then(m => ({ default: m.default })));
+const SalaryTab = lazy(() => import('./admin/tabs/hr/Salary').then(m => ({ default: m.default })));
+const CampaignsTab = lazy(() => import('./admin/tabs/marketing/Campaigns').then(m => ({ default: m.default })));
+const DiscountCodesTab = lazy(() => import('./admin/tabs/marketing/DiscountCodes').then(m => ({ default: m.default })));
+const UsersTab = lazy(() => import('./admin/tabs/hr/Users').then(m => ({ default: m.default })));
+const HostingServicesTab = lazy(() => import('./admin/tabs/hosting/HostingServices').then(m => ({ default: m.default })));
+const DomainOffersTab = lazy(() => import('./admin/tabs/hosting/DomainOffers').then(m => ({ default: m.default })));
+const DomainRenewalsTab = lazy(() => import('./admin/tabs/hosting/DomainRenewals').then(m => ({ default: m.default })));
+const HostingPlansTab = lazy(() => import('./admin/tabs/hosting/HostingPlans').then(m => ({ default: m.default })));
+const SalesForm = lazy(() => import('./admin/tabs/sales/SalesForm').then(m => ({ default: m.SalesForm })));
+const ServicesTab = lazy(() => import('./admin/tabs/services/Services').then(m => ({ default: m.default })));
+const HostingOrdersTab = lazy(() => import('./admin/tabs/hosting/HostingOrders').then(m => ({ default: m.default })));
+const SupportTicketsTab = lazy(() => import('./admin/tabs/hosting/SupportTickets').then(m => ({ default: m.default })));
+const AllReportsTab = lazy(() => import('./admin/tabs/finance/AllReports').then(m => ({ default: m.default })));
+const LedgerTab = lazy(() => import('./admin/tabs/finance/Ledger').then(m => ({ default: m.default })));
+const ManualExpenseTab = lazy(() => import('./admin/tabs/finance/ManualExpense').then(m => ({ default: m.default })));
+const ManualIncomeTab = lazy(() => import('./admin/tabs/finance/ManualIncome').then(m => ({ default: m.default })));
+const PaymentAccountsTab = lazy(() => import('./admin/tabs/finance/PaymentAccounts').then(m => ({ default: m.default })));
+const SalesReportTab = lazy(() => import('./admin/tabs/finance/SalesReport').then(m => ({ default: m.default })));
+const TransactionsTab = lazy(() => import('./admin/tabs/finance/Transactions').then(m => ({ default: m.default })));
+const TxCategoriesTab = lazy(() => import('./admin/tabs/finance/TxCategories').then(m => ({ default: m.default })));
 import ConveyanceTab from './admin/tabs/finance/Conveyance';
-import PurchaseReturnTab from './admin/tabs/sales/PurchaseReturn';
-import PurchasesTab from './admin/tabs/purchase/Purchases';
-import SaleReturnTab from './admin/tabs/sales/SaleReturn';
-import CustomersTab from './admin/tabs/sales/Customers';
-import VendorsTab from './admin/tabs/purchase/Vendors';
-import CustomerReceiveReportTab from './admin/tabs/accounting/CustomerReceiveReport';
+const PurchaseReturnTab = lazy(() => import('./admin/tabs/sales/PurchaseReturn').then(m => ({ default: m.default })));
+const PurchasesTab = lazy(() => import('./admin/tabs/purchase/Purchases').then(m => ({ default: m.default })));
+const SaleReturnTab = lazy(() => import('./admin/tabs/sales/SaleReturn').then(m => ({ default: m.default })));
+const CustomersTab = lazy(() => import('./admin/tabs/sales/Customers').then(m => ({ default: m.default })));
+const VendorsTab = lazy(() => import('./admin/tabs/purchase/Vendors').then(m => ({ default: m.default })));
+const CustomerReceiveReportTab = lazy(() => import('./admin/tabs/accounting/CustomerReceiveReport').then(m => ({ default: m.default })));
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit2, Trash2, Package, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare, Globe, Terminal, RefreshCw } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
@@ -292,7 +290,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       
       toast.success('User added successfully');
       setIsAddingUser(false);
-      fetchData();
+      debouncedFetchData();
     } catch (err: any) {
       toast.error('Error adding user: ' + err.message);
     }
@@ -567,8 +565,22 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
     status: 'received' as 'received' | 'in_progress' | 'ready' | 'delivered',
   });
 
+  const fetchDataRef = useRef<(() => Promise<void>) | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const debouncedFetchData = useCallback(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      fetchDataRef.current?.();
+    }, 300);
+  }, []);
+
   useEffect(() => {
-    fetchData();
+    fetchDataRef.current = fetchData;
+    debouncedFetchData();
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -637,16 +649,16 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       const customersSnap = await getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(500)));
       const vendorsSnap = await getDocs(query(collection(db, 'vendors'), orderBy('createdAt', 'desc'), limit(500)));
       const transactionsSnap = await getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(500)));
-      const menusSnap = await getDocs(query(collection(db, 'menus'), orderBy('order', 'asc')));
+      const menusSnap = await getDocs(query(collection(db, 'menus'), orderBy('order', 'asc'), limit(100)));
       const usersSnap = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(500)));
       const campaignsSnap = await getDocs(query(collection(db, 'campaigns'), orderBy('createdAt', 'desc'), limit(200)));
       const discountCodesSnap = await getDocs(query(collection(db, 'couponCodes'), orderBy('createdAt', 'desc'), limit(200)));
-      const hostingPlansSnap = await getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc')));
-      const hostingServicesSnap = await getDocs(query(collection(db, 'hostingServices'), orderBy('order', 'asc')));
+      const hostingPlansSnap = await getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc'), limit(100)));
+      const hostingServicesSnap = await getDocs(query(collection(db, 'hostingServices'), orderBy('order', 'asc'), limit(100)));
       const soldSerialsSnap = await getDocs(query(collection(db, 'sold_serials'), orderBy('soldAt', 'desc'), limit(500)));
       const serviceRecordsSnap = await getDocs(query(collection(db, 'service_records'), orderBy('receivedAt', 'desc'), limit(500)));
-      const paymentAccountsSnap = await getDocs(query(collection(db, 'payment_accounts'), orderBy('createdAt', 'desc')));
-      const transactionCategoriesSnap = await getDocs(query(collection(db, 'transaction_categories'), orderBy('createdAt', 'desc')));
+      const paymentAccountsSnap = await getDocs(query(collection(db, 'payment_accounts'), orderBy('createdAt', 'desc'), limit(100)));
+      const transactionCategoriesSnap = await getDocs(query(collection(db, 'transaction_categories'), orderBy('createdAt', 'desc'), limit(100)));
       
       try {
         const employeesSnap = await getDocs(query(collection(db, 'employees'), orderBy('createdAt', 'desc'), limit(500)));
@@ -732,7 +744,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       setIsBulkEditing(false);
       setSelectedProductIds([]);
       setBulkEditData({ price: '', stock: '', category: '', vendorId: '', socketType: '', ramType: '' });
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error bulk updating products:', error);
       toast.error('Failed to update products');
@@ -759,8 +771,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
             <p>Threshold: <strong>${settings.lowStockThreshold}</strong></p>
           </div>
         `;
-        const sendEmailFn = httpsCallable(functions, 'sendEmail');
-        await sendEmailFn({
+        await apiPost('/api/send-email', {
           to: settings.lowStockEmail,
           subject: `Low Stock Alert: ${productName}`,
           html: emailHtml,
@@ -783,7 +794,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         permissions
       });
       toast.success('User role and permissions updated successfully');
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error updating user role:', error);
       toast.error('Failed to update user role');
@@ -831,7 +842,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
             variants: [],
             specs: {}
           });
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           console.error('Error saving product:', error);
           toast.error('Failed to save product');
@@ -906,7 +917,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         targetUrl: '',
         imageUrl: '',
       });
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error saving campaign:', error);
       toast.error('Failed to save campaign');
@@ -919,7 +930,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       // Update status to sending or launching
       const launchingStatus = ['facebook', 'instagram', 'google'].includes(campaign.channel || '') ? 'active' : 'sending';
       await updateDoc(doc(db, 'campaigns', campaign.id), { status: launchingStatus });
-      fetchData();
+      debouncedFetchData();
 
       // In a real app, this would call appropriate backend services/APIs (Twilio, Resend, Meta Graph API, Google Ads API)
       toast.loading(`Deploying ${campaign.channel || 'email'} campaign...`, { id: 'sending-campaign' });
@@ -935,7 +946,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       });
 
       toast.success(`${campaign.channel || 'Email'} campaign deployed successfully!`, { id: 'sending-campaign' });
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error sending campaign:', error);
       toast.error('Failed to deploy campaign', { id: 'sending-campaign' });
@@ -964,7 +975,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       setIsAddingDiscountCode(false);
       setEditingDiscountCode(null);
       setDiscountCodeFormData({ code: '', discountPercentage: 0, expiryDate: '', isActive: true });
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error saving discount code:', error);
       toast.error('Failed to save discount code');
@@ -976,7 +987,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
     try {
       await deleteDoc(doc(db, 'couponCodes', id));
       toast.success('Discount code deleted');
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error deleting discount code:', error);
       toast.error('Failed to delete discount code');
@@ -1039,7 +1050,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         try {
           await deleteDoc(doc(db, 'products', id));
           toast.success('Product deleted');
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           toast.error('Failed to delete product');
         }
@@ -1138,10 +1149,9 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
               
               <p style="margin-top: 30px; color: #888; font-size: 0.9em;">If you have any questions, please reply to this email.</p>
             </div>
-          `;
+           `;
 
-          const sendEmailFn = httpsCallable(functions, 'sendEmail');
-          await sendEmailFn({
+          await apiPost('/api/send-email', {
             to: order.customerEmail,
             subject: `Order Status Update: ${status.toUpperCase()} - Star Tech`,
             html: emailHtml,
@@ -1152,7 +1162,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       }
 
       toast.success('Order status updated');
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       toast.error('Failed to update status');
     }
@@ -1231,7 +1241,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         total: Math.max(0, newTotal)
       });
       toast.success('Discount updated');
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error updating discount:', error);
       toast.error('Failed to update discount');
@@ -1249,7 +1259,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
           await Promise.all(selectedProductIds.map(id => deleteDoc(doc(db, 'products', id))));
           toast.success(`${selectedProductIds.length} products deleted`);
           setSelectedProductIds([]);
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           toast.error('Failed to delete some products');
         }
@@ -1268,7 +1278,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
           await Promise.all(selectedOrderIds.map(id => deleteDoc(doc(db, 'orders', id))));
           toast.success(`${selectedOrderIds.length} orders deleted`);
           setSelectedOrderIds([]);
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           toast.error('Failed to delete some orders');
         }
@@ -1305,7 +1315,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
           }));
           toast.success(`${selectedOrderIds.length} orders marked as returned`);
           setSelectedOrderIds([]);
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           console.error('Error returning orders:', error);
           toast.error('Failed to return some orders');
@@ -1347,20 +1357,19 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
                   
                   <p style="margin-top: 30px; color: #888; font-size: 0.9em;">If you have any questions, please reply to this email.</p>
                 </div>
-              `;
-              try {
-                const sendEmailFn = httpsCallable(functions, 'sendEmail');
-                await sendEmailFn({
+                `;
+                try {
+                  await apiPost('/api/send-email', {
                     to: order.customerEmail,
                     subject: `Order Status Update: ${status.toUpperCase()} - Star Tech`,
                     html: emailHtml,
                   });
-              } catch (e) { console.error(e); }
-            }
-          }));
-          toast.success(`${selectedOrderIds.length} orders updated to ${status}`);
-          setSelectedOrderIds([]);
-          fetchData();
+                } catch (e) { console.error(e); }
+              }
+            }));
+            toast.success(`${selectedOrderIds.length} orders updated to ${status}`);
+            setSelectedOrderIds([]);
+            debouncedFetchData();
         } catch (error) {
           console.error('Error bulk updating orders:', error);
           toast.error('Failed to update some orders');
@@ -1513,7 +1522,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
           }));
           await Promise.all(promises);
           toast.success(`Successfully imported ${newProducts.length} products`);
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           toast.error('Failed to import products. Check if all required fields (Name, Category, Price, Stock) are present.');
           console.error(error);
@@ -1587,7 +1596,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       toast.success('Payment recorded successfully');
       setIsRecordingPayment(false);
       setPaymentFormData({ amount: 0, description: '', date: new Date().toISOString().split('T')[0] });
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error recording payment:', error);
       toast.error('Failed to record payment');
@@ -1613,7 +1622,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       setIsAddingCustomer(false);
       setEditingCustomer(null);
       setCustomerFormData({ name: '', email: '', phone: '', address: '' });
-      await fetchData();
+      await debouncedFetchData();
     } catch (error) {
       console.error('Error saving customer:', error);
       toast.error('Failed to save customer');
@@ -1629,7 +1638,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         try {
           await deleteDoc(doc(db, 'customers', id));
           toast.success('Customer deleted');
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           toast.error('Failed to delete customer');
         }
@@ -1656,7 +1665,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       setIsAddingVendor(false);
       setEditingVendor(null);
       setVendorFormData({ name: '', email: '', phone: '', address: '', category: 'General' });
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error saving vendor:', error);
       toast.error('Failed to save vendor');
@@ -1672,7 +1681,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         try {
           await deleteDoc(doc(db, 'vendors', id));
           toast.success('Vendor deleted');
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           toast.error('Failed to delete vendor');
         }
@@ -1712,7 +1721,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         try {
           await deleteDoc(doc(db, 'hostingServices', id));
           toast.success('Service deleted');
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           console.error('Error deleting service:', error);
           toast.error('Failed to delete service');
@@ -1739,7 +1748,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       setIsAddingHostingService(false);
       setEditingHostingService(null);
       setHostingServiceFormData({ title: '', description: '', iconPath: '', startingPrice: 0, billingCycle: '/mo', currency: 'BDT', order: 0, isActive: true });
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error saving service:', error);
       toast.error('Failed to save service');
@@ -1755,7 +1764,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         try {
           await deleteDoc(doc(db, 'hostingPlans', id));
           toast.success('Plan deleted');
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           console.error('Error deleting plan:', error);
           toast.error('Failed to delete plan');
@@ -1783,7 +1792,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       setIsAddingHostingPlan(false);
       setEditingHostingPlan(null);
       setHostingPlanFormData({ name: '', price: 0, billingCycle: '/mo', features: [], popular: false, order: 0 });
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error saving plan:', error);
       toast.error('Failed to save plan');
@@ -1809,7 +1818,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       setIsAddingMenu(false);
       setEditingMenu(null);
       setMenuFormData({ name: '', slug: '', order: 0, subCategories: [] });
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error saving menu:', error);
       toast.error('Failed to save menu');
@@ -1830,7 +1839,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         try {
           await deleteDoc(doc(db, 'menus', id));
           toast.success('Category deleted');
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           console.error('Error deleting menu:', error);
           toast.error('Failed to delete category');
@@ -1868,7 +1877,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       toast.success('Sub category added successfully');
       setIsAddingSubCategory(false);
       setSubCategoryFormData({ parentId: '', name: '', slug: '' });
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error adding sub category:', error);
       toast.error('Failed to add sub category');
@@ -1908,7 +1917,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       setPaymentAmount(0);
       setPaymentDescription('');
       setLedgerPaymentMethod('cash');
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error recording payment:', error);
       toast.error('Failed to record payment');
@@ -2144,7 +2153,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       toast.success('Purchase recorded and inventory updated');
       setIsCreatingPurchase(false);
       setPurchaseData({ vendorId: '', vendorName: '', items: [], description: '' });
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error creating purchase:', error);
       toast.error('Failed to create purchase');
@@ -2290,7 +2299,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         appliedDiscountCode: '',
       });
       setSaleDiscountCodeInput('');
-      fetchData();
+      debouncedFetchData();
     } catch (error) {
       console.error('Error creating sale:', error);
       toast.error('Failed to record sale');
@@ -3163,7 +3172,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
         {/* Content View */}
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-7xl mx-auto space-y-6">
-
+            <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="h-8 w-8 border-4 border-[#EF4444] border-t-transparent rounded-full animate-spin"></div></div>}>
         {activeTab === 'dashboard' ? (
           <AdminOverviewDashboard
             products={products}
@@ -3354,6 +3363,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
             setIsAddingCustomer={setIsAddingCustomer}
           />
         ) : null}
+            </Suspense>
       </div>
       {/* Confirm Modal */}
       <ConfirmModal />

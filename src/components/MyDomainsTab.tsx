@@ -3,9 +3,10 @@ import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useAuth } from '../context/AuthContext';
 import { Globe, Server, Save, Loader2, CalendarClock, Settings } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { apiPost } from '../services/apiClient';
 
 export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
   const [domains, setDomains] = useState<any[]>([]);
@@ -67,11 +68,8 @@ export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
     }
 
     setSavingNs(true);
-    const functions = getFunctions();
-    const manageDomain = httpsCallable(functions, 'manageDomain');
-
     try {
-      const response = await manageDomain({
+      const response = await apiPost<{ success: boolean; data?: any; error?: string }>('/api/domain/manage', {
         command: 'set_ns',
         domain: managingDomain.domain,
         extraParams: {
@@ -80,19 +78,15 @@ export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
         }
       });
 
-      const resData: any = response.data;
-      const status = resData?.SetNsResponse?.SetNsResult?.[0]?.Status?.toLowerCase();
-
-      if (status === 'success') {
+      if (response.success) {
         toast.success('NameServers updated successfully! It may take 24-48 hours to propagate.');
-        // Update local firestore doc to save current NS
         await updateDoc(doc(db, 'domainOrders', managingDomain.id), {
           nameservers: nsValues
         });
         fetchDomains();
         setManagingDomain(null);
       } else {
-        toast.error('Failed to update NameServers. Check your Dynadot API settings.');
+        toast.error(response.error || 'Failed to update NameServers. Check your Dynadot API settings.');
       }
     } catch (error: any) {
       console.error('NS Update Error:', error);

@@ -1,9 +1,30 @@
 /**
- * Payment Gateway Service
+ * Payment Service
  * 
- * This file handles initiating payments with external gateways (bKash, SSLCommerz).
- * Calls Firebase Cloud Functions for secure backend processing.
+ * This file handles manual payment submission for the release.
+ * Automatic bKash/SSLCommerz/Nagad initiation is NOT required for this release.
+ * Customers submit payment information manually via the backend API.
  */
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const url = `${API_BASE_URL}${path}`;
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Network error' }));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
 
 export interface PaymentInitiationResult {
   success: boolean;
@@ -12,91 +33,57 @@ export interface PaymentInitiationResult {
   errorMessage?: string;
 }
 
-export const initiateBkashPayment = async (
-  orderId: string, 
-  amount: number, 
-  customerEmail: string,
-  customerName?: string,
-  customerPhone?: string
+export const submitManualPayment = async (
+  orderId: string,
+  transactionId: string,
+  token: string
 ): Promise<PaymentInitiationResult> => {
   try {
-    console.log(`[bKash API] Initiating payment for Order: ${orderId}, Amount: ${amount}`);
+    const response = await apiRequest<{ success: boolean; message: string; emailSent: boolean }>(
+      `/api/orders/${orderId}/payment/manual-bkash`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ transactionId }),
+      }
+    );
     
-    const { httpsCallable } = await import('firebase/functions');
-    const { getFunctions, getApp } = await import('firebase/app');
-    const { app } = await import('../firebase');
-    const functions = getFunctions(app);
-    const bkashCreatePayment = httpsCallable(functions, 'bkashCreatePayment');
-    
-    const result = await bkashCreatePayment({
-      orderId,
-      amount,
-      customerEmail,
-      customerName: customerName || '',
-      customerPhone: customerPhone || ''
-    });
-    
-    const data = result.data as any;
-    
-    if (data?.success && data?.paymentUrl) {
+    if (response.success) {
       return {
         success: true,
-        paymentUrl: data.paymentUrl,
-        paymentId: data.paymentId
+        paymentId: orderId,
       };
     } else {
       return {
         success: false,
-        errorMessage: data?.errorMessage || 'Failed to initiate bKash payment'
+        errorMessage: response.message || 'Failed to submit payment.',
       };
     }
-    
   } catch (error: any) {
-    console.error('bKash Payment Error:', error);
-    return { success: false, errorMessage: error.message || 'Failed to initiate bKash payment' };
+    console.error('Manual Payment Error:', error);
+    return { success: false, errorMessage: error.message || 'Failed to submit payment.' };
   }
 };
 
-export const initiateSSLCommerzPayment = async (
-  orderId: string, 
-  amount: number, 
-  customerEmail: string,
-  customerName: string,
-  customerPhone: string
-): Promise<PaymentInitiationResult> => {
-  try {
-    console.log(`[SSLCommerz API] Initiating payment for Order: ${orderId}, Amount: ${amount}`);
-    
-    // TODO: Replace with actual backend call when SSLCommerz is configured
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    return {
-      success: true,
-      paymentUrl: `/payment/simulate?method=card&orderId=${orderId}&amount=${amount}`
-    };
-  } catch (error: any) {
-    console.error('SSLCommerz Payment Error:', error);
-    return { success: false, errorMessage: error.message || 'Failed to initiate SSLCommerz payment' };
-  }
+export const initiateBkashPayment = async (): Promise<PaymentInitiationResult> => {
+  return {
+    success: false,
+    errorMessage: 'Automatic bKash payment is not configured. Please use manual payment.',
+  };
 };
 
-export const initiateNagadPayment = async (
-  orderId: string, 
-  amount: number, 
-  customerPhone: string
-): Promise<PaymentInitiationResult> => {
-  try {
-    console.log(`[Nagad API] Initiating payment for Order: ${orderId}, Amount: ${amount}`);
-    
-    // TODO: Replace with actual backend call when Nagad is configured
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    return {
-      success: true,
-      paymentUrl: `/payment/simulate?method=nagad&orderId=${orderId}&amount=${amount}`
-    };
-  } catch (error: any) {
-    console.error('Nagad Payment Error:', error);
-    return { success: false, errorMessage: error.message || 'Failed to initiate Nagad payment' };
-  }
+export const initiateSSLCommerzPayment = async (): Promise<PaymentInitiationResult> => {
+  return {
+    success: false,
+    errorMessage: 'SSLCommerz payment is not configured. Please use manual payment.',
+  };
+};
+
+export const initiateNagadPayment = async (): Promise<PaymentInitiationResult> => {
+  return {
+    success: false,
+    errorMessage: 'Nagad payment is not configured. Please use manual payment.',
+  };
 };

@@ -25,7 +25,7 @@ export const ProvisioningLogsViewer: React.FC = () => {
   const [targetFilter, setTargetFilter] = useState<string>('all');
 
   useEffect(() => {
-    const q = query(collection(db, 'provisioningLogs'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'provisioningLogs'), orderBy('createdAt', 'desc'), limit(200));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as ProvisioningLog));
       setLogs(data);

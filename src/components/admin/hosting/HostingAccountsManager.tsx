@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, updateDoc, doc, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db, functions } from '../../../firebase';
-import { httpsCallable } from 'firebase/functions';
+import { db } from '../../../firebase';
+import { useAuth } from '../../../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { Search, Server, Eye, Power, RotateCcw, RefreshCw, X, AlertTriangle } from 'lucide-react';
+import { apiPost, apiGet } from '../../../services/apiClient';
 
 interface HostingAccount {
   id: string;
@@ -25,6 +26,7 @@ interface HostingAccount {
 }
 
 export const HostingAccountsManager: React.FC = () => {
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<HostingAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,8 +35,13 @@ export const HostingAccountsManager: React.FC = () => {
   const [usageData, setUsageData] = useState<any>(null);
   const [loadingUsage, setLoadingUsage] = useState(false);
 
+  const getAuthToken = async (): Promise<string> => {
+    if (!user) throw new Error('User not authenticated');
+    return await user.getIdToken();
+  };
+
   useEffect(() => {
-    const q = query(collection(db, 'hostingAccounts'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'hostingAccounts'), orderBy('createdAt', 'desc'), limit(200));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as HostingAccount));
       setAccounts(data);
@@ -57,21 +64,20 @@ export const HostingAccountsManager: React.FC = () => {
   const handleAction = async (account: HostingAccount, action: string) => {
     setActionLoading(account.id);
     try {
-      const manageHosting = httpsCallable(functions, 'manageHosting');
-      let whmAction = '';
-      if (action === 'suspend') whmAction = 'suspendacct';
-      if (action === 'unsuspend') whmAction = 'unsuspendacct';
-      if (action === 'terminate') whmAction = 'killacct';
+      const token = await getAuthToken();
+      let endpoint = '';
+      if (action === 'suspend') endpoint = '/api/hosting/suspend';
+      if (action === 'unsuspend') endpoint = '/api/hosting/unsuspend';
+      if (action === 'terminate') endpoint = '/api/hosting/terminate';
 
-      const res = await manageHosting({
-        action: whmAction,
+      const res = await apiPost<{ success: boolean; error?: string }>(endpoint, {
         providerAccountId: account.providerAccountId,
-      });
-      const data = res.data as any;
-      if (data.success) {
+      }, token);
+      
+      if (res.success) {
         toast.success(`${action} successful`);
       } else {
-        toast.error(data.error || `${action} failed`);
+        toast.error(res.error || `${action} failed`);
       }
     } catch (error: any) {
       toast.error(error?.message || `Failed to ${action} account`);
@@ -85,16 +91,15 @@ export const HostingAccountsManager: React.FC = () => {
     setLoadingUsage(true);
     setUsageData(null);
     try {
-      const manageHosting = httpsCallable(functions, 'manageHosting');
-      const res = await manageHosting({
-        action: 'accountsummary',
+      const token = await getAuthToken();
+      const res = await apiPost<{ success: boolean; data: any; error?: string }>('/api/hosting/usage', {
         providerAccountId: account.providerAccountId,
-      });
-      const data = res.data as any;
-      if (data.success && data.data?.data) {
-        setUsageData(data.data.data[0] || data.data.data);
+      }, token);
+      
+      if (res.success && res.data) {
+        setUsageData(res.data);
       } else {
-        toast.error(data.error || 'Failed to fetch usage');
+        toast.error(res.error || 'Failed to fetch usage');
       }
     } catch (error: any) {
       toast.error(error?.message || 'Failed to fetch usage data');

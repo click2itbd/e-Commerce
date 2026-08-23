@@ -903,21 +903,11 @@ export const Settings = () => {
                     className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">
-                    Mail Password
-                  </label>
-                  <input
-                    type="password"
-                    value={settingsFormData.mailPassword || ""}
-                    onChange={(e) =>
-                      setSettingsFormData({
-                        ...settingsFormData,
-                        mailPassword: e.target.value,
-                      })
-                    }
-                    className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
-                  />
+                <div className="md:col-span-2 bg-gray-50 border border-dashed border-gray-200 rounded-md p-3">
+                  <p className="text-xs text-gray-600">
+                    <span className="font-bold">SMTP Password:</span> Managed securely on server.
+                    Contact your administrator to update SMTP credentials.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">
@@ -961,21 +951,11 @@ export const Settings = () => {
                     className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">
-                    SMS API Key
-                  </label>
-                  <input
-                    type="text"
-                    value={settingsFormData.smsApiKey || ""}
-                    onChange={(e) =>
-                      setSettingsFormData({
-                        ...settingsFormData,
-                        smsApiKey: e.target.value,
-                      })
-                    }
-                    className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
-                  />
+                <div className="md:col-span-2 bg-gray-50 border border-dashed border-gray-200 rounded-md p-3">
+                  <p className="text-xs text-gray-600">
+                    <span className="font-bold">SMS API Key:</span> Managed securely on server.
+                    Contact your administrator to update SMS credentials.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">
@@ -1019,21 +999,11 @@ export const Settings = () => {
                     className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">
-                    Whatsapp Access Token
-                  </label>
-                  <input
-                    type="password"
-                    value={settingsFormData.whatsappAccessToken || ""}
-                    onChange={(e) =>
-                      setSettingsFormData({
-                        ...settingsFormData,
-                        whatsappAccessToken: e.target.value,
-                      })
-                    }
-                    className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
-                  />
+                <div className="md:col-span-2 bg-gray-50 border border-dashed border-gray-200 rounded-md p-3">
+                  <p className="text-xs text-gray-600">
+                    <span className="font-bold">WhatsApp Access Token:</span> Managed securely on server.
+                    Contact your administrator to update WhatsApp credentials.
+                  </p>
                 </div>
               </div>
             </div>
@@ -1575,27 +1545,18 @@ export const Settings = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Dynadot API Key
-                    </label>
-                    <input
-                      type="password"
-                      value={apiKeys.dynadotApiKey || ""}
-                      onChange={(e) =>
-                        setApiKeys({
-                          ...apiKeys,
-                          dynadotApiKey: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
-                      placeholder="Enter your Dynadot API key"
-                    />
-                    {isSecretConfigured('dynadotApiKey') && (
-                      <p className="text-xs text-green-600 mt-1">Existing API key is securely configured.</p>
-                    )}
-                  </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="md:col-span-2">
+                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                       Dynadot API Key
+                     </label>
+                     <div className="w-full px-3 py-2 border rounded-md bg-gray-50 text-gray-600 text-sm">
+                       Managed securely on server
+                     </div>
+                     <p className="text-xs text-green-600 mt-1">
+                       API key is configured and stored in backend environment variables.
+                     </p>
+                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1767,151 +1728,18 @@ export const Settings = () => {
                         bKash Payment Gateway Integration
                       </p>
                       <p>
-                        Enter your bKash Tokenized Checkout API credentials below.
-                        You can set separate Sandbox and Production credentials.
-                        The Sandbox mode toggle above controls which set is used.
+                        bKash credentials are stored securely on the server and
+                        cannot be edited from this panel.
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Sandbox APP Key
-                      </label>
-                      <input
-                        type="password"
-                        value={apiKeys.sandbox_bkashAppKey || ""}
-                        onChange={(e) =>
-                          setApiKeys({ ...apiKeys, sandbox_bkashAppKey: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
-                        placeholder="Sandbox APP Key"
-                      />
-                      {isSecretConfigured('sandbox_bkashAppKey') && (
-                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Sandbox APP Secret
-                      </label>
-                      <input
-                        type="password"
-                        value={apiKeys.sandbox_bkashAppSecret || ""}
-                        onChange={(e) =>
-                          setApiKeys({ ...apiKeys, sandbox_bkashAppSecret: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
-                        placeholder="Sandbox APP Secret"
-                      />
-                      {isSecretConfigured('sandbox_bkashAppSecret') && (
-                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Sandbox Username
-                      </label>
-                      <input
-                        type="text"
-                        value={apiKeys.sandbox_bkashUsername || ""}
-                        onChange={(e) =>
-                          setApiKeys({ ...apiKeys, sandbox_bkashUsername: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
-                        placeholder="Sandbox Username"
-                      />
-                      {isSecretConfigured('sandbox_bkashUsername') && (
-                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Sandbox Password
-                      </label>
-                      <input
-                        type="password"
-                        value={apiKeys.sandbox_bkashPassword || ""}
-                        onChange={(e) =>
-                          setApiKeys({ ...apiKeys, sandbox_bkashPassword: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
-                        placeholder="Sandbox Password"
-                      />
-                      {isSecretConfigured('sandbox_bkashPassword') && (
-                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Production APP Key
-                      </label>
-                      <input
-                        type="password"
-                        value={apiKeys.production_bkashAppKey || ""}
-                        onChange={(e) =>
-                          setApiKeys({ ...apiKeys, production_bkashAppKey: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
-                        placeholder="Production APP Key"
-                      />
-                      {isSecretConfigured('production_bkashAppKey') && (
-                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Production APP Secret
-                      </label>
-                      <input
-                        type="password"
-                        value={apiKeys.production_bkashAppSecret || ""}
-                        onChange={(e) =>
-                          setApiKeys({ ...apiKeys, production_bkashAppSecret: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
-                        placeholder="Production APP Secret"
-                      />
-                      {isSecretConfigured('production_bkashAppSecret') && (
-                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Production Username
-                      </label>
-                      <input
-                        type="text"
-                        value={apiKeys.production_bkashUsername || ""}
-                        onChange={(e) =>
-                          setApiKeys({ ...apiKeys, production_bkashUsername: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
-                        placeholder="Production Username"
-                      />
-                      {isSecretConfigured('production_bkashUsername') && (
-                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Production Password
-                      </label>
-                      <input
-                        type="password"
-                        value={apiKeys.production_bkashPassword || ""}
-                        onChange={(e) =>
-                          setApiKeys({ ...apiKeys, production_bkashPassword: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
-                        placeholder="Production Password"
-                      />
-                      {isSecretConfigured('production_bkashPassword') && (
-                        <p className="text-xs text-green-600 mt-1">Existing value is securely configured.</p>
-                      )}
-                    </div>
-                  </div>
+                  <div className="md:col-span-2 bg-gray-50 border border-dashed border-gray-200 rounded-md p-3">
+                  <p className="text-xs text-gray-600">
+                    <span className="font-bold">bKash Credentials:</span> Managed securely on server.
+                    Contact your administrator to update bKash sandbox/production credentials.
+                  </p>
+                </div>
                 </div>
                 <div className="mt-8 pt-6 border-t">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-4 mb-6">
@@ -1920,29 +1748,18 @@ export const Settings = () => {
                         CloudLinux Partner API Integration
                       </p>
                       <p>
-                        Enter your CloudLinux Network (CLN) credentials below to
-                        automate IP license provisioning. These are stored
-                        securely and never exposed to clients.
+                        CloudLinux credentials are stored securely on the server
+                        and cannot be edited from this panel.
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        CLN Login
-                      </label>
-                      <input
-                        type="text"
-                        value={apiKeys.clnLogin || ""}
-                        onChange={(e) =>
-                          setApiKeys({ ...apiKeys, clnLogin: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#7B61FF]"
-                        placeholder="Partner Login Name"
-                      />
-                     </div>
-                   </div>
+                  <div className="md:col-span-2 bg-gray-50 border border-dashed border-gray-200 rounded-md p-3">
+                  <p className="text-xs text-gray-600">
+                    <span className="font-bold">CloudLinux CLN Credentials:</span> Managed securely on server.
+                    Contact your administrator to update CloudLinux credentials.
+                  </p>
+                </div>
                 </div>
               </div>
             </div>

@@ -21,7 +21,7 @@ export const Header: React.FC = () => {
   useEffect(() => {
     const fetchMenus = async () => {
       try {
-        const q = query(collection(db, 'menus'), orderBy('order', 'asc'));
+        const q = query(collection(db, 'menus'), orderBy('order', 'asc'), limit(100));
         const snap = await getDocs(q);
         setMenus(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NavigationMenu[]);
       } catch (error) {

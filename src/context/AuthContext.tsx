@@ -35,10 +35,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
               displayName: firebaseUser.displayName || 'User',
-              role: firebaseUser.email === 'click2itbd@gmail.com' ? 'admin' : 'user',
-              permissions: firebaseUser.email === 'click2itbd@gmail.com'
-                ? ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing']
-                : [],
+              role: 'user',
+              permissions: [],
               createdAt: new Date().toISOString(),
             };
             await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
@@ -46,14 +44,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             // Send welcome email
             try {
-              const { httpsCallable } = await import('firebase/functions');
-              const { getFunctions } = await import('firebase/app');
-              const { app } = await import('../firebase');
-              const functions = getFunctions(app);
-              const sendWelcomeEmail = httpsCallable(functions, 'sendWelcomeEmail');
-              await sendWelcomeEmail({
-                email: firebaseUser.email,
-                name: firebaseUser.displayName || 'User',
+              const token = await firebaseUser.getIdToken();
+              await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/send-welcome-email`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  email: firebaseUser.email,
+                  name: firebaseUser.displayName || 'User',
+                }),
               });
             } catch (emailError) {
               console.error('Failed to send welcome email:', emailError);

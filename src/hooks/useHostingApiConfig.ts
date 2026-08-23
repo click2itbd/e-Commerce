@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
 
 interface HostingApiConfig {
   bundleDiscountPercent?: number;
@@ -12,22 +10,25 @@ export function useHostingApiConfig() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'hostingApiConfig'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data() as HostingApiConfig;
-        setConfig({
-          bundleDiscountPercent: data.bundleDiscountPercent || 0,
-          updatedAt: data.updatedAt,
-        });
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch('/api/public/hosting-config');
+        const json = await response.json();
+        if (json.success && json.data) {
+          setConfig({
+            bundleDiscountPercent: json.data.bundleDiscountPercent || 0,
+            updatedAt: json.data.updatedAt,
+          });
+        }
+      } catch (error) {
+        console.warn('Cannot load hostingApiConfig:', error);
+        setConfig({});
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    }, (error) => {
-      console.warn('Cannot read hostingApiConfig:', error.message);
-      setConfig({});
-      setLoading(false);
-    });
+    };
 
-    return () => unsub();
+    fetchConfig();
   }, []);
 
   return { config, loading };

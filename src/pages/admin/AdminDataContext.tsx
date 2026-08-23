@@ -41,28 +41,28 @@ export const AdminDataProvider: React.FC<{ children: ReactNode }> = ({ children 
     setSharedState(prev => ({ ...prev, loading: true }));
     try {
       const [productsSnap, ordersSnap, customersSnap, vendorsSnap, transactionsSnap, menusSnap, usersSnap, campaignsSnap, discountCodesSnap, hostingPlansSnap, hostingServicesSnap, soldSerialsSnap, serviceRecordsSnap, paymentAccountsSnap, transactionCategoriesSnap] = await Promise.all([
-        getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'vendors'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'menus'), orderBy('order', 'asc'))),
-        getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'campaigns'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'couponCodes'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc'))),
-        getDocs(query(collection(db, 'hostingServices'), orderBy('order', 'asc'))),
-        getDocs(query(collection(db, 'sold_serials'), orderBy('soldAt', 'desc'))),
-        getDocs(query(collection(db, 'service_records'), orderBy('receivedAt', 'desc'))),
-        getDocs(query(collection(db, 'payment_accounts'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'transaction_categories'), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'vendors'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'menus'), orderBy('order', 'asc'), limit(100))),
+        getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'campaigns'), orderBy('createdAt', 'desc'), limit(200))),
+        getDocs(query(collection(db, 'couponCodes'), orderBy('createdAt', 'desc'), limit(200))),
+        getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc'), limit(100))),
+        getDocs(query(collection(db, 'hostingServices'), orderBy('order', 'asc'), limit(100))),
+        getDocs(query(collection(db, 'sold_serials'), orderBy('soldAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'service_records'), orderBy('receivedAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'payment_accounts'), orderBy('createdAt', 'desc'), limit(100))),
+        getDocs(query(collection(db, 'transaction_categories'), orderBy('createdAt', 'desc'), limit(100))),
       ]);
 
       try {
         const [employeesSnap, employeeLeavesSnap, employeeSalariesSnap] = await Promise.all([
-          getDocs(query(collection(db, 'employees'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'employee_leaves'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'employee_salaries'), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'employees'), orderBy('createdAt', 'desc'), limit(500))),
+          getDocs(query(collection(db, 'employee_leaves'), orderBy('createdAt', 'desc'), limit(500))),
+          getDocs(query(collection(db, 'employee_salaries'), orderBy('createdAt', 'desc'), limit(500))),
         ]);
 
         setSharedState(prev => ({

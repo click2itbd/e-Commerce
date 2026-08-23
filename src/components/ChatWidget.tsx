@@ -3,9 +3,6 @@ import { Bot, MessageCircle, X, Send } from 'lucide-react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../firebase';
 import { toast } from 'react-hot-toast';
-import { GoogleGenAI } from "@google/genai";
-
-const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 
 export const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,6 +10,7 @@ export const ChatWidget: React.FC = () => {
   const [formData, setFormData] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [messages, setMessages] = useState<{ sender: 'user' | 'bot', text: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleStartChat = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,26 +38,32 @@ export const ChatWidget: React.FC = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || loading) return;
 
     const userMessage = { sender: 'user' as const, text: inputValue };
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
+    setLoading(true);
 
     try {
-      if (!ai) {
-        throw new Error('AI service is not configured.');
-      }
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: inputValue
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: inputValue }),
       });
-      
-      const botMessage = { sender: 'bot' as const, text: response.text || 'Sorry, I had trouble processing that.' };
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'AI service error');
+      }
+
+      const botMessage = { sender: 'bot' as const, text: data.reply || 'Sorry, I had trouble processing that.' };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
-      console.error(error);
+      console.error('AI chat error:', error);
       setMessages(prev => [...prev, { sender: 'bot', text: 'Error communicating with AI.' }]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -78,7 +82,7 @@ export const ChatWidget: React.FC = () => {
             <h3 className="font-bold flex items-center gap-2"><Bot size={20} /> Support Chat</h3>
             <button onClick={() => setIsOpen(false)}><X size={20} /></button>
           </div>
-          
+
           {!chatStarted ? (
             <form onSubmit={handleStartChat} className="p-4 space-y-4">
               <input type="text" placeholder="First Name" required value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} className="w-full border p-2 rounded text-sm" />

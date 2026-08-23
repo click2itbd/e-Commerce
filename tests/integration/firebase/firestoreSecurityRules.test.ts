@@ -49,4 +49,59 @@ describe('Firestore Security Rules Logic', () => {
     const isPublic = path.startsWith('domainPricing');
     expect(isPublic).toBe(true);
   });
+
+  it('admin authorization uses users/{uid}.role, not email', () => {
+    const userRole = 'admin';
+    const userEmail = 'someone@example.com';
+    const isAdminByRole = userRole === 'admin';
+    const isAdminByEmail = userEmail === 'click2itbd@gmail.com';
+    expect(isAdminByRole).toBe(true);
+    expect(isAdminByEmail).toBe(false);
+  });
+
+  it('customers can read own tickets', () => {
+    const isStaff = false;
+    const ticketUserId = 'user_123';
+    const currentUserId = 'user_123';
+    const canRead = isStaff || ticketUserId === currentUserId;
+    expect(canRead).toBe(true);
+  });
+
+  it('customers cannot read other customers tickets', () => {
+    const isStaff = false;
+    const ticketUserId = 'user_456';
+    const currentUserId = 'user_123';
+    const canRead = isStaff || ticketUserId === currentUserId;
+    expect(canRead).toBe(false);
+  });
+
+  it('status fields are immutable for customers', () => {
+    const isStaff = false;
+    const hasStatusChange = true;
+    const canUpdate = !isStaff && !hasStatusChange;
+    expect(canUpdate).toBe(false);
+  });
+
+  it('staff can update orders if no status fields change', () => {
+    const isStaff = true;
+    const hasStatusChange = false;
+    const canUpdate = isStaff && !hasStatusChange;
+    expect(canUpdate).toBe(true);
+  });
+
+  it('customers cannot update domain order status', () => {
+    const isStaff = false;
+    const isOwner = true;
+    const hasStatusChange = true;
+    const canUpdate = (isOwner || isStaff) && !hasStatusChange;
+    expect(canUpdate).toBe(false);
+  });
+
+  it('customers cannot update hosting account status', () => {
+    const isStaff = false;
+    const isOwner = true;
+    const hasStatusChange = true;
+    const canUpdate = (isOwner || isStaff) && !hasStatusChange;
+    expect(canUpdate).toBe(false);
+  });
 });

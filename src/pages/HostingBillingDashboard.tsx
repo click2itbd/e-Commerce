@@ -99,8 +99,8 @@ export const HostingBillingDashboard: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const ordersSnap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc')));
-        const ticketsSnap = await getDocs(query(collection(db, 'service_records'), orderBy('receivedAt', 'desc')));
+        const ordersSnap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(200)));
+        const ticketsSnap = await getDocs(query(collection(db, 'service_records'), orderBy('receivedAt', 'desc'), limit(200)));
         
         setOrders(ordersSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Order[]);
         setTickets(ticketsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as ServiceRecord[]);

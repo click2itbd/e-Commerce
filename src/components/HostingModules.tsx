@@ -110,7 +110,7 @@ export const PlanPackagesModule = () => {
 
     const fetchPlans = async () => {
         try {
-            const q = query(collection(db, 'hosting_plans'));
+            const q = query(collection(db, 'hosting_plans'), limit(100));
             const snapshot = await getDocs(q);
             const plansData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HostingPlan));
             // Sort client-side to avoid needing an index initially

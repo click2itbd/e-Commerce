@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Facebook, Instagram, Youtube, MapPin, Phone, Mail, Send } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
-import { db, functions } from '../firebase';
-import { httpsCallable } from 'firebase/functions';
+import { db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
+import { apiPost } from '../services/apiClient';
 
 export const Footer: React.FC = () => {
   const { settings } = useSettings();
@@ -17,15 +17,12 @@ export const Footer: React.FC = () => {
 
     setLoading(true);
     try {
-      // 1. Store in Firestore
       await addDoc(collection(db, 'subscribers'), {
         email,
         createdAt: new Date().toISOString(),
       });
 
-      // 2. Send welcome email via backend
-      const sendEmail = httpsCallable(functions, 'sendEmail');
-      await sendEmail({
+      await apiPost('/api/send-email', {
         to: email,
         subject: `Welcome to ${settings.brandName} Newsletter!`,
         html: `
@@ -37,10 +34,10 @@ export const Footer: React.FC = () => {
               <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
               <p style="font-size: 12px; color: #666;">${settings.footerText}</p>
             </div>
-          `
-        });
+          `,
+      });
 
-      toast.success('Thank you for subscribing!');
+      toast.success('Subscribed successfully!');
       setEmail('');
     } catch (error) {
       console.error('Subscription error:', error);

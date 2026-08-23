@@ -6,8 +6,7 @@ import { PageHeader } from '../../components/hosting/PageHeader';
 import { SEO } from '../../components/SEO';
 import { ArrowRight, Lock, Unlock, Key, RefreshCw, Shield, HelpCircle, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { searchDomainDynadot, getTldPricing } from '../../services/dynadotApi';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { checkTransferEligibility, getTldPricing } from '../../services/dynadotApi';
 
 const DomainTransferPage = () => {
   const navigate = useNavigate();
@@ -53,14 +52,10 @@ const DomainTransferPage = () => {
     setIsProcessing(true);
 
     try {
-      // Check transfer eligibility
-      const functions = getFunctions();
-      const checkEligibility = httpsCallable(functions, 'checkTransferEligibility');
-      const eligibilityResult = await checkEligibility({ domain: normalized });
-      const eligibility = eligibilityResult.data as any;
+      const eligibilityResult = await checkTransferEligibility(normalized);
       
-      if (!eligibility?.eligible) {
-        setEligibilityError(eligibility?.reason || 'This domain is not eligible for transfer.');
+      if (!eligibilityResult.eligible) {
+        setEligibilityError(eligibilityResult.reason || 'This domain is not eligible for transfer.');
         setIsProcessing(false);
         return;
       }
@@ -147,7 +142,7 @@ const DomainTransferPage = () => {
               <div className="md:w-7/12 p-6 sm:p-8 md:p-10">
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Start your transfer</h3>
                 <p className="text-gray-500 mb-6 sm:mb-8 text-sm sm:text-base">Enter the domain you'd like to transfer to Click2IT.</p>
-                
+                 
                 <form onSubmit={handleTransfer} className="space-y-5 sm:space-y-6">
                   {validationError && (
                     <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">

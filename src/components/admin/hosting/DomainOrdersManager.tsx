@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, doc, query, orderBy, where, onSnapshot } from 'firebase/firestore';
-import { db, functions } from '../../../firebase';
-import { httpsCallable } from 'firebase/functions';
+import { db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
 import { RefreshCw, CheckCircle, RotateCcw, Search, Filter, AlertTriangle } from 'lucide-react';
+import { apiPost } from '../../../services/apiClient';
 
 interface DomainOrder {
   id: string;
@@ -30,7 +30,7 @@ export const DomainOrdersManager: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'domainOrders'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'domainOrders'), orderBy('createdAt', 'desc'), limit(200));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as DomainOrder));
       setOrders(data);
@@ -68,17 +68,15 @@ export const DomainOrdersManager: React.FC = () => {
   const handleRetryRegistration = async (order: DomainOrder) => {
     setActionLoading(order.id);
     try {
-      const dynadotProxy = httpsCallable(functions, 'dynadotProxy');
-      const res = await dynadotProxy({
-        command: 'register',
+      const res = await apiPost<{ success: boolean; message?: string; error?: string }>('/api/domain/register', {
         domain: order.domain,
-        extraParams: { duration: 1 }
+        years: 1,
       });
-      const data = res.data as any;
-      if (data.success) {
+      
+      if (res.success) {
         toast.success('Domain registration successful');
       } else {
-        toast.error(data.message || 'Registration failed');
+        toast.error(res.error || res.message || 'Registration failed');
       }
     } catch (error: any) {
       toast.error(error?.message || 'Registration failed');
@@ -107,17 +105,15 @@ export const DomainOrdersManager: React.FC = () => {
   const handleRenew = async (order: DomainOrder) => {
     setActionLoading(order.id);
     try {
-      const dynadotProxy = httpsCallable(functions, 'dynadotProxy');
-      const res = await dynadotProxy({
-        command: 'renew',
+      const res = await apiPost<{ success: boolean; message?: string; error?: string }>('/api/domain/renew', {
         domain: order.domain,
-        extraParams: { duration: 1 }
+        years: 1,
       });
-      const data = res.data as any;
-      if (data.success) {
+      
+      if (res.success) {
         toast.success('Domain renewal successful');
       } else {
-        toast.error(data.message || 'Renewal failed');
+        toast.error(res.error || res.message || 'Renewal failed');
       }
     } catch (error: any) {
       toast.error(error?.message || 'Renewal failed');

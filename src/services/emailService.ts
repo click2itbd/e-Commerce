@@ -1,6 +1,5 @@
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
-import { db, functions } from '../firebase';
-import { httpsCallable } from 'firebase/functions';
+import { db } from '../firebase';
 
 export interface EmailLog {
   id?: string;
@@ -10,6 +9,26 @@ export interface EmailLog {
   content: string;
   sentAt: string;
   status: 'sent' | 'failed';
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const url = `${API_BASE_URL}${path}`;
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Network error' }));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+
+  return response.json();
 }
 
 export const sendServiceActivationEmail = async (
@@ -32,25 +51,25 @@ Thank you for choosing us!
   `.trim();
 
   try {
-    const sendEmailFn = httpsCallable(functions, 'sendEmail');
-    const response = await sendEmailFn({
-      to: customerEmail,
-      subject,
-      html: content.replace(/\n/g, '<br>')
+    const response = await apiRequest<{ success: boolean }>('/api/send-email', {
+      method: 'POST',
+      body: JSON.stringify({
+        to: customerEmail,
+        subject,
+        html: content.replace(/\n/g, '<br>'),
+      }),
     });
 
-    const data = response.data as any;
-    
     await addDoc(collection(db, 'emailLogs'), {
       orderId,
       customerEmail,
       subject,
       content,
       sentAt: new Date().toISOString(),
-      status: data?.success ? 'sent' : 'failed'
+      status: response.success ? 'sent' : 'failed'
     });
 
-    return !!(data?.success);
+    return response.success;
   } catch (err) {
     console.error('Failed to send email:', err);
     await addDoc(collection(db, 'emailLogs'), {

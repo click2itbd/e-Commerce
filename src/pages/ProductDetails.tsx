@@ -48,7 +48,8 @@ export const ProductDetails: React.FC = () => {
       const q = query(
         collection(db, 'reviews'),
         where('productId', '==', id),
-        orderBy('createdAt', 'desc')
+        orderBy('createdAt', 'desc'),
+        limit(100)
       );
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const reviewsData = snapshot.docs.map(doc => ({

@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils';
 import { useCart } from '../../context/CartContext';
 import { useSettings } from '../../context/SettingsContext';
 import { toast } from 'react-hot-toast';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
 import CustomHostingBuilder from './CustomHostingBuilder';
 
@@ -40,8 +40,8 @@ export default function DynamicHostingPlansSection({
     const fetchData = async () => {
       try {
         const [plansSnap, featsSnap] = await Promise.all([
-          getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc'))),
-          getDocs(query(collection(db, 'hosting_features'), orderBy('order', 'asc')))
+          getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc'), limit(100))),
+          getDocs(query(collection(db, 'hosting_features'), orderBy('order', 'asc'), limit(100)))
         ]);
         setPlans(plansSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(p => p.status === 'published'));
         setFeatures(featsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));

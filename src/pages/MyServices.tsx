@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { db, functions } from '../firebase';
+import { db } from '../firebase';
 import { collection, query, where, onSnapshot, updateDoc, doc, getDocs } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import { toast } from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { getHostingUsage, HostingUsageStats } from '../services/hostingApi';
@@ -16,6 +15,7 @@ import { useSettings } from '../context/SettingsContext';
 import { formatCurrency } from '../lib/utils';
 import { SupportTicketsClient } from '../components/hosting/SupportTicketsClient';
 import { NameserverModal } from '../components/hosting/NameserverModal';
+import { apiPost } from '../services/apiClient';
 
 interface DomainOrder {
   id: string;
@@ -65,7 +65,7 @@ export const MyServices: React.FC = () => {
   useEffect(() => {
     if (!user) return;
 
-    const qDomains = query(collection(db, 'domainOrders'), where('userId', '==', user.uid));
+    const qDomains = query(collection(db, 'domainOrders'), where('userId', '==', user.uid), limit(100));
     const unsubDomains = onSnapshot(qDomains, (snap) => {
       setDomains(snap.docs.map(d => ({ id: d.id, ...d.data() } as DomainOrder)));
       setLoading(false);
@@ -74,7 +74,7 @@ export const MyServices: React.FC = () => {
       setLoading(false);
     });
 
-    const qHosting = query(collection(db, 'hostingAccounts'), where('userId', '==', user.uid));
+    const qHosting = query(collection(db, 'hostingAccounts'), where('userId', '==', user.uid), limit(100));
     const unsubHosting = onSnapshot(qHosting, (snap) => {
       setHosting(snap.docs.map(d => ({ id: d.id, ...d.data() } as HostingAccount)));
       setLoading(false);
@@ -83,7 +83,7 @@ export const MyServices: React.FC = () => {
       setLoading(false);
     });
 
-    const qOrders = query(collection(db, 'hostingOrders'), where('userId', '==', user.uid));
+    const qOrders = query(collection(db, 'hostingOrders'), where('userId', '==', user.uid), limit(100));
     const unsubOrders = onSnapshot(qOrders, (snap) => {
       setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as HostingOrder)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     }, (err) => {
@@ -114,14 +114,12 @@ export const MyServices: React.FC = () => {
   const handleRenew = async (domain: DomainOrder) => {
     setDomainLoading(domain.id);
     try {
-      const dynadotProxy = httpsCallable(functions, 'dynadotProxy');
-      const res = await dynadotProxy({
-        command: 'renew',
+      const res = await apiPost<{ success: boolean; message?: string; error?: string }>('/api/domain/renew', {
         domain: domain.domain,
-        extraParams: { duration: 1 }
+        years: 1,
       });
-      const data = res.data as any;
-      if (data.success) {
+      
+      if (res.success) {
         const renewalProduct = {
           id: `domain_renew_${domain.domain}`,
           name: `Domain Renewal - ${domain.domain}`,
@@ -138,7 +136,7 @@ export const MyServices: React.FC = () => {
         addToCart(renewalProduct as any);
         navigate('/hosting/checkout');
       } else {
-        toast.error(data.error || 'Renewal failed');
+        toast.error(res.error || res.message || 'Renewal failed');
       }
     } catch (error: any) {
       toast.error(error?.message || 'Failed to renew domain');

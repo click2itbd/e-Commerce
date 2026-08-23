@@ -91,7 +91,7 @@ export const HostingNavbar: React.FC = () => {
             </div>
             <div className="flex items-center space-x-1">
               <Mail size={12} />
-              <span>{settings?.contactEmail || "support@click2it.com"}</span>
+              <span>{settings?.contactEmail || "support@click2itbd.com"}</span>
             </div>
           </div>
           <div className="flex items-center space-x-4">

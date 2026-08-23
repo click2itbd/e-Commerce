@@ -45,7 +45,7 @@ export const CustomerTicketsTab = ({ currentUser }: { currentUser: any }) => {
   useEffect(() => {
     if (selectedTicket) {
       const messagesRef = collection(db, 'tickets', selectedTicket.id, 'messages');
-      const q = query(messagesRef, orderBy('createdAt', 'asc'));
+      const q = query(messagesRef, orderBy('createdAt', 'asc'), limit(200));
       
       const unsubscribe = onSnapshot(q, (snapshot) => {
         setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TicketMessage[]);
@@ -61,8 +61,7 @@ export const CustomerTicketsTab = ({ currentUser }: { currentUser: any }) => {
       const q = query(
         collection(db, 'tickets'), 
         where('userId', '==', currentUser.uid),
-        // Note: Firestore requires an index if using where + orderBy on different fields. 
-        // We'll just sort client-side to avoid index requirement for now.
+        limit(100)
       );
       
       const snap = await getDocs(q);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
 import { Plug, Settings2, Server, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
@@ -27,46 +27,56 @@ export const HostingApiSettings: React.FC = () => {
   });
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'hostingApiConfig'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data() as HostingApiConfig;
-        setConfig({
-          hostingApiType: data.hostingApiType || 'dummy',
-          hostingApiUrl: data.hostingApiUrl || '',
-          bundleDiscountPercent: data.bundleDiscountPercent || 0,
-          clnLogin: data.clnLogin || '',
-          isSandboxMode: data.isSandboxMode || false,
-          updatedAt: data.updatedAt,
+    const fetchConfig = async () => {
+      try {
+        const token = await user?.getIdToken();
+        const response = await fetch('/api/admin/hosting-config', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
         });
+        const json = await response.json();
+        if (json.success && json.data) {
+          setConfig({
+            hostingApiType: json.data.hostingApiType || 'dummy',
+            hostingApiUrl: json.data.hostingApiUrl || '',
+            bundleDiscountPercent: json.data.bundleDiscountPercent || 0,
+            clnLogin: json.data.clnLogin || '',
+            isSandboxMode: json.data.isSandboxMode || false,
+            updatedAt: json.data.updatedAt,
+          });
+        }
+      } catch (err: any) {
+        console.error('Failed to load hosting API config:', err);
+        setError('Failed to load configuration. Please check your permissions and try again.');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-      setError(null);
-    }, (err) => {
-      console.error('Failed to load hosting API config:', err);
-      setError('Failed to load configuration. Please check your permissions and try again.');
-      setLoading(false);
-    });
+    };
 
-    return () => unsub();
-  }, []);
+    if (user) {
+      fetchConfig();
+    }
+  }, [user]);
 
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     try {
-      const existingSnap = await getDoc(doc(db, 'settings', 'hostingApiConfig'));
-      const existingData = existingSnap.exists() ? existingSnap.data() as HostingApiConfig : {};
-
-      const payload: HostingApiConfig = {
-        hostingApiType: config.hostingApiType || 'dummy',
-        hostingApiUrl: config.hostingApiUrl || '',
-        bundleDiscountPercent: config.bundleDiscountPercent || 0,
-        clnLogin: config.clnLogin || '',
-        isSandboxMode: config.isSandboxMode || false,
-        updatedAt: new Date().toISOString(),
-      };
-
-      await setDoc(doc(db, 'settings', 'hostingApiConfig'), payload);
+      const token = await user?.getIdToken();
+      const response = await fetch('/api/admin/hosting-config', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config),
+      });
+      const json = await response.json();
+      if (!json.success) {
+        throw new Error(json.error || 'Failed to save settings');
+      }
       toast.success('Hosting settings saved successfully');
     } catch (error: any) {
       console.error('Error saving settings:', error);
@@ -91,8 +101,8 @@ export const HostingApiSettings: React.FC = () => {
 
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/hosting/health', {
-        method: 'GET',
+      const response = await fetch('/api/admin/hosting/test-connection', {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -203,7 +213,7 @@ export const HostingApiSettings: React.FC = () => {
               type="text"
               value={config.hostingApiUrl || ''}
               onChange={(e) => setConfig({ ...config, hostingApiUrl: e.target.value })}
-              placeholder="https://server2025.click2it.bd:2087"
+              placeholder="https://server2025.click2itbd.com:2087"
               className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF] focus:border-[#7B61FF]"
             />
             <p className="text-xs text-gray-400 mt-1">Non-sensitive. Used for display and cPanel link generation.</p>

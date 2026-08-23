@@ -10,12 +10,12 @@ describe('Server CpanelHostingProvider', () => {
 
   it('testConnection calls correct WHM endpoint with Authorization header', async () => {
     const { CpanelHostingProvider } = await import(
-      '../../../server/providers/hosting/CpanelHostingProvider'
+      '../../../backend/src/providers/hosting/CpanelHostingProvider'
     );
 
     const provider = new CpanelHostingProvider(
       'TEST_WHM_TOKEN',
-      'https://server2025.click2it.bd:2087',
+      'https://server2025.click2itbd.com:2087',
       'root'
     );
 
@@ -31,7 +31,7 @@ describe('Server CpanelHostingProvider', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, options] = mockFetch.mock.calls[0];
-    expect(url).toBe('https://server2025.click2it.bd:2087/json-api/listaccts?api.version=1');
+    expect(url).toBe('https://server2025.click2itbd.com:2087/json-api/listaccts?api.version=1');
     expect(options.method).toBe('GET');
     expect(options.headers.Authorization).toBe('whm root:TEST_WHM_TOKEN');
     expect(options.headers.Accept).toBe('application/json');
@@ -41,12 +41,12 @@ describe('Server CpanelHostingProvider', () => {
 
   it('testConnection classifies auth failure', async () => {
     const { CpanelHostingProvider } = await import(
-      '../../../server/providers/hosting/CpanelHostingProvider'
+      '../../../backend/src/providers/hosting/CpanelHostingProvider'
     );
 
     const provider = new CpanelHostingProvider(
       'TEST_WHM_TOKEN',
-      'https://server2025.click2it.bd:2087',
+      'https://server2025.click2itbd.com:2087',
       'root'
     );
 
@@ -60,18 +60,18 @@ describe('Server CpanelHostingProvider', () => {
 
     const result = await provider.testConnection();
     expect(result.success).toBe(false);
-    expect(result.code).toBe('WHM_AUTH_FAILED');
+    expect(result.code).toBe('UNAUTHORIZED');
     expect(result.message).toMatch(/auth/i);
   });
 
   it('testConnection classifies wrong endpoint', async () => {
     const { CpanelHostingProvider } = await import(
-      '../../../server/providers/hosting/CpanelHostingProvider'
+      '../../../backend/src/providers/hosting/CpanelHostingProvider'
     );
 
     const provider = new CpanelHostingProvider(
       'TEST_WHM_TOKEN',
-      'https://server2025.click2it.bd:2087',
+      'https://server2025.click2itbd.com:2087',
       'root'
     );
 
@@ -85,18 +85,18 @@ describe('Server CpanelHostingProvider', () => {
 
     const result = await provider.testConnection();
     expect(result.success).toBe(false);
-    expect(result.code).toBe('WHM_NOT_FOUND');
+    expect(result.code).toBe('NOT_FOUND');
     expect(result.message).toMatch(/endpoint/i);
   });
 
   it('testConnection classifies timeout correctly', async () => {
     const { CpanelHostingProvider } = await import(
-      '../../../server/providers/hosting/CpanelHostingProvider'
+      '../../../backend/src/providers/hosting/CpanelHostingProvider'
     );
 
     const provider = new CpanelHostingProvider(
       'TEST_WHM_TOKEN',
-      'https://server2025.click2it.bd:2087',
+      'https://server2025.click2itbd.com:2087',
       'root'
     );
 
@@ -106,18 +106,18 @@ describe('Server CpanelHostingProvider', () => {
 
     const result = await provider.testConnection();
     expect(result.success).toBe(false);
-    expect(result.code).toBe('WHM_TIMEOUT');
-    expect(result.message).toMatch(/did not respond within 15 seconds/i);
+    expect(result.code).toBe('TIMEOUT');
+    expect(result.message).toMatch(/timed out/i);
   });
 
   it('testConnection classifies TLS error', async () => {
     const { CpanelHostingProvider } = await import(
-      '../../../server/providers/hosting/CpanelHostingProvider'
+      '../../../backend/src/providers/hosting/CpanelHostingProvider'
     );
 
     const provider = new CpanelHostingProvider(
       'TEST_WHM_TOKEN',
-      'https://server2025.click2it.bd:2087',
+      'https://server2025.click2itbd.com:2087',
       'root'
     );
 
@@ -127,18 +127,18 @@ describe('Server CpanelHostingProvider', () => {
 
     const result = await provider.testConnection();
     expect(result.success).toBe(false);
-    expect(result.code).toBe('WHM_TLS_ERROR');
+    expect(result.code).toBe('TLS_ERROR');
     expect(result.message).toMatch(/certificate|TLS|SSL/i);
   });
 
   it('testConnection classifies connection refused', async () => {
     const { CpanelHostingProvider } = await import(
-      '../../../server/providers/hosting/CpanelHostingProvider'
+      '../../../backend/src/providers/hosting/CpanelHostingProvider'
     );
 
     const provider = new CpanelHostingProvider(
       'TEST_WHM_TOKEN',
-      'https://server2025.click2it.bd:2087',
+      'https://server2025.click2itbd.com:2087',
       'root'
     );
 
@@ -146,18 +146,18 @@ describe('Server CpanelHostingProvider', () => {
 
     const result = await provider.testConnection();
     expect(result.success).toBe(false);
-    expect(result.code).toBe('WHM_CONNECTION_REFUSED');
+    expect(result.code).toBe('CONNECTION_REFUSED');
     expect(result.message).toMatch(/reach|cannot connect/i);
   });
 
   it('never logs or returns the actual token', async () => {
     const { CpanelHostingProvider } = await import(
-      '../../../server/providers/hosting/CpanelHostingProvider'
+      '../../../backend/src/providers/hosting/CpanelHostingProvider'
     );
 
     const provider = new CpanelHostingProvider(
       'SECRET_WHM_TOKEN_123',
-      'https://server2025.click2it.bd:2087',
+      'https://server2025.click2itbd.com:2087',
       'root'
     );
 

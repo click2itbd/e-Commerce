@@ -31,7 +31,7 @@ export const DomainPricingManager: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, 'domainPricing'), orderBy('tld', 'asc')));
+      const snap = await getDocs(query(collection(db, 'domainPricing'), orderBy('tld', 'asc'), limit(500)));
       const data = snap.docs.map(d => ({ ...(d.data() as DomainPricing), id: d.id }));
       setPricing(data);
     } catch (error) {

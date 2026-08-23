@@ -1,9 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -14,8 +11,8 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && 
-        ((request.auth.token.email == "click2itbd@gmail.com" && request.auth.token.email_verified == true) ||
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function isManager() {
@@ -117,7 +114,23 @@ service cloud.firestore {
              data.brandShortName is string &&
              data.primaryColor is string &&
              data.secondaryColor is string &&
-             data.accentColor is string;
+             data.accentColor is string &&
+             !('dynadotApiKey' in data) &&
+             !('bkashAppKey' in data) &&
+             !('bkashAppSecret' in data) &&
+             !('bkashUsername' in data) &&
+             !('bkashPassword' in data) &&
+             !('sandbox_bkashAppKey' in data) &&
+             !('sandbox_bkashAppSecret' in data) &&
+             !('sandbox_bkashUsername' in data) &&
+             !('sandbox_bkashPassword' in data) &&
+             !('production_bkashAppKey' in data) &&
+             !('production_bkashAppSecret' in data) &&
+             !('production_bkashUsername' in data) &&
+             !('production_bkashPassword' in data) &&
+             !('smtpPassword' in data) &&
+             !('smsApiKey' in data) &&
+             !('whatsappAccessToken' in data);
     }
 
     function isValidReview(data) {
@@ -246,17 +259,36 @@ service cloud.firestore {
       return data.keys().hasAll(['hostingApiType', 'updatedAt']) &&
              data.hostingApiType is string &&
              data.updatedAt is string &&
-             (!('hostingApiKey' in data) || data.hostingApiKey is string) &&
+             !('hostingApiKey' in data) &&
+             !('whmApiToken' in data) &&
+             !('clnSecretKey' in data) &&
              (!('hostingApiUrl' in data) || data.hostingApiUrl is string) &&
              (!('bundleDiscountPercent' in data) || data.bundleDiscountPercent is number) &&
              (!('isSandboxMode' in data) || data.isSandboxMode is bool) &&
-             (!('clnLogin' in data) || data.clnLogin is string) &&
-             (!('clnSecretKey' in data) || data.clnSecretKey is string);
+             (!('clnLogin' in data) || data.clnLogin is string);
     }
 
-    // ===============================================================
-    // Collection Rules
-    // ===============================================================
+    function isCustomerTicket(ticketData) {
+      return ticketData.userId is string && ticketData.userId == request.auth.uid;
+    }
+
+    function hasNoStatusFieldUpdate() {
+      return !(
+        request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'status', 'paymentStatus', 'orderStatus', 'fulfillmentStatus', 'hostingStatus', 'domainStatus', 'provisioningStatus'
+        ])
+      );
+    }
+
+    function isStatusImmutable() {
+      return request.resource.data.status == resource.data.status &&
+             request.resource.data.paymentStatus == resource.data.paymentStatus &&
+             request.resource.data.orderStatus == resource.data.orderStatus &&
+             request.resource.data.fulfillmentStatus == resource.data.fulfillmentStatus &&
+             request.resource.data.hostingStatus == resource.data.hostingStatus &&
+             request.resource.data.domainStatus == resource.data.domainStatus &&
+             request.resource.data.provisioningStatus == resource.data.provisioningStatus;
+    }
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
@@ -277,7 +309,7 @@ service cloud.firestore {
       allow get: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
       allow list: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
       allow create: if isValidOrder(request.resource.data) && (request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess())));
-      allow update: if hasStaffAccess();
+      allow update: if hasStaffAccess() && isStatusImmutable();
       allow delete: if isAdmin();
     }
 
@@ -311,10 +343,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    
     match /settings/api_keys {
       allow read: if false;
-      allow write: if isAdmin();
+      allow write: if isAdmin() && isValidSettings(request.resource.data);
     }
     
     match /settings/hostingApiConfig {
@@ -417,11 +448,23 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
     }
-    match /tickets/{document=**} {
-      allow read, write: if isAuthenticated();
+    match /tickets/{ticketId} {
+      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(resource.data.userId) || hasStaffAccess();
+      allow delete: if isAdmin();
+      match /messages/{messageId} {
+        allow read: if isOwner(resource.data.userId) || hasStaffAccess();
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+        allow update: if isOwner(resource.data.userId) || hasStaffAccess();
+        allow delete: if isAdmin();
+      }
     }
     match /support_tickets/{ticketId} {
-      allow read, write: if hasStaffAccess() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
+      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(resource.data.userId) || hasStaffAccess();
+      allow delete: if isAdmin();
     }
     match /counters/{counterId} {
       allow read, write: if isAdmin();
@@ -430,7 +473,7 @@ service cloud.firestore {
     match /domainOrders/{orderId} {
       allow read: if isOwner(resource.data.userId) || hasStaffAccess();
       allow create: if isValidDomainOrder(request.resource.data) && (isOwner(request.resource.data.userId) || hasStaffAccess());
-      allow update: if hasStaffAccess();
+      allow update: if hasStaffAccess() && isStatusImmutable();
       allow delete: if isAdmin();
     }
 
@@ -441,7 +484,7 @@ service cloud.firestore {
     match /hostingAccounts/{accountId} {
       allow read: if isOwner(resource.data.userId) || hasStaffAccess();
       allow create: if isValidHostingAccount(request.resource.data) && (isOwner(request.resource.data.userId) || hasStaffAccess());
-      allow update: if hasStaffAccess() && isValidHostingAccount(request.resource.data);
+      allow update: if hasStaffAccess() && isStatusImmutable();
       allow delete: if isAdmin();
     }
 
@@ -461,11 +504,3 @@ service cloud.firestore {
     }
   }
 }
-
-
-
-
-
-
-
-

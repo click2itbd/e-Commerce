@@ -22,7 +22,7 @@ export const CategoryPage: React.FC = () => {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        let q = query(collection(db, 'products'));
+        let q = query(collection(db, 'products'), limit(200));
         
         // Note: Firestore queries for categories might be complex if we use slugs.
         // Usually, we store category names or IDs.

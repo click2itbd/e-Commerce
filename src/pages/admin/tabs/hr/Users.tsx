@@ -127,8 +127,7 @@ const UsersTab: React.FC = () => {
                   <select
                     value={user.role}
                     onChange={(e) => handleUpdateUserRole(user.uid, e.target.value)}
-                    disabled={user.email === 'click2itbd@gmail.com'}
-                    className="text-xs border-gray-200 rounded-md focus:ring-[#EF4444] disabled:opacity-50 disabled:cursor-not-allowed"
+                     className="text-xs border-gray-200 rounded-md focus:ring-[#EF4444]"
                   >
                     <option value="user">User</option>
                     <option value="staff">Staff</option>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Package, Tag, Clock } from 'lucide-react';
-import { collection, query, orderBy, limit, onSnapshot, getDocs, updateDoc, doc, where } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, updateDoc, doc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -11,56 +11,53 @@ export const AdminNotifications = () => {
   const dropdownRef = useRef(null);
 
   useEffect(() => {
-    // Listen for new pending orders
     const q1 = query(collection(db, 'orders'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'), limit(5));
-    // Listen for new domain offers
     const q2 = query(collection(db, 'domain_offers'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'), limit(5));
     
-    // We'll combine them manually since Firestore onSnapshot on multiple collections is tricky
-    // For simplicity, let's just fetch both once and periodically, or just fetch pending items.
+    const itemsMap = new Map();
     
-    const fetchNotifs = async () => {
-      try {
-        const oSnap = await getDocs(q1);
-        const offersSnap = await getDocs(q2);
-        
-        let items = [];
-        oSnap.docs.forEach(d => {
-          items.push({
-            id: d.id,
-            type: 'order',
-            title: 'New Order Pending',
-            message: `Order #${d.data().documentNumber || d.id.substring(0,6)} requires attention`,
-            time: d.data().createdAt,
-            icon: Package,
-            color: 'text-blue-500 bg-blue-50'
-          });
+    const unsub1 = onSnapshot(q1, (snap) => {
+      snap.docChanges().forEach((change) => {
+        const d = change.doc;
+        itemsMap.set(`order-${d.id}`, {
+          id: d.id,
+          type: 'order',
+          title: 'New Order Pending',
+          message: `Order #${d.data().documentNumber || d.id.substring(0,6)} requires attention`,
+          time: d.data().createdAt,
+          icon: Package,
+          color: 'text-blue-500 bg-blue-50'
         });
-        
-        offersSnap.docs.forEach(d => {
-          items.push({
-            id: d.id,
-            type: 'offer',
-            title: 'New Domain Offer',
-            message: `${d.data().domain} offer for ${d.data().offerAmount}`,
-            time: d.data().createdAt,
-            icon: Tag,
-            color: 'text-green-500 bg-green-50'
-          });
+        rebuildNotifications();
+      });
+    });
+
+    const unsub2 = onSnapshot(q2, (snap) => {
+      snap.docChanges().forEach((change) => {
+        const d = change.doc;
+        itemsMap.set(`offer-${d.id}`, {
+          id: d.id,
+          type: 'offer',
+          title: 'New Domain Offer',
+          message: `${d.data().domain} offer for ${d.data().offerAmount}`,
+          time: d.data().createdAt,
+          icon: Tag,
+          color: 'text-green-500 bg-green-50'
         });
-        
-        // Sort by time descending
-        items.sort((a, b) => new Date(b.time) - new Date(a.time));
-        setNotifications(items.slice(0, 10));
-        setUnreadCount(items.length);
-      } catch(e) {
-        console.error('Error fetching notifications:', e);
-      }
+        rebuildNotifications();
+      });
+    });
+
+    const rebuildNotifications = () => {
+      const items = Array.from(itemsMap.values()).sort((a, b) => new Date(b.time) - new Date(a.time));
+      setNotifications(items.slice(0, 10));
+      setUnreadCount(items.length);
     };
-    
-    fetchNotifs();
-    const interval = setInterval(fetchNotifs, 30000); // Check every 30s
-    return () => clearInterval(interval);
+
+    return () => {
+      unsub1();
+      unsub2();
+    };
   }, []);
 
   useEffect(() => {
@@ -132,5 +129,3 @@ export const AdminNotifications = () => {
     </div>
   );
 };
-
-

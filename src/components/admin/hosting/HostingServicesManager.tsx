@@ -25,7 +25,7 @@ export const HostingServicesManager: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, 'hostingServices'), orderBy('order', 'asc')));
+      const snap = await getDocs(query(collection(db, 'hostingServices'), orderBy('order', 'asc'), limit(100)));
       setHostingServices(snap.docs.map(d => ({ id: d.id, ...d.data() } as HostingService)));
     } catch (error) {
       console.error('Error fetching services:', error);

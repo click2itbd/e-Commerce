@@ -1,19 +1,41 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, updateDoc } = require("firebase-admin/firestore");
 
 admin.initializeApp();
+
+async function isAdminUser(uid) {
+  if (!uid) return false;
+  try {
+    const userDoc = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('users').doc(uid).get();
+    if (userDoc.exists) {
+      const data = userDoc.data();
+      return data?.role === 'admin';
+    }
+    return false;
+  } catch (error) {
+    console.error('Failed to check admin role:', error);
+    return false;
+  }
+}
+
+function sanitizeLogData(data) {
+  if (!data || typeof data !== 'object') return data;
+  const sanitized = { ...data };
+  const sensitiveFields = ['apiKey', 'dynadotApiKey', 'resendApiKey', 'bkashAppKey', 'bkashAppSecret', 'bkashUsername', 'bkashPassword', 'clnSecretKey', 'smtpPassword', 'hostingApiKey', 'whmApiToken', 'accessToken', 'id_token', 'authCode', 'password', 'secret'];
+  for (const field of sensitiveFields) {
+    if (field in sanitized) {
+      sanitized[field] = '***REDACTED***';
+    }
+  }
+  return sanitized;
+}
 
 async function verifyPaymentWithGateway(orderId, orderData) {
   const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
   
-  // bKash payment verification
   if (orderData.bkashPaymentId) {
     try {
-      const settingsSnap = await db.collection('settings').doc('api_keys').get();
-      const apiSettings = settingsSnap.exists ? settingsSnap.data() : null;
-      const isSandbox = apiSettings?.isSandboxMode === true;
-      
       let accessToken;
       try {
         accessToken = await getBkashAccessToken(db);
@@ -40,7 +62,9 @@ async function verifyPaymentWithGateway(orderId, orderData) {
       try { apiData = JSON.parse(rawText); } catch (e) { apiData = {}; }
 
       if (!response.ok || apiData.status_code !== '0000') {
-        console.error('bKash payment verification failed:', apiData);
+        const status = apiData?.status;
+        const status_code = apiData?.status_code;
+        console.error('bKash payment verification failed:', { status, status_code });
         return false;
       }
 
@@ -74,90 +98,8 @@ async function verifyPaymentWithGateway(orderId, orderData) {
   return false;
 }
 
-async function getBkashCredentials(db) {
-  const data = await db.collection('settings').doc('api_keys').get();
-  if (!data.exists) {
-    throw new Error('bKash credentials not configured');
-  }
-  const apiSettings = data.data();
-  const isSandbox = apiSettings?.isSandboxMode === true;
-  const prefix = isSandbox ? 'sandbox_' : 'production_';
-  
-  return {
-    appKey: apiSettings[`${prefix}bkashAppKey`],
-    appSecret: apiSettings[`${prefix}bkashAppSecret`],
-    username: apiSettings[`${prefix}bkashUsername`],
-    password: apiSettings[`${prefix}bkashPassword`],
-    baseUrl: getBkashBaseUrl(isSandbox),
-    isSandbox
-  };
-}
-
-async function getBkashAccessToken(db) {
-  const creds = await getBkashCredentials(db);
-  
-  const auth = Buffer.from(`${creds.username}:${creds.password}`).toString('base64');
-  
-  const response = await fetch(`${creds.baseUrl}/tokenized/checkout/token/grant`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Basic ${auth}`,
-      'X-APP-Key': creds.appKey
-    },
-    body: JSON.stringify({
-      app_key: creds.appKey,
-      app_secret: creds.appSecret
-    })
-  });
-
-  const rawText = await response.text();
-  let apiData;
-  try { apiData = JSON.parse(rawText); } catch (e) { apiData = {}; }
-
-  if (!response.ok || apiData.status_code !== '0000') {
-    throw new Error(apiData.status_message || 'Failed to get bKash access token');
-  }
-
-  return apiData.id_token;
-}
-
-function getBkashBaseUrl(isSandbox) {
-  return isSandbox ? 'https://tokenized.sandbox.bka.sh/v1.2.0-beta' : 'https://tokenized.pay.bka.sh/v1.2.0-beta';
-}
-
 async function sendOrderEmail(to, subject, html) {
-  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
-  const settingsSnap = await db.collection('settings').doc('api_keys').get();
-  const apiKeys = settingsSnap.exists ? settingsSnap.data() : null;
-
-  if (!apiKeys || !apiKeys.resendApiKey) {
-    console.warn('Email service not configured');
-    return;
-  }
-
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + apiKeys.resendApiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: 'Star Tech <onboarding@resend.dev>',
-        to: Array.isArray(to) ? to : [to],
-        subject,
-        html
-      })
-    });
-
-    const resData = await response.json();
-    if (!response.ok) {
-      console.error('Resend error:', resData);
-    }
-  } catch (error) {
-    console.error('Send Email Error:', error);
-  }
+  console.warn('sendOrderEmail is deprecated. Use backend /api/send-email endpoint instead.');
 }
 
 exports.storeTransferAuthCodes = functions.https.onCall(async (data, context) => {
@@ -302,22 +244,29 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') {
     res.set('Access-Control-Allow-Methods', 'GET, POST');
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, x-internal-secret');
     return res.status(204).send('');
   }
 
   try {
     const { orderId, status, transactionId } = req.body; 
 
-    if (!orderId || !status) {
-      return res.status(400).send("Missing required parameters: orderId or status");
+    if (!orderId || typeof orderId !== 'string') {
+      return res.status(400).send("Missing or invalid orderId");
     }
 
-    // Check in 'orders' collection
+    const allowedStatuses = ['success', 'manual_verified', 'failed'];
+    if (!status || !allowedStatuses.includes(status)) {
+      return res.status(400).send("Invalid status");
+    }
+
+    if (transactionId && typeof transactionId !== 'string') {
+      return res.status(400).send("Invalid transactionId");
+    }
+
     let targetRef = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection("orders").doc(orderId);
     let docSnap = await targetRef.get();
 
-    // If not in 'orders', check in 'invoices' (for domain offers/renewals)
     if (!docSnap.exists) {
       targetRef = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection("invoices").doc(orderId);
       docSnap = await targetRef.get();
@@ -455,15 +404,15 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                   const regResponse = await fetch(dynadotUrl);
                   const regData = await regResponse.json();
                   
-                  // Log Transfer
-                  await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('apiLogs').add({
-                    action: 'dynadot_transfer',
-                    domain,
-                    orderId,
-                    isSandbox,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                    response: regData
-                  });
+                   // Log Transfer
+                   await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('apiLogs').add({
+                     action: 'dynadot_transfer',
+                     domain,
+                     orderId,
+                     isSandbox,
+                     timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                     response: sanitizeLogData(regData)
+                   });
                   
                   // Clean up auth code after use
                   await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277')
@@ -543,15 +492,15 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                   const regResponse = await fetch(dynadotUrl);
                   const regData = await regResponse.json();
                   
-                  // Log Registration
-                  await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('apiLogs').add({
-                    action: 'dynadot_renew',
-                    domain,
-                    orderId,
-                    isSandbox,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                    response: regData
-                  });
+                   // Log Registration
+                   await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('apiLogs').add({
+                     action: 'dynadot_renew',
+                     domain,
+                     orderId,
+                     isSandbox,
+                     timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                     response: sanitizeLogData(regData)
+                   });
                   
                   // Update domainOrders document if successful
                   const dOrdersSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('domainOrders')
@@ -618,15 +567,15 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                   const regResponse = await fetch(dynadotUrl);
                   const regData = await regResponse.json();
                   
-                  // Log Registration
-                  await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('apiLogs').add({
-                    action: 'auto_register',
-                    domain,
-                    orderId,
-                    isSandbox,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                    response: regData
-                  });
+                   // Log Registration
+                   await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('apiLogs').add({
+                     action: 'auto_register',
+                     domain,
+                     orderId,
+                     isSandbox,
+                     timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                     response: sanitizeLogData(regData)
+                   });
                   
                   // Update domainOrders document if successful
                   // The UI created domainOrders with orderId matching this order
@@ -858,7 +807,8 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                   try { apiData = JSON.parse(rawText); } catch (e) { apiData = {}; }
 
                   if (!response.ok) {
-                    console.error('CloudLinux provisioning error:', apiData);
+                    const message = apiData?.message;
+                    console.error('CloudLinux provisioning error:', { status: response.status, message });
                     await updateDoc(accountDoc.ref, {
                       cloudLinuxStatus: 'failed',
                       cloudLinuxError: JSON.stringify(apiData),
@@ -908,46 +858,55 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
 
       return res.status(200).send({ message: "Payment status updated successfully" });
     } else {
-      // Payment Failed or Cancelled - DELETE the order!
-      let targetRef = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection("orders").doc(orderId);
+      const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+      let targetRef = db.collection("orders").doc(orderId);
       let docSnap = await targetRef.get();
 
       if (!docSnap.exists) {
-        targetRef = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection("invoices").doc(orderId);
+        targetRef = db.collection("invoices").doc(orderId);
         docSnap = await targetRef.get();
       }
 
       if (docSnap.exists) {
-        await targetRef.delete();
+        await targetRef.update({
+          status: 'cancelled',
+          paymentStatus: 'failed',
+          provisioningStatus: 'cancelled',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
 
-        // Also delete domainOrders
-        const dOrdersSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('domainOrders')
+        const dOrdersSnap = await db.collection('domainOrders')
           .where('orderId', '==', orderId)
           .get();
           
         if (!dOrdersSnap.empty) {
-          const batch = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').batch();
+          const batch = db.batch();
           dOrdersSnap.docs.forEach(doc => {
-            batch.delete(doc.ref);
+            batch.update(doc.ref, {
+              status: 'cancelled',
+              updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
           });
           await batch.commit();
         }
 
-        // Also delete hostingAccounts
-        const hAccountsSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('hostingAccounts')
+        const hAccountsSnap = await db.collection('hostingAccounts')
           .where('orderId', '==', orderId)
           .get();
           
         if (!hAccountsSnap.empty) {
-          const batch = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').batch();
+          const batch = db.batch();
           hAccountsSnap.docs.forEach(doc => {
-            batch.delete(doc.ref);
+            batch.update(doc.ref, {
+              status: 'cancelled',
+              updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
           });
           await batch.commit();
         }
       }
 
-      return res.status(200).send({ message: "Order deleted successfully due to failed payment" });
+      return res.status(200).send({ message: "Payment marked as failed" });
     }
 
   } catch (error) {
@@ -1535,7 +1494,7 @@ exports.getDomainRenewalPrice = functions.https.onCall(async (data, context) => 
 });
 
 exports.getDomainRenewalPriceBreakdown = functions.https.onCall(async (data, context) => {
-  if (!context.auth || !context.auth.token.admin) {
+  if (!context.auth || !await isAdminUser(context.auth.uid)) {
     throw new functions.https.HttpsError('unauthenticated', 'Admin access required');
   }
 
@@ -1799,7 +1758,7 @@ exports.validateHostingPrice = functions.https.onCall(async (data, context) => {
 exports.dynadotProxy = functions.https.onCall(async (data, context) => {
   const { command, domain, extraParams } = data;
   
-  if (!context.auth || context.auth.token.admin !== true) {
+  if (!context.auth || !await isAdminUser(context.auth.uid)) {
     throw new functions.https.HttpsError('unauthenticated', 'Admin access required for domain operations.');
   }
 
@@ -1842,7 +1801,7 @@ exports.dynadotProxy = functions.https.onCall(async (data, context) => {
       domain,
       isSandbox,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      response: apiData
+      response: sanitizeLogData(apiData)
     });
 
     return apiData;
@@ -1858,7 +1817,7 @@ exports.manageDomain = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('unauthenticated', 'You must be logged in to manage domains.');
   }
 
-  console.log('RECEIVED DATA:', data); console.log('RECEIVED CONTEXT:', context); const { command, domain, extraParams } = data;
+  const { command, domain, extraParams } = data;
   const uid = context.auth.uid;
 
   if (!command || !domain) {
@@ -1921,7 +1880,7 @@ const crypto = require('crypto');
 
 exports.cloudLinuxProxy = functions.https.onCall(async (data, context) => {
   // Only admins can interact with CloudLinux API for adding/removing licenses
-  if (!context.auth || context.auth.token.admin !== true) {
+  if (!context.auth || !await isAdminUser(context.auth.uid)) {
     throw new functions.https.HttpsError('permission-denied', 'Admin access required for this action.');
   }
 
@@ -1971,13 +1930,14 @@ exports.cloudLinuxProxy = functions.https.onCall(async (data, context) => {
     try {
       apiData = JSON.parse(rawText);
     } catch (e) {
-      console.error('CloudLinux non-JSON response:', rawText);
+      console.error('CloudLinux non-JSON response received');
       throw new functions.https.HttpsError('internal', 'CloudLinux API returned invalid format.');
     }
 
     if (!response.ok) {
-      console.error('CloudLinux API Error:', apiData);
-      throw new functions.https.HttpsError('internal', apiData?.message || 'Error from CloudLinux API.');
+      const message = apiData?.message;
+      console.error('CloudLinux API Error:', { status: response.status, message });
+      throw new functions.https.HttpsError('internal', message || 'Error from CloudLinux API.');
     }
 
     // Log the API call
@@ -2054,13 +2014,16 @@ async function getBkashAccessToken(db) {
   try {
     apiData = JSON.parse(rawText);
   } catch (e) {
-    console.error('bKash non-JSON response:', rawText);
+    console.error('bKash non-JSON response received');
     throw new functions.https.HttpsError('internal', 'bKash API returned invalid format.');
   }
 
   if (!response.ok || apiData.status_code !== '0000') {
-    console.error('bKash token error:', apiData);
-    throw new functions.https.HttpsError('internal', apiData.status_message || 'Failed to get bKash access token.');
+    const status = apiData?.status;
+    const status_code = apiData?.status_code;
+    const message = apiData?.status_message;
+    console.error('bKash token error:', { status, status_code, message });
+    throw new functions.https.HttpsError('internal', message || 'Failed to get bKash access token.');
   }
 
   // Cache token (expires in ~1 hour, we refresh 5 mins before)
@@ -2078,8 +2041,8 @@ exports.bkashGrantToken = functions.https.onCall(async (data, context) => {
   const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
   
   try {
-    const token = await getBkashAccessToken(db);
-    return { success: true, token };
+    await getBkashAccessToken(db);
+    return { success: true };
   } catch (error) {
     console.error('bKash Grant Token Error:', error);
     if (error instanceof functions.https.HttpsError) throw error;
@@ -2133,13 +2096,16 @@ exports.bkashCreatePayment = functions.https.onCall(async (data, context) => {
     try {
       apiData = JSON.parse(rawText);
     } catch (e) {
-      console.error('bKash create payment non-JSON:', rawText);
+      console.error('bKash create payment non-JSON response');
       throw new functions.https.HttpsError('internal', 'bKash API returned invalid format.');
     }
 
     if (!response.ok || apiData.status_code !== '0000') {
-      console.error('bKash create payment error:', apiData);
-      throw new functions.https.HttpsError('internal', apiData.status_message || 'Failed to create bKash payment.');
+      const status = apiData?.status;
+      const status_code = apiData?.status_code;
+      const message = apiData?.status_message;
+      console.error('bKash create payment error:', { status, status_code, message });
+      throw new functions.https.HttpsError('internal', message || 'Failed to create bKash payment.');
     }
 
     // Save paymentID to order
@@ -2195,13 +2161,16 @@ exports.bkashExecutePayment = functions.https.onCall(async (data, context) => {
     try {
       apiData = JSON.parse(rawText);
     } catch (e) {
-      console.error('bKash execute payment non-JSON:', rawText);
+      console.error('bKash execute payment non-JSON response');
       throw new functions.https.HttpsError('internal', 'bKash API returned invalid format.');
     }
 
     if (!response.ok || apiData.status_code !== '0000') {
-      console.error('bKash execute payment error:', apiData);
-      throw new functions.https.HttpsError('internal', apiData.status_message || 'Failed to execute bKash payment.');
+      const status = apiData?.status;
+      const status_code = apiData?.status_code;
+      const message = apiData?.status_message;
+      console.error('bKash execute payment error:', { status, status_code, message });
+      throw new functions.https.HttpsError('internal', message || 'Failed to execute bKash payment.');
     }
 
     // Update order with transaction details
@@ -2266,13 +2235,16 @@ exports.bkashQueryPayment = functions.https.onCall(async (data, context) => {
     try {
       apiData = JSON.parse(rawText);
     } catch (e) {
-      console.error('bKash query payment non-JSON:', rawText);
+      console.error('bKash query payment non-JSON response');
       throw new functions.https.HttpsError('internal', 'bKash API returned invalid format.');
     }
 
     if (!response.ok || apiData.status_code !== '0000') {
-      console.error('bKash query payment error:', apiData);
-      throw new functions.https.HttpsError('internal', apiData.status_message || 'Failed to query bKash payment.');
+      const status = apiData?.status;
+      const status_code = apiData?.status_code;
+      const message = apiData?.status_message;
+      console.error('bKash query payment error:', { status, status_code, message });
+      throw new functions.https.HttpsError('internal', message || 'Failed to query bKash payment.');
     }
 
     return {
@@ -2344,7 +2316,7 @@ exports.bkashCallback = functions.https.onRequest(async (req, res) => {
               updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
           } else {
-            console.error('bKash execute failed on callback:', executeData);
+            console.error('bKash execute failed on callback:', { status: executeData?.status, status_code: executeData?.status_code });
           }
         } catch (e) {
           console.error('bKash execute error on callback:', e);
@@ -2377,7 +2349,7 @@ exports.testApiConnection = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('unauthenticated', 'You must be logged in to test API connections.');
     }
     // 2. Admin authorization
-    if (!context.auth.token.admin) {
+    if (!context.auth || !await isAdminUser(context.auth.uid)) {
       throw new functions.https.HttpsError('permission-denied', 'Only admins can test API connections.');
     }
 
@@ -2528,7 +2500,7 @@ exports.testApiConnection = functions.https.onCall(async (data, context) => {
 });
 
 exports.manageHosting = functions.https.onCall(async (data, context) => {
-  if (!context.auth || !context.auth.token.admin) {
+  if (!context.auth || !await isAdminUser(context.auth.uid)) {
     throw new functions.https.HttpsError('permission-denied', 'Admin access required.');
   }
 
@@ -2591,7 +2563,7 @@ exports.manageHosting = functions.https.onCall(async (data, context) => {
   }
 });
 exports.adminApiConfig = functions.https.onCall(async (data, context) => {
-  if (!context.auth || !context.auth.token.admin) {
+  if (!context.auth || !await isAdminUser(context.auth.uid)) {
     throw new functions.https.HttpsError('permission-denied', 'Admin access required.');
   }
 
@@ -2610,14 +2582,13 @@ exports.adminApiConfig = functions.https.onCall(async (data, context) => {
   if (method === 'GET') {
     const snap = await docRef.get();
     const currentData = snap.exists ? snap.data() : {};
-    const sanitized = { ...currentData };
+    const sanitized: Record<string, any> = {};
 
-    for (const key of Object.keys(sanitized)) {
+    for (const [key, value] of Object.entries(currentData)) {
       if (secretFields.includes(key)) {
-        const value = sanitized[key];
-        if (typeof value === 'string' && value.length > 0) {
-          sanitized[key] = '****************' + value.slice(-4);
-        }
+        sanitized[key] = typeof value === 'string' && value.length > 0;
+      } else {
+        sanitized[key] = value;
       }
     }
     return sanitized;
@@ -2631,7 +2602,7 @@ exports.adminApiConfig = functions.https.onCall(async (data, context) => {
     for (const key of Object.keys(updates)) {
       if (secretFields.includes(key)) {
         const value = updates[key];
-        if (typeof value === 'string' && value.startsWith('****************')) {
+        if (value === true || (typeof value === 'string' && value.startsWith('****************'))) {
           updates[key] = existing[key];
         }
       }
@@ -2682,7 +2653,44 @@ exports.sendEmail = functions.https.onCall(async (data, context) => {
 
     return { success: true, data: resData };
   } catch (error) {
-    console.error('Send Email Error:', error);
+    console.error('Send Email Error:', error?.message || 'Unknown error');
     throw new functions.https.HttpsError('internal', error.message || 'Failed to send email.');
+  }
+});
+
+exports.sendWelcomeEmail = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+  }
+
+  const { email, name } = data;
+  if (!email) {
+    throw new functions.https.HttpsError('invalid-argument', 'Email is required.');
+  }
+
+  const subject = 'Welcome to Click2IT!';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #2563eb;">Welcome to Click2IT!</h2>
+      <p>Dear ${name || 'Customer'},</p>
+      <p>Thank you for signing up with Click2IT. We're excited to have you on board!</p>
+      <p>You can now:</p>
+      <ul>
+        <li>Search and register domains</li>
+        <li>Purchase hosting plans</li>
+        <li>Manage your services from your dashboard</li>
+        <li>Access 24/7 support</li>
+      </ul>
+      <p>If you have any questions, feel free to contact our support team.</p>
+      <p>Best regards,<br>Click2IT Team</p>
+    </div>
+  `;
+
+  try {
+    await sendOrderEmail(email, subject, html);
+    return { success: true };
+  } catch (error) {
+    console.error('Send Welcome Email Error:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to send welcome email.');
   }
 });

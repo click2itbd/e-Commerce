@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, XCircle } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useCart } from '../context/CartContext';
 import { toast } from 'react-hot-toast';
+import { apiPost } from '../services/apiClient';
 
 export default function PaymentCallback() {
   const [searchParams] = useSearchParams();
@@ -47,21 +48,21 @@ export default function PaymentCallback() {
             throw new Error('Payment ID not found for this order. Please contact support.');
           }
 
-          const { httpsCallable } = await import('firebase/functions');
-          const { getFunctions, getApp } = await import('firebase/app');
-          const { app } = await import('../firebase');
-          const functions = getFunctions(app);
-          const bkashExecutePayment = httpsCallable(functions, 'bkashExecutePayment');
-          
-          const result = await bkashExecutePayment({ paymentId, orderId });
-          const data = result.data as any;
-          
-          if (data?.success) {
-            clearCart();
-            toast.success('পেমেন্ট সফল হয়েছে! আপনার অর্ডার কনফার্ম করা হয়েছে।');
-            navigate('/', { replace: true });
-          } else {
-            throw new Error(data?.errorMessage || 'Payment execution failed');
+          try {
+            const result = await apiPost<{ success: boolean; errorMessage?: string }>(
+              `/api/orders/${orderId}/payment/execute-bkash`,
+              { paymentId, orderId }
+            );
+            
+            if (result.success) {
+              clearCart();
+              toast.success('পেমেন্ট সফল হয়েছে! আপনার অর্ডার কনফার্ম করা হয়েছে।');
+              navigate('/', { replace: true });
+            } else {
+              throw new Error(result.errorMessage || 'Payment execution failed');
+            }
+          } catch (err: any) {
+            throw new Error(err?.message || 'Payment execution failed');
           }
         } else {
           await updateDoc(targetRef, {

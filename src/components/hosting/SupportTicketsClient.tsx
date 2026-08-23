@@ -42,7 +42,7 @@ export const SupportTicketsClient: React.FC = () => {
   useEffect(() => {
     if (!user) return;
     
-    const q = query(collection(db, 'tickets'), where('userId', '==', user.uid), orderBy('updatedAt', 'desc'));
+    const q = query(collection(db, 'tickets'), where('userId', '==', user.uid), orderBy('updatedAt', 'desc'), limit(100));
     const unsubscribe = onSnapshot(q, (snap) => {
       setTickets(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ticket[]);
       setLoading(false);
@@ -54,7 +54,7 @@ export const SupportTicketsClient: React.FC = () => {
   const handleViewTicket = async (ticket: Ticket) => {
     setSelectedTicket(ticket);
     const messagesRef = collection(db, 'tickets', ticket.id, 'messages');
-    const q = query(messagesRef, orderBy('createdAt', 'asc'));
+    const q = query(messagesRef, orderBy('createdAt', 'asc'), limit(200));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as TicketMessage[]);

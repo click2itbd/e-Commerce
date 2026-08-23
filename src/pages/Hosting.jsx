@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
-import { collection, query, orderBy, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, getDoc, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
@@ -33,7 +33,7 @@ export default function Hosting() {
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const q = query(collection(db, 'hostingServices'), orderBy('order', 'asc'));
+        const q = query(collection(db, 'hostingServices'), orderBy('order', 'asc'), limit(50));
         const snap = await getDocs(q);
         setServices(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(s => s.isActive));
       } catch (e) {
@@ -46,7 +46,7 @@ export default function Hosting() {
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const q = query(collection(db, 'hostingPlans'), orderBy('order', 'asc'));
+          const q = query(collection(db, 'hostingPlans'), orderBy('order', 'asc'), limit(100));
         const snap = await getDocs(q);
         setPlans(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (e) {

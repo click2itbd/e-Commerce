@@ -27,7 +27,7 @@ export const NameserverModal: React.FC<NameserverModalProps> = ({ domain, onClos
       setNs(initialNs.slice(0, 4));
     } else {
       // Default Click2IT nameservers
-      setNs(['ns1.click2it.com', 'ns2.click2it.com', '', '']);
+      setNs(['ns1.click2itbd.com', 'ns2.click2itbd.com', '', '']);
     }
   }, [domain]);
 

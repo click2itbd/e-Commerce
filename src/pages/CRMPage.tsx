@@ -4,13 +4,10 @@ import { db, auth } from '../firebase';
 import { Audience, Lead } from '../types';
 import { Users, Bot, MessageCircle, Share2, Search, Zap, Plus, X, Pencil, Trash2, UserCheck, Sparkles, Download, Upload, Calendar, Phone, Mail, Settings, Send, LayoutDashboard, Target, Workflow, Megaphone, ListFilter, QrCode } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { GoogleGenAI } from "@google/genai";
 import Papa from 'papaparse';
 import { saveAs } from 'file-saver';
 import QRCode from 'react-qr-code';
 import DOMPurify from 'dompurify';
-
-const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 
 const WISH_TEMPLATES = [
   { id: 'happy_birthday', name: 'Happy Birthday', content: 'Happy Birthday {name}! Wishing you a fantastic day and a wonderful year ahead.' },
@@ -122,7 +119,7 @@ export const CRMPage: React.FC = () => {
 
   const fetchAudiences = async () => {
     try {
-      const q = query(collection(db, 'audiences'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'audiences'), orderBy('createdAt', 'desc'), limit(200));
       const snapshot = await getDocs(q);
       setAudiences(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Audience)));
     } catch (e) {
@@ -132,7 +129,7 @@ export const CRMPage: React.FC = () => {
 
   const fetchLeads = async () => {
     try {
-      const q = query(collection(db, 'leads'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'leads'), orderBy('createdAt', 'desc'), limit(200));
       const snapshot = await getDocs(q);
       setLeads(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead)));
     } catch (e) {
@@ -249,17 +246,18 @@ export const CRMPage: React.FC = () => {
       Keep the summary under 50 words.`;
       
       try {
-          if (!ai) {
-            toast.error('AI service is not configured.');
-            return;
-          }
-          const response = await ai.models.generateContent({
-              model: 'gemini-3-flash-preview',
-              contents: prompt
+          const response = await fetch('/api/ai/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: prompt }),
           });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'AI service error');
+          }
           
           await updateDoc(doc(db, 'leads', lead.id), {
-              aiSummary: response.text
+              aiSummary: data.reply
           });
           toast.success('Lead analyzed!');
           fetchLeads();

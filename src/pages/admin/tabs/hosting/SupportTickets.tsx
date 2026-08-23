@@ -57,7 +57,7 @@ export default function SupportTickets() {
   const handleViewTicket = async (ticket: Ticket) => {
     setSelectedTicket(ticket);
     const messagesRef = collection(db, 'tickets', ticket.id, 'messages');
-    const q = query(messagesRef, orderBy('createdAt', 'asc'));
+    const q = query(messagesRef, orderBy('createdAt', 'asc'), limit(200));
     
     // Use onSnapshot for real-time messages
     const unsubscribe = onSnapshot(q, (snapshot) => {

@@ -9,9 +9,9 @@ import { toast } from 'react-hot-toast';
 import { Lock, ShieldCheck, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server, Key } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, addDoc, query, where, getDocs, doc, writeBatch } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { generateDocumentNumber } from '../../lib/numbering';
 import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../../services/paymentApi';
+import { apiPost } from '../../services/apiClient';
 
 export const HostingCheckout: React.FC = () => {
   const { user } = useAuth();
@@ -48,8 +48,8 @@ export const HostingCheckout: React.FC = () => {
   });
 
   const [domainConfig, setDomainConfig] = useState({
-    ns1: 'ns1.click2it.com',
-    ns2: 'ns2.click2it.com',
+    ns1: 'ns1.click2itbd.com',
+    ns2: 'ns2.click2itbd.com',
     useCustomNs: false
   });
 
@@ -326,11 +326,9 @@ export const HostingCheckout: React.FC = () => {
         setExistingOrderId(orderId);
       } // End if (!orderId)
 
-      // Store transfer auth codes securely via Cloud Function
+      // Store transfer auth codes securely via backend API
       if (transferItems.length > 0) {
         try {
-          const functions = getFunctions();
-          const storeAuthCodes = httpsCallable(functions, 'storeTransferAuthCodes');
           const authCodesPayload = transferItems
             .filter(item => transferAuthCodes[item.id]?.trim())
             .map(item => ({
@@ -340,7 +338,10 @@ export const HostingCheckout: React.FC = () => {
             }));
           
           if (authCodesPayload.length > 0) {
-            await storeAuthCodes({ orderId, authCodes: authCodesPayload });
+            await apiPost('/api/domain/transfer-auth-codes', {
+              orderId,
+              authCodes: authCodesPayload,
+            });
           }
         } catch (error) {
           console.error('Failed to store transfer auth codes:', error);
@@ -452,7 +453,7 @@ export const HostingCheckout: React.FC = () => {
                             />
                             <div>
                               <p className="text-sm font-medium text-gray-900">Use Default Nameservers</p>
-                              <p className="text-xs text-gray-500">ns1.click2it.com, ns2.click2it.com (Recommended)</p>
+                              <p className="text-xs text-gray-500">ns1.click2itbd.com, ns2.click2itbd.com (Recommended)</p>
                             </div>
                           </label>
 
