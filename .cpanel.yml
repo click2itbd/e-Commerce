@@ -1,26 +1,66 @@
 ---
 deployment:
   tasks:
-    # ─── Variables ───────────────────────────────────────────────────────────
-    - export PUBLIC_HTML=/home/$USER/public_html
-    - export BACKEND_DIR=/home/$USER/backend_app
 
-    # ─── Create directories ───────────────────────────────────────────────────
-    - mkdir -p $PUBLIC_HTML
-    - mkdir -p $BACKEND_DIR
+    # ============================================================
+    # 1. Deployment paths
+    # ============================================================
 
-    # ─── 1. Deploy frontend build artifacts ──────────────────────────────────
-    # The dist/ folder is built locally and committed before pushing.
-    # This copies the compiled frontend assets to the public web root.
+    - export PUBLIC_HTML=/home/click2itbd/public_html
+    - export BACKEND_DIR=/home/click2itbd/backend_app
+
+
+    # ============================================================
+    # 2. Create required directories
+    # ============================================================
+
+    - /bin/mkdir -p $PUBLIC_HTML
+    - /bin/mkdir -p $BACKEND_DIR
+
+
+    # ============================================================
+    # 3. Deploy React/Vite Frontend
+    #
+    # dist/ is already the production build.
+    # Only compiled frontend files are copied to public_html.
+    # ============================================================
+
     - /bin/cp -R dist/. $PUBLIC_HTML/
 
-    # ─── 2. Deploy backend compiled JS ───────────────────────────────────────
-    # backend/dist/ contains compiled TypeScript -> JavaScript (tsc output).
-    # This is NOT publicly accessible; it lives outside public_html.
+
+    # ============================================================
+    # 4. Deploy Backend
+    #
+    # Backend source is kept outside public_html.
+    # This prevents backend source files from being publicly accessible.
+    # ============================================================
+
+    - /bin/mkdir -p $BACKEND_DIR/dist
+
     - /bin/cp -R backend/dist/. $BACKEND_DIR/dist/
+
     - /bin/cp backend/package.json $BACKEND_DIR/
+
     - /bin/cp backend/package-lock.json $BACKEND_DIR/
 
-    # ─── 3. Install backend production dependencies ───────────────────────────
-    # Only runtime dependencies, no devDependencies
-    - /usr/local/bin/npm install --prefix $BACKEND_DIR --omit=dev --no-audit --no-fund
+
+    # ============================================================
+    # 5. Install backend production dependencies
+    #
+    # Do NOT copy node_modules from local machine.
+    # Install production dependencies on the server.
+    # ============================================================
+
+    - /usr/local/bin/npm ci --prefix $BACKEND_DIR --omit=dev --no-audit --no-fund
+
+
+    # ============================================================
+    # 6. Protect backend environment
+    #
+    # IMPORTANT:
+    # backend/.env is NOT deployed by Git.
+    # Production secrets must be configured through cPanel
+    # Node.js Application environment variables.
+    # ============================================================
+
+    - /bin/chmod 750 $BACKEND_DIR
