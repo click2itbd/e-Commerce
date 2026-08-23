@@ -1,7 +1,7 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const { getFirestore, updateDoc } = require("firebase-admin/firestore");
-
+const crypto = require("crypto");
 admin.initializeApp();
 
 async function isAdminUser(uid) {

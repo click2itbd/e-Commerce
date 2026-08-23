@@ -2,58 +2,44 @@
 deployment:
   tasks:
 
-    # ==========================================
-    # 1. Deployment directories
-    # ==========================================
+    # ==============================
+    # FRONTEND
+    # ==============================
 
     - export PUBLIC_HTML=/home/$USER/public_html
+
+    # Clean old frontend files
+    - /bin/rm -rf $PUBLIC_HTML/assets
+    - /bin/rm -f $PUBLIC_HTML/index.html
+    - /bin/rm -f $PUBLIC_HTML/_redirects
+    - /bin/rm -f $PUBLIC_HTML/.htaccess
+    - /bin/rm -f $PUBLIC_HTML/robots.txt
+    - /bin/rm -f $PUBLIC_HTML/sitemap.xml
+
+    # Deploy frontend build
+    - /bin/cp -R dist/assets $PUBLIC_HTML/
+    - /bin/cp dist/index.html $PUBLIC_HTML/
+    - /bin/cp dist/.htaccess $PUBLIC_HTML/
+    - /bin/cp dist/_redirects $PUBLIC_HTML/
+    - /bin/cp dist/robots.txt $PUBLIC_HTML/
+    - /bin/cp dist/sitemap.xml $PUBLIC_HTML/
+    - /bin/cp dist/logo.png $PUBLIC_HTML/
+
+
+    # ==============================
+    # BACKEND
+    # ==============================
+
     - export BACKEND_DIR=/home/$USER/backend_app
 
-
-    # ==========================================
-    # 2. Create directories
-    # ==========================================
-
-    - /bin/mkdir -p $PUBLIC_HTML
     - /bin/mkdir -p $BACKEND_DIR
 
+    # Backend compiled files
+    - /bin/cp -R backend/dist $BACKEND_DIR/
 
-    # ==========================================
-    # 3. Deploy frontend
-    # ==========================================
+    # Backend package files
+    - /bin/cp backend/package.json $BACKEND_DIR/
+    - /bin/cp backend/package-lock.json $BACKEND_DIR/
 
-    - /bin/cp -R dist/. $PUBLIC_HTML/
-
-
-    # ==========================================
-    # 4. Copy backend source
-    # ==========================================
-
-    - /bin/cp -R backend/. $BACKEND_DIR/
-
-
-    # ==========================================
-    # 5. Install ALL backend dependencies
-    #    Required for TypeScript build
-    # ==========================================
-
-    - /usr/local/bin/npm install --prefix $BACKEND_DIR --no-audit --no-fund
-
-
-    # ==========================================
-    # 6. Build TypeScript backend
-    #
-    # src/server.ts
-    #        ↓
-    # dist/server.js
-    # ==========================================
-
-    - /usr/local/bin/npm run build --prefix $BACKEND_DIR
-
-
-    # ==========================================
-    # 7. Remove development dependencies
-    #    After successful build
-    # ==========================================
-
+    # Install production dependencies
     - /usr/local/bin/npm install --prefix $BACKEND_DIR --omit=dev --no-audit --no-fund
