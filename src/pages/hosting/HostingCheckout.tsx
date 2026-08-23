@@ -646,7 +646,7 @@ export const HostingCheckout: React.FC = () => {
                         <p className="text-xs text-gray-500 mb-1">Send payment to</p>
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-2xl font-bold text-pink-600 tracking-wider">
-                            {bkashNumber || '01XXXXXXXXX'}
+                            {bkashNumber || '01727666677'}
                           </p>
                           <button
                             type="button"
