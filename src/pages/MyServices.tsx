@@ -114,7 +114,7 @@ export const MyServices: React.FC = () => {
   const handleRenew = async (domain: DomainOrder) => {
     setDomainLoading(domain.id);
     try {
-      const res = await apiPost<{ success: boolean; message?: string; error?: string }>('/api/domain/renew', {
+      const res = await apiPost<{ success: boolean; message?: string; error?: string }>('/api/domains/renew', {
         domain: domain.domain,
         years: 1,
       });

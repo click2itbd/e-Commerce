@@ -9,6 +9,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useSettings } from '../../../../context/SettingsContext';
 import { sendServiceActivationEmail, getEmailLogsForOrder, EmailLog } from '../../../../services/emailService';
+import { getApiUrl } from '../../../../services/apiClient';
 
 export default function HostingOrders() {
   const { settings } = useSettings();
@@ -141,7 +142,7 @@ export default function HostingOrders() {
       if (paymentAction === 'reject') {
         body.reason = rejectionReason || 'Manual verification failed';
       }
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/admin/orders/${selectedOrder.id}/payment/verify`, {
+      const response = await fetch(getApiUrl(`/api/admin/orders/${selectedOrder.id}/payment/verify`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

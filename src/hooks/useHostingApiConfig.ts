@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getApiUrl } from '../services/apiClient';
 
 interface HostingApiConfig {
   bundleDiscountPercent?: number;
@@ -12,7 +13,7 @@ export function useHostingApiConfig() {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/public/hosting-config`);
+        const response = await fetch(getApiUrl('/api/public/hosting-config'));
         const json = await response.json();
         if (json.success && json.data) {
           setConfig({

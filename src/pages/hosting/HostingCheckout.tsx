@@ -6,12 +6,12 @@ import { useSettings } from '../../context/SettingsContext';
 import { Layout } from '../../components/Layout';
 import { formatCurrency } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { Lock, ShieldCheck, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server, Key } from 'lucide-react';
+import { Lock, ShieldCheck, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server, Key, Copy, Check } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, addDoc, query, where, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { generateDocumentNumber } from '../../lib/numbering';
 import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../../services/paymentApi';
-import { apiPost } from '../../services/apiClient';
+import { apiPost, getApiUrl } from '../../services/apiClient';
 
 export const HostingCheckout: React.FC = () => {
   const { user } = useAuth();
@@ -59,21 +59,26 @@ export const HostingCheckout: React.FC = () => {
 
   const [transferAuthCodes, setTransferAuthCodes] = useState<Record<string, string>>({});
   const [bkashNumber, setBkashNumber] = useState('');
+  const [copiedNumber, setCopiedNumber] = useState(false);
 
   useEffect(() => {
     const fetchBkashNumber = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/public/config`);
+        const res = await fetch(getApiUrl('/api/public/config'));
         const json = await res.json();
         if (json.success && json.data?.manualBkashNumber) {
           setBkashNumber(json.data.manualBkashNumber);
+          return;
         }
       } catch (e) {
-        console.error('Failed to load bKash number:', e);
+        // Suppress network error in dev and fall back
+      }
+      if (settings?.bkashNumber) {
+        setBkashNumber(settings.bkashNumber);
       }
     };
     fetchBkashNumber();
-  }, []);
+  }, [settings]);
 
   const hasDomain = items.some(i => i.itemType === 'domain');
   const hasHosting = items.some(i => i.itemType === 'hosting');
@@ -327,14 +332,7 @@ export const HostingCheckout: React.FC = () => {
       try {
         if (user) {
           const token = await user.getIdToken();
-          await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/email/notify-admin-new-order`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ orderId: newOrderRef.id, orderData })
-          });
+          await apiPost('/api/send-email/notify-admin-new-order', { orderId: newOrderRef.id, orderData }, token);
         }
       } catch (err) {
         console.error('Failed to notify admin:', err);
@@ -356,7 +354,7 @@ export const HostingCheckout: React.FC = () => {
             }));
           
           if (authCodesPayload.length > 0) {
-            await apiPost('/api/domain/transfer-auth-codes', {
+            await apiPost('/api/domains/transfer-auth-codes', {
               orderId,
               authCodes: authCodesPayload,
             });
@@ -655,61 +653,106 @@ export const HostingCheckout: React.FC = () => {
                   </div>
 
                   {formData.paymentMethod === 'bkash' && (
-                    <div className="mt-6 p-4 bg-pink-50 border border-pink-100 rounded-xl space-y-4">
-                      <h4 className="font-semibold text-pink-900">bKash Payment</h4>
-                      <p className="text-sm text-pink-800">
-                        Send the exact amount to the bKash number below, then enter your Transaction ID.
-                      </p>
+                    <div className="mt-6 p-5 bg-gradient-to-b from-pink-50/70 via-pink-50/30 to-white border border-pink-200/90 rounded-2xl space-y-4 shadow-sm">
+                      {/* bKash Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-pink-600 flex items-center justify-center text-white shadow-sm shadow-pink-200">
+                            <Wallet className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900 text-sm">bKash Manual Payment</h4>
+                            <p className="text-xs text-gray-500">Send Money (Personal)</p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-semibold px-2.5 py-1 bg-pink-100 text-pink-700 rounded-full">
+                          Send Money
+                        </span>
+                      </div>
                       
-                      <div className="bg-white p-4 rounded-lg border border-pink-200">
-                        <p className="text-xs text-gray-500 mb-1">Send payment to</p>
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-2xl font-bold text-pink-600 tracking-wider">
-                            {bkashNumber || '01727666677'}
-                          </p>
+                      {/* Number and Amount Card */}
+                      <div className="bg-white p-4 rounded-xl border border-pink-200 shadow-sm space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">bKash Personal Number</span>
+                            <div className="text-2xl font-black text-pink-600 tracking-wider font-mono mt-0.5">
+                              {bkashNumber || settings?.bkashNumber || '01727666677'}
+                            </div>
+                          </div>
                           <button
                             type="button"
                             onClick={async () => {
-                              if (bkashNumber) {
-                                await navigator.clipboard.writeText(bkashNumber);
-                                toast.success('bKash number copied.');
-                              }
+                              const num = bkashNumber || settings?.bkashNumber || '01727666677';
+                              await navigator.clipboard.writeText(num);
+                              setCopiedNumber(true);
+                              toast.success('bKash number copied!');
+                              setTimeout(() => setCopiedNumber(false), 2000);
                             }}
-                            className="px-3 py-1.5 text-xs font-medium text-pink-700 bg-pink-100 rounded-md hover:bg-pink-200 transition-colors"
+                            className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-sm ${
+                              copiedNumber 
+                                ? 'bg-emerald-600 text-white shadow-emerald-200' 
+                                : 'bg-pink-600 hover:bg-pink-700 text-white shadow-pink-200'
+                            }`}
                           >
-                            Copy Number
+                            {copiedNumber ? <Check size={14} /> : <Copy size={14} />}
+                            {copiedNumber ? 'Copied' : 'Copy Number'}
                           </button>
                         </div>
-                        <p className="text-sm text-gray-800 mt-3">
-                          Amount to Pay: <span className="font-bold text-lg">{formatCurrency(grandTotal)}</span>
+
+                        <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between text-sm">
+                          <span className="text-gray-600 font-medium">Amount to Pay:</span>
+                          <span className="text-lg font-black text-gray-900">{formatCurrency(grandTotal)}</span>
+                        </div>
+                      </div>
+
+                      {/* Step-by-Step Instructions */}
+                      <div className="bg-pink-50/50 rounded-xl p-3.5 border border-pink-100 space-y-2">
+                        <p className="text-xs font-bold text-pink-950 flex items-center gap-1.5">
+                          <CheckCircle size={14} className="text-pink-600" /> How to Pay:
                         </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-700">
+                          <div className="flex items-start gap-2 bg-white/80 p-2 rounded-lg border border-pink-100/60">
+                            <span className="w-5 h-5 rounded-full bg-pink-100 text-pink-700 font-bold text-[11px] flex items-center justify-center shrink-0">1</span>
+                            <span>Open bKash App & tap <strong>Send Money</strong></span>
+                          </div>
+                          <div className="flex items-start gap-2 bg-white/80 p-2 rounded-lg border border-pink-100/60">
+                            <span className="w-5 h-5 rounded-full bg-pink-100 text-pink-700 font-bold text-[11px] flex items-center justify-center shrink-0">2</span>
+                            <span>Send exact <strong>{formatCurrency(grandTotal)}</strong></span>
+                          </div>
+                          <div className="flex items-start gap-2 bg-white/80 p-2 rounded-lg border border-pink-100/60">
+                            <span className="w-5 h-5 rounded-full bg-pink-100 text-pink-700 font-bold text-[11px] flex items-center justify-center shrink-0">3</span>
+                            <span>Copy the <strong>Transaction ID (TrxID)</strong></span>
+                          </div>
+                          <div className="flex items-start gap-2 bg-white/80 p-2 rounded-lg border border-pink-100/60">
+                            <span className="w-5 h-5 rounded-full bg-pink-100 text-pink-700 font-bold text-[11px] flex items-center justify-center shrink-0">4</span>
+                            <span>Paste TrxID below & click <strong>Complete Order</strong></span>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="text-xs text-pink-700 space-y-1">
-                        <p className="font-medium">Instructions:</p>
-                        <ol className="list-decimal list-inside space-y-1">
-                          <li>Open your bKash app and select <strong>Send Money</strong>.</li>
-                          <li>Send the exact amount to the number above.</li>
-                          <li>Copy the Transaction ID from your bKash confirmation.</li>
-                          <li>Paste it below and click <strong>Complete Order</strong>.</li>
-                        </ol>
-                      </div>
-
-                      <div className="pt-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          bKash Transaction ID <span className="text-red-500">*</span>
-                        </label>
+                      {/* Transaction ID Input */}
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold text-gray-800 uppercase tracking-wider">
+                            bKash Transaction ID (TrxID) <span className="text-red-500">*</span>
+                          </label>
+                          {formData.transactionId?.trim() && (
+                            <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                              <Check size={12} /> TrxID entered
+                            </span>
+                          )}
+                        </div>
                         <input
                           type="text"
                           name="transactionId"
                           value={formData.transactionId || ''}
                           onChange={handleChange}
-                          placeholder="e.g. 8KJ7D92ABC"
+                          placeholder="e.g. 9J87K12L3M"
                           maxLength={64}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-pink-500 focus:border-pink-500 text-sm outline-none"
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-pink-500 focus:ring-4 focus:ring-pink-100 text-sm font-mono uppercase tracking-wider font-semibold text-gray-900 bg-white outline-none transition-all placeholder:font-sans placeholder:normal-case placeholder:font-normal placeholder:text-gray-400"
                         />
-                        {formData.paymentMethod === 'bkash' && !formData.transactionId.trim() && (
-                          <p className="text-xs text-red-500 mt-1">Please enter a valid bKash Transaction ID.</p>
+                        {formData.paymentMethod === 'bkash' && !formData.transactionId?.trim() && (
+                          <p className="text-xs text-rose-500 font-medium">Please enter the Transaction ID from your bKash confirmation.</p>
                         )}
                       </div>
                     </div>

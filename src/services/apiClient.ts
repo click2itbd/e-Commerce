@@ -1,7 +1,14 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '');
 
 async function apiRequest<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
-  const url = `${API_BASE_URL}${path}`;
+  const cleanBase = API_BASE_URL.replace(/\/+$/, '');
+  let cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {
+    cleanPath = cleanPath.slice(4);
+  }
+
+  const url = `${cleanBase}${cleanPath}`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
@@ -27,6 +34,15 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, token?: st
   }
 
   return response.json();
+}
+
+export function getApiUrl(path: string): string {
+  const base = (import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '')).replace(/\/+$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (base.endsWith('/api') && cleanPath.startsWith('/api/')) {
+    return `${base}${cleanPath.slice(4)}`;
+  }
+  return `${base}${cleanPath}`;
 }
 
 export async function apiGet<T>(path: string, token?: string): Promise<T> {

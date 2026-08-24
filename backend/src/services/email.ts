@@ -33,7 +33,7 @@ export function getSmtpProvider(): SmtpEmailProvider {
       user: process.env.SMTP_USER || '',
       password: process.env.SMTP_PASSWORD || '',
       fromName: process.env.SMTP_FROM_NAME || 'Click2IT',
-      fromEmail: process.env.SMTP_FROM_EMAIL || 'noreply@click2it.com',
+      fromEmail: process.env.SMTP_FROM_EMAIL || 'noreply@click2itbd.com',
     };
     smtpProvider = new SmtpEmailProvider(config);
   }

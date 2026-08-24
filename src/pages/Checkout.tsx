@@ -11,6 +11,7 @@ import { collection, addDoc, doc, writeBatch } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { generateDocumentNumber } from '../lib/numbering';
 import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../services/paymentApi';
+import { apiPost } from '../services/apiClient';
 
 export const Checkout: React.FC = () => {
   const { user } = useAuth();
@@ -176,14 +177,7 @@ export const Checkout: React.FC = () => {
       try {
         if (user) {
           const token = await user.getIdToken();
-          await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/email/notify-admin-new-order`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ orderId: newOrderRef.id, orderData })
-          });
+          await apiPost('/api/send-email/notify-admin-new-order', { orderId: newOrderRef.id, orderData }, token);
         }
       } catch (err) {
         console.error('Failed to notify admin:', err);

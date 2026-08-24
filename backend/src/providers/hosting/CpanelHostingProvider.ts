@@ -44,7 +44,7 @@ export class CpanelHostingProvider implements IHostingProvider {
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
-          'Authorization': `whm ${this.apiUsername}:${this.apiKey}`,
+          'Authorization': `WHM-API-TOKEN ${this.apiKey}`,
           'Accept': 'application/json',
         },
         signal: controller.signal,

@@ -21,6 +21,7 @@ import { useSettings } from "../../../../context/SettingsContext";
 import { CRMIntegrationsSetting } from "../../../../components/CRMIntegrationsSetting";
 import { SiteSettings } from "../../../../types";
 import { useAuth } from "../../../../context/AuthContext";
+import { getApiUrl } from "../../../../services/apiClient";
 
 export const Settings = () => {
   const { settings, updateSettings } = useSettings();
@@ -53,7 +54,7 @@ export const Settings = () => {
       try {
         if (!user) return;
         const token = await user.getIdToken();
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/admin/api-config`, {
+        const res = await fetch(getApiUrl('/api/admin/api-config'), {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -122,7 +123,7 @@ export const Settings = () => {
       if (settingsTab === "domain_reseller") {
         const payload = buildApiKeysPayload();
         const token = await user?.getIdToken();
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/admin/api-config`, {
+        const res = await fetch(getApiUrl('/api/admin/api-config'), {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -135,7 +136,7 @@ export const Settings = () => {
           throw new Error(json.error || 'Failed to save API configuration');
         }
 
-        const freshRes = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/admin/api-config`, {
+        const freshRes = await fetch(getApiUrl('/api/admin/api-config'), {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { Order, OrderStatus, Product, SoldSerial } from '../../../types';
 import { formatCurrency } from '../../../lib/utils';
 import { generateDocumentNumber } from '../../../lib/numbering';
+import { getApiUrl } from '../../../services/apiClient';
 
 export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers, vendors, products, discountCodes, checkLowStock }: any) {
 
@@ -249,7 +250,7 @@ export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers
             const order = orders.find(o => o.id === id);
             if (order && order.customerEmail) {
               emailPromises.push(
-                fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/send-email`, {
+                fetch(getApiUrl('/api/send-email'), {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({

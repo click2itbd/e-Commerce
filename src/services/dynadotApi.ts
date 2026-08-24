@@ -4,14 +4,32 @@
  * Never exposes Dynadot API key, wholesale prices, exchange rate, or markup to frontend.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '');
+
+type CacheEntry<T> = { value: T; expires: number };
+const pricingCache = new Map<string, CacheEntry<any>>();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+function getCached<T>(key: string): T | null {
+  const entry = pricingCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expires) {
+    pricingCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function setCache<T>(key: string, value: T): void {
+  pricingCache.set(key, { value, expires: Date.now() + CACHE_TTL_MS });
+}
+
+const inFlightRequests = new Map<string, Promise<any>>();
 
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  // Strip trailing slash from base URL and ensure single /api prefix
   const cleanBase = API_BASE_URL.replace(/\/+$/, '');
   let cleanPath = path.startsWith('/') ? path : `/${path}`;
 
-  // If base already ends with /api and path starts with /api, remove it from path
   if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {
     cleanPath = cleanPath.slice(4);
   }
@@ -56,7 +74,7 @@ export interface TldPricingResponse {
 
 export const getTldPricing = async (tld: string): Promise<TldPricingResponse> => {
   try {
-    const response = await apiRequest<{ success: boolean; data: TldPricingResponse }>('/api/domain/tld-pricing', {
+    const response = await apiRequest<{ success: boolean; data: TldPricingResponse }>('/api/domains/tld-pricing', {
       method: 'POST',
       body: JSON.stringify({ tld }),
     });
@@ -83,9 +101,15 @@ export interface BatchTldPricingResponse {
   pricing: BatchTldPricingItem[];
 }
 
+export interface BatchTldPricingApiResponse {
+  success: boolean;
+  data?: BatchTldPricingResponse;
+  error?: string;
+}
+
 export const getBatchTldPricing = async (tlds: string[]): Promise<BatchTldPricingResponse> => {
   try {
-    const response = await apiRequest<{ success: boolean; data: BatchTldPricingResponse }>('/api/domain/tld-pricing-batch', {
+    const response = await apiRequest<BatchTldPricingApiResponse>('/api/domains/tld-pricing-batch', {
       method: 'POST',
       body: JSON.stringify({ tlds }),
     });
@@ -93,7 +117,7 @@ export const getBatchTldPricing = async (tlds: string[]): Promise<BatchTldPricin
     if (response.success && response.data?.pricing?.length > 0) {
       return response.data;
     } else {
-      throw new Error(response.data?.error || 'Failed to fetch batch TLD pricing');
+      throw new Error(response.error || 'Failed to fetch batch TLD pricing');
     }
   } catch (error: any) {
     console.error('Domain batch TLD pricing error:', error?.code || error?.message || error);
@@ -103,7 +127,7 @@ export const getBatchTldPricing = async (tlds: string[]): Promise<BatchTldPricin
 
 export const searchDomainDynadot = async (domain: string): Promise<DomainAvailabilityResponse> => {
   try {
-    const response = await apiRequest<{ success: boolean; data: DomainAvailabilityResponse[] }>('/api/domain/check', {
+    const response = await apiRequest<{ success: boolean; data: DomainAvailabilityResponse[] }>('/api/domains/check', {
       method: 'POST',
       body: JSON.stringify({ domains: [domain] }),
     });
@@ -130,7 +154,7 @@ export interface DomainRenewalPriceResponse {
 
 export const getDomainRenewalPrice = async (domain: string): Promise<DomainRenewalPriceResponse> => {
   try {
-    const response = await apiRequest<{ success: boolean; data: DomainRenewalPriceResponse }>('/api/domain/renewal-price', {
+    const response = await apiRequest<{ success: boolean; data: DomainRenewalPriceResponse }>('/api/domains/renewal-price', {
       method: 'POST',
       body: JSON.stringify({ domain }),
     });
@@ -156,7 +180,7 @@ export interface DomainRenewalPriceBreakdown {
 
 export const getDomainRenewalPriceBreakdown = async (domain: string): Promise<DomainRenewalPriceBreakdown> => {
   try {
-    const response = await apiRequest<{ success: boolean; data: DomainRenewalPriceBreakdown }>('/api/domain/renewal-price-breakdown', {
+    const response = await apiRequest<{ success: boolean; data: DomainRenewalPriceBreakdown }>('/api/domains/renewal-price-breakdown', {
       method: 'POST',
       body: JSON.stringify({ domain }),
     });
@@ -194,7 +218,7 @@ export const createDomainRenewalOrder = async (params: {
       headers['X-Idempotency-Key'] = params.idempotencyKey;
     }
 
-    const response = await apiRequest<{ success: boolean; data: CreateRenewalOrderResult }>('/api/domain/renewal-order', {
+    const response = await apiRequest<{ success: boolean; data: CreateRenewalOrderResult }>('/api/domains/renewal-order', {
       method: 'POST',
       headers,
       body: JSON.stringify(params),
@@ -234,7 +258,7 @@ export const createDomainTransferOrder = async (params: {
       headers['X-Idempotency-Key'] = params.idempotencyKey;
     }
 
-    const response = await apiRequest<{ success: boolean; data: CreateTransferOrderResult }>('/api/domain/transfer', {
+    const response = await apiRequest<{ success: boolean; data: CreateTransferOrderResult }>('/api/domains/transfer', {
       method: 'POST',
       headers,
       body: JSON.stringify(params),
@@ -259,7 +283,7 @@ export interface TransferEligibilityResult {
 
 export const checkTransferEligibility = async (domain: string): Promise<TransferEligibilityResult> => {
   try {
-    const response = await apiRequest<{ success: boolean; data: TransferEligibilityResult }>('/api/domain/transfer/check-eligibility', {
+    const response = await apiRequest<{ success: boolean; data: TransferEligibilityResult }>('/api/domains/transfer/check-eligibility', {
       method: 'POST',
       body: JSON.stringify({ domain }),
     });

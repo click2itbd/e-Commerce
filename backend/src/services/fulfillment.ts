@@ -5,6 +5,7 @@ import { getDomainPricingSettings } from './domainPricing';
 import { getHostingProvider } from '../providers/providerFactory';
 import { ProviderError } from '../providers/domain/DynadotDomainProvider';
 import { classifyHostingError } from './hosting';
+import { config } from '../config/index.js';
 
 export interface FulfillmentResult {
   success: boolean;
@@ -139,6 +140,9 @@ export async function fulfillOrder(orderId: string, actorUid: string): Promise<F
       }
     } catch (error) {
       console.error('Failed to read site settings:', error);
+    }
+    if (!adminEmail) {
+      adminEmail = process.env.ADMIN_EMAIL || config.smtp.fromEmail || 'info@click2itbd.com';
     }
     if (adminEmail) {
       const failedItems = [...domainResults.filter(r => !r.success), ...hostingResults.filter(r => !r.success)];
@@ -437,25 +441,53 @@ async function getDomainConfig() {
     const result = await getAdminDocument('settings', 'api_keys');
     if (result.exists && result.data) {
       const data = result.data as any;
-      const dynadotApiKey = data.dynadotApiKey;
+      const dynadotApiKey = data.dynadotApiKey || config.secrets.dynadotApiKey || '';
+      if (!dynadotApiKey) {
+        console.warn('[Fulfillment] No Dynadot API key found in Firestore or .env — domain orders will fail');
+      }
       return {
         domainApiType: dynadotApiKey ? 'dynadot' : 'dummy',
-        domainApiKey: dynadotApiKey || ''
+        domainApiKey: dynadotApiKey,
       };
     }
   } catch (error) {
-    console.error('Failed to read domain API config:', error);
+    console.error('[Fulfillment] Failed to read domain API config from Firestore:', error);
   }
-  return { domainApiType: 'dummy' };
+
+  // Fallback to .env config
+  const dynadotApiKey = config.secrets.dynadotApiKey || '';
+  if (!dynadotApiKey) {
+    throw new Error('No Dynadot API key configured. Set DYNADOT_API_KEY in backend/.env');
+  }
+  return {
+    domainApiType: 'dynadot',
+    domainApiKey: dynadotApiKey,
+  };
 }
 
 async function getHostingProviderWithSettings() {
-  const result = await getAdminDocument('settings', 'api_keys');
-  const data = result.data || {};
-  const hostingApiType = data.hostingApiType || data.WHM_API_TYPE || 'cpanel';
-  const hostingApiKey = data.hostingApiKey || data.WHM_API_TOKEN || data.WHM_API_KEY || '';
-  const hostingApiUrl = data.hostingApiUrl || data.WHM_API_URL || '';
-  const hostingApiUsername = data.hostingApiUsername || data.WHM_USERNAME || 'root';
+  let data: Record<string, any> = {};
+  try {
+    const result = await getAdminDocument('settings', 'api_keys');
+    if (result.exists && result.data) {
+      data = result.data as Record<string, any>;
+    }
+  } catch (error) {
+    console.warn('[Fulfillment] Failed to read hosting API config from Firestore, using .env fallback:', error);
+  }
+
+  // Merge Firestore values with .env fallbacks (Firestore takes priority)
+  const hostingApiType = data.hostingApiType || config.secrets.whmApiType || 'cpanel';
+  const hostingApiKey = data.hostingApiKey || config.secrets.whmApiToken || config.secrets.whmApiKey || '';
+  const hostingApiUrl = data.hostingApiUrl || config.secrets.whmApiUrl || '';
+  const hostingApiUsername = data.hostingApiUsername || config.secrets.whmUsername || 'root';
+
+  if (!hostingApiKey) {
+    throw new Error('No WHM API token configured. Set WHM_API_TOKEN in backend/.env');
+  }
+  if (!hostingApiUrl) {
+    throw new Error('No WHM API URL configured. Set WHM_API_URL in backend/.env');
+  }
 
   const provider = getHostingProvider({
     hostingApiType,

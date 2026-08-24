@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
 import { Plus, Edit2, Trash2, X } from 'lucide-react';
 
 interface DomainPricing {
+  id?: string;  // Firestore document ID (auto-generated)
   tld: string;
   registerPrice: number;
   renewPrice: number;
@@ -17,7 +18,7 @@ export const DomainPricingManager: React.FC = () => {
   const [pricing, setPricing] = useState<DomainPricing[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
-  const [editingTld, setEditingTld] = useState<string | null>(null);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null); // tracks Firestore doc ID
   const [formData, setFormData] = useState<DomainPricing>({
     tld: '',
     registerPrice: 0,
@@ -49,15 +50,16 @@ export const DomainPricingManager: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editingTld) {
-        await updateDoc(doc(db, 'domainPricing', editingTld), formData);
+      if (editingDocId) {
+        // Use the actual Firestore document ID for updates
+        await updateDoc(doc(db, 'domainPricing', editingDocId), formData);
         toast.success('Domain pricing updated');
       } else {
         await addDoc(collection(db, 'domainPricing'), formData);
         toast.success('Domain pricing added');
       }
       setIsAdding(false);
-      setEditingTld(null);
+      setEditingDocId(null);
       setFormData({ tld: '', registerPrice: 0, renewPrice: 0, transferPrice: 0, currency: 'BDT', isActive: true });
       fetchData();
     } catch (error) {
@@ -66,12 +68,17 @@ export const DomainPricingManager: React.FC = () => {
     }
   };
 
-  const handleDelete = (tld: string) => {
+  const handleDelete = (item: DomainPricing) => {
     setConfirmDelete({
-      tld,
+      tld: item.tld,
       onConfirm: async () => {
         try {
-          await deleteDoc(doc(db, 'domainPricing', tld));
+          if (!item.id) {
+            toast.error('Cannot delete: missing document ID');
+            return;
+          }
+          // Use the actual Firestore document ID for deletion
+          await deleteDoc(doc(db, 'domainPricing', item.id));
           toast.success('Domain pricing deleted');
           fetchData();
         } catch (error) {
@@ -83,7 +90,7 @@ export const DomainPricingManager: React.FC = () => {
   };
 
   const startEdit = (item: DomainPricing) => {
-    setEditingTld(item.tld);
+    setEditingDocId(item.id || null); // track by doc ID, not TLD
     setFormData({
       tld: item.tld,
       registerPrice: item.registerPrice,
@@ -163,7 +170,7 @@ export const DomainPricingManager: React.FC = () => {
                         <Edit2 size={16} />
                       </button>
                       <button
-                        onClick={() => handleDelete(item.tld)}
+                        onClick={() => handleDelete(item)}
                         className="bg-gray-100 p-2 rounded-md text-red-600 hover:bg-red-50 transition-colors"
                         title="Delete"
                       >

@@ -1,4 +1,5 @@
 import { IDomainProvider, DomainAvailabilityResult, DomainRegistrationRequest, DomainRegistrationResult, DomainRenewalResult, WhoisResult, TldPricingResult, BatchTldPricingItem, DomainRenewalPriceResult, DomainRenewalPriceBreakdown, DomainTransferResult } from './IDomainProvider';
+import { config } from '../../config/index.js';
 
 const DEFAULT_TLD_PRICES: Record<string, { register: number; renew: number; transfer: number; restore: number }> = {
   com: { register: 10.99, renew: 11.99, transfer: 10.99, restore: 60 },
@@ -23,6 +24,8 @@ export class DynadotDomainProvider implements IDomainProvider {
   private baseUrl: string;
   private isSandbox: boolean;
   private requestTimeout: number;
+  private tldPricingCache = new Map<string, { value: TldPricingResult; expires: number }>();
+  private static readonly TLD_PRICING_CACHE_TTL_MS = 60 * 60 * 1000;
 
   constructor(apiKey: string, isSandbox: boolean = false, requestTimeout: number = 15000) {
     this.apiKey = apiKey;
@@ -31,6 +34,20 @@ export class DynadotDomainProvider implements IDomainProvider {
     this.baseUrl = isSandbox
       ? 'https://api-sandbox.dynadot.com/api3.json'
       : 'https://api.dynadot.com/api3.json';
+  }
+
+  private getCachedTldPricing(tld: string): TldPricingResult | null {
+    const entry = this.tldPricingCache.get(tld);
+    if (!entry) return null;
+    if (Date.now() > entry.expires) {
+      this.tldPricingCache.delete(tld);
+      return null;
+    }
+    return entry.value;
+  }
+
+  private setCachedTldPricing(tld: string, value: TldPricingResult): void {
+    this.tldPricingCache.set(tld, { value, expires: Date.now() + DynadotDomainProvider.TLD_PRICING_CACHE_TTL_MS });
   }
 
   private async dynadotRequest(command: string, params: Record<string, string> = {}): Promise<any> {
@@ -76,46 +93,65 @@ export class DynadotDomainProvider implements IDomainProvider {
     }
   }
 
-  async checkAvailability(domains: string[]): Promise<DomainAvailabilityResult[]> {
-    const results: DomainAvailabilityResult[] = [];
-    
-    for (const domain of domains) {
-      try {
-        const data = await this.dynadotRequest('search', { domain0: domain });
-        const searchResult = data?.SearchResponse?.SearchResults?.[0];
-        
-        if (!searchResult) {
-          results.push({
-            domain,
-            available: false,
-            error: 'No search results found',
-          });
-          continue;
-        }
+  async checkAvailability(domains: string[] | string): Promise<DomainAvailabilityResult[]> {
+    const domainList = Array.isArray(domains) ? domains : [domains];
+    if (!domainList.length) return [];
 
-        const isAvailable = String(searchResult.Available).toLowerCase() === 'yes';
-        const tldMatch = domain.match(/\.[^.]+$/);
-        const tld = tldMatch ? tldMatch[0].replace(/^\./, '').toLowerCase() : 'com';
-        const defaultPrice = (DEFAULT_TLD_PRICES[tld] || { register: 12.99 }).register;
-        const price = searchResult.Price ? parseFloat(searchResult.Price) : defaultPrice;
-        
-        results.push({
-          domain,
-          available: isAvailable,
-          price: isAvailable ? price : undefined,
-          currency: 'USD',
-          status: isAvailable ? 'available' : 'taken',
-        });
-      } catch (error: any) {
-        results.push({
-          domain,
-          available: false,
-          error: error.message || 'Domain check failed',
+    try {
+      const params: Record<string, string> = {};
+      domainList.forEach((d, i) => {
+        params[`domain${i}`] = d;
+      });
+
+      const data = await this.dynadotRequest('search', params);
+      const searchResults: any[] = data?.SearchResponse?.SearchResults || [];
+
+      if (searchResults.length > 0) {
+        return domainList.map((domain, index) => {
+          const searchResult = searchResults.find((r: any) => r.DomainName?.toLowerCase() === domain.toLowerCase()) || searchResults[index];
+          const tldMatch = domain.match(/\.[^.]+$/);
+          const tld = tldMatch ? tldMatch[0].replace(/^\./, '').toLowerCase() : 'com';
+          const defaultPrice = (DEFAULT_TLD_PRICES[tld] || { register: 12.99 }).register;
+
+          if (!searchResult) {
+            return {
+              domain,
+              available: false,
+              price: defaultPrice,
+              currency: 'USD',
+              status: 'taken',
+            };
+          }
+
+          const isAvailable = String(searchResult.Available).toLowerCase() === 'yes';
+          const price = searchResult.Price ? parseFloat(searchResult.Price) : defaultPrice;
+
+          return {
+            domain,
+            available: isAvailable,
+            price: price,
+            currency: 'USD',
+            status: isAvailable ? 'available' : 'taken',
+          };
         });
       }
+    } catch (error: any) {
+      console.warn('[Dynadot] Batch search error or timeout:', error.message);
     }
 
-    return results;
+    // Fallback if Dynadot API is unavailable/timed out: return formatted domain results with default prices
+    return domainList.map(domain => {
+      const tldMatch = domain.match(/\.[^.]+$/);
+      const tld = tldMatch ? tldMatch[0].replace(/^\./, '').toLowerCase() : 'com';
+      const defaultPrice = (DEFAULT_TLD_PRICES[tld] || { register: 12.99 }).register;
+      return {
+        domain,
+        available: false,
+        price: defaultPrice,
+        currency: 'USD',
+        status: 'taken',
+      };
+    });
   }
 
   async getSuggestions(domain: string): Promise<string[]> {
@@ -190,6 +226,9 @@ export class DynadotDomainProvider implements IDomainProvider {
 
   async getTldPricing(tld: string): Promise<TldPricingResult> {
     const cleanTld = tld.replace(/^\./, '').toLowerCase();
+    const cached = this.getCachedTldPricing(cleanTld);
+    if (cached) return cached;
+
     const fallback = DEFAULT_TLD_PRICES[cleanTld] || { register: 12.99, renew: 14.99, transfer: 12.99, restore: 60 };
 
     try {
@@ -197,7 +236,7 @@ export class DynadotDomainProvider implements IDomainProvider {
       const tldData = data?.TLDPricing || data?.TldPriceResponse;
       const entry = Array.isArray(tldData?.TldPrice) ? tldData.TldPrice[0] : null;
       if (entry) {
-        return {
+        const result = {
           tld: `.${cleanTld}`,
           currency: 'USD',
           registrationPrice: parseFloat(entry.RegistrationPrice || entry.registration_price || fallback.register),
@@ -205,12 +244,14 @@ export class DynadotDomainProvider implements IDomainProvider {
           transferPrice: parseFloat(entry.TransferPrice || entry.transfer_price || fallback.transfer),
           restorePrice: parseFloat(entry.RestorePrice || entry.restore_price || fallback.restore),
         };
+        this.setCachedTldPricing(cleanTld, result);
+        return result;
       }
     } catch {
       // Fallback
     }
 
-    return {
+    const result = {
       tld: `.${cleanTld}`,
       currency: 'USD',
       registrationPrice: fallback.register,
@@ -218,6 +259,8 @@ export class DynadotDomainProvider implements IDomainProvider {
       transferPrice: fallback.transfer,
       restorePrice: fallback.restore,
     };
+    this.setCachedTldPricing(cleanTld, result);
+    return result;
   }
 
   async getBatchTldPricing(tlds: string[]): Promise<{ pricing: BatchTldPricingItem[] }> {
@@ -284,8 +327,8 @@ export class DynadotDomainProvider implements IDomainProvider {
       // Fallback
     }
 
-    const markupPercent = 15;
-    const exchangeRate = 120;
+    const markupPercent = config.dynadot.markupPercent;
+    const exchangeRate = config.dynadot.exchangeRate;
     const retailUsd = renewPrice * (1 + markupPercent / 100);
     const priceUsd = Math.round(retailUsd * 100) / 100;
     const priceBdt = Math.round(retailUsd * exchangeRate);

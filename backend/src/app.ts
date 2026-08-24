@@ -2,18 +2,18 @@ import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { config } from "./config";
-import { requestId } from "./middleware/requestId";
-import { errorHandler } from "./middleware/errorHandler";
-import domainRouter from "./routes/domain";
-import hostingRouter from "./routes/hosting";
-import ordersRouter from "./routes/orders";
-import publicRouter from "./routes/public";
-import adminRouter from "./routes/admin";
-import aiRouter from "./routes/ai";
-import emailRouter from "./routes/email";
-import webhookRouter from "./routes/webhook";
-import campaignRouter from "./routes/campaign";
+import { config } from "./config/index.js";
+import { requestId } from "./middleware/requestId.js";
+import { errorHandler } from "./middleware/errorHandler.js";
+import domainRouter from "./routes/domain.js";
+import hostingRouter from "./routes/hosting.js";
+import ordersRouter from "./routes/orders.js";
+import publicRouter from "./routes/public.js";
+import adminRouter from "./routes/admin.js";
+import aiRouter from "./routes/ai.js";
+import emailRouter from "./routes/email.js";
+import webhookRouter from "./routes/webhook.js";
+import campaignRouter from "./routes/campaign.js";
 
 export function createApp(): Express {
   const app = express();
@@ -117,12 +117,15 @@ export function createApp(): Express {
   app.use(express.json({ limit: config.bodyLimit }));
   app.set("trust proxy", 1);
 
+  const isDev = process.env.NODE_ENV !== "production";
+
   const generalLimiter = rateLimit({
     windowMs: config.rateLimit.windowMs,
     max: config.rateLimit.generalMax,
     message: { error: "Too many requests. Please try again later." },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => isDev,
   });
 
   const authLimiter = rateLimit({
@@ -133,6 +136,7 @@ export function createApp(): Express {
     },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => isDev,
   });
 
   const sensitiveLimiter = rateLimit({
@@ -141,6 +145,7 @@ export function createApp(): Express {
     message: { error: "Too many requests. Please try again later." },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => isDev,
   });
 
   const healthHandler = (req: express.Request, res: express.Response) => {
@@ -165,6 +170,8 @@ export function createApp(): Express {
   apiRouter.post("/auth/otp", authLimiter);
   apiRouter.use("/ai/chat", sensitiveLimiter);
 
+  apiRouter.use(generalLimiter);
+
   apiRouter.use("/public", publicRouter);
   apiRouter.use("/domains", domainRouter);
   apiRouter.use("/hosting", hostingRouter);
@@ -174,9 +181,6 @@ export function createApp(): Express {
   apiRouter.use("/ai", aiRouter);
   apiRouter.use("/webhook", webhookRouter);
   apiRouter.use("/send-whatsapp-campaign", campaignRouter);
-
-  app.use("/api", generalLimiter);
-  app.use("/", generalLimiter);
 
   app.use("/api", apiRouter);
   app.use("/", apiRouter);

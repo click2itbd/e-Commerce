@@ -4,6 +4,7 @@ import { db, auth } from '../firebase';
 import { Audience, Lead } from '../types';
 import { Users, Bot, MessageCircle, Share2, Search, Zap, Plus, X, Pencil, Trash2, UserCheck, Sparkles, Download, Upload, Calendar, Phone, Mail, Settings, Send, LayoutDashboard, Target, Workflow, Megaphone, ListFilter, QrCode } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { getApiUrl } from '../services/apiClient';
 import Papa from 'papaparse';
 import { saveAs } from 'file-saver';
 import QRCode from 'react-qr-code';
@@ -246,7 +247,7 @@ export const CRMPage: React.FC = () => {
       Keep the summary under 50 words.`;
       
       try {
-          const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/ai/chat`, {
+          const response = await fetch(getApiUrl('/api/ai/chat'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: prompt }),

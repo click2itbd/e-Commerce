@@ -7,9 +7,9 @@ import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { ArrowLeftRight, Search, CreditCard } from 'lucide-react';
 
-interface TransactionsTabProps { transactions: any[]; customers: any[]; setSelectedLedgerEntity: (v: any) => void; setActiveTab: (v: string) => void; }
+interface TransactionsTabProps { transactions?: any[]; customers?: any[]; setSelectedLedgerEntity?: (v: any) => void; setActiveTab?: (v: string) => void; }
 
-const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions, customers, setSelectedLedgerEntity, setActiveTab }) => {
+const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions = [], customers = [], setSelectedLedgerEntity, setActiveTab }) => {
   const { isAdmin, hasPermission } = useAuth();
   const { settings } = useSettings();
 

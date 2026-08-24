@@ -68,7 +68,7 @@ export const DomainOrdersManager: React.FC = () => {
   const handleRetryRegistration = async (order: DomainOrder) => {
     setActionLoading(order.id);
     try {
-      const res = await apiPost<{ success: boolean; message?: string; error?: string }>('/api/domain/register', {
+      const res = await apiPost<{ success: boolean; message?: string; error?: string }>('/api/domains/register', {
         domain: order.domain,
         years: 1,
       });
@@ -105,7 +105,7 @@ export const DomainOrdersManager: React.FC = () => {
   const handleRenew = async (order: DomainOrder) => {
     setActionLoading(order.id);
     try {
-      const res = await apiPost<{ success: boolean; message?: string; error?: string }>('/api/domain/renew', {
+      const res = await apiPost<{ success: boolean; message?: string; error?: string }>('/api/domains/renew', {
         domain: order.domain,
         years: 1,
       });

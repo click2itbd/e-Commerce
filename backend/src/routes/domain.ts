@@ -178,17 +178,50 @@ domainRouter.get('/pricing', async (req: any, res: Response) => {
   try {
     const db = getAdminDb();
     const snap = await db.collection('domainPricing').orderBy('tld', 'asc').get();
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as DomainPricing[];
-    return res.json({ success: true, data });
-  } catch (error: any) {
-    // If Firebase Admin SDK is not configured (no service account key), return empty list
-    // so the frontend doesn't crash — pricing will be fetched live from Dynadot instead
-    if (error?.message?.includes('not configured') || error?.message?.includes('Project Id') || error?.message?.includes('not available')) {
-      console.warn('[domain/pricing] Firebase Admin not available, returning empty pricing list.');
-      return res.json({ success: true, data: [], warning: 'Firestore unavailable: configure FIREBASE_SERVICE_ACCOUNT_KEY for stored pricing.' });
+    if (!snap.empty) {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as DomainPricing[];
+      return res.json({ success: true, data });
     }
-    console.error('Domain pricing error:', error);
-    return res.status(500).json({ success: false, error: error?.message || 'Internal server error' });
+  } catch (error: any) {
+    // Firestore query failed or not configured — fall back to dynamic default table
+  }
+
+  try {
+    const pricingSettings = await getDomainPricingSettings();
+    const defaultPrices: Record<string, { register: number; renew: number; transfer: number }> = {
+      com: { register: 10.99, renew: 11.99, transfer: 10.99 },
+      net: { register: 12.99, renew: 13.99, transfer: 12.99 },
+      org: { register: 11.99, renew: 12.99, transfer: 11.99 },
+      info: { register: 4.99, renew: 19.99, transfer: 19.99 },
+      biz: { register: 5.99, renew: 18.99, transfer: 18.99 },
+      co: { register: 27.99, renew: 27.99, transfer: 27.99 },
+      xyz: { register: 2.99, renew: 12.99, transfer: 12.99 },
+      store: { register: 3.99, renew: 29.99, transfer: 29.99 },
+      online: { register: 3.99, renew: 34.99, transfer: 34.99 },
+      site: { register: 3.99, renew: 31.99, transfer: 31.99 },
+      me: { register: 14.99, renew: 18.99, transfer: 18.99 },
+      club: { register: 12.99, renew: 15.99, transfer: 15.99 },
+      top: { register: 2.99, renew: 6.99, transfer: 6.99 },
+      io: { register: 39.99, renew: 49.99, transfer: 49.99 },
+      dev: { register: 14.99, renew: 16.99, transfer: 16.99 },
+      tech: { register: 4.99, renew: 24.99, transfer: 24.99 },
+      bd: { register: 25.00, renew: 25.00, transfer: 25.00 },
+      'com.bd': { register: 25.00, renew: 25.00, transfer: 25.00 },
+    };
+
+    const fallbackPricingList = Object.entries(defaultPrices).map(([tld, p]) => ({
+      id: tld,
+      tld,
+      registerPrice: calculateCustomerPriceBdt(p.register, pricingSettings),
+      renewPrice: calculateCustomerPriceBdt(p.renew, pricingSettings),
+      transferPrice: calculateCustomerPriceBdt(p.transfer, pricingSettings),
+      currency: 'BDT',
+      isActive: true,
+    }));
+
+    return res.json({ success: true, data: fallbackPricingList });
+  } catch (err: any) {
+    return res.json({ success: true, data: [] });
   }
 });
 
@@ -389,10 +422,11 @@ domainRouter.post('/renewal-order', async (req: any, res: Response) => {
     try {
       const renewalPriceResult = await (provider as any).getRenewalPrice?.(params.domain);
       if (renewalPriceResult) {
-        supplierPriceUsd = renewalPriceResult.renewalPriceBdt;
+        // Use the USD supplier price, not the BDT price, to avoid double conversion
+        supplierPriceUsd = renewalPriceResult.supplierPriceUsd || renewalPriceResult.sellingPriceUsd || 0;
       }
     } catch (e) {
-      console.warn('Failed to get supplier price for renewal:', e);
+      console.warn('[Domain] Failed to get supplier price for renewal:', e);
     }
 
     const customerPriceBdt = supplierPriceUsd > 0 ? calculateCustomerPriceBdt(supplierPriceUsd, pricingSettings) : params.totalBdt || 0;
@@ -820,11 +854,24 @@ domainRouter.post('/manual-review', requireFirebaseAuth, async (req: any, res: R
 domainRouter.post('/transfer-auth-codes', requireFirebaseAuth, async (req: any, res: Response) => {
   try {
     const { orderId, authCodes } = req.body;
+    const userId = req.user?.uid;
+
     if (!orderId || !Array.isArray(authCodes) || authCodes.length === 0) {
       return res.status(400).json({ success: false, error: 'orderId and authCodes array are required' });
     }
 
+    // Verify the caller owns this order (or is admin)
     const db = getAdminDb();
+    const orderSnap = await db.collection('orders').doc(orderId).get();
+    if (!orderSnap.exists) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    const orderData = orderSnap.data();
+    const isAdmin = await isUserAdmin(userId).catch(() => false);
+    if (!isAdmin && orderData?.userId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
     const batch = db.batch();
 
     for (const codeData of authCodes) {
@@ -836,6 +883,7 @@ domainRouter.post('/transfer-auth-codes', requireFirebaseAuth, async (req: any, 
         orderId,
         domain,
         authCode,
+        submittedBy: userId,
         createdAt: new Date(),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       });
@@ -844,7 +892,7 @@ domainRouter.post('/transfer-auth-codes', requireFirebaseAuth, async (req: any, 
     await batch.commit();
     return res.json({ success: true, message: 'Transfer auth codes stored securely' });
   } catch (error: any) {
-    console.error('Store transfer auth codes error:', error);
+    console.error('[Domain] Store transfer auth codes error:', error);
     return res.status(500).json({ success: false, error: 'Failed to store transfer auth codes' });
   }
 });

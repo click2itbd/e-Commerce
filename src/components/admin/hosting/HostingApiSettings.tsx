@@ -4,6 +4,7 @@ import { db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
 import { Plug, Settings2, Server, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import { getApiUrl } from '../../../services/apiClient';
 
 interface HostingApiConfig {
   hostingApiType?: string;
@@ -30,7 +31,7 @@ export const HostingApiSettings: React.FC = () => {
     const fetchConfig = async () => {
       try {
         const token = await user?.getIdToken();
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/admin/hosting-config`, {
+        const response = await fetch(getApiUrl('/api/admin/hosting-config'), {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -65,7 +66,7 @@ export const HostingApiSettings: React.FC = () => {
     setError(null);
     try {
       const token = await user?.getIdToken();
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/admin/hosting-config`, {
+      const response = await fetch(getApiUrl('/api/admin/hosting-config'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -101,7 +102,7 @@ export const HostingApiSettings: React.FC = () => {
 
     try {
       const token = await user.getIdToken();
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}//api/admin/hosting/test-connection`, {
+      const response = await fetch(getApiUrl('/api/admin/hosting/test-connection'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

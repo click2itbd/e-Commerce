@@ -69,7 +69,7 @@ export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
 
     setSavingNs(true);
     try {
-      const response = await apiPost<{ success: boolean; data?: any; error?: string }>('/api/domain/manage', {
+      const response = await apiPost<{ success: boolean; data?: any; error?: string }>('/api/domains/manage', {
         command: 'set_ns',
         domain: managingDomain.domain,
         extraParams: {

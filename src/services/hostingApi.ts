@@ -23,10 +23,17 @@ export interface DomainPricing {
   isActive: boolean;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '');
 
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL}${path}`;
+  const cleanBase = API_BASE_URL.replace(/\/+$/, '');
+  let cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {
+    cleanPath = cleanPath.slice(4);
+  }
+
+  const url = `${cleanBase}${cleanPath}`;
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -44,23 +51,23 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
 }
 
 export async function checkDomainAvailability(domains: string[]): Promise<DomainAvailabilityResult[]> {
-  const response = await apiRequest<{ success: boolean; data: DomainAvailabilityResult[] }>('/api/domain/check', {
+  const response = await apiRequest<{ success: boolean; data: DomainAvailabilityResult[] }>('/api/domains/check', {
     method: 'POST',
     body: JSON.stringify({ domains }),
   });
   return response.data;
 }
 
-export async function getDomainSuggestions(domain: string): Promise<DomainSuggestionResult[]> {
-  const response = await apiRequest<{ success: boolean; data: { suggestions: string[] } }>('/api/domain/suggestions', {
+export async function getDomainSuggestions(domain: string): Promise<string[]> {
+  const response = await apiRequest<{ success: boolean; data: string[] }>('/api/domains/suggestions', {
     method: 'POST',
     body: JSON.stringify({ domain }),
   });
-  return response.data;
+  return response.data || [];
 }
 
 export async function getDomainPricing(): Promise<DomainPricing[]> {
-  const response = await apiRequest<{ success: boolean; data: DomainPricing[] }>('/api/domain/pricing');
+  const response = await apiRequest<{ success: boolean; data: DomainPricing[] }>('/api/domains/pricing');
   return response.data;
 }
 

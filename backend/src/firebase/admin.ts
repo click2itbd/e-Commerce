@@ -77,10 +77,10 @@ export function getAdminDb() {
       } else {
         initializationFailed = true;
         console.warn('[Firebase Admin] FIREBASE_SERVICE_ACCOUNT_KEY is not set. Firestore Admin features will be unavailable.');
-        throw new Error('Firebase Admin SDK is not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY in backend/.env');
       }
     }
-    adminDb = getFirestore();
+    const dbId = process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID;
+    adminDb = dbId ? getFirestore(dbId) : getFirestore();
   }
   return adminDb;
 }

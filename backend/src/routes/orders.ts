@@ -89,6 +89,12 @@ ordersRouter.post('/admin/:orderId/payment/verify', requireFirebaseAuth, async (
   const { orderId } = req.params;
   const { action, reason } = req.body;
 
+  // Security: only admins can verify payments
+  const adminCheck = await isUserAdmin(adminUid).catch(() => false);
+  if (!adminCheck) {
+    return res.status(403).json({ error: 'Admin access required.' });
+  }
+
   if (!['accept', 'reject'].includes(action)) {
     return res.status(400).json({ error: 'Invalid action. Use "accept" or "reject".' });
   }
@@ -127,7 +133,7 @@ ordersRouter.post('/admin/:orderId/payment/verify', requireFirebaseAuth, async (
     const auditRef = db.collection('paymentAuditLog').doc();
 
     if (action === 'reject') {
-      const result = await db.runTransaction(async (tx) => {
+      await db.runTransaction(async (tx) => {
         tx.update(orderRef, {
           paymentStatus: 'rejected',
           paymentVerificationStatus: 'rejected',
@@ -175,7 +181,7 @@ ordersRouter.post('/admin/:orderId/payment/verify', requireFirebaseAuth, async (
     }
 
     if (action === 'accept') {
-      const result = await db.runTransaction(async (tx) => {
+      await db.runTransaction(async (tx) => {
         tx.update(orderRef, {
           paymentStatus: 'verified',
           paymentVerificationStatus: 'verified',
@@ -215,17 +221,20 @@ ordersRouter.post('/admin/:orderId/payment/verify', requireFirebaseAuth, async (
         category: 'payment',
       });
 
+      let fulfillmentError: string | null = null;
       try {
         const fulfillmentResult = await fulfillOrder(orderId, adminUid);
-        console.log(`Fulfillment started for order ${orderId}:`, fulfillmentResult);
-      } catch (fulfillmentError: any) {
-        console.error(`Fulfillment failed for order ${orderId}:`, fulfillmentError);
+        console.log(`[Orders] Fulfillment started for order ${orderId}:`, fulfillmentResult);
+      } catch (err: any) {
+        fulfillmentError = err.message || 'Unknown fulfillment error';
+        console.error(`[Orders] Fulfillment failed for order ${orderId}:`, err);
       }
 
       return res.json({
         success: true,
         message: 'Payment verified successfully. Order is now processing.',
         emailSent: emailResult.success,
+        fulfillmentError: fulfillmentError || undefined,
       });
     }
 

@@ -12,15 +12,15 @@ export const config = {
   port: parseInt(process.env.PORT || '4000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   cors: {
-  origins: (process.env.CORS_ORIGINS || 'https://click2itbd.com,https://www.click2itbd.com,http://localhost:3000,http://localhost:5173')
-    .split(',')
-    .map(o => o.trim()),
-},
+    origins: (process.env.ALLOWED_ORIGINS || 'https://click2itbd.com,https://www.click2itbd.com,http://localhost:3000,http://localhost:5173')
+      .split(',')
+      .map(o => o.trim()),
+  },
   rateLimit: {
     windowMs: 15 * 60 * 1000,
-    generalMax: 100,
-    authMax: 10,
-    sensitiveMax: 20,
+    generalMax: process.env.NODE_ENV === 'production' ? 1000 : 10000,
+    authMax: process.env.NODE_ENV === 'production' ? 20 : 100,
+    sensitiveMax: process.env.NODE_ENV === 'production' ? 50 : 200,
   },
   bodyLimit: '10kb',
   requestTimeout: 15000,
@@ -38,6 +38,11 @@ export const config = {
     manualPaymentSecret: process.env.MANUAL_PAYMENT_SECRET,
     manualBikashNumber: process.env.MANUAL_BIKASH_NUMBER,
     firebaseServiceAccountKey: process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
+  },
+  dynadot: {
+    exchangeRate: parseFloat(process.env.DYNADOT_EXCHANGE_RATE || '120'),
+    markupPercent: parseFloat(process.env.DYNADOT_MARKUP_PERCENT || '15'),
+    sandboxMode: process.env.DYNADOT_SANDBOX_MODE === 'true',
   },
   smtp: {
     host: process.env.SMTP_HOST || '',
