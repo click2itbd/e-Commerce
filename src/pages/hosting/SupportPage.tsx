@@ -74,7 +74,7 @@ export default function SupportPage() {
             <h3 className="text-xl font-bold text-gray-900 mb-2">Phone Support</h3>
             <p className="text-gray-500 mb-6">Call us directly for immediate assistance with your issues.</p>
             <a href={`tel:${settings?.phone}`} className="text-lg font-semibold text-blue-600 hover:text-blue-700">
-              {settings?.phone || '+1 (555) 123-4567'}
+              {settings?.phone || '+8809640887777'}
             </a>
           </div>
 
@@ -85,7 +85,7 @@ export default function SupportPage() {
             <h3 className="text-xl font-bold text-gray-900 mb-2">Email Support</h3>
             <p className="text-gray-500 mb-6">Send us an email and we'll get back to you within 24 hours.</p>
             <a href={`mailto:${settings?.email}`} className="text-lg font-semibold text-purple-600 hover:text-purple-700">
-              {settings?.email || 'support@example.com'}
+              {settings?.email || 'click2itbd@gmail.com'}
             </a>
           </div>
 

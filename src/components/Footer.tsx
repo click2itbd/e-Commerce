@@ -61,7 +61,7 @@ export const Footer: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-xs">Contact Us</p>
-                  <p className="font-bold" style={{ color: settings.accentColor }}>{settings.contactPhone}</p>
+                  <p className="font-bold" style={{ color: settings.accentColor }}>+8809640887777</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors">
@@ -134,7 +134,7 @@ export const Footer: React.FC = () => {
             </form>
 
             <div className="flex gap-4">
-              <a href="#" className="h-10 w-10 rounded-full flex items-center justify-center hover:opacity-80 transition-all" style={{ backgroundColor: settings.secondaryColor }}>
+              <a href="https://web.facebook.com/CLICK2ITBD" className="h-10 w-10 rounded-full flex items-center justify-center hover:opacity-80 transition-all" style={{ backgroundColor: settings.secondaryColor }}>
                 <Facebook size={20} />
               </a>
               <a href="#" className="h-10 w-10 rounded-full flex items-center justify-center hover:opacity-80 transition-all" style={{ backgroundColor: settings.secondaryColor }}>
