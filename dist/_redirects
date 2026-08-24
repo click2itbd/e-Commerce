@@ -1,1 +1,15 @@
-/*    /index.html   200
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  RewriteRule ^index\.html$ - [L]
+
+  # Bypass SPA rewrite for all API calls
+  RewriteRule ^api(?:/|$) - [L]
+
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !-l
+
+  RewriteRule . /index.html [L]
+</IfModule>

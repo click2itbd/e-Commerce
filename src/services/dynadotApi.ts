@@ -7,7 +7,17 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL}${path}`;
+  // Strip trailing slash from base URL and ensure single /api prefix
+  const cleanBase = API_BASE_URL.replace(/\/+$/, '');
+  let cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  // If base already ends with /api and path starts with /api, remove it from path
+  if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {
+    cleanPath = cleanPath.slice(4);
+  }
+
+  const url = `${cleanBase}${cleanPath}`;
+  
   const response = await fetch(url, {
     ...options,
     headers: {

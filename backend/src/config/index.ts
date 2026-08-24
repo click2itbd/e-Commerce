@@ -12,8 +12,10 @@ export const config = {
   port: parseInt(process.env.PORT || '4000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   cors: {
-    origins: (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173,https://click2itbd.com,https://www.click2itbd.com').split(',').map(o => o.trim()),
-  },
+  origins: (process.env.CORS_ORIGINS || 'https://click2itbd.com,https://www.click2itbd.com,http://localhost:3000,http://localhost:5173')
+    .split(',')
+    .map(o => o.trim()),
+},
   rateLimit: {
     windowMs: 15 * 60 * 1000,
     generalMax: 100,
