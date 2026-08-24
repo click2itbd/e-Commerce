@@ -10,12 +10,13 @@ import autoTable from 'jspdf-autotable';
 import { useSettings } from '../../../../context/SettingsContext';
 import { sendServiceActivationEmail, getEmailLogsForOrder, EmailLog } from '../../../../services/emailService';
 import { getApiUrl } from '../../../../services/apiClient';
+import { Pagination } from '../../../../components/common/Pagination';
 
 export default function HostingOrders() {
   const { settings } = useSettings();
   const [orders, setOrders] = useState<HostingOrder[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -419,29 +420,13 @@ export default function HostingOrders() {
           </table>
           </div>
 
-          {totalPages > 1 && (
-            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
-              <span className="text-sm text-gray-600">
-                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, processedOrders.length)} of {processedOrders.length} hosting orders
-              </span>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 rounded bg-white border border-gray-300 disabled:opacity-50 text-sm font-medium"
-                >
-                  Previous
-                </button>
-                <button 
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 rounded bg-white border border-gray-300 disabled:opacity-50 text-sm font-medium"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalItems={processedOrders.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </div>
 
       {selectedOrder && (

@@ -8,6 +8,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { BulkEditForm } from '../../../../components/BulkEditForm';
 import { Package, Plus, Upload, Download, Search, Edit, Trash2, X, AlertTriangle, Play, Loader2, Image as ImageIcon, FileText, XCircle, Edit2, ArrowRight } from 'lucide-react';
+import { Pagination } from '../../../../components/common/Pagination';
 
 interface InventoryTabProps { products: any[]; vendors: any[]; menus: any[]; isAddingProduct: boolean; setIsAddingProduct: (v: boolean) => void; editingProduct: any; setEditingProduct: (v: any) => void; formData: any; setFormData: (v: any) => void; inventoryCategoryFilter: string; setInventoryCategoryFilter: (v: string) => void; selectedProductIds: string[]; setSelectedProductIds: (v: string[]) => void; isBulkEditing: boolean; setIsBulkEditing: (v: boolean) => void; bulkEditData: any; setBulkEditData: (v: any) => void; isUploading: boolean; dragOver: boolean; setDragOver: (v: boolean) => void; loading: boolean; handleSaveProduct: (e: any) => void; handleDeleteProduct: (id: string) => void; handleImportProductsCSV: (e: any) => void; handleDownloadCSVTemplate: () => void; handleExportAllProducts: () => void; handleBulkExportProducts: () => void; handleBulkDeleteProducts: () => void; handleBulkUpdate: (e: any) => void; handleImageUpload: (f: any) => void; removeImage: (i: number) => void; addVariant: () => void; updateVariant: (i: number, f: string, v: any) => void; removeVariant: (i: number) => void; addSpec: () => void; updateSpec: (i: number, f: string, v: any) => void; removeSpec: (i: number) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; fileInputRef?: any; setIsAddingMenu?: (v: boolean) => void; }
 
@@ -17,6 +18,8 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
   const { isAdmin, hasPermission } = useAuth();
   const { settings } = useSettings();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
 
   return (
@@ -629,10 +632,11 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {[...products]
-                    .filter(p => inventoryCategoryFilter === 'all' || p.category === inventoryCategoryFilter)
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map((product, index) => (
+                  {(() => {
+                    const filtered = [...products]
+                      .filter(p => inventoryCategoryFilter === 'all' || p.category === inventoryCategoryFilter)
+                      .sort((a, b) => a.name.localeCompare(b.name));
+                    return filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((product, index) => (
                     <tr key={product.id} className={cn(
                       "hover:bg-gray-50 transition-colors",
                       selectedProductIds.includes(product.id) && "bg-red-50/50"
@@ -741,10 +745,19 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  ));
+                })()}
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={products.filter(p => inventoryCategoryFilter === 'all' || p.category === inventoryCategoryFilter).length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+            />
           </div>
   );
 };

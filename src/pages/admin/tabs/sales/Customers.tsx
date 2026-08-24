@@ -14,12 +14,15 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
+import { Pagination } from '../../../../components/common/Pagination';
 
 const Customers: React.FC = () => {
   const { isAdmin, hasPermission } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   const [customerFormData, setCustomerFormData] = useState({
     name: '',
     email: '',
@@ -185,7 +188,7 @@ const Customers: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {customers.map(customer => (
+            {customers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(customer => (
               <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4">
                   <button
@@ -246,6 +249,14 @@ const Customers: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalItems={customers.length}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onItemsPerPageChange={setItemsPerPage}
+      />
     </div>
   );
 };

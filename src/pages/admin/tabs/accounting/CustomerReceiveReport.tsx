@@ -7,6 +7,7 @@ import {
   Download,
   Search,
 } from 'lucide-react';
+import { Pagination } from '../../../../components/common/Pagination';
 
 interface CustomerReceiveReportProps {
   orders: Order[];
@@ -29,6 +30,8 @@ const CustomerReceiveReport: React.FC<CustomerReceiveReportProps> = ({
   cn,
   toast,
 }) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [crReportStartDate, setCrReportStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]);
   const [crReportEndDate, setCrReportEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [crReportSearch, setCrReportSearch] = useState('');
@@ -271,7 +274,7 @@ const CustomerReceiveReport: React.FC<CustomerReceiveReportProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {getCustomerReceiveReportData().map((row) => {
+            {getCustomerReceiveReportData().slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((row) => {
               const isCash = row.paymentMethod === 'cash' || row.paymentMethod === 'cod';
               const isMfs = ['bkash', 'nagad', 'rocket', 'cellfin'].includes(row.paymentMethod);
               const badgeClass = isCash
@@ -328,6 +331,14 @@ const CustomerReceiveReport: React.FC<CustomerReceiveReportProps> = ({
           )}
         </table>
       </div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalItems={getCustomerReceiveReportData().length}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onItemsPerPageChange={setItemsPerPage}
+      />
     </div>
   );
 };

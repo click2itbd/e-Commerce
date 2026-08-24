@@ -4,6 +4,7 @@ import { db } from '../../../../firebase';
 import { Vendor } from '../../../../types';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
+import { Pagination } from '../../../../components/common/Pagination';
 import {
   Briefcase,
   Plus,
@@ -17,6 +18,8 @@ const Vendors: React.FC = () => {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [isAddingVendor, setIsAddingVendor] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   const [vendorFormData, setVendorFormData] = useState({
     name: '',
     email: '',
@@ -177,7 +180,7 @@ const Vendors: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {vendors.map(vendor => (
+            {vendors.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(vendor => (
               <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4">
                   <button
@@ -227,6 +230,14 @@ const Vendors: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalItems={vendors.length}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onItemsPerPageChange={setItemsPerPage}
+      />
     </div>
   );
 };

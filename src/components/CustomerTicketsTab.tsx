@@ -237,7 +237,7 @@ export const CustomerTicketsTab = ({ currentUser }: { currentUser: any }) => {
             <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-gray-50/50">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <span className={\`px-2 py-1 text-xs font-bold uppercase rounded-full \${getStatusColor(selectedTicket.status)}\`}>
+                  <span className={`px-2 py-1 text-xs font-bold uppercase rounded-full ${getStatusColor(selectedTicket.status)}`}>
                     {selectedTicket.status.replace('-', ' ')}
                   </span>
                   <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
@@ -254,12 +254,12 @@ export const CustomerTicketsTab = ({ currentUser }: { currentUser: any }) => {
             {/* Chat Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/30">
               {messages.map(msg => (
-                <div key={msg.id} className={\`flex flex-col \${msg.sender === 'customer' ? 'items-end' : 'items-start'}\`}>
-                  <div className={\`max-w-[80%] rounded-2xl p-4 shadow-sm \${
+                <div key={msg.id} className={`flex flex-col ${msg.sender === 'customer' ? 'items-end' : 'items-start'}`}>
+                  <div className={`max-w-[80%] rounded-2xl p-4 shadow-sm ${
                     msg.sender === 'customer' 
                       ? 'bg-blue-600 text-white rounded-tr-none' 
                       : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none'
-                  }\`}>
+                  }`}>
                     <div className="flex items-center gap-2 mb-2">
                       {msg.sender === 'admin' ? (
                         <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
@@ -271,7 +271,7 @@ export const CustomerTicketsTab = ({ currentUser }: { currentUser: any }) => {
                       </span>
                     </div>
                     <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.message}</p>
-                    <div className={\`text-[10px] mt-2 opacity-70 text-right\`}>
+                    <div className="text-[10px] mt-2 opacity-70 text-right">
                       {new Date(msg.createdAt).toLocaleString()}
                     </div>
                   </div>
@@ -326,7 +326,7 @@ export const CustomerTicketsTab = ({ currentUser }: { currentUser: any }) => {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
                   <h4 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{ticket.subject}</h4>
-                  <span className={\`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full \${getStatusColor(ticket.status)}\`}>
+                  <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full ${getStatusColor(ticket.status)}`}>
                     {ticket.status.replace('-', ' ')}
                   </span>
                 </div>

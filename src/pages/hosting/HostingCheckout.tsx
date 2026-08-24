@@ -136,7 +136,7 @@ export const HostingCheckout: React.FC = () => {
         return;
       }
 
-      const codeData = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+      const codeData: any = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
       
       if (new Date(codeData.expiryDate) < new Date()) {
         toast.error('This discount code has expired');
@@ -268,6 +268,9 @@ export const HostingCheckout: React.FC = () => {
           tld: tld,
           termYears: domainItem.termYears || 1,
           price: domainItem.price,
+          nameservers: domainConfig.useCustomNs
+            ? [domainConfig.ns1.trim(), domainConfig.ns2.trim()].filter(Boolean)
+            : ['ns1.click2itbd.com', 'ns2.click2itbd.com'],
           status: 'pending',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),

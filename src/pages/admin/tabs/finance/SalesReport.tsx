@@ -6,6 +6,7 @@ import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { FileText, Search, Download, ArrowUp, ArrowDown, ShoppingBag } from 'lucide-react';
+import { Pagination } from '../../../../components/common/Pagination';
 
 interface SaleRecord {
   id: string;
@@ -18,6 +19,8 @@ interface SaleRecord {
 const SalesReportTab: React.FC = () => {
   const { isAdmin, hasPermission } = useAuth();
   const { settings } = useSettings();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [reportStartDate, setReportStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]);
   const [reportEndDate, setReportEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [reportSearch, setReportSearch] = useState('');
@@ -183,7 +186,7 @@ const SalesReportTab: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {getSalesReportData().map((row, idx) => (
+            {getSalesReportData().slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((row, idx) => (
               <tr key={idx} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4 text-sm text-gray-600">{new Date(row.date).toLocaleDateString()}</td>
                 <td className="px-6 py-4 font-medium text-sm">{row.productName}</td>
@@ -208,6 +211,14 @@ const SalesReportTab: React.FC = () => {
           )}
         </table>
       </div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalItems={getSalesReportData().length}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onItemsPerPageChange={setItemsPerPage}
+      />
     </div>
   );
 };

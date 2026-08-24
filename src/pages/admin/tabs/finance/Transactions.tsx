@@ -6,12 +6,15 @@ import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { ArrowLeftRight, Search, CreditCard } from 'lucide-react';
+import { Pagination } from '../../../../components/common/Pagination';
 
 interface TransactionsTabProps { transactions?: any[]; customers?: any[]; setSelectedLedgerEntity?: (v: any) => void; setActiveTab?: (v: string) => void; }
 
 const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions = [], customers = [], setSelectedLedgerEntity, setActiveTab }) => {
   const { isAdmin, hasPermission } = useAuth();
   const { settings } = useSettings();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
 
   return (
@@ -33,7 +36,7 @@ const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions = [], cu
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {transactions.map(tx => (
+                  {transactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(tx => (
                     <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 text-sm text-gray-600">{new Date(tx.date).toLocaleDateString()}</td>
                       <td className="px-6 py-4">
@@ -72,6 +75,14 @@ const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions = [], cu
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={transactions.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+            />
           </div>
   );
 };

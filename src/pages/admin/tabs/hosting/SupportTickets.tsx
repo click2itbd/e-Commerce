@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs, doc, updateDoc, addDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, updateDoc, addDoc, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { useAuth } from '../../../../context/AuthContext';
 import { MessageSquare, X, Send, AlertCircle, Clock, CheckCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../../../lib/utils';
+import { Pagination } from '../../../../components/common/Pagination';
 
 interface TicketMessage {
   id?: string;
@@ -34,6 +35,8 @@ export default function SupportTickets() {
   const [messages, setMessages] = useState<TicketMessage[]>([]);
   const [replyMessage, setReplyMessage] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
 
   useEffect(() => {
     fetchTickets();
@@ -160,7 +163,7 @@ export default function SupportTickets() {
                 </tr>
               </thead>
               <tbody>
-                {tickets.map(ticket => (
+                {tickets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(ticket => (
                   <tr key={ticket.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                     <td className="p-4">
                       <p className="font-bold text-gray-900">{ticket.customerName}</p>
@@ -194,6 +197,14 @@ export default function SupportTickets() {
             </table>
           </div>
         )}
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={tickets.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+        />
       </div>
 
       {/* Ticket View Modal */}

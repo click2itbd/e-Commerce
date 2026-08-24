@@ -277,7 +277,7 @@ export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers
                     `,
                   }),
                 }).then(() => Promise.resolve())
-                .catch((e) => Promise.resolve());
+                .catch(() => Promise.resolve())
               );
             }
           }

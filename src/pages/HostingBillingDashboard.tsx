@@ -14,7 +14,7 @@ import { toast } from 'react-hot-toast';
 import { SiteSettings, Order, ServiceRecord } from '../types';
 import { Link, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
-import { collection, getDocs, query, orderBy, setDoc, doc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, setDoc, doc, updateDoc, addDoc, limit } from 'firebase/firestore';
 import { formatCurrency, cn } from '../lib/utils';
 import { 
   PagesEditorModule, 

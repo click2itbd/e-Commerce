@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
-import { Plus, Edit2, Trash2, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, DollarSign, Percent, Save, RefreshCw, Phone } from 'lucide-react';
+import { Pagination } from '../../common/Pagination';
 
 interface DomainPricing {
   id?: string;  // Firestore document ID (auto-generated)
@@ -19,6 +20,14 @@ export const DomainPricingManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingDocId, setEditingDocId] = useState<string | null>(null); // tracks Firestore doc ID
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
+  const [globalSettings, setGlobalSettings] = useState({
+    usdToBdtRate: 121,
+    domainMarkupPercent: 15,
+    manualBkashNumber: '01700000000',
+  });
+  const [savingGlobal, setSavingGlobal] = useState(false);
   const [formData, setFormData] = useState<DomainPricing>({
     tld: '',
     registerPrice: 0,
@@ -32,6 +41,18 @@ export const DomainPricingManager: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // 1. Fetch Global Settings
+      const settingsSnap = await getDoc(doc(db, 'settings', 'api_keys'));
+      if (settingsSnap.exists()) {
+        const sData = settingsSnap.data();
+        setGlobalSettings({
+          usdToBdtRate: Number(sData.usdToBdtRate) || 121,
+          domainMarkupPercent: Number(sData.domainMarkupPercent) || 15,
+          manualBkashNumber: sData.manualBkashNumber || '01700000000',
+        });
+      }
+
+      // 2. Fetch Per-TLD Pricing
       const snap = await getDocs(query(collection(db, 'domainPricing'), orderBy('tld', 'asc'), limit(500)));
       const data = snap.docs.map(d => ({ ...(d.data() as DomainPricing), id: d.id }));
       setPricing(data);
@@ -46,6 +67,24 @@ export const DomainPricingManager: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleSaveGlobal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingGlobal(true);
+    try {
+      await setDoc(doc(db, 'settings', 'api_keys'), {
+        usdToBdtRate: Number(globalSettings.usdToBdtRate),
+        domainMarkupPercent: Number(globalSettings.domainMarkupPercent),
+        manualBkashNumber: globalSettings.manualBkashNumber.trim(),
+      }, { merge: true });
+      toast.success('Global pricing settings & bKash number updated successfully!');
+    } catch (err) {
+      console.error('Error saving global domain pricing settings:', err);
+      toast.error('Failed to update global settings');
+    } finally {
+      setSavingGlobal(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,23 +150,114 @@ export const DomainPricingManager: React.FC = () => {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Global Rate & Profit Margin Settings Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-emerald-600" /> Global Dollar Rate & Profit Margin
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Set the USD to BDT exchange rate and profit margin percentage used to automatically calculate domain prices from Dynadot supplier rates.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSaveGlobal} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end pt-2">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+              USD to BDT Exchange Rate (৳)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">৳</span>
+              <input
+                type="number"
+                step="0.01"
+                min="1"
+                required
+                value={globalSettings.usdToBdtRate}
+                onChange={e => setGlobalSettings({ ...globalSettings, usdToBdtRate: parseFloat(e.target.value) || 0 })}
+                className="w-full pl-8 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-semibold"
+                placeholder="121"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+              Profit Margin (%)
+            </label>
+            <div className="relative">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">%</span>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                required
+                value={globalSettings.domainMarkupPercent}
+                onChange={e => setGlobalSettings({ ...globalSettings, domainMarkupPercent: parseFloat(e.target.value) || 0 })}
+                className="w-full pl-4 pr-8 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-semibold"
+                placeholder="15"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+              Manual bKash Number
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-pink-500 font-bold text-xs">bKash</span>
+              <input
+                type="text"
+                required
+                value={globalSettings.manualBkashNumber}
+                onChange={e => setGlobalSettings({ ...globalSettings, manualBkashNumber: e.target.value })}
+                className="w-full pl-14 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-sm font-semibold"
+                placeholder="01700000000"
+              />
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={savingGlobal}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-sm"
+            >
+              <Save size={16} /> {savingGlobal ? 'Saving...' : 'Save Global Settings'}
+            </button>
+          </div>
+        </form>
+
+        <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg p-3 text-xs text-emerald-900 flex items-center justify-between flex-wrap gap-2">
+          <span>
+            💡 <strong>Formula Preview:</strong> Supplier Price (USD) × (1 + {globalSettings.domainMarkupPercent}% / 100) × ৳{globalSettings.usdToBdtRate} BDT
+          </span>
+          <span className="font-bold text-emerald-800 bg-white/80 px-2.5 py-1 rounded border border-emerald-200">
+            Sample .com ($10.99 base) = ৳{Math.round(10.99 * (1 + (globalSettings.domainMarkupPercent || 0) / 100) * (globalSettings.usdToBdtRate || 121))} BDT
+          </span>
+        </div>
+      </div>
+
+      {/* Per-TLD Pricing Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-6 border-b border-gray-100 flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h2 className="text-xl font-bold">Domain Pricing</h2>
-            <p className="text-sm text-gray-500 mt-1">Manage TLD pricing for domain registration, renewal, and transfer</p>
+            <h2 className="text-xl font-bold">Custom TLD Pricing Overrides</h2>
+            <p className="text-sm text-gray-500 mt-1">Override specific TLD pricing for domain registration, renewal, and transfer (Optional)</p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                setEditingTld(null);
+                setEditingDocId(null);
                 setFormData({ tld: '', registerPrice: 0, renewPrice: 0, transferPrice: 0, currency: 'BDT', isActive: true });
                 setIsAdding(true);
               }}
               className="bg-[#EF4444] text-white px-4 py-2 rounded-md font-bold flex items-center gap-2 transition-all hover:bg-red-600"
             >
-              <Plus size={18} /> Add TLD
+              <Plus size={18} /> Add TLD Override
             </button>
           </div>
         </div>
@@ -146,12 +276,12 @@ export const DomainPricingManager: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {pricing.map((item) => (
-                <tr key={item.tld} className="hover:bg-gray-50 transition-colors">
+              {pricing.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((item) => (
+                <tr key={item.id || item.tld} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 font-bold">{item.tld}</td>
-                  <td className="px-6 py-4 text-[#EF4444] font-bold">{item.registerPrice.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-[#EF4444] font-bold">{item.renewPrice.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-[#EF4444] font-bold">{item.transferPrice.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-[#EF4444] font-bold">৳{item.registerPrice.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-[#EF4444] font-bold">৳{item.renewPrice.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-[#EF4444] font-bold">৳{item.transferPrice.toLocaleString()}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{item.currency}</td>
                   <td className="px-6 py-4">
                     {item.isActive ? (
@@ -183,13 +313,21 @@ export const DomainPricingManager: React.FC = () => {
               {pricing.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-gray-400 italic">
-                    No domain pricing configured. Click "Add TLD" to get started.
+                    No custom TLD pricing overrides configured. Default pricing will be calculated using the Global Dollar Rate & Profit Margin above.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={pricing.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+        />
       </div>
 
       {/* Add/Edit Modal */}
@@ -197,8 +335,8 @@ export const DomainPricingManager: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-xl font-bold">{editingTld ? 'Edit' : 'Add'} Domain Pricing</h2>
-              <button onClick={() => { setIsAdding(false); setEditingTld(null); }} className="text-gray-400 hover:text-gray-600">
+              <h2 className="text-xl font-bold">{editingDocId ? 'Edit' : 'Add'} Domain Pricing Override</h2>
+              <button onClick={() => { setIsAdding(false); setEditingDocId(null); }} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
@@ -212,12 +350,12 @@ export const DomainPricingManager: React.FC = () => {
                   onChange={e => setFormData({ ...formData, tld: e.target.value })}
                   className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
                   placeholder="e.g. .com"
-                  disabled={!!editingTld}
+                  disabled={!!editingDocId}
                 />
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Register Price</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Register Price (৳)</label>
                   <input
                     type="number"
                     required
@@ -229,7 +367,7 @@ export const DomainPricingManager: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Renew Price</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Renew Price (৳)</label>
                   <input
                     type="number"
                     required
@@ -241,7 +379,7 @@ export const DomainPricingManager: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Transfer Price</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Transfer Price (৳)</label>
                   <input
                     type="number"
                     required
@@ -277,7 +415,7 @@ export const DomainPricingManager: React.FC = () => {
                 type="submit"
                 className="w-full bg-[#EF4444] text-white py-3 rounded-md font-bold hover:bg-red-600 transition-all"
               >
-                {editingTld ? 'Update Pricing' : 'Add Pricing'}
+                {editingDocId ? 'Update Pricing' : 'Add Pricing'}
               </button>
             </form>
           </div>

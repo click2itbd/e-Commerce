@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { db } from '../../firebase';
-import { collection, getDocs, query, orderBy, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, updateDoc, deleteDoc, doc, setDoc, limit } from 'firebase/firestore';
 import { AdminSharedState, AdminRefreshFunctions, AdminTab } from './types';
 
 interface AdminDataContextType extends AdminSharedState, AdminRefreshFunctions {

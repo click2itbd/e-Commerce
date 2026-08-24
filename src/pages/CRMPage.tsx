@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, query, orderBy, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, updateDoc, deleteDoc, doc, limit } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Audience, Lead } from '../types';
 import { Users, Bot, MessageCircle, Share2, Search, Zap, Plus, X, Pencil, Trash2, UserCheck, Sparkles, Download, Upload, Calendar, Phone, Mail, Settings, Send, LayoutDashboard, Target, Workflow, Megaphone, ListFilter, QrCode } from 'lucide-react';

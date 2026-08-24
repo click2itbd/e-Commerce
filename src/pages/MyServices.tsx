@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { db } from '../firebase';
-import { collection, query, where, onSnapshot, updateDoc, doc, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, doc, getDocs, limit } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { getHostingUsage, HostingUsageStats } from '../services/hostingApi';

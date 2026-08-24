@@ -8,10 +8,13 @@ import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { Users as UsersIcon, Mail, X } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
+import { Pagination } from '../../../../components/common/Pagination';
 
 const UsersTab: React.FC = () => {
   const { isAdmin, hasPermission } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [editingUserPermissions, setEditingUserPermissions] = useState<any | null>(null);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
@@ -105,20 +108,20 @@ const UsersTab: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {users.map(user => (
+            {users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(user => (
               <tr key={user.uid} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 font-bold">
-                      {user.displayName.charAt(0)}
+                      {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
                     </div>
-                    <span className="font-medium text-sm">{user.displayName}</span>
+                    <span className="font-medium text-sm text-gray-900">{user.displayName || 'No Name'}</span>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
-                    <a href={`mailto:${user.email}`} className="text-blue-600 hover:underline flex items-center gap-1">
-                        <Mail size={12} /> {user.email}
-                    </a>
+                <td className="px-6 py-4">
+                  <a href={`mailto:${user.email}`} className="text-blue-600 hover:underline flex items-center gap-1 text-sm">
+                    <Mail size={12} /> {user.email}
+                  </a>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500">
                   {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
@@ -149,6 +152,14 @@ const UsersTab: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalItems={users.length}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onItemsPerPageChange={setItemsPerPage}
+      />
 
       {showPermissionsModal && editingUserPermissions && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../../../firebase';
 import { collection, query, orderBy, getDocs, updateDoc, doc, where } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
-import { Loader2, Mail, Phone, Clock, CheckCircle, XCircle, Eye, RefreshCw } from 'lucide-react';
+import { Loader2, Mail, Phone, Clock, CheckCircle, XCircle, Eye, RefreshCw, X } from 'lucide-react';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { getDomainRenewalPriceBreakdown } from '../../../../services/dynadotApi';
+import { Pagination } from '../../../../components/common/Pagination';
 
 interface DomainRenewal {
   id: string;
@@ -35,6 +36,8 @@ export default function DomainRenewals() {
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [breakdown, setBreakdown] = useState<any>(null);
   const [loadingBreakdown, setLoadingBreakdown] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
 
   useEffect(() => {
     fetchRenewals();
@@ -150,7 +153,7 @@ export default function DomainRenewals() {
                     No domain renewals found.
                   </td>
                 </tr>
-              ) : renewals.map(renewal => (
+              ) : renewals.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(renewal => (
                 <tr key={renewal.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs">{renewal.documentNumber || renewal.id.slice(0, 8)}</td>
                   <td className="px-4 py-3 font-medium text-gray-900">{renewal.domain}</td>
@@ -215,6 +218,14 @@ export default function DomainRenewals() {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={renewals.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+        />
       </div>
 
       {/* Detail Modal */}

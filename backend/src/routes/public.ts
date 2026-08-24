@@ -5,8 +5,11 @@ const publicRouter = Router();
 
 publicRouter.get('/config', async (req: any, res: Response) => {
   try {
+    const apiKeysDoc = await getAdminDocument('settings', 'api_keys');
+    const apiKeysData = apiKeysDoc.data || {};
+
     const config = {
-      manualBkashNumber: process.env.MANUAL_BIKASH_NUMBER || '',
+      manualBkashNumber: apiKeysData.manualBkashNumber || process.env.MANUAL_BIKASH_NUMBER || '01700000000',
     };
 
     return res.json({

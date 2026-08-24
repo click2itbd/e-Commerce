@@ -236,7 +236,7 @@ async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorU
         domain: domainData.domain,
         years: domainData.years || 1,
         contactId: domainData.contactId,
-        nameServers: domainData.nameServers,
+        nameServers: domainData.nameServers || domainData.nameservers,
         autoRenew: domainData.autoRenew,
       });
     }
