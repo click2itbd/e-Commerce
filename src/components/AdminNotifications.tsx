@@ -1,68 +1,210 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Package, Tag, Clock } from 'lucide-react';
-import { collection, query, orderBy, limit, onSnapshot, updateDoc, doc, where } from 'firebase/firestore';
+import { 
+  Bell, 
+  Package, 
+  Tag, 
+  Clock, 
+  LifeBuoy, 
+  Server, 
+  AlertTriangle, 
+  CheckCircle2, 
+  CheckCheck,
+  ChevronRight,
+  ShieldAlert,
+  Globe,
+  Sparkles
+} from 'lucide-react';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '../lib/utils';
 
-export const AdminNotifications = () => {
+interface AdminNotificationsProps {
+  setActiveTab?: (tab: string) => void;
+}
+
+export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiveTab }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const dropdownRef = useRef(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [readIds, setReadIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('admin_read_notifs');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const [activeFilter, setActiveFilter] = useState<'all' | 'orders' | 'hosting' | 'support' | 'stock'>('all');
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const q1 = query(collection(db, 'orders'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'), limit(5));
-    const q2 = query(collection(db, 'domain_offers'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'), limit(5));
-    
-    const itemsMap = new Map();
-    
-    const unsub1 = onSnapshot(q1, (snap) => {
-      snap.docChanges().forEach((change) => {
-        const d = change.doc;
-        itemsMap.set(`order-${d.id}`, {
-          id: d.id,
-          type: 'order',
-          title: 'New Order Pending',
-          message: `Order #${d.data().documentNumber || d.id.substring(0,6)} requires attention`,
-          time: d.data().createdAt,
-          icon: Package,
-          color: 'text-blue-500 bg-blue-50'
-        });
-        rebuildNotifications();
+    const itemsMap = new Map<string, any>();
+
+    // 1. Pending Store Orders
+    const unsubOrders = onSnapshot(collection(db, 'orders'), (snap) => {
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.status === 'pending') {
+          itemsMap.set(`order-${d.id}`, {
+            id: `order-${d.id}`,
+            docId: d.id,
+            category: 'orders',
+            targetTab: 'orders',
+            title: 'New Store Order',
+            badgeText: 'PENDING',
+            badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
+            message: `Order #${data.documentNumber || d.id.substring(0, 7)} — ৳${Number(data.total || 0).toLocaleString()}`,
+            time: data.createdAt || new Date().toISOString(),
+            icon: Package,
+            iconBg: 'bg-blue-500 text-white',
+          });
+        } else {
+          itemsMap.delete(`order-${d.id}`);
+        }
       });
+      rebuildList();
+    }, (err) => console.log('Notif orders error:', err));
+
+    // 2. Domain Offers
+    const unsubOffers = onSnapshot(collection(db, 'domain_offers'), (snap) => {
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.status === 'pending' || !data.status) {
+          itemsMap.set(`offer-${d.id}`, {
+            id: `offer-${d.id}`,
+            docId: d.id,
+            category: 'hosting',
+            targetTab: 'domainOffers',
+            title: 'Domain Buy Offer',
+            badgeText: 'OFFER',
+            badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+            message: `${data.domain || 'Domain'} offer: ৳${Number(data.amount || data.offerAmount || 0).toLocaleString()}`,
+            time: data.createdAt || new Date().toISOString(),
+            icon: Globe,
+            iconBg: 'bg-emerald-500 text-white',
+          });
+        } else {
+          itemsMap.delete(`offer-${d.id}`);
+        }
+      });
+      rebuildList();
+    }, (err) => console.log('Notif offers error:', err));
+
+    // 3. Hosting Orders
+    const unsubHosting = onSnapshot(collection(db, 'hostingOrders'), (snap) => {
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.status === 'pending' || data.paymentStatus === 'pending') {
+          itemsMap.set(`hosting-${d.id}`, {
+            id: `hosting-${d.id}`,
+            docId: d.id,
+            category: 'hosting',
+            targetTab: 'hostingOrders',
+            title: 'Hosting Order',
+            badgeText: 'HOSTING',
+            badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
+            message: `${data.planName || data.packageName || 'Hosting Plan'} for ${data.domain || 'Client'}`,
+            time: data.createdAt || new Date().toISOString(),
+            icon: Server,
+            iconBg: 'bg-purple-600 text-white',
+          });
+        } else {
+          itemsMap.delete(`hosting-${d.id}`);
+        }
+      });
+      rebuildList();
+    }, () => {
+      // Gracefully ignore if collection is restricted by Firestore rules
     });
 
-    const unsub2 = onSnapshot(q2, (snap) => {
-      snap.docChanges().forEach((change) => {
-        const d = change.doc;
-        itemsMap.set(`offer-${d.id}`, {
-          id: d.id,
-          type: 'offer',
-          title: 'New Domain Offer',
-          message: `${d.data().domain} offer for ${d.data().offerAmount}`,
-          time: d.data().createdAt,
-          icon: Tag,
-          color: 'text-green-500 bg-green-50'
-        });
-        rebuildNotifications();
+    // 4. Support Tickets
+    const unsubTickets = onSnapshot(collection(db, 'support_tickets'), (snap) => {
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.status === 'open' || data.status === 'pending') {
+          itemsMap.set(`ticket-${d.id}`, {
+            id: `ticket-${d.id}`,
+            docId: d.id,
+            category: 'support',
+            targetTab: 'support_tickets',
+            title: 'Support Ticket',
+            badgeText: 'HELP',
+            badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+            message: `${data.subject || 'Client Inquiry'} — ${data.userEmail || 'Customer'}`,
+            time: data.createdAt || new Date().toISOString(),
+            icon: LifeBuoy,
+            iconBg: 'bg-indigo-600 text-white',
+          });
+        } else {
+          itemsMap.delete(`ticket-${d.id}`);
+        }
       });
-    });
+      rebuildList();
+    }, (err) => console.log('Notif tickets error:', err));
 
-    const rebuildNotifications = () => {
-      const items = Array.from(itemsMap.values()).sort((a, b) => new Date(b.time) - new Date(a.time));
-      setNotifications(items.slice(0, 10));
-      setUnreadCount(items.length);
+    // 5. Low Stock / Out of Stock
+    const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        const stock = Number(data.stock || 0);
+        if (stock === 0) {
+          itemsMap.set(`stock-out-${d.id}`, {
+            id: `stock-out-${d.id}`,
+            docId: d.id,
+            category: 'stock',
+            targetTab: 'inventory',
+            title: 'Out of Stock',
+            badgeText: 'EMPTY',
+            badgeColor: 'bg-red-100 text-red-800 border-red-200',
+            message: `${data.name || 'Product'} has 0 stock remaining!`,
+            time: data.updatedAt || data.createdAt || new Date().toISOString(),
+            icon: ShieldAlert,
+            iconBg: 'bg-red-500 text-white',
+          });
+        } else if (stock > 0 && stock <= 3) {
+          itemsMap.set(`stock-low-${d.id}`, {
+            id: `stock-low-${d.id}`,
+            docId: d.id,
+            category: 'stock',
+            targetTab: 'inventory',
+            title: 'Low Stock Alert',
+            badgeText: 'LOW STOCK',
+            badgeColor: 'bg-orange-100 text-orange-800 border-orange-200',
+            message: `Only ${stock} unit(s) left for ${data.name || 'Product'}`,
+            time: data.updatedAt || data.createdAt || new Date().toISOString(),
+            icon: AlertTriangle,
+            iconBg: 'bg-orange-500 text-white',
+          });
+        } else {
+          itemsMap.delete(`stock-out-${d.id}`);
+          itemsMap.delete(`stock-low-${d.id}`);
+        }
+      });
+      rebuildList();
+    }, (err) => console.log('Notif stock error:', err));
+
+    const rebuildList = () => {
+      const arr = Array.from(itemsMap.values()).sort((a, b) => {
+        const timeA = new Date(a.time).getTime() || 0;
+        const timeB = new Date(b.time).getTime() || 0;
+        return timeB - timeA;
+      });
+      setNotifications(arr);
     };
 
     return () => {
-      unsub1();
-      unsub2();
+      unsubOrders();
+      unsubOffers();
+      unsubHosting();
+      unsubTickets();
+      unsubProducts();
     };
   }, []);
 
+  // Close dropdown on outside click
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -70,57 +212,234 @@ export const AdminNotifications = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Mark all as read
+  const handleMarkAllRead = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const allIds = new Set(notifications.map(n => n.id));
+    setReadIds(allIds);
+    try {
+      localStorage.setItem('admin_read_notifs', JSON.stringify(Array.from(allIds)));
+    } catch {}
+  };
+
+  // Click on a notification item
+  const handleItemClick = (notif: any) => {
+    const newSet = new Set(readIds);
+    newSet.add(notif.id);
+    setReadIds(newSet);
+    try {
+      localStorage.setItem('admin_read_notifs', JSON.stringify(Array.from(newSet)));
+    } catch {}
+
+    if (setActiveTab && notif.targetTab) {
+      setActiveTab(notif.targetTab);
+    }
+    setIsOpen(false);
+  };
+
+  const unreadNotifications = notifications.filter(n => !readIds.has(n.id));
+  const unreadCount = unreadNotifications.length;
+
+  const filteredNotifications = notifications.filter(n => {
+    if (activeFilter === 'all') return true;
+    return n.category === activeFilter;
+  });
+
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative z-50" ref={dropdownRef}>
+      {/* Bell Trigger Button */}
       <button 
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-500 hover:text-gray-800 transition-colors rounded-full hover:bg-gray-100"
+        className={cn(
+          "relative w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer border",
+          isOpen 
+            ? "bg-blue-50 text-blue-600 border-blue-200 shadow-sm" 
+            : "bg-gray-50/80 text-gray-600 border-gray-200/80 hover:bg-gray-100 hover:text-gray-900"
+        )}
+        title="Admin Notifications"
       >
         <Bell size={18} />
+        
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+          <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] px-1 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-lg ring-2 ring-white animate-pulse">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
         )}
       </button>
 
+      {/* Modern Popover Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-            <h3 className="text-sm font-bold text-gray-800">Notifications</h3>
-            <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{unreadCount} Pending</span>
+        <div className="absolute right-0 top-full mt-2.5 w-[360px] sm:w-[410px] bg-white rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] border border-gray-200 z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+          
+          {/* Header */}
+          <div className="px-5 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex justify-between items-center">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
+                <Bell size={15} className="text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black tracking-tight leading-none">Notifications Center</h3>
+                <span className="text-[10px] text-gray-400 font-medium">
+                  {unreadCount > 0 ? `${unreadCount} unread action items` : 'All alerts up to date'}
+                </span>
+              </div>
+            </div>
+
+            {unreadCount > 0 && (
+              <button 
+                type="button"
+                onClick={handleMarkAllRead}
+                className="text-[11px] font-bold text-blue-400 hover:text-blue-300 bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors"
+              >
+                <CheckCheck size={13} /> Mark all read
+              </button>
+            )}
+          </div>
+
+          {/* Filter Bar */}
+          <div className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-50 border-b border-gray-200 overflow-x-auto text-[11px] font-bold custom-scrollbar">
+            <button
+              type="button"
+              onClick={() => setActiveFilter('all')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all shrink-0",
+                activeFilter === 'all' 
+                  ? "bg-slate-900 text-white shadow-sm" 
+                  : "text-gray-600 hover:bg-gray-200/70"
+              )}
+            >
+              All ({notifications.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter('orders')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all shrink-0",
+                activeFilter === 'orders' 
+                  ? "bg-blue-600 text-white shadow-sm" 
+                  : "text-gray-600 hover:bg-gray-200/70"
+              )}
+            >
+              Orders
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter('hosting')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all shrink-0",
+                activeFilter === 'hosting' 
+                  ? "bg-purple-600 text-white shadow-sm" 
+                  : "text-gray-600 hover:bg-gray-200/70"
+              )}
+            >
+              Hosting
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter('support')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all shrink-0",
+                activeFilter === 'support' 
+                  ? "bg-indigo-600 text-white shadow-sm" 
+                  : "text-gray-600 hover:bg-gray-200/70"
+              )}
+            >
+              Support
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter('stock')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all shrink-0",
+                activeFilter === 'stock' 
+                  ? "bg-red-600 text-white shadow-sm" 
+                  : "text-gray-600 hover:bg-gray-200/70"
+              )}
+            >
+              Stock
+            </button>
           </div>
           
-          <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                <Bell size={24} className="mx-auto text-gray-300 mb-2" />
-                <p className="text-sm">No new notifications</p>
+          {/* Notifications List */}
+          <div className="max-h-[380px] overflow-y-auto p-2 space-y-1.5 bg-slate-50/50">
+            {filteredNotifications.length === 0 ? (
+              <div className="py-14 px-6 text-center text-gray-400">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle2 size={24} />
+                </div>
+                <p className="text-sm font-bold text-gray-800">All Caught Up!</p>
+                <p className="text-xs text-gray-500 mt-1">No pending alerts in this category.</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
-                {notifications.map(notif => {
-                  const Icon = notif.icon;
-                  return (
-                    <div key={notif.id} className="p-4 hover:bg-gray-50 transition-colors cursor-pointer flex gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${notif.color}`}>
-                        <Icon size={18} />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-gray-800">{notif.title}</h4>
-                        <p className="text-xs text-gray-600 mt-0.5">{notif.message}</p>
-                        <div className="flex items-center gap-1 mt-1 text-[10px] text-gray-400 font-medium">
-                          <Clock size={10} />
-                          {notif.time ? formatDistanceToNow(new Date(notif.time), { addSuffix: true }) : 'Recently'}
+              filteredNotifications.map((notif) => {
+                const Icon = notif.icon;
+                const isRead = readIds.has(notif.id);
+
+                return (
+                  <div 
+                    key={notif.id} 
+                    onClick={() => handleItemClick(notif)}
+                    className={cn(
+                      "p-3.5 rounded-xl transition-all cursor-pointer border flex items-start gap-3.5 relative group",
+                      isRead 
+                        ? "bg-white border-gray-100 hover:border-gray-300 hover:shadow-sm" 
+                        : "bg-blue-50/40 border-blue-200 shadow-sm hover:border-blue-300 hover:bg-blue-50/70"
+                    )}
+                  >
+                    {/* Icon container */}
+                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm", notif.iconBg)}>
+                      <Icon size={18} />
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs font-bold text-gray-900">{notif.title}</h4>
+                          {notif.badgeText && (
+                            <span className={cn("text-[9px] font-extrabold px-1.5 py-0.2 rounded border uppercase tracking-wider", notif.badgeColor)}>
+                              {notif.badgeText}
+                            </span>
+                          )}
                         </div>
+
+                        {!isRead && (
+                          <span className="text-[9px] font-black text-blue-600 bg-blue-100 px-1.5 py-0.2 rounded-full shrink-0">
+                            NEW
+                          </span>
+                        )}
+                      </div>
+                      
+                      <p className="text-xs text-gray-600 font-medium leading-relaxed line-clamp-1">{notif.message}</p>
+                      
+                      <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-gray-100/80 text-[10px]">
+                        <span className="text-gray-400 font-medium flex items-center gap-1">
+                          <Clock size={11} />
+                          {notif.time ? formatDistanceToNow(new Date(notif.time), { addSuffix: true }) : 'Just now'}
+                        </span>
+
+                        <span className="font-bold text-blue-600 group-hover:text-blue-700 flex items-center gap-0.5">
+                          Open Details <ChevronRight size={12} className="transition-transform group-hover:translate-x-0.5" />
+                        </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })
             )}
           </div>
           
-          <div className="p-3 border-t border-gray-100 text-center bg-gray-50">
-            <button className="text-xs font-bold text-blue-600 hover:text-blue-800" onClick={() => setIsOpen(false)}>
+          {/* Footer */}
+          <div className="px-4 py-2.5 border-t border-gray-200 bg-white flex items-center justify-between text-xs">
+            <span className="text-[11px] text-gray-400 font-medium flex items-center gap-1">
+              <Sparkles size={11} className="text-blue-500" /> Live Real-time Sync
+            </span>
+            <button 
+              type="button"
+              className="text-xs font-bold text-gray-700 hover:text-gray-900 px-2.5 py-1 rounded-lg hover:bg-gray-100 transition-colors" 
+              onClick={() => setIsOpen(false)}
+            >
               Close
             </button>
           </div>

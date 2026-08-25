@@ -36,7 +36,7 @@ export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
       {/* Ambient glow */}
       <div style={{
         position: 'absolute', top: 0, left: '25%',
-        width: 600, height: 400, pointerEvents: 'none',
+        width: '80vw', maxWidth: 600, height: 400, pointerEvents: 'none',
         background: 'radial-gradient(ellipse at center, rgba(56,100,240,0.18) 0%, transparent 70%)',
         filter: 'blur(40px)',
       }} />

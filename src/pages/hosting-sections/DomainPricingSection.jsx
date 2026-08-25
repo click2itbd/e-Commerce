@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Globe, ArrowRight, Loader2 } from 'lucide-react';
-import { getBatchTldPricing } from '../../services/dynadotApi';
+import { collection, onSnapshot, doc } from 'firebase/firestore';
+import { db } from '../../firebase';
 
-const POPULAR_TLDS = ['.com', '.net', '.org', '.io', '.co', '.xyz', '.dev', '.online'];
+const POPULAR_TLDS = ['.com', '.net', '.org', '.xyz', '.io', '.co', '.dev', '.online'];
+
+// Standard Dynadot / Wholesale Base USD Prices
+const TLD_BASE_USD = {
+  '.com': 10.99,
+  '.net': 12.99,
+  '.org': 11.99,
+  '.xyz': 2.99,
+  '.io': 39.99,
+  '.co': 25.99,
+  '.dev': 14.99,
+  '.online': 3.99,
+};
 
 const SkeletonCard = () => (
   <div className="bg-white rounded-2xl p-6 border border-gray-200 animate-pulse">
@@ -19,41 +32,83 @@ export default function DomainPricingSection({
   title = 'Popular Domains',
   subtitle = 'Register your perfect domain name at transparent pricing. All domains include free WHOIS privacy protection.',
 }) {
-  const [pricing, setPricing] = useState(null);
+  const [globalSettings, setGlobalSettings] = useState({
+    usdToBdtRate: 121,
+    domainMarkupPercent: 15,
+  });
+  const [customOverrides, setCustomOverrides] = useState({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    let cancelled = false;
+    // 1. Real-time listener for Global Pricing Settings (Dollar Rate & Margin %)
+    const unsubPublic = onSnapshot(doc(db, 'settings', 'public_config'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setGlobalSettings({
+          usdToBdtRate: Number(data.usdToBdtRate) || 121,
+          domainMarkupPercent: Number(data.domainMarkupPercent) || 15,
+        });
+      }
+    }, (err) => console.log('public_config listener error:', err));
 
-    const fetchPricing = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await getBatchTldPricing(tlds);
-        if (!cancelled) {
-          setPricing(data);
-          setLoading(false);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err?.message || 'Failed to load domain pricing');
-          setLoading(false);
+    const unsubSite = onSnapshot(doc(db, 'settings', 'site'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.usdToBdtRate) {
+          setGlobalSettings(prev => ({
+            ...prev,
+            usdToBdtRate: Number(data.usdToBdtRate) || prev.usdToBdtRate,
+            domainMarkupPercent: Number(data.domainMarkupPercent) || prev.domainMarkupPercent,
+          }));
         }
       }
-    };
+    }, (err) => console.log('site settings listener error:', err));
 
-    fetchPricing();
+    // 2. Real-time listener for Custom Per-TLD Pricing Overrides
+    const unsubPricing = onSnapshot(collection(db, 'domainPricing'), (snap) => {
+      const overrides = {};
+      snap.docs.forEach((d) => {
+        const item = d.data();
+        if (item.tld && item.isActive !== false) {
+          const formattedTld = item.tld.startsWith('.') ? item.tld.toLowerCase() : `.${item.tld.toLowerCase()}`;
+          overrides[formattedTld] = Number(item.registerPrice) || 0;
+        }
+      });
+      setCustomOverrides(overrides);
+      setLoading(false);
+    }, (err) => {
+      console.log('domainPricing listener error:', err);
+      setLoading(false);
+    });
 
     return () => {
-      cancelled = true;
+      unsubPublic();
+      unsubSite();
+      unsubPricing();
     };
-  }, [tlds]);
+  }, []);
 
   const handleCardClick = (tld) => {
     const bareTld = String(tld || '').replace(/^\./, '');
     navigate(`/domain?tld=${encodeURIComponent(bareTld)}`);
+  };
+
+  // Compute final price for each TLD dynamically
+  const getCalculatedPrice = (rawTld) => {
+    const tld = rawTld.startsWith('.') ? rawTld.toLowerCase() : `.${rawTld.toLowerCase()}`;
+    
+    // 1. Check custom override from Firestore
+    if (customOverrides[tld] && customOverrides[tld] > 0) {
+      return customOverrides[tld];
+    }
+
+    // 2. Compute from Formula: Base USD * (1 + Margin% / 100) * Dollar Rate
+    const baseUsd = TLD_BASE_USD[tld] || 10.99;
+    const rate = globalSettings.usdToBdtRate || 121;
+    const margin = globalSettings.domainMarkupPercent || 15;
+    const retailUsd = baseUsd * (1 + margin / 100);
+    return Math.round(retailUsd * rate);
   };
 
   return (
@@ -77,17 +132,12 @@ export default function DomainPricingSection({
               <SkeletonCard key={tld} />
             ))}
           </div>
-        ) : error ? (
-          <div className="text-center py-16">
-            <p className="text-gray-500 text-lg">Domain pricing is temporarily unavailable.</p>
-            <p className="text-gray-400 text-sm mt-2">Please try again shortly.</p>
-          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {pricing?.pricing?.map((item) => {
-              const tld = item.tld?.startsWith('.') ? item.tld : `.${item.tld || ''}`;
-              const isPopular = POPULAR_TLDS.includes(tld);
-              const price = item.customerPriceBdt > 0 ? item.customerPriceBdt : null;
+            {tlds.map((rawTld) => {
+              const tld = rawTld.startsWith('.') ? rawTld : `.${rawTld}`;
+              const isPopular = POPULAR_TLDS.slice(0, 4).includes(tld);
+              const price = getCalculatedPrice(tld);
 
               return (
                 <button
@@ -118,19 +168,13 @@ export default function DomainPricingSection({
                   </div>
 
                   <div className="mb-6 space-y-1">
-                    {price !== null ? (
-                      <>
-                        <p className="flex items-baseline gap-1 text-gray-900">
-                          <span className="text-sm font-medium text-gray-500">Starting at</span>
-                        </p>
-                        <p className="text-2xl font-bold">
-                          {'\u09F3'}{price.toLocaleString()}
-                        </p>
-                        <p className="text-sm text-gray-500">/ year</p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-gray-400">Price unavailable</p>
-                    )}
+                    <p className="flex items-baseline gap-1 text-gray-900">
+                      <span className="text-sm font-medium text-gray-500">Starting at</span>
+                    </p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      ৳{price.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-400">/ year (Includes Privacy)</p>
                   </div>
 
                   <div

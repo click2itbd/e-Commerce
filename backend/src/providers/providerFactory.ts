@@ -4,8 +4,11 @@ import { DynadotDomainProvider } from './domain/DynadotDomainProvider';
 import { CpanelHostingProvider } from './hosting/CpanelHostingProvider';
 import { ResellerClubHostingProvider } from './hosting/ResellerClubHostingProvider';
 
-export function getDomainProvider(config: { domainApiType: string; domainApiKey?: string }): IDomainProvider {
-  if (config.domainApiType === 'dummy' || !config.domainApiType) {
+export function getDomainProvider(config?: { domainApiType?: string; domainApiKey?: string }): IDomainProvider {
+  const domainApiKey = config?.domainApiKey || process.env.DYNADOT_API_KEY || '';
+  const domainApiType = config?.domainApiType || (domainApiKey ? 'dynadot' : 'dummy');
+
+  if (domainApiType === 'dummy' || !domainApiType) {
     return {
       checkAvailability: async () => { throw new Error('Domain provider not configured. Please configure a real domain provider in admin settings.'); },
       getSuggestions: async () => { throw new Error('Domain provider not configured.'); },
@@ -15,34 +18,34 @@ export function getDomainProvider(config: { domainApiType: string; domainApiKey?
     };
   }
 
-  switch (config.domainApiType) {
+  switch (domainApiType) {
     case 'dynadot':
-      if (!config.domainApiKey) {
+      if (!domainApiKey) {
         return {
-          checkAvailability: async () => { throw new Error('Dynadot API key not configured.'); },
-          getSuggestions: async () => { throw new Error('Dynadot API key not configured.'); },
-          registerDomain: async () => ({ success: false, domain: '', error: 'Dynadot API key not configured.' }),
-          renewDomain: async () => ({ success: false, domain: '', error: 'Dynadot API key not configured.' }),
-          getWhois: async () => ({ domain: '', error: 'Dynadot API key not configured.' })
+          checkAvailability: async () => { throw new Error('Dynadot API key not configured. Set DYNADOT_API_KEY in backend/.env'); },
+          getSuggestions: async () => { throw new Error('Dynadot API key not configured. Set DYNADOT_API_KEY in backend/.env'); },
+          registerDomain: async () => ({ success: false, domain: '', error: 'Dynadot API key not configured. Set DYNADOT_API_KEY in backend/.env' }),
+          renewDomain: async () => ({ success: false, domain: '', error: 'Dynadot API key not configured. Set DYNADOT_API_KEY in backend/.env' }),
+          getWhois: async () => ({ domain: '', error: 'Dynadot API key not configured. Set DYNADOT_API_KEY in backend/.env' })
         };
       }
-      return new DynadotDomainProvider(config.domainApiKey);
+      return new DynadotDomainProvider(domainApiKey);
     default:
       return {
-        checkAvailability: async () => { throw new Error(`Unsupported domain provider: ${config.domainApiType}`); },
-        getSuggestions: async () => { throw new Error(`Unsupported domain provider: ${config.domainApiType}`); },
-        registerDomain: async () => ({ success: false, domain: '', error: `Unsupported domain provider: ${config.domainApiType}` }),
-        renewDomain: async () => ({ success: false, domain: '', error: `Unsupported domain provider: ${config.domainApiType}` }),
-        getWhois: async () => ({ domain: '', error: `Unsupported domain provider: ${config.domainApiType}` })
+        checkAvailability: async () => { throw new Error(`Unsupported domain provider: ${domainApiType}`); },
+        getSuggestions: async () => { throw new Error(`Unsupported domain provider: ${domainApiType}`); },
+        registerDomain: async () => ({ success: false, domain: '', error: `Unsupported domain provider: ${domainApiType}` }),
+        renewDomain: async () => ({ success: false, domain: '', error: `Unsupported domain provider: ${domainApiType}` }),
+        getWhois: async () => ({ domain: '', error: `Unsupported domain provider: ${domainApiType}` })
       };
   }
 }
 
-export function getHostingProvider(config: { hostingApiType?: string; hostingApiKey?: string; hostingApiUrl?: string; hostingApiUsername?: string }): IHostingProvider {
-  const hostingApiType = config.hostingApiType || process.env.WHM_API_TYPE || 'dummy';
-  const hostingApiKey = config.hostingApiKey || process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || '';
-  const hostingApiUrl = config.hostingApiUrl || process.env.WHM_API_URL || '';
-  const hostingApiUsername = config.hostingApiUsername || process.env.WHM_USERNAME || 'root';
+export function getHostingProvider(config?: { hostingApiType?: string; hostingApiKey?: string; hostingApiUrl?: string; hostingApiUsername?: string }): IHostingProvider {
+  const hostingApiType = config?.hostingApiType || process.env.WHM_API_TYPE || 'cpanel';
+  const hostingApiKey = config?.hostingApiKey || process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || '';
+  const hostingApiUrl = config?.hostingApiUrl || process.env.WHM_URL || process.env.WHM_API_URL || '';
+  const hostingApiUsername = (config?.hostingApiUsername || process.env.WHM_USERNAME || 'root').trim();
 
   if (hostingApiType === 'dummy' || !hostingApiType) {
     return {

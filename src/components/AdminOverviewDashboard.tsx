@@ -152,10 +152,10 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
               <Server size={16} /> View Orders
             </button>
             <button
-              onClick={() => setActiveTab('domainOffers')}
+              onClick={() => setActiveTab('domainPricing')}
               className="bg-white/10 hover:bg-white/20 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all border border-white/10"
             >
-              <DollarSign size={16} /> Dollar & Margins
+              <DollarSign size={16} /> Domain Pricing & TLDs
             </button>
             <button
               onClick={() => setActiveTab('support_tickets')}
@@ -337,8 +337,8 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
             <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
                <TrendingUp className="text-blue-600 p-1 bg-blue-50 rounded" size={24} /> Sales Overview (Last 7 Days)
             </h3>
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-72 w-full min-w-0" style={{ minHeight: '280px' }}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={250}>
                 <AreaChart data={salesChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">

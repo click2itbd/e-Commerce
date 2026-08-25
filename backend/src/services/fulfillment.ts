@@ -437,56 +437,27 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
 }
 
 async function getDomainConfig() {
-  try {
-    const result = await getAdminDocument('settings', 'api_keys');
-    if (result.exists && result.data) {
-      const data = result.data as any;
-      const dynadotApiKey = data.dynadotApiKey || config.secrets.dynadotApiKey || '';
-      if (!dynadotApiKey) {
-        console.warn('[Fulfillment] No Dynadot API key found in Firestore or .env — domain orders will fail');
-      }
-      return {
-        domainApiType: dynadotApiKey ? 'dynadot' : 'dummy',
-        domainApiKey: dynadotApiKey,
-      };
-    }
-  } catch (error) {
-    console.error('[Fulfillment] Failed to read domain API config from Firestore:', error);
-  }
-
-  // Fallback to .env config
-  const dynadotApiKey = config.secrets.dynadotApiKey || '';
+  const dynadotApiKey = process.env.DYNADOT_API_KEY || config.secrets.dynadotApiKey || '';
   if (!dynadotApiKey) {
-    throw new Error('No Dynadot API key configured. Set DYNADOT_API_KEY in backend/.env');
+    console.warn('[Fulfillment] No Dynadot API key found in .env (DYNADOT_API_KEY) — domain orders will fail');
   }
   return {
-    domainApiType: 'dynadot',
+    domainApiType: dynadotApiKey ? 'dynadot' : 'dummy',
     domainApiKey: dynadotApiKey,
   };
 }
 
 async function getHostingProviderWithSettings() {
-  let data: Record<string, any> = {};
-  try {
-    const result = await getAdminDocument('settings', 'api_keys');
-    if (result.exists && result.data) {
-      data = result.data as Record<string, any>;
-    }
-  } catch (error) {
-    console.warn('[Fulfillment] Failed to read hosting API config from Firestore, using .env fallback:', error);
-  }
-
-  // Merge Firestore values with .env fallbacks (Firestore takes priority)
-  const hostingApiType = data.hostingApiType || config.secrets.whmApiType || 'cpanel';
-  const hostingApiKey = data.hostingApiKey || config.secrets.whmApiToken || config.secrets.whmApiKey || '';
-  const hostingApiUrl = data.hostingApiUrl || config.secrets.whmApiUrl || '';
-  const hostingApiUsername = data.hostingApiUsername || config.secrets.whmUsername || 'root';
+  const hostingApiType = process.env.WHM_API_TYPE || config.secrets.whmApiType || 'cpanel';
+  const hostingApiKey = process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || config.secrets.whmApiToken || config.secrets.whmApiKey || '';
+  const hostingApiUrl = process.env.WHM_URL || process.env.WHM_API_URL || config.secrets.whmApiUrl || '';
+  const hostingApiUsername = (process.env.WHM_USERNAME || config.secrets.whmUsername || 'root').trim();
 
   if (!hostingApiKey) {
     throw new Error('No WHM API token configured. Set WHM_API_TOKEN in backend/.env');
   }
   if (!hostingApiUrl) {
-    throw new Error('No WHM API URL configured. Set WHM_API_URL in backend/.env');
+    throw new Error('No WHM API URL configured. Set WHM_URL or WHM_API_URL in backend/.env');
   }
 
   const provider = getHostingProvider({

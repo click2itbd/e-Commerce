@@ -1,5 +1,6 @@
 import React from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function SecureDomainSection() {
   return (
@@ -24,9 +25,12 @@ export default function SecureDomainSection() {
                 </li>
               ))}
             </ul>
-            <a href="/hosting" className="text-[var(--c2i-blue-light)] font-bold hover:underline text-sm">
-              Read more...
-            </a>
+            <Link 
+              to="/domain" 
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all shadow-md shadow-blue-500/20 group"
+            >
+              Explore Domain Features <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            </Link>
           </div>
         </div>
       </div>

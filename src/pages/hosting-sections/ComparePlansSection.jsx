@@ -42,15 +42,99 @@ export default function ComparePlansSection() {
           setFeatures(fetchedFeatures);
         } else {
           setPlans([
-            { id: '1', name: 'SHARED HOSTING', comparisonValues: { disk_space: '10 GB SSD', bandwidth: '100 GB', databases: '2 MySQL', free_domain: 'no' }, pricing: { licenseCostUsd: 5 } },
-            { id: '2', name: 'VPS HOSTING', comparisonValues: { disk_space: '50 GB NVMe', bandwidth: 'Unmetered', databases: 'Unlimited', free_domain: 'yes' }, pricing: { licenseCostUsd: 15 } },
-            { id: '3', name: 'DEDICATED SERVER', comparisonValues: { disk_space: 'Unlimited NVMe', bandwidth: 'Unmetered', databases: 'Unlimited', free_domain: 'yes' }, pricing: { licenseCostUsd: 50 } }
+            {
+              id: 'plan_starter',
+              name: 'Starter',
+              pricing: { monthly: 150, annually: 1440 },
+              priceOverride: true,
+              overridePrice: 150,
+              comparisonValues: {
+                disk_space: '5 GB NVMe SSD',
+                bandwidth: '100 GB',
+                addon_domains: '0',
+                subdomains: 'Unlimited',
+                emails: '5',
+                databases: '5',
+                free_ssl: true,
+                litespeed: true,
+                daily_backup: false,
+                cpanel: true,
+                softaculous: true
+              }
+            },
+            {
+              id: 'plan_standard',
+              name: 'Standard',
+              pricing: { monthly: 350, annually: 3360 },
+              priceOverride: true,
+              overridePrice: 350,
+              comparisonValues: {
+                disk_space: '10 GB NVMe SSD',
+                bandwidth: 'Unlimited',
+                addon_domains: '3',
+                subdomains: 'Unlimited',
+                emails: '20',
+                databases: '20',
+                free_ssl: true,
+                litespeed: true,
+                daily_backup: true,
+                cpanel: true,
+                softaculous: true
+              }
+            },
+            {
+              id: 'plan_professional',
+              name: 'Professional',
+              pricing: { monthly: 650, annually: 6240 },
+              priceOverride: true,
+              overridePrice: 650,
+              comparisonValues: {
+                disk_space: '20 GB NVMe SSD',
+                bandwidth: 'Unlimited',
+                addon_domains: '10',
+                subdomains: 'Unlimited',
+                emails: 'Unlimited',
+                databases: 'Unlimited',
+                free_ssl: true,
+                litespeed: true,
+                daily_backup: true,
+                cpanel: true,
+                softaculous: true
+              }
+            },
+            {
+              id: 'plan_premium',
+              name: 'Premium',
+              pricing: { monthly: 1200, annually: 11520 },
+              priceOverride: true,
+              overridePrice: 1200,
+              comparisonValues: {
+                disk_space: '50 GB NVMe SSD',
+                bandwidth: 'Unlimited',
+                addon_domains: 'Unlimited',
+                subdomains: 'Unlimited',
+                emails: 'Unlimited',
+                databases: 'Unlimited',
+                free_ssl: true,
+                litespeed: true,
+                daily_backup: true,
+                cpanel: true,
+                softaculous: true
+              }
+            }
           ]);
           setFeatures([
-            { id: 'disk_space', name: 'Storage' },
+            { id: 'disk_space', name: 'Storage Space' },
             { id: 'bandwidth', name: 'Bandwidth' },
-            { id: 'databases', name: 'Databases' },
-            { id: 'free_domain', name: 'Free Domain (1st Year)' }
+            { id: 'addon_domains', name: 'Addon Domains' },
+            { id: 'subdomains', name: 'Subdomains' },
+            { id: 'emails', name: 'Email Accounts' },
+            { id: 'databases', name: 'MySQL Databases' },
+            { id: 'free_ssl', name: 'Free SSL Certificate' },
+            { id: 'litespeed', name: 'LiteSpeed Web Server' },
+            { id: 'daily_backup', name: 'Daily Backup' },
+            { id: 'cpanel', name: 'cPanel Control Panel' },
+            { id: 'softaculous', name: 'Softaculous' }
           ]);
         }
       } catch (error) {
@@ -69,45 +153,55 @@ export default function ComparePlansSection() {
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
       <div className="text-center mb-10">
-        <h2 className="text-3xl font-bold text-gray-900">Compare Plan Features</h2>
-        <p className="mt-4 text-lg text-gray-600">A detailed breakdown of what's included in every plan.</p>
+        <h2 className="text-3xl font-bold text-gray-900 uppercase tracking-tight">Compare Plan Features</h2>
+        <p className="mt-3 text-base text-gray-600">A detailed breakdown of CloudLinux resources, limits, and server features.</p>
       </div>
       
       <div className="overflow-x-auto shadow-xl rounded-2xl ring-1 ring-gray-200 bg-white">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="py-5 px-6 font-semibold text-gray-900 min-w-[120px] sm:min-w-[200px]">Feature</th>
+              <th className="py-5 px-6 font-semibold text-gray-900 min-w-[140px] sm:min-w-[220px]">Feature</th>
               {plans.map((plan, idx) => {
                 const price = calculatePlanPrice(plan);
+                const isPopular = plan.popular || plan.slug === 'standard';
                 return (
-                  <th key={plan.id} className={`py-5 px-6 font-semibold text-gray-900 text-center min-w-[100px] sm:min-w-[150px] ${idx === plans.length - 1 ? 'bg-blue-50' : ''}`}>
-                    <div>{plan.name}</div>
-                    <div className="text-sm font-normal text-gray-500 mt-1">
-                      {price.monthly > 0 ? `৳${price.monthly}/mo` : 'Contact us'}
+                  <th key={plan.id} className={`py-5 px-6 font-bold text-gray-900 text-center min-w-[120px] sm:min-w-[160px] ${isPopular ? 'bg-blue-50/70 border-x border-blue-200' : ''}`}>
+                    <div className="uppercase tracking-wider">{plan.name}</div>
+                    <div className="text-sm font-semibold text-blue-600 mt-1">
+                      {price.monthly > 0 ? `৳${price.monthly.toLocaleString()}/mo` : 'Custom'}
                     </div>
                   </th>
                 );
               })}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200 text-sm">
             {allFeatureIds.map((featureId) => {
               const feature = features.find(f => f.id === featureId);
               return (
-                <tr key={featureId} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-4 px-6 text-gray-700 font-medium">{feature?.name || featureId}</td>
+                <tr key={featureId} className="hover:bg-gray-50/80 transition-colors">
+                  <td className="py-4 px-6 text-gray-800 font-medium">{feature?.name || featureId}</td>
                   {plans.map((plan, pIdx) => {
-                    const isLast = pIdx === plans.length - 1;
                     const value = plan.comparisonValues?.[featureId];
-                    const isIncluded = value === true || value === 'yes' || value === 'true';
+                    const isBool = typeof value === 'boolean' || value === 'true' || value === 'false' || value === 'yes' || value === 'no';
+                    const isPositive = value === true || value === 'true' || value === 'yes';
+                    const isPopular = plan.popular || plan.slug === 'standard';
                     
                     return (
-                      <td key={plan.id} className="py-4 px-6 text-center border-r border-gray-100 last:border-0">
-                        {value ? (
-                          isIncluded ? <Check size={18} className="mx-auto text-green-500" /> : <X size={18} className="mx-auto text-gray-300" />
+                      <td key={plan.id} className={`py-4 px-6 text-center border-r border-gray-100 last:border-0 ${isPopular ? 'bg-blue-50/20' : ''}`}>
+                        {isBool ? (
+                          isPositive ? (
+                            <span className="inline-flex items-center justify-center p-1 bg-emerald-50 text-emerald-600 rounded-full">
+                              <Check size={16} strokeWidth={2.5} />
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center p-1 bg-gray-100 text-gray-400 rounded-full">
+                              <X size={16} strokeWidth={2.5} />
+                            </span>
+                          )
                         ) : (
-                          <span className="text-sm text-gray-500">{value || '-'}</span>
+                          <span className="font-semibold text-gray-800">{value !== undefined && value !== null ? value : '-'}</span>
                         )}
                       </td>
                     );

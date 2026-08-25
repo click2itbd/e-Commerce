@@ -1,17 +1,34 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { PageHeader } from '../../components/hosting/PageHeader';
+import { SEO } from '../../components/SEO';
 import HostingPlansSection from '../hosting-sections/HostingPlansSection';
+import WordPressCloudSection from '../hosting-sections/WordPressCloudSection';
+import CloudVpsSection from '../hosting-sections/CloudVpsSection';
 import ComparePlansSection from '../hosting-sections/ComparePlansSection';
+import CustomHostingBuilder from '../hosting-sections/CustomHostingBuilder';
 import { Shield, Check, X, ChevronDown } from 'lucide-react';
 
 export default function PricingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   
   // FAQ state
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  // Smooth scroll to hash when loaded
+  useEffect(() => {
+    if (location.hash) {
+      const el = document.querySelector(location.hash);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    }
+  }, [location.hash]);
 
   const faqs = [
     {
@@ -24,30 +41,58 @@ export default function PricingPage() {
     },
     {
       question: "Do you offer a money-back guarantee?",
-      answer: "Yes, we offer a 30-day no-questions-asked money-back guarantee on all our hosting plans."
+      answer: "Yes, we offer a 30-day no-questions-asked money-back guarantee on all our shared and cloud hosting plans."
     },
     {
       question: "Will you help me migrate my site?",
-      answer: "Absolutely! Our team provides free website migration from your previous host within the first 30 days of signing up."
+      answer: "Absolutely! Our team provides 100% free, zero-downtime website migration from your previous host within the first 30 days of signing up."
+    },
+    {
+      question: "What is BDIX Peering?",
+      answer: "BDIX (Bangladesh Internet Exchange) allows visitors from Bangladesh to load your website at blazing fast 1Gbps to 10Gbps local speeds."
     }
   ];
 
   return (
     <Layout fullWidth>
-      <PageHeader 
-        title="Hosting Plans for Every Size" 
-        subtitle="Choose the perfect plan for your business needs. Upgrade anytime as you grow." 
+      <SEO 
+        title="Hosting & Server Pricing Plans"
+        description="Transparent pricing for Shared cPanel Hosting, Managed WordPress Cloud, and KVM Cloud VPS."
+        keywords="hosting pricing, wordpress hosting bd, vps price bd, cheap cpanel hosting"
       />
 
-      {/* Hosting Plans Section */}
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <PageHeader 
+        title="High Performance Hosting & Server Plans" 
+        subtitle="Transparent, reliable pricing engineered for high-speed performance, 99.9% uptime, and 24/7 expert support." 
+      />
+
+      {/* 1. Shared NVMe cPanel Hosting Plans */}
+      <div className="w-full">
         <HostingPlansSection billingCycle={billingCycle} onBillingCycleChange={setBillingCycle} onNavigate={navigate} />
       </div>
 
-      <ComparePlansSection />
+      {/* 2. BDIX Turbo / Managed WordPress Cloud */}
+      <div className="w-full">
+        <WordPressCloudSection />
+      </div>
+
+      {/* 3. High Performance KVM Cloud VPS */}
+      <div className="w-full">
+        <CloudVpsSection />
+      </div>
+
+      {/* 4. Interactive Custom Package Builder */}
+      <div className="w-full">
+        <CustomHostingBuilder />
+      </div>
+
+      {/* 5. Detailed Feature Comparison */}
+      <div id="compare-plans" className="scroll-mt-20">
+        <ComparePlansSection />
+      </div>
 
       {/* 30-Day Money-Back Guarantee */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-3xl p-8 sm:p-12 text-center text-white shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>

@@ -228,12 +228,142 @@ export default function HostingOrders() {
     }
   };
 
+  const handleAcceptOrder = async (order: HostingOrder) => {
+    setStatusUpdating(true);
+    const toastId = toast.loading('Accepting order and initiating WHM provisioning...');
+    try {
+      // 1. Immediately update status to "provisioning"
+      await updateDoc(doc(db, 'orders', order.id), {
+        status: 'provisioning',
+        providerStatus: 'processing',
+        updatedAt: new Date().toISOString(),
+      });
+      try {
+        await updateDoc(doc(db, 'hostingOrders', order.id), {
+          status: 'provisioning',
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (e) {}
+
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'provisioning' as any } : o));
+      if (selectedOrder?.id === order.id) {
+        setSelectedOrder(prev => prev ? { ...prev, status: 'provisioning' as any } : null);
+      }
+
+      // 2. Call backend fulfillment / payment verify
+      const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
+      const response = await fetch(getApiUrl(`/api/admin/orders/${order.id}/payment/verify`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'accept' }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast.success(data.message || 'WHM account provisioning requested successfully!', { id: toastId });
+        if (data.fulfillmentError) {
+          toast.error('Provisioning notice: ' + data.fulfillmentError, { duration: 6000 });
+        }
+      } else {
+        const errorMsg = data.error || data.message || 'WHM provisioning call failed';
+        await updateDoc(doc(db, 'orders', order.id), {
+          status: 'failed',
+          provisioningError: errorMsg,
+          updatedAt: new Date().toISOString(),
+        });
+        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'failed' as any, provisioningError: errorMsg } : o));
+        if (selectedOrder?.id === order.id) {
+          setSelectedOrder(prev => prev ? { ...prev, status: 'failed' as any, provisioningError: errorMsg } : null);
+        }
+        toast.error('Provisioning error: ' + errorMsg, { id: toastId });
+      }
+    } catch (error: any) {
+      console.error('Accept order error:', error);
+      toast.error('Error: ' + error.message, { id: toastId });
+    } finally {
+      setStatusUpdating(false);
+      fetchOrders();
+      if (selectedOrder) {
+        fetchOrderDetails(selectedOrder.id);
+      }
+    }
+  };
+
+  const handleMarkCompletedOrder = async (order: HostingOrder) => {
+    setStatusUpdating(true);
+    try {
+      await updateDoc(doc(db, 'orders', order.id), {
+        status: 'completed',
+        providerStatus: 'completed',
+        updatedAt: new Date().toISOString(),
+      });
+      try {
+        await updateDoc(doc(db, 'hostingOrders', order.id), {
+          status: 'completed',
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (e) {}
+
+      // Update linked hosting accounts & domain orders to active
+      const hostingQ = query(collection(db, 'hostingAccounts'), where('orderId', '==', order.id));
+      const hostingSnap = await getDocs(hostingQ);
+      for (const hDoc of hostingSnap.docs) {
+        await updateDoc(doc(db, 'hostingAccounts', hDoc.id), {
+          status: 'active',
+          provisioningStatus: 'completed',
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      const domainQ = query(collection(db, 'domainOrders'), where('orderId', '==', order.id));
+      const domainSnap = await getDocs(domainQ);
+      for (const dDoc of domainSnap.docs) {
+        await updateDoc(doc(db, 'domainOrders', dDoc.id), {
+          status: 'active',
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      toast.success('Order marked as Completed! Account is live.');
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'completed' as any } : o));
+      if (selectedOrder?.id === order.id) {
+        setSelectedOrder(prev => prev ? { ...prev, status: 'completed' as any } : null);
+      }
+
+      const wantsEmail = window.confirm("Service is now Live & Completed! Do you want to send the Service Activation Email to the customer?");
+      if (wantsEmail) {
+        const firstAccount = hostingSnap.docs[0]?.data();
+        await sendServiceActivationEmail(order.id, order.customerEmail, {
+          domain: firstAccount?.domain || order.items?.find(i => i.domain)?.domain || 'Hosting Service',
+          serverIp: firstAccount?.serverIp || 'Assigned Server',
+          controlPanelUrl: firstAccount?.controlPanelUrl || 'https://cpanel.click2itbd.com'
+        });
+        toast.success("Activation email sent successfully!");
+      }
+    } catch (error: any) {
+      console.error('Mark completed error:', error);
+      toast.error('Error: ' + error.message);
+    } finally {
+      setStatusUpdating(false);
+      fetchOrders();
+      if (selectedOrder) {
+        fetchOrderDetails(selectedOrder.id);
+      }
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'processing': return 'bg-blue-100 text-blue-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-yellow-100 text-yellow-800';
+      case 'completed': return 'bg-green-100 text-green-800 border border-green-200';
+      case 'provisioning': return 'bg-purple-100 text-purple-800 border border-purple-200 animate-pulse';
+      case 'processing': return 'bg-blue-100 text-blue-800 border border-blue-200';
+      case 'failed': return 'bg-red-100 text-red-800 border border-red-200';
+      case 'cancelled': return 'bg-gray-100 text-gray-800 border border-gray-200';
+      default: return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
     }
   };
 
@@ -405,13 +535,45 @@ export default function HostingOrders() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => handleViewOrder(order)}
-                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="View Details"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        {order.status === 'pending' && (
+                          <button
+                            onClick={() => handleAcceptOrder(order)}
+                            disabled={statusUpdating}
+                            className="px-2.5 py-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded text-xs font-semibold shadow-sm transition"
+                            title="Accept and provision account"
+                          >
+                            Accept
+                          </button>
+                        )}
+                        {(order.status === 'provisioning' || order.status === 'processing') && (
+                          <button
+                            onClick={() => handleMarkCompletedOrder(order)}
+                            disabled={statusUpdating}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded text-xs font-semibold shadow-sm transition"
+                            title="Mark completed once live"
+                          >
+                            Complete
+                          </button>
+                        )}
+                        {order.status === 'failed' && (
+                          <button
+                            onClick={() => handleAcceptOrder(order)}
+                            disabled={statusUpdating}
+                            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded text-xs font-semibold shadow-sm transition"
+                            title="Retry provisioning"
+                          >
+                            Retry
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleViewOrder(order)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -463,26 +625,64 @@ export default function HostingOrders() {
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900 border-b pb-2">Order Summary</h4>
-                  <div className="text-sm space-y-1 text-gray-600">
-                    <p><span className="font-medium text-gray-900">Payment Method:</span> <span className="uppercase">{selectedOrder.paymentMethod}</span></p>
+                  <h4 className="font-semibold text-gray-900 border-b pb-2">Order Summary & Workflow</h4>
+                  <div className="text-sm space-y-2 text-gray-600">
+                    <p><span className="font-medium text-gray-900">Payment Method:</span> <span className="uppercase font-semibold">{selectedOrder.paymentMethod}</span></p>
                     <p><span className="font-medium text-gray-900">Shipping:</span> {`BDT ${selectedOrder.shippingCost.toLocaleString()}`}</p>
-                    <p className="text-lg font-bold text-gray-900 mt-2">Total: {`BDT ${selectedOrder.total.toLocaleString()}`}</p>
+                    <p className="text-lg font-bold text-gray-900">Total: {`BDT ${selectedOrder.total.toLocaleString()}`}</p>
                     
-                    <div className="mt-4 flex items-center gap-3">
-                      <span className="font-medium text-gray-900">Status:</span>
-                      <select
-                        value={selectedOrder.status}
-                        onChange={(e) => updateOrderStatus(e.target.value)}
-                        disabled={statusUpdating}
-                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="processing">Processing</option>
-                        <option value="completed">Completed / Active</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
-                      {statusUpdating && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
+                    <div className="pt-2 flex items-center gap-3">
+                      <span className="font-medium text-gray-900">Order Status:</span>
+                      <span className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase", getStatusColor(selectedOrder.status))}>
+                        {selectedOrder.status}
+                      </span>
+                    </div>
+
+                    {/* Workflow Quick Action Buttons */}
+                    <div className="pt-2">
+                      {selectedOrder.status === 'pending' && (
+                        <button
+                          onClick={() => handleAcceptOrder(selectedOrder)}
+                          disabled={statusUpdating}
+                          className="w-full py-2.5 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Accept & Provision WHM Account
+                        </button>
+                      )}
+
+                      {(selectedOrder.status === 'provisioning' || selectedOrder.status === 'processing') && (
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => handleMarkCompletedOrder(selectedOrder)}
+                            disabled={statusUpdating}
+                            className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Mark Completed (Account Live)
+                          </button>
+                          <p className="text-xs text-purple-600 font-medium text-center animate-pulse">
+                            WHM Provisioning in progress. Click Complete once server account is verified.
+                          </p>
+                        </div>
+                      )}
+
+                      {selectedOrder.status === 'failed' && (
+                        <div className="space-y-2">
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                            <p className="font-bold">Provisioning Error:</p>
+                            <p>{(selectedOrder as any).provisioningError || 'WHM provisioning failed or server timed out.'}</p>
+                          </div>
+                          <button
+                            onClick={() => handleAcceptOrder(selectedOrder)}
+                            disabled={statusUpdating}
+                            className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                          >
+                            <Server className="w-4 h-4" />
+                            Retry WHM Provisioning
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

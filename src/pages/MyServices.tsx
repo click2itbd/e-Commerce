@@ -83,9 +83,13 @@ export const MyServices: React.FC = () => {
       setLoading(false);
     });
 
-    const qOrders = query(collection(db, 'hostingOrders'), where('userId', '==', user.uid), limit(100));
+    const qOrders = query(collection(db, 'orders'), where('userId', '==', user.uid), limit(100));
     const unsubOrders = onSnapshot(qOrders, (snap) => {
-      setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as HostingOrder)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      const hostingRelatedOrders = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as HostingOrder))
+        .filter(o => o.items && o.items.some(i => i.itemType === 'hosting' || i.itemType === 'domain' || i.category === 'Hosting & Domains'))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setOrders(hostingRelatedOrders);
     }, (err) => {
       console.error('Error loading orders:', err);
     });
@@ -98,26 +102,28 @@ export const MyServices: React.FC = () => {
   }, [user]);
 
   const handleToggleAutoRenew = async (type: 'domain' | 'hosting', record: DomainOrder | HostingAccount) => {
+    const isHosting = type === 'hosting';
+    const collName = isHosting ? 'hostingAccounts' : 'domainOrders';
+    const currentVal = !!record.autoRenew;
     try {
-      const newVal = !record.autoRenew;
-      await updateDoc(doc(db, type === 'domain' ? 'domainOrders' : 'hostingAccounts', record.id), {
-        autoRenew: newVal,
+      await updateDoc(doc(db, collName, record.id), {
+        autoRenew: !currentVal,
         updatedAt: new Date().toISOString(),
       });
-      toast.success(`Auto-renew ${newVal ? 'enabled' : 'disabled'}`);
-    } catch (error) {
-      console.error('Error updating auto-renew:', error);
-      toast.error('Failed to update auto-renew');
+      toast.success(`Auto-renew ${!currentVal ? 'enabled' : 'disabled'}`);
+    } catch (err: any) {
+      toast.error('Failed to update auto-renew: ' + err.message);
     }
   };
 
-  const handleRenew = async (domain: DomainOrder) => {
+  const handleRenewDomain = async (domain: DomainOrder) => {
     setDomainLoading(domain.id);
     try {
-      const res = await apiPost<{ success: boolean; message?: string; error?: string }>('/api/domains/renew', {
+      const token = await user?.getIdToken();
+      const res = await apiPost('/api/domain/renew', {
         domain: domain.domain,
         years: 1,
-      });
+      }, token);
       
       if (res.success) {
         const renewalProduct = {
@@ -160,19 +166,21 @@ export const MyServices: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      pending: 'bg-yellow-100 text-yellow-700',
-      registered: 'bg-green-100 text-green-700',
-      failed: 'bg-red-100 text-red-700',
-      expiring: 'bg-orange-100 text-orange-700',
-      expired: 'bg-red-100 text-red-700',
-      renewing: 'bg-blue-100 text-blue-700',
-      provisioning: 'bg-blue-100 text-blue-700',
-      active: 'bg-green-100 text-green-700',
-      suspended: 'bg-orange-100 text-orange-700',
-      terminated: 'bg-red-100 text-red-700',
+      pending: 'bg-yellow-100 text-yellow-800 border border-yellow-300',
+      provisioning: 'bg-purple-100 text-purple-800 border border-purple-300 animate-pulse',
+      processing: 'bg-blue-100 text-blue-800 border border-blue-300',
+      registered: 'bg-green-100 text-green-800 border border-green-300',
+      active: 'bg-green-100 text-green-800 border border-green-300',
+      completed: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
+      failed: 'bg-red-100 text-red-800 border border-red-300',
+      expiring: 'bg-orange-100 text-orange-800 border border-orange-300',
+      expired: 'bg-red-100 text-red-800 border border-red-300',
+      renewing: 'bg-blue-100 text-blue-800 border border-blue-300',
+      suspended: 'bg-orange-100 text-orange-800 border border-orange-300',
+      terminated: 'bg-red-100 text-red-800 border border-red-300',
     };
     return (
-      <span className={`px-2 py-1 rounded text-xs font-bold ${styles[status] || 'bg-gray-100 text-gray-700'}`}>
+      <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${styles[status] || 'bg-gray-100 text-gray-700'}`}>
         {status}
       </span>
     );

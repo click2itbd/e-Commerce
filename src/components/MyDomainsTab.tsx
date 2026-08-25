@@ -39,19 +39,30 @@ export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
       termYears: 1
     } as any);
     toast.success('Renewal added to cart');
-    navigate('/hosting-checkout');
+    navigate('/hosting/checkout');
   };
 
   const fetchDomains = async () => {
     setLoading(true);
     try {
-      const q = query(
+      // Query by customerId first
+      const qCust = query(
         collection(db, 'domainOrders'),
         where('customerId', '==', currentUser.uid)
       );
-      const snap = await getDocs(q);
-      const doms = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setDomains(doms);
+      const snapCust = await getDocs(qCust);
+      const domMap = new Map();
+      snapCust.docs.forEach(doc => domMap.set(doc.id, { id: doc.id, ...doc.data() }));
+
+      // Also query by userId for backwards compatibility
+      const qUser = query(
+        collection(db, 'domainOrders'),
+        where('userId', '==', currentUser.uid)
+      );
+      const snapUser = await getDocs(qUser);
+      snapUser.docs.forEach(doc => domMap.set(doc.id, { id: doc.id, ...doc.data() }));
+
+      setDomains(Array.from(domMap.values()));
     } catch (error) {
       console.error("Error fetching domains:", error);
     } finally {

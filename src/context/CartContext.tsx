@@ -3,9 +3,10 @@ import { CartItem, Product } from '../types';
 
 interface CartContextType {
   items: CartItem[];
-  addToCart: (product: Product) => void;
+  addToCart: (product: Product | any) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  updateCartItem: (productId: string, updates: Partial<CartItem>) => void;
   clearCart: () => void;
   total: number;
 }
@@ -48,12 +49,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
+  const updateCartItem = (productId: string, updates: Partial<CartItem>) => {
+    setItems(prev =>
+      prev.map(item => (item.id === productId ? { ...item, ...updates } : item))
+    );
+  };
+
   const clearCart = () => setItems([]);
 
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ items, addToCart, removeFromCart, updateQuantity, clearCart, total }}>
+    <CartContext.Provider value={{ items, addToCart, removeFromCart, updateQuantity, updateCartItem, clearCart, total }}>
       {children}
     </CartContext.Provider>
   );

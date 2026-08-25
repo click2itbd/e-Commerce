@@ -11,10 +11,10 @@ export interface HostingSettings {
 
 export async function getHostingSettings(): Promise<HostingSettings> {
   return {
-    hostingApiType: config.secrets.whmApiType || 'cpanel',
-    hostingApiUrl: config.secrets.whmApiUrl || '',
-    hostingApiKey: config.secrets.whmApiToken || config.secrets.whmApiKey || '',
-    hostingApiUsername: config.secrets.whmUsername || 'root',
+    hostingApiType: process.env.WHM_API_TYPE || config.secrets.whmApiType || 'cpanel',
+    hostingApiUrl: process.env.WHM_URL || process.env.WHM_API_URL || config.secrets.whmApiUrl || '',
+    hostingApiKey: process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || config.secrets.whmApiToken || config.secrets.whmApiKey || '',
+    hostingApiUsername: (process.env.WHM_USERNAME || config.secrets.whmUsername || 'root').trim(),
   };
 }
 

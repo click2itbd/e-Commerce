@@ -4,8 +4,10 @@ import { CpanelHostingProvider } from '../providers/hosting/CpanelHostingProvide
 import { DynadotDomainProvider } from '../providers/domain/DynadotDomainProvider';
 import { getCloudLinuxProvider } from '../providers/cloudlinux/CloudLinuxProvider';
 import { verifySmtpConnection } from '../services/email';
+import { requireFirebaseAuth } from '../middleware/firebaseAuth';
 
 const adminRouter = Router();
+adminRouter.use(requireFirebaseAuth);
 
 const FORBIDDEN_SECRET_FIELDS = new Set([
   'dynadotApiKey',
@@ -25,7 +27,13 @@ const FORBIDDEN_SECRET_FIELDS = new Set([
   'smsApiKey',
   'whatsappAccessToken',
   'hostingApiKey',
+  'hostingApiUrl',
+  'hostingApiUsername',
+  'whmUrl',
+  'whmApiUrl',
   'whmApiToken',
+  'whmApiKey',
+  'whmUsername',
   'clnSecretKey',
 ]);
 
@@ -145,8 +153,8 @@ adminRouter.post('/hosting/test-connection', async (req: any, res: Response) => 
 
     const provider = new CpanelHostingProvider(
       process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || '',
-      process.env.WHM_API_URL,
-      process.env.WHM_USERNAME,
+      process.env.WHM_URL || process.env.WHM_API_URL,
+      process.env.WHM_USERNAME || 'root',
       parseInt(process.env.WHM_TIMEOUT_MS || '15000', 10)
     );
 

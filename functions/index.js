@@ -286,42 +286,41 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
       return res.status(200).send({ message: "Order is already being processed", orderId });
     }
 
-    let paymentVerified = false;
-    if (status === "success") {
-      paymentVerified = await verifyPaymentWithGateway(orderId, orderData);
+    if (status === "success" || status === "manual_verified") {
+      let paymentVerified = false;
+      if (status === "success") {
+        paymentVerified = await verifyPaymentWithGateway(orderId, orderData);
+        if (!paymentVerified) {
+          await targetRef.update({
+            paymentStatus: 'failed',
+            provisioningStatus: 'failed',
+            provisioningError: 'Payment verification failed with gateway',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          return res.status(400).send({ error: "Payment verification failed" });
+        }
+      } else if (status === "manual_verified") {
+        const internalSecret = req.headers['x-internal-secret'];
+        if (internalSecret !== process.env.MANUAL_PAYMENT_SECRET) {
+          return res.status(401).send("Unauthorized");
+        }
+        if (orderData.paymentStatus !== 'verified') {
+          await targetRef.update({
+            paymentStatus: 'failed',
+            provisioningStatus: 'failed',
+            provisioningError: 'Payment not verified by admin',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          return res.status(400).send({ error: "Payment not verified by admin" });
+        }
+        paymentVerified = true;
+      }
+
       if (!paymentVerified) {
-        await targetRef.update({
-          paymentStatus: 'failed',
-          provisioningStatus: 'failed',
-          provisioningError: 'Payment verification failed with gateway',
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-        return res.status(400).send({ error: "Payment verification failed" });
+        return res.status(400).send({ error: "Payment not verified" });
       }
-    } else if (status === "manual_verified") {
-      const internalSecret = req.headers['x-internal-secret'];
-      if (internalSecret !== process.env.MANUAL_PAYMENT_SECRET) {
-        return res.status(401).send("Unauthorized");
-      }
-      if (orderData.paymentStatus !== 'verified') {
-        await targetRef.update({
-          paymentStatus: 'failed',
-          provisioningStatus: 'failed',
-          provisioningError: 'Payment not verified by admin',
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-        return res.status(400).send({ error: "Payment not verified by admin" });
-      }
-      paymentVerified = true;
-    } else {
-      return res.status(400).send({ error: "Invalid status" });
-    }
 
-    if (!paymentVerified) {
-      return res.status(400).send({ error: "Payment not verified" });
-    }
-
-    const updateData: any = {
+    const updateData = {
       status: "processing",
       provisioningStatus: "processing",
       transactionId: transactionId || orderData.transactionId || "N/A",
@@ -650,7 +649,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
               let provider;
               if (hostingProviderType === 'cpanel' && hostingApiKey) {
                 const { CpanelHostingProvider } = require('./providers/hosting/CpanelHostingProvider');
-                provider = new CpanelHostingProvider(hostingApiKey, hostingApiUrl);
+                provider = new CpanelHostingProvider(hostingApiKey, hostingApiUrl, hostingConfig?.hostingApiUsername || 'root');
               } else if (hostingProviderType === 'resellerclub' && hostingApiKey) {
                 const { ResellerClubHostingProvider } = require('./providers/hosting/ResellerClubHostingProvider');
                 provider = new ResellerClubHostingProvider(hostingApiKey, hostingApiUrl);
@@ -1831,7 +1830,7 @@ exports.manageDomain = functions.https.onCall(async (data, context) => {
 
   // Verify ownership of the domain
   const dOrdersSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('domainOrders')
-    .where('customerId', '==', uid)
+    .where('userId', '==', uid)
     .where('domain', '==', domain)
     .get();
 
@@ -1851,7 +1850,7 @@ exports.manageDomain = functions.https.onCall(async (data, context) => {
 
   const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
 
-  let dynadotUrl = `${actualBaseUrl}?key=${apiKey}&command=${command}&domain=${domain}`;
+  let dynadotUrl = `${baseUrl}?key=${apiKey}&command=${command}&domain=${domain}`;
   
   if (extraParams && typeof extraParams === 'object') {
     for (const [k, v] of Object.entries(extraParams)) {
@@ -1868,15 +1867,6 @@ exports.manageDomain = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('internal', 'Error communicating with Dynadot API.');
   }
 });
-
-
-
-
-
-
-
-
-const crypto = require('crypto');
 
 exports.cloudLinuxProxy = functions.https.onCall(async (data, context) => {
   // Only admins can interact with CloudLinux API for adding/removing licenses
@@ -2582,7 +2572,7 @@ exports.adminApiConfig = functions.https.onCall(async (data, context) => {
   if (method === 'GET') {
     const snap = await docRef.get();
     const currentData = snap.exists ? snap.data() : {};
-    const sanitized: Record<string, any> = {};
+    const sanitized = {};
 
     for (const [key, value] of Object.entries(currentData)) {
       if (secretFields.includes(key)) {

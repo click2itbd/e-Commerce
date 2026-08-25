@@ -1,5 +1,6 @@
 import React from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function SecureServiceSection() {
   return (
@@ -21,9 +22,12 @@ export default function SecureServiceSection() {
                 </li>
               ))}
             </ul>
-            <a href="/hosting" className="text-[var(--c2i-blue-light)] font-bold hover:underline text-sm">
-              Read more...
-            </a>
+            <Link 
+              to="/services" 
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all shadow-md shadow-blue-500/20 group"
+            >
+              Explore Security & Hosting Services <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            </Link>
           </div>
           <div className="flex items-center justify-center">
             <img src="/assets/cloud_server.jpg" alt="Secure Hosting" className="w-full max-w-md h-auto rounded-2xl shadow-2xl" />

@@ -1535,13 +1535,11 @@ export const Settings = () => {
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex gap-4">
                   <div className="text-sm text-yellow-800">
                     <p className="font-bold mb-1">
-                      Dynadot Reseller Integration
+                      Domain & Hosting Reseller Configuration
                     </p>
                     <p>
-                      Enter your Dynadot API key below to enable real-time
-                      domain availability checks and automated registration.
-                      Make sure you have whitelisted this server's IP in your
-                      Dynadot account.
+                      API credentials (DYNADOT_API_KEY, WHM_URL, WHM_API_TOKEN, WHM_USERNAME) are managed securely via backend environment variables.
+                      Configure commercial pricing, currency exchange rates, and profit markups below.
                     </p>
                   </div>
                 </div>

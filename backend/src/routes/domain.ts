@@ -22,7 +22,7 @@ interface DomainPricing {
 const domainRouter = Router();
 
 async function getDomainConfig() {
-  const dynadotApiKey = config.secrets.dynadotApiKey;
+  const dynadotApiKey = process.env.DYNADOT_API_KEY || config.secrets.dynadotApiKey;
   return {
     domainApiType: dynadotApiKey ? 'dynadot' : 'dummy',
     domainApiKey: dynadotApiKey || ''

@@ -1,112 +1,304 @@
-import React, { useState } from 'react';
-import { Bot, MessageCircle, X, Send } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  Bot, 
+  MessageCircle, 
+  X, 
+  Send, 
+  Sparkles, 
+  User, 
+  ChevronRight, 
+  Minimize2,
+  RefreshCw,
+  Phone,
+  Layers,
+  Globe,
+  CreditCard,
+  Zap,
+  CheckCircle2
+} from 'lucide-react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../firebase';
 import { toast } from 'react-hot-toast';
 import { getApiUrl } from '../services/apiClient';
+import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
+
+interface Message {
+  id: string;
+  sender: 'user' | 'bot';
+  text: string;
+  timestamp: string;
+}
+
+const starterPrompts = [
+  { icon: Zap, label: 'Hosting Plans & Pricing', text: 'Which web hosting plan is best for my website?' },
+  { icon: Globe, label: 'Domain & Nameservers', text: 'How do I point my domain to Click2IT nameservers?' },
+  { icon: CreditCard, label: 'bKash Payment Verification', text: 'How do I verify my bKash payment with TrxID?' },
+  { icon: RefreshCw, label: 'Free Website Migration', text: 'How can I get free cPanel website migration?' },
+];
 
 export const ChatWidget: React.FC = () => {
+  const { user } = useAuth();
+  const { settings } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
-  const [chatStarted, setChatStarted] = useState(false);
-  const [formData, setFormData] = useState({ firstName: '', lastName: '', email: '', phone: '' });
-  const [messages, setMessages] = useState<{ sender: 'user' | 'bot', text: string }[]>([]);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: 'welcome-1',
+      sender: 'bot',
+      text: `Hello! 👋 Welcome to ${settings.brandName || 'Click2IT'}.\nHow can our support team assist you today?`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+  ]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleStartChat = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await addDoc(collection(db, 'leads'), {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phone: formData.phone,
-        mobile: formData.phone,
-        company: '',
-        industry: '',
-        source: 'web_chat',
-        status: 'new',
-        createdAt: new Date().toISOString(),
-      });
-      setChatStarted(true);
-      setMessages([{ sender: 'bot', text: `Hi ${formData.firstName}, how can I help you?` }]);
-      toast.success('Chat started!');
-    } catch (e) {
-      console.error(e);
-      toast.error('Failed to start chat.');
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim() || loading) return;
+  useEffect(() => {
+    if (isOpen) {
+      scrollToBottom();
+      setTimeout(() => inputRef.current?.focus(), 150);
+    }
+  }, [messages, loading, isOpen]);
 
-    const userMessage = { sender: 'user' as const, text: inputValue };
+  const handleSendMessage = async (textToSend?: string) => {
+    const text = (textToSend || inputValue).trim();
+    if (!text || loading) return;
+
+    const userMessage: Message = { 
+      id: Date.now().toString(),
+      sender: 'user', 
+      text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    
     setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
+    if (!textToSend) setInputValue('');
     setLoading(true);
+
+    // Save chat inquiry lead asynchronously
+    try {
+      addDoc(collection(db, 'leads'), {
+        userId: user?.uid || 'guest',
+        name: user?.displayName || 'Live Chat Visitor',
+        email: user?.email || '',
+        initialMessage: text,
+        source: 'floating_live_chat',
+        status: 'new',
+        createdAt: new Date().toISOString(),
+      }).catch(() => {});
+    } catch {
+      // ignore lead log error
+    }
 
     try {
       const response = await fetch(getApiUrl('/api/ai/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: inputValue }),
+        body: JSON.stringify({ message: text }),
       });
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'AI service error');
+        throw new Error(data.error || 'AI service unavailable');
       }
 
-      const botMessage = { sender: 'bot' as const, text: data.reply || 'Sorry, I had trouble processing that.' };
+      const botMessage: Message = { 
+        id: (Date.now() + 1).toString(),
+        sender: 'bot', 
+        text: data.reply || 'Thank you for reaching out! Our team is available 24/7 to assist you.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
-      console.error('AI chat error:', error);
-      setMessages(prev => [...prev, { sender: 'bot', text: 'Error communicating with AI.' }]);
+      console.error('Chat error:', error);
+      const fallbackMessage: Message = { 
+        id: (Date.now() + 1).toString(),
+        sender: 'bot', 
+        text: `Our live assistant received your message. You can also reach our hotline at ${settings.contactPhone || '+8809640887777'} or chat with us on WhatsApp for instant 1-on-1 assistance.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages(prev => [...prev, fallbackMessage]);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleResetChat = () => {
+    setMessages([
+      {
+        id: Date.now().toString(),
+        sender: 'bot',
+        text: `Hello! 👋 How can we help you today?`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+  };
+
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-5 right-5 z-50 font-sans">
       {!isOpen ? (
+        /* Floating Launcher Button */
         <button
           onClick={() => setIsOpen(true)}
-          className="bg-[#081621] text-white p-4 rounded-full shadow-lg"
+          className="group flex items-center gap-3 bg-blue-600 hover:bg-blue-700 text-white pl-4 pr-5 py-3 rounded-full shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 hover:scale-105 active:scale-95 transition-all duration-200"
+          aria-label="Open Live Chat"
         >
-          <MessageCircle size={24} />
+          <div className="relative flex items-center justify-center">
+            <MessageCircle size={22} />
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+            </span>
+          </div>
+          <span className="text-sm font-semibold tracking-tight">
+            Chat with Us
+          </span>
         </button>
       ) : (
-        <div className="bg-white rounded-lg shadow-2xl w-80 h-96 flex flex-col border border-gray-200">
-          <div className="bg-[#081621] text-white p-4 flex justify-between items-center rounded-t-lg">
-            <h3 className="font-bold flex items-center gap-2"><Bot size={20} /> Support Chat</h3>
-            <button onClick={() => setIsOpen(false)}><X size={20} /></button>
+        /* Minimalist Modern Chat Window */
+        <div className="bg-white rounded-3xl shadow-2xl w-[340px] sm:w-[370px] h-[510px] max-h-[85vh] flex flex-col border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+          
+          {/* Clean Header */}
+          <div className="bg-white px-5 py-4 flex justify-between items-center shrink-0 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/20">
+                  <Bot size={18} />
+                </div>
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></span>
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-gray-900 leading-tight">
+                  {settings.brandName || 'Click2IT'} Support
+                </h3>
+                <p className="text-[11px] text-gray-500 font-medium leading-tight mt-0.5">
+                  Usually replies instantly
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 text-gray-400">
+              <button 
+                onClick={handleResetChat}
+                className="p-1.5 hover:bg-gray-100 hover:text-gray-600 rounded-lg transition-colors"
+                title="Restart conversation"
+              >
+                <RefreshCw size={15} />
+              </button>
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="p-1.5 hover:bg-gray-100 hover:text-gray-600 rounded-lg transition-colors"
+                title="Close"
+              >
+                <X size={17} />
+              </button>
+            </div>
           </div>
 
-          {!chatStarted ? (
-            <form onSubmit={handleStartChat} className="p-4 space-y-4">
-              <input type="text" placeholder="First Name" required value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} className="w-full border p-2 rounded text-sm" />
-              <input type="text" placeholder="Last Name" required value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} className="w-full border p-2 rounded text-sm" />
-              <input type="email" placeholder="Email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full border p-2 rounded text-sm" />
-              <input type="tel" placeholder="Mobile Number" required value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border p-2 rounded text-sm" />
-              <button type="submit" className="w-full bg-[#081621] text-white p-2 rounded font-bold">Start Chat</button>
-            </form>
-          ) : (
-            <div className="flex flex-col h-full">
-              <div className="p-4 flex-1 overflow-y-auto space-y-2">
-                {messages.map((msg, i) => (
-                    <div key={i} className={`p-2 rounded text-xs ${msg.sender === 'user' ? 'bg-blue-100 ml-auto' : 'bg-gray-100 mr-auto'}`}>
-                        {msg.text}
+          {/* Chat Messages Body */}
+          <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-[#f8fafc]/60 text-xs">
+            {messages.map((msg) => {
+              const isUser = msg.sender === 'user';
+              return (
+                <div 
+                  key={msg.id} 
+                  className={`flex gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}
+                >
+                  {!isUser && (
+                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                      <Bot size={13} />
                     </div>
-                ))}
+                  )}
+                  
+                  <div className="max-w-[80%]">
+                    <div 
+                      className={`p-3 rounded-2xl leading-relaxed whitespace-pre-line text-xs ${
+                        isUser 
+                          ? 'bg-blue-600 text-white rounded-br-xs' 
+                          : 'bg-white text-gray-800 border border-gray-100 rounded-bl-xs shadow-xs'
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                    <span className={`block text-[10px] text-gray-400 mt-1 px-1 ${isUser ? 'text-right' : 'text-left'}`}>
+                      {msg.timestamp}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {loading && (
+              <div className="flex gap-2 justify-start items-center">
+                <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                  <Bot size={13} />
+                </div>
+                <div className="bg-white px-3.5 py-2.5 rounded-2xl rounded-bl-xs border border-gray-100 shadow-xs flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-bounce"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-bounce [animation-delay:0.2s]"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-bounce [animation-delay:0.4s]"></span>
+                </div>
               </div>
-              <form onSubmit={handleSendMessage} className="p-2 border-t flex gap-2">
-                <input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Type a message..." className="flex-1 border rounded p-2 text-sm" />
-                <button type="submit" className="bg-[#081621] text-white p-2 rounded"><Send size={16} /></button>
-              </form>
-            </div>
-          )}
+            )}
+
+            {/* Quick Starter Chips (Shown when only initial greeting is present) */}
+            {messages.length === 1 && (
+              <div className="pt-2 space-y-1.5">
+                <p className="text-[11px] font-semibold text-gray-400 px-1">Suggested topics:</p>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {starterPrompts.map((prompt, idx) => {
+                    const Icon = prompt.icon;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleSendMessage(prompt.text)}
+                        className="w-full text-left p-2.5 rounded-xl bg-white hover:bg-blue-50 border border-gray-200/80 hover:border-blue-200 text-gray-700 hover:text-blue-700 text-xs font-medium transition-all flex items-center justify-between group shadow-2xs"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Icon size={14} className="text-blue-600 shrink-0" />
+                          {prompt.label}
+                        </span>
+                        <ChevronRight size={13} className="text-gray-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Sleek Input Footer */}
+          <div className="p-3 bg-white border-t border-gray-100 shrink-0">
+            <form 
+              onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} 
+              className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100/80 focus-within:bg-white border border-gray-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/10 rounded-2xl px-3 py-1.5 transition-all"
+            >
+              <input 
+                ref={inputRef}
+                type="text" 
+                value={inputValue} 
+                onChange={e => setInputValue(e.target.value)} 
+                placeholder="Ask a question..." 
+                className="flex-1 bg-transparent py-1.5 text-xs text-gray-900 placeholder-gray-400 outline-none"
+              />
+              <button 
+                type="submit" 
+                disabled={!inputValue.trim() || loading}
+                className="w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-30 text-white flex items-center justify-center transition-colors shrink-0 shadow-xs"
+                title="Send message"
+              >
+                <Send size={13} className="translate-x-px" />
+              </button>
+            </form>
+          </div>
+
         </div>
       )}
     </div>

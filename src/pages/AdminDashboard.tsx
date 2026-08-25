@@ -29,14 +29,17 @@ const LeaveTab = lazy(() => import('./admin/tabs/hr/Leave').then(m => ({ default
 const SalaryTab = lazy(() => import('./admin/tabs/hr/Salary').then(m => ({ default: m.default })));
 const CampaignsTab = lazy(() => import('./admin/tabs/marketing/Campaigns').then(m => ({ default: m.default })));
 const DiscountCodesTab = lazy(() => import('./admin/tabs/marketing/DiscountCodes').then(m => ({ default: m.default })));
+const ReviewsTab = lazy(() => import('./admin/tabs/marketing/Reviews').then(m => ({ default: m.default })));
 const UsersTab = lazy(() => import('./admin/tabs/hr/Users').then(m => ({ default: m.default })));
 const HostingServicesTab = lazy(() => import('./admin/tabs/hosting/HostingServices').then(m => ({ default: m.default })));
 const DomainOffersTab = lazy(() => import('./admin/tabs/hosting/DomainOffers').then(m => ({ default: m.default })));
 const DomainRenewalsTab = lazy(() => import('./admin/tabs/hosting/DomainRenewals').then(m => ({ default: m.default })));
+const DomainPricingManagerTab = lazy(() => import('../components/admin/hosting/DomainPricingManager').then(m => ({ default: m.DomainPricingManager })));
 const HostingPlansTab = lazy(() => import('./admin/tabs/hosting/HostingPlans').then(m => ({ default: m.default })));
 const SalesForm = lazy(() => import('./admin/tabs/sales/SalesForm').then(m => ({ default: m.SalesForm })));
 const ServicesTab = lazy(() => import('./admin/tabs/services/Services').then(m => ({ default: m.default })));
 const HostingOrdersTab = lazy(() => import('./admin/tabs/hosting/HostingOrders').then(m => ({ default: m.default })));
+const ActiveHostingAccountsTab = lazy(() => import('./admin/tabs/hosting/ActiveHostingAccounts').then(m => ({ default: m.default })));
 const SupportTicketsTab = lazy(() => import('./admin/tabs/hosting/SupportTickets').then(m => ({ default: m.default })));
 const AllReportsTab = lazy(() => import('./admin/tabs/accounting/AllReports').then(m => ({ default: m.default })));
 const LedgerTab = lazy(() => import('./admin/tabs/accounting/Ledger').then(m => ({ default: m.default })));
@@ -187,7 +190,7 @@ export const AdminDashboard: React.FC = () => {
   const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
   const [isAddingPaymentAccount, setIsAddingPaymentAccount] = useState(false);
   const [paymentAccountFormData, setPaymentAccountFormData] = useState({ type: '', name: '', description: '', openingBalance: 0, status: 'active' });
-const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'hosting_api_settings' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
+const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPricing' | 'domainOffers' | 'domainRenewals' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'reviews' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'hosting_api_settings' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
   
   const [serialSelectionModal, setSerialSelectionModal] = useState<{
     isOpen: boolean;
@@ -2943,6 +2946,42 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
                   </div>
                 </button>
               )}
+              {(hasPermission('manage_services') || isAdmin) && (
+                <button
+                  onClick={() => setActiveTab('activeHostingAccounts')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                    activeTab === 'activeHostingAccounts' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                  )}
+                >
+                  <Users size={16} className={activeTab === 'activeHostingAccounts' ? "text-blue-600" : "text-gray-400"} />
+                  <span>Active Accounts</span>
+                </button>
+              )}
+              {(hasPermission('manage_settings') || isAdmin) && (
+                <button
+                  onClick={() => setActiveTab('domainPricing')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                    activeTab === 'domainPricing' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                  )}
+                >
+                  <DollarSign size={16} className={activeTab === 'domainPricing' ? "text-blue-600" : "text-gray-400"} />
+                  <span>Domain Pricing & TLD Rates</span>
+                </button>
+              )}
+              {(hasPermission('manage_services') || isAdmin) && (
+                <button
+                  onClick={() => setActiveTab('hostingPlans')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                    activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                  )}
+                >
+                  <HardDrive size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} />
+                  <span>Hosting Packages</span>
+                </button>
+              )}
               {(hasPermission('manage_settings') || isAdmin) && (
                 <button
                   onClick={() => setActiveTab('domainOffers')}
@@ -2951,20 +2990,8 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
                     activeTab === 'domainOffers' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
                   )}
                 >
-                  <DollarSign size={16} className={activeTab === 'domainOffers' ? "text-blue-600" : "text-gray-400"} />
-                  <span>Domain Pricing & Rates</span>
-                </button>
-              )}
-              {(hasPermission('manage_services') || isAdmin) && (
-                <button
-                  onClick={() => setActiveTab('hostingServices')}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    activeTab === 'hostingServices' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                  )}
-                >
-                  <HardDrive size={16} className={activeTab === 'hostingServices' ? "text-blue-600" : "text-gray-400"} />
-                  <span>Hosting Packages</span>
+                  <Tag size={16} className={activeTab === 'domainOffers' ? "text-blue-600" : "text-gray-400"} />
+                  <span>Domain Offer Request</span>
                 </button>
               )}
               {(hasPermission('manage_settings') || isAdmin) && (
@@ -2999,18 +3026,6 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
                 >
                   <Plug size={16} className={activeTab === 'hosting_api_settings' ? "text-blue-600" : "text-gray-400"} />
                   <span>Hosting API Settings</span>
-                </button>
-              )}
-              {(hasPermission('manage_services') || isAdmin) && (
-                <button
-                  onClick={() => setActiveTab('hostingPlans')}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                  )}
-                >
-                  <Server size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} />
-                  <span>Hosting Plans</span>
                 </button>
               )}
               {isAdmin && (
@@ -3153,7 +3168,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
 
            {/* Marketing */}
            <div className="px-4 mb-2">
-             <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Marketing</div>
+             <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Marketing & Feedback</div>
              {hasPermission('manage_marketing') && (
                <button onClick={() => setActiveTab('campaigns')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'campaigns' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Tag size={16} className={activeTab === 'campaigns' ? "text-blue-600" : "text-gray-400"} /> Marketing
@@ -3162,6 +3177,11 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
              {hasPermission('manage_marketing') && (
                <button onClick={() => setActiveTab('discountCodes')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'discountCodes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Percent size={16} className={activeTab === 'discountCodes' ? "text-blue-600" : "text-gray-400"} /> Discounts
+               </button>
+             )}
+             {hasPermission('manage_marketing') && (
+               <button onClick={() => setActiveTab('reviews')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'reviews' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Star size={16} className={activeTab === 'reviews' ? "text-blue-600" : "text-gray-400"} /> Reviews
                </button>
              )}
            </div>
@@ -3214,7 +3234,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
         {/* Top Header */}
-        <header className="h-[60px] bg-white border-b border-gray-200 flex items-center justify-between px-3 sm:px-6 shrink-0 sticky top-0 z-10">
+        <header className="h-[60px] bg-white border-b border-gray-200 flex items-center justify-between px-3 sm:px-6 shrink-0 sticky top-0 z-50">
            <div className="flex items-center gap-3 flex-1">
              <button className="lg:hidden p-2 hover:bg-gray-100 rounded text-gray-600" onClick={() => setIsMobileMenuOpen(true)}>
                <MenuIcon size={22} />
@@ -3225,7 +3245,7 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
              </div>
            </div>
            <div className="flex items-center gap-2 sm:gap-4 text-gray-500">
-              <AdminNotifications />
+              <AdminNotifications setActiveTab={setActiveTab} />
                 <User size={18} className="hover:text-gray-800 cursor-pointer" onClick={() => toast('Coming Soon: Admin Profile Settings')} />
               <LogOut size={18} className="hover:text-red-600 cursor-pointer" onClick={() => navigate('/')} />
            </div>
@@ -3359,6 +3379,10 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
           <AllReportsTab />
         ) : activeTab === 'menus' && isAdmin ? (
           <MenusTab />
+        ) : activeTab === 'activeHostingAccounts' && (hasPermission('manage_services') || isAdmin) ? (
+          <ActiveHostingAccountsTab />
+        ) : activeTab === 'domainPricing' && (hasPermission('manage_settings') || isAdmin) ? (
+          <DomainPricingManagerTab />
         ) : activeTab === 'domainOffers' ? (
           <DomainOffersTab />
         ) : activeTab === 'domainRenewals' ? (
@@ -3399,6 +3423,8 @@ const [activeTab, setActiveTab] = useState<'domainOffers' | 'domainRenewals' | '
           <CampaignsTab />
         ) : activeTab === 'discountCodes' && hasPermission('manage_marketing') ? (
           <DiscountCodesTab />
+        ) : activeTab === 'reviews' && hasPermission('manage_marketing') ? (
+          <ReviewsTab />
         ) : activeTab === 'users' && isAdmin ? (
           <UsersTab />
         ) : activeTab === 'customer_receive_report' && hasPermission('manage_reports') ? (

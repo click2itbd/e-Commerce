@@ -1,5 +1,5 @@
 class CpanelHostingProvider {
-  constructor(apiKey, apiUrl) {
+  constructor(apiKey, apiUrl, apiUsername) {
     if (!apiKey) {
       throw new Error('WHM API token is required');
     }
@@ -8,10 +8,11 @@ class CpanelHostingProvider {
     }
     this.apiKey = apiKey;
     this.apiUrl = apiUrl.replace(/\/$/, '');
+    this.apiUsername = (apiUsername || process.env.WHM_USERNAME || 'root').trim();
   }
 
   async whmRequest(action, params = {}, timeoutMs = 15000) {
-    const url = new URL(`${this.apiUrl}/${action}`);
+    const url = new URL(`/json-api/${action}`, this.apiUrl + '/');
     url.searchParams.set('api.version', '1');
     for (const [key, value] of Object.entries(params)) {
       url.searchParams.set(key, value);
@@ -24,7 +25,7 @@ class CpanelHostingProvider {
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
-          'Authorization': `whm ${this.apiKey}`,
+          'Authorization': `whm ${this.apiUsername}:${this.apiKey}`,
           'Accept': 'application/json',
         },
         signal: controller.signal,

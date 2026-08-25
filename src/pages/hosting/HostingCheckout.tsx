@@ -73,8 +73,8 @@ export const HostingCheckout: React.FC = () => {
       } catch (e) {
         // Suppress network error in dev and fall back
       }
-      if (settings?.bkashNumber) {
-        setBkashNumber(settings.bkashNumber);
+      if ((settings as any)?.manualBkashNumber || settings?.bkashNumber) {
+        setBkashNumber((settings as any)?.manualBkashNumber || settings?.bkashNumber || '01700000000');
       }
     };
     fetchBkashNumber();
@@ -313,11 +313,12 @@ export const HostingCheckout: React.FC = () => {
 
       for (const hostingItem of hostingItems) {
         const hAccountRef = doc(collection(db, 'hostingAccounts'));
+        const packageSlug = hostingItem.planSlug || hostingItem.planId || hostingItem.id.replace('hosting_', '').replace('dynamic-hosting-', '').split('-')[0] || 'starter';
         
         batch.set(hAccountRef, {
           userId: user?.uid || 'guest',
           orderId: newOrderRef.id,
-          planId: hostingItem.id.replace('hosting_', ''),
+          planId: packageSlug,
           domain: hostingConfig.domain || null,
           provider: 'cpanel',
           status: 'pending',
@@ -326,6 +327,27 @@ export const HostingCheckout: React.FC = () => {
           autoRenew: false,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+        });
+
+        // Also write to hostingOrders collection with explicit fields
+        const hostingOrderDocRef = doc(collection(db, 'hostingOrders'), newOrderRef.id);
+        batch.set(hostingOrderDocRef, {
+          ...orderData,
+          id: newOrderRef.id,
+          orderId: newOrderRef.id,
+          packageSlug: packageSlug,
+          billingCycle: hostingItem.billingCycle || 'monthly',
+          price: grandTotal,
+          domain: hostingConfig.domain || '',
+          customerInfo: {
+            name: `${formData.firstName} ${formData.lastName}`.trim(),
+            email: formData.email,
+            phone: formData.phone,
+            address: formData.address1,
+            city: formData.city,
+            country: formData.country,
+          },
+          status: 'pending'
         });
       }
 
@@ -776,12 +798,19 @@ export const HostingCheckout: React.FC = () => {
                   {/* Items List */}
                   <div className="space-y-4 mb-6 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                     {items.map((item) => (
-                      <div key={item.id} className="flex justify-between items-start text-sm">
+                      <div key={item.id} className="flex justify-between items-start text-sm pb-2 border-b border-gray-50 last:border-0">
                         <div className="flex-1 pr-4">
-                          <p className="font-medium text-gray-900 line-clamp-2">{item.name}</p>
-                          <p className="text-gray-500 mt-0.5 text-xs">{item.itemType === 'domain' ? `${item.termYears || 1} Year(s)` : item.billingCycle}</p>
+                          <p className="font-bold text-gray-900 line-clamp-2">{item.name}</p>
+                          <p className="text-gray-500 mt-0.5 text-xs flex items-center gap-1.5 flex-wrap">
+                            <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-semibold text-[10px]">
+                              {item.itemType === 'domain' 
+                                ? `${item.termYears || 1} Year${(item.termYears || 1) > 1 ? 's' : ''}` 
+                                : (item.billingCycle === 'monthly' ? 'Monthly' : `${item.termYears || 1} Year${(item.termYears || 1) > 1 ? 's' : ''}`)}
+                            </span>
+                            <span>{item.description || ''}</span>
+                          </p>
                         </div>
-                        <span className="font-semibold text-gray-900 whitespace-nowrap">{formatCurrency(item.price)}</span>
+                        <span className="font-black text-gray-900 whitespace-nowrap">{formatCurrency(item.price * item.quantity)}</span>
                       </div>
                     ))}
                   </div>

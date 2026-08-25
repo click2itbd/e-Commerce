@@ -27,11 +27,11 @@ export class DynadotDomainProvider implements IDomainProvider {
   private tldPricingCache = new Map<string, { value: TldPricingResult; expires: number }>();
   private static readonly TLD_PRICING_CACHE_TTL_MS = 60 * 60 * 1000;
 
-  constructor(apiKey: string, isSandbox: boolean = false, requestTimeout: number = 15000) {
-    this.apiKey = apiKey;
-    this.isSandbox = isSandbox;
+  constructor(apiKey?: string, isSandbox?: boolean, requestTimeout: number = 15000) {
+    this.apiKey = apiKey || process.env.DYNADOT_API_KEY || '';
+    this.isSandbox = isSandbox ?? (process.env.DYNADOT_SANDBOX_MODE === 'true');
     this.requestTimeout = requestTimeout;
-    this.baseUrl = isSandbox
+    this.baseUrl = this.isSandbox
       ? 'https://api-sandbox.dynadot.com/api3.json'
       : 'https://api.dynadot.com/api3.json';
   }

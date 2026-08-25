@@ -89,10 +89,10 @@ export const Footer: React.FC = () => {
           <div>
             <h3 className="text-lg font-bold mb-4 uppercase tracking-wider">About Us</h3>
             <ul className="flex flex-col gap-2 text-gray-400 text-sm">
-              <li><a href="#" className="hover:text-white transition-colors">EMI Terms</a></li>
+              <li><a href="/emi-terms" className="hover:text-white transition-colors">EMI Terms</a></li>
               <li><a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Star Point Policy</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Brands</a></li>
+              <li><a href="/star-points" className="hover:text-white transition-colors">Star Point Policy</a></li>
+              <li><a href="/brands" className="hover:text-white transition-colors">Brands</a></li>
             </ul>
           </div>
 
@@ -100,10 +100,10 @@ export const Footer: React.FC = () => {
           <div>
             <h3 className="text-lg font-bold mb-4 uppercase tracking-wider">Customer Service</h3>
             <ul className="flex flex-col gap-2 text-gray-400 text-sm">
-              <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Online Delivery</a></li>
+              <li><a href="/contact" className="hover:text-white transition-colors">Contact Us</a></li>
+              <li><a href="/online-delivery" className="hover:text-white transition-colors">Online Delivery</a></li>
               <li><a href="/refund-policy" className="hover:text-white transition-colors">Refund and Return Policy</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Warranty Policy</a></li>
+              <li><a href="/warranty-policy" className="hover:text-white transition-colors">Warranty Policy</a></li>
             </ul>
           </div>
 
@@ -114,19 +114,19 @@ export const Footer: React.FC = () => {
             
             <form onSubmit={handleSubscribe} className="mb-6">
               <p className="text-xs font-bold text-gray-300 uppercase mb-2">Newsletter Signup</p>
-              <div className="flex">
+              <div className="flex flex-col sm:flex-row">
                 <input
                   type="email"
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="bg-gray-800 border-none text-white text-sm px-4 py-2 rounded-l-md focus:ring-1 focus:ring-white outline-none w-full"
+                  className="bg-gray-800 border-none text-white text-sm px-4 py-2 rounded-t-md sm:rounded-l-md sm:rounded-tr-none focus:ring-1 focus:ring-white outline-none w-full"
                 />
                 <button
                   type="submit"
                   disabled={loading}
-                  className="bg-white text-black px-4 py-2 rounded-r-md hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  className="bg-white text-black px-4 py-2 rounded-b-md sm:rounded-r-md sm:rounded-bl-none hover:bg-gray-200 transition-colors disabled:opacity-50"
                 >
                   <Send size={18} />
                 </button>

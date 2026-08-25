@@ -11,7 +11,8 @@ import HeroSection from './hosting-sections/HeroSection';
 import WhyChooseUsSection from './hosting-sections/WhyChooseUsSection';
 import DomainPricingSection from './hosting-sections/DomainPricingSection';
 import HostingPlansSection from './hosting-sections/HostingPlansSection';
-import DynamicHostingPlansSection from './hosting-sections/DynamicHostingPlansSection';
+import WordPressCloudSection from './hosting-sections/WordPressCloudSection';
+import CloudVpsSection from './hosting-sections/CloudVpsSection';
 import ServicesGrid from './hosting-sections/ServicesGrid';
 import MiddleBannerSection from './hosting-sections/MiddleBannerSection';
 import SecureServiceSection from './hosting-sections/SecureServiceSection';
@@ -46,7 +47,7 @@ export default function Hosting() {
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-          const q = query(collection(db, 'hostingPlans'), orderBy('order', 'asc'), limit(100));
+        const q = query(collection(db, 'hostingPlans'), orderBy('order', 'asc'), limit(100));
         const snap = await getDocs(q);
         setPlans(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (e) {
@@ -75,9 +76,9 @@ export default function Hosting() {
   return (
     <Layout fullWidth>
       <SEO 
-        title="Premium Web Hosting & Cloud Servers"
-        description="Fast, secure, and reliable web hosting services for your business. Explore our plans and start growing today."
-        keywords="web hosting, cloud server, VPS, shared hosting, cheap hosting bd"
+        title="Premium Web Hosting, WordPress Cloud & VPS Servers"
+        description="Fast, secure, and reliable web hosting, managed WordPress cloud, and KVM VPS servers with BDIX connectivity."
+        keywords="web hosting, cloud server, VPS, shared hosting, wordpress cloud bd, cheap hosting bd"
       />
       {/* 1. Hero — dark blue bg, domain search, 3D server graphic */}
       <HeroSection hasDomainInCart={hasDomainInCart} bundleDiscount={bundleDiscount} />
@@ -88,42 +89,40 @@ export default function Hosting() {
       {/* 3. Domain Pricing — TLD cards */}
       <DomainPricingSection />
 
-      {/* 4. Pricing Plans — toggle + 3 cards */}
+      {/* 4. Shared NVMe cPanel Hosting (Student, Starter, Standard, Professional, Premium) */}
       <HostingPlansSection
         billingCycle={billingCycle}
         onBillingCycleChange={setBillingCycle}
         onNavigate={navigate}
       />
 
-      {/* Dynamic Plans from Admin */}
-      <DynamicHostingPlansSection
-        billingCycle={billingCycle}
-        onBillingCycleChange={setBillingCycle}
-        onNavigate={navigate}
-      />
+      {/* 5. BDIX Turbo / Managed WordPress & WooCommerce Cloud Hosting */}
+      <WordPressCloudSection />
 
-      {/* 4. Our Services — 3x2 grid */}
+      {/* 6. High Performance KVM Cloud VPS & Dedicated Servers */}
+      <CloudVpsSection />
+
+      {/* 7. Our Services — 3x2 grid */}
       <ServicesGrid
         services={services}
         onNavigate={navigate}
         canAccessAdmin={canAccessAdmin}
       />
 
-      {/* 5. Middle Banner — Click2IT brand section */}
+      {/* 8. Middle Banner — Click2IT brand section */}
       <MiddleBannerSection />
 
-      {/* 6. Secure Service — text left, image right */}
+      {/* 9. Secure Service — text left, image right */}
       <SecureServiceSection />
 
-      {/* 7. Secure Domain — image left, text right */}
+      {/* 10. Secure Domain — image left, text right */}
       <SecureDomainSection />
 
-      {/* Reviews Section */}
+      {/* 11. Customer Reviews */}
       <ReviewSection />
 
-      {/* 8. Latest News — 4 cards */}
+      {/* 12. Latest News — 4 cards */}
       <LatestNewsSection />
     </Layout>
   );
 }
-

@@ -17,16 +17,20 @@ export class CpanelHostingProvider implements IHostingProvider {
   private apiUsername: string;
   private requestTimeout: number;
 
-  constructor(apiKey: string, apiUrl?: string, apiUsername?: string, requestTimeout: number = 15000) {
-    if (!apiKey) {
-      throw new Error('WHM API token is required');
+  constructor(apiKey?: string, apiUrl?: string, apiUsername?: string, requestTimeout: number = 15000) {
+    const key = apiKey || process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || '';
+    const url = apiUrl || process.env.WHM_URL || process.env.WHM_API_URL || '';
+    const user = apiUsername || process.env.WHM_USERNAME || 'root';
+
+    if (!key) {
+      throw new Error('WHM API token is required. Set WHM_API_TOKEN in backend/.env');
     }
-    if (!apiUrl) {
-      throw new Error('WHM API URL is required. Expected format: https://your-whm-server.com:2087');
+    if (!url) {
+      throw new Error('WHM API URL is required. Set WHM_URL or WHM_API_URL in backend/.env. Expected format: https://your-whm-server.com:2087');
     }
-    this.apiKey = apiKey;
-    this.apiUrl = apiUrl.replace(/\/$/, '');
-    this.apiUsername = (apiUsername || 'root').trim();
+    this.apiKey = key;
+    this.apiUrl = url.replace(/\/$/, '');
+    this.apiUsername = user.trim();
     this.requestTimeout = requestTimeout;
   }
 
@@ -44,7 +48,7 @@ export class CpanelHostingProvider implements IHostingProvider {
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
-          'Authorization': `WHM-API-TOKEN ${this.apiKey}`,
+          'Authorization': `whm ${this.apiUsername}:${this.apiKey}`,
           'Accept': 'application/json',
         },
         signal: controller.signal,

@@ -38,6 +38,12 @@ const TermsOfService = lazy(() => import('./pages/policies/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/policies/PrivacyPolicy'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const RefundPolicy = lazy(() => import('./pages/policies/RefundPolicy'));
+const EMITerms = lazy(() => import('./pages/policies/EMITerms'));
+const StarPointPolicy = lazy(() => import('./pages/policies/StarPointPolicy'));
+const OnlineDelivery = lazy(() => import('./pages/policies/OnlineDelivery'));
+const WarrantyPolicy = lazy(() => import('./pages/policies/WarrantyPolicy'));
+const Brands = lazy(() => import('./pages/Brands'));
+const ContactUs = lazy(() => import('./pages/ContactUs'));
 const DomainTransferPage = lazy(() => import('./pages/hosting/DomainTransferPage').then(m => ({ default: m.default || m.DomainTransferPage })));
 const PaymentSimulation = lazy(() => import('./pages/PaymentSimulation'));
 const PaymentCallback = lazy(() => import('./pages/PaymentCallback'));
@@ -112,6 +118,17 @@ export default function App() {
                     <Route path="/terms" element={<LazyWrapper><TermsOfService /></LazyWrapper>} />
                     <Route path="/privacy" element={<LazyWrapper><PrivacyPolicy /></LazyWrapper>} />
                     <Route path="/refund-policy" element={<LazyWrapper><RefundPolicy /></LazyWrapper>} />
+                    <Route path="/emi-terms" element={<LazyWrapper><EMITerms /></LazyWrapper>} />
+                    <Route path="/emi" element={<Navigate to="/emi-terms" replace />} />
+                    <Route path="/star-points" element={<LazyWrapper><StarPointPolicy /></LazyWrapper>} />
+                    <Route path="/reward-policy" element={<Navigate to="/star-points" replace />} />
+                    <Route path="/brands" element={<LazyWrapper><Brands /></LazyWrapper>} />
+                    <Route path="/contact" element={<LazyWrapper><ContactUs /></LazyWrapper>} />
+                    <Route path="/contact-us" element={<Navigate to="/contact" replace />} />
+                    <Route path="/online-delivery" element={<LazyWrapper><OnlineDelivery /></LazyWrapper>} />
+                    <Route path="/delivery-info" element={<Navigate to="/online-delivery" replace />} />
+                    <Route path="/warranty-policy" element={<LazyWrapper><WarrantyPolicy /></LazyWrapper>} />
+                    <Route path="/warranty" element={<Navigate to="/warranty-policy" replace />} />
                   <Route path="*" element={<LazyWrapper><NotFound /></LazyWrapper>} />
                 </Routes>
               </Router>

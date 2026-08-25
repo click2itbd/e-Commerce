@@ -4,6 +4,7 @@ import { db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
 import { Plus, Edit2, Trash2, X, DollarSign, Percent, Save, RefreshCw, Phone } from 'lucide-react';
 import { Pagination } from '../../common/Pagination';
+import { useAuth } from '../../../context/AuthContext';
 
 interface DomainPricing {
   id?: string;  // Firestore document ID (auto-generated)
@@ -16,6 +17,7 @@ interface DomainPricing {
 }
 
 export const DomainPricingManager: React.FC = () => {
+  const { user, isAdmin } = useAuth();
   const [pricing, setPricing] = useState<DomainPricing[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -41,15 +43,25 @@ export const DomainPricingManager: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Global Settings
-      const settingsSnap = await getDoc(doc(db, 'settings', 'api_keys'));
-      if (settingsSnap.exists()) {
-        const sData = settingsSnap.data();
+      // 1. Fetch Global Settings from public_config or site
+      const publicSnap = await getDoc(doc(db, 'settings', 'public_config'));
+      if (publicSnap.exists()) {
+        const sData = publicSnap.data();
         setGlobalSettings({
           usdToBdtRate: Number(sData.usdToBdtRate) || 121,
           domainMarkupPercent: Number(sData.domainMarkupPercent) || 15,
           manualBkashNumber: sData.manualBkashNumber || '01700000000',
         });
+      } else {
+        const siteSnap = await getDoc(doc(db, 'settings', 'site'));
+        if (siteSnap.exists()) {
+          const sData = siteSnap.data();
+          setGlobalSettings({
+            usdToBdtRate: Number((sData as any).usdToBdtRate) || 121,
+            domainMarkupPercent: Number((sData as any).domainMarkupPercent) || 15,
+            manualBkashNumber: (sData as any).manualBkashNumber || '01700000000',
+          });
+        }
       }
 
       // 2. Fetch Per-TLD Pricing
@@ -72,15 +84,40 @@ export const DomainPricingManager: React.FC = () => {
     e.preventDefault();
     setSavingGlobal(true);
     try {
-      await setDoc(doc(db, 'settings', 'api_keys'), {
-        usdToBdtRate: Number(globalSettings.usdToBdtRate),
-        domainMarkupPercent: Number(globalSettings.domainMarkupPercent),
-        manualBkashNumber: globalSettings.manualBkashNumber.trim(),
-      }, { merge: true });
+      const payload = {
+        usdToBdtRate: Number(globalSettings.usdToBdtRate) || 121,
+        domainMarkupPercent: Number(globalSettings.domainMarkupPercent) || 15,
+        manualBkashNumber: globalSettings.manualBkashNumber.trim() || '01700000000',
+        updatedAt: new Date().toISOString(),
+      };
+
+      // 1. Save to public_config (accessible by client checkout and domain search)
+      await setDoc(doc(db, 'settings', 'public_config'), payload, { merge: true });
+
+      // 2. Sync to site settings
+      await setDoc(doc(db, 'settings', 'site'), payload, { merge: true });
+
+      // 3. Sync to backend API config if token available
+      try {
+        const token = await user?.getIdToken();
+        if (token) {
+          await fetch('/api/admin/api-config', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          }).catch(() => null);
+        }
+      } catch (e) {
+        // Backend optional sync
+      }
+
       toast.success('Global pricing settings & bKash number updated successfully!');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving global domain pricing settings:', err);
-      toast.error('Failed to update global settings');
+      toast.error('Failed to update global settings: ' + (err.message || 'Permission error'));
     } finally {
       setSavingGlobal(false);
     }

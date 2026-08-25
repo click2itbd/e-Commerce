@@ -4,11 +4,12 @@ import { Layout } from '../components/Layout';
 import { MyDomainsTab } from '../components/MyDomainsTab';
 import { CustomerTicketsTab } from '../components/CustomerTicketsTab';
 import { useAuth } from '../context/AuthContext';
-import { db, storage } from '../firebase';
-import { doc, getDoc, updateDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { db, storage, auth } from '../firebase';
+import { updateProfile } from 'firebase/auth';
+import { doc, getDoc, updateDoc, setDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
-import { User, Mail, Globe, Phone, MapPin, Building, Save, Camera, Loader2, ShoppingBag, Package, Clock, CheckCircle2, XCircle, ChevronRight, Tag, MessageSquare } from 'lucide-react';
+import { User, Mail, Globe, Phone, MapPin, Building, Save, Camera, Loader2, ShoppingBag, Package, Clock, CheckCircle2, XCircle, ChevronRight, Tag, MessageSquare, Image as ImageIcon } from 'lucide-react';
 import { SEO } from '../components/SEO';
 import { formatCurrency } from '../lib/utils';
 import { useCart } from '../context/CartContext';
@@ -47,25 +48,19 @@ export const Profile: React.FC = () => {
     photoURL: ''
   });
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [imgLoadError, setImgLoadError] = useState(false);
+
+  // Sync tab from URL search params if changed
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
-      
-      // DEV MODE: Use dummy data
-      if (import.meta.env.DEV) {
-        setFormData({
-          name: 'Local Admin',
-          email: 'admin@local.test',
-          phone: '+880 1700000000',
-          address: '123 Test Street',
-          city: 'Dhaka',
-          company: 'Click2IT (Dev)',
-          photoURL: ''
-        });
-        setLoading(false);
-        return;
-      }
 
       try {
         const docRef = doc(db, 'users', user.uid);
@@ -179,7 +174,7 @@ export const Profile: React.FC = () => {
 
     try {
       const docRef = doc(db, 'users', user.uid);
-      await updateDoc(docRef, {
+      await setDoc(docRef, {
         name: formData.name,
         phone: formData.phone,
         address: formData.address,
@@ -187,7 +182,7 @@ export const Profile: React.FC = () => {
         company: formData.company,
         photoURL: formData.photoURL,
         updatedAt: new Date().toISOString()
-      });
+      }, { merge: true });
       toast.success('Profile updated successfully!');
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -211,25 +206,52 @@ export const Profile: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image size should be less than 2MB');
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error('Image size should be less than 3MB');
       return;
     }
 
     setUploadingImage(true);
+    setImgLoadError(false);
+
     try {
-      const storageRef = ref(storage, `profiles/${user.uid}/${file.name}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      setFormData(prev => ({ ...prev, photoURL: url }));
+      let finalUrl = '';
       
-      // Auto save the photo to Firestore right away for better UX
+      // Try Firebase Storage first
+      try {
+        const storageRef = ref(storage, `profiles/${user.uid}/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        finalUrl = await getDownloadURL(storageRef);
+      } catch (storageErr) {
+        console.warn('Storage upload fallback to base64:', storageErr);
+        // Fallback to high quality base64 data URL
+        finalUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
+      setFormData(prev => ({ ...prev, photoURL: finalUrl }));
+      
+      // Save to Firestore
       const docRef = doc(db, 'users', user.uid);
-      await updateDoc(docRef, { photoURL: url, updatedAt: new Date().toISOString() });
-      toast.success('Profile picture updated!');
+      await setDoc(docRef, { photoURL: finalUrl, updatedAt: new Date().toISOString() }, { merge: true });
+
+      // Also update Firebase Auth profile if current user is active
+      if (auth.currentUser) {
+        try {
+          await updateProfile(auth.currentUser, { photoURL: finalUrl.startsWith('data:') ? undefined : finalUrl });
+        } catch {
+          // ignore auth profile photo length limit
+        }
+      }
+
+      toast.success('Profile picture updated successfully!');
     } catch (error) {
       console.error('Error uploading image:', error);
-      toast.error('Failed to upload image');
+      toast.error('Failed to update profile picture. Please try another image.');
     } finally {
       setUploadingImage(false);
     }
@@ -248,13 +270,22 @@ export const Profile: React.FC = () => {
           {/* Avatar with upload */}
           <div className="relative group flex-shrink-0">
             <div className="w-32 h-32 rounded-full border-4 border-blue-500/40 overflow-hidden bg-blue-900/30 flex items-center justify-center shadow-2xl shadow-blue-900/50">
-              {formData.photoURL ? (
-                <img src={formData.photoURL} alt="Profile" className="w-full h-full object-cover" />
+              {formData.photoURL && !imgLoadError ? (
+                <img 
+                  src={formData.photoURL} 
+                  alt="Profile" 
+                  className="w-full h-full object-cover" 
+                  referrerPolicy="no-referrer"
+                  onError={() => setImgLoadError(true)}
+                />
               ) : (
                 <User size={52} className="text-blue-300/60" />
               )}
             </div>
-            <label className="absolute bottom-1 right-1 bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-full cursor-pointer transition-all shadow-lg shadow-orange-500/30">
+            <label 
+              title="Upload profile picture"
+              className="absolute bottom-1 right-1 bg-orange-500 hover:bg-orange-600 text-white p-2.5 rounded-full cursor-pointer transition-all shadow-lg shadow-orange-500/30 hover:scale-110 active:scale-95"
+            >
               {uploadingImage ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
               <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploadingImage} />
             </label>
@@ -349,6 +380,22 @@ export const Profile: React.FC = () => {
                   <input type="text" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-gray-50/50" placeholder="Your Company Ltd." />
                 </div>
 
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                    <ImageIcon size={15} className="text-blue-500" /> Profile Picture URL (Optional)
+                  </label>
+                  <input 
+                    type="url" 
+                    value={formData.photoURL} 
+                    onChange={e => {
+                      setFormData({...formData, photoURL: e.target.value});
+                      setImgLoadError(false);
+                    }} 
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-gray-50/50 text-xs" 
+                    placeholder="https://example.com/avatar.jpg" 
+                  />
+                </div>
+
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
                     <MapPin size={15} className="text-blue-500" /> Address
@@ -426,6 +473,10 @@ export const Profile: React.FC = () => {
           
           {activeTab === 'my_domains' && (
             <MyDomainsTab currentUser={user} />
+          )}
+
+          {activeTab === 'tickets' && (
+            <CustomerTicketsTab currentUser={user} />
           )}
 
           {activeTab === 'orders' && (

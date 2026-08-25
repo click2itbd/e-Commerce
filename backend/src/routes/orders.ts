@@ -125,7 +125,7 @@ ordersRouter.post('/admin/:orderId/payment/verify', requireFirebaseAuth, async (
       return res.status(400).json({ error: 'Payment has already been rejected. Contact support to override.' });
     }
 
-    if (orderData.paymentStatus !== 'submitted') {
+    if (!['pending', 'submitted'].includes(orderData.paymentStatus)) {
       return res.status(400).json({ error: 'Order is not awaiting payment verification.' });
     }
 

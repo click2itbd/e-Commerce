@@ -57,7 +57,17 @@ export const HostingNavbar: React.FC = () => {
   const navLinks = [
     { name: "Home", path: "/" },
     { name: "Services", path: "/services" },
-    { name: "Pricing", path: "/pricing" },
+    {
+      name: "Pricing",
+      path: "/pricing",
+      subLinks: [
+        { name: "Shared cPanel Hosting", path: "/pricing#shared-hosting" },
+        { name: "WordPress Cloud", path: "/pricing#wordpress-cloud" },
+        { name: "Cloud VPS Servers", path: "/pricing#cloud-vps" },
+        { name: "Custom Package Builder", path: "/pricing#custom-package" },
+        { name: "Compare All Features", path: "/pricing#compare-plans" },
+      ],
+    },
     {
       name: "Domain",
       path: "/domain",
@@ -186,7 +196,16 @@ export const HostingNavbar: React.FC = () => {
                             <Link
                               key={sub.name}
                               to={sub.path}
-                              className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-white/10 rounded-lg transition-colors font-medium"
+                              onClick={() => {
+                                if (sub.path.includes("#")) {
+                                  const hash = sub.path.split("#")[1];
+                                  const el = document.getElementById(hash);
+                                  if (el) {
+                                    el.scrollIntoView({ behavior: "smooth" });
+                                  }
+                                }
+                              }}
+                              className="block px-4 py-2.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-white/10 rounded-lg transition-colors font-semibold"
                             >
                               {sub.name}
                             </Link>
@@ -274,7 +293,16 @@ export const HostingNavbar: React.FC = () => {
                   <Link
                     key={sub.name}
                     to={sub.path}
-                    onClick={() => setIsMobileMenuOpen(false)}
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      if (sub.path.includes("#")) {
+                        const hash = sub.path.split("#")[1];
+                        const el = document.getElementById(hash);
+                        if (el) {
+                          setTimeout(() => el.scrollIntoView({ behavior: "smooth" }), 150);
+                        }
+                      }
+                    }}
                     className="block px-3 py-3 pl-6 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5 border-l-2 border-transparent hover:border-blue-500"
                   >
                     {sub.name}

@@ -3,10 +3,38 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency } from '../../lib/utils';
-import { Server, Globe, Trash2, Plus, Minus, ShoppingCart, Tag, ArrowRight, ShieldCheck, CheckCircle } from 'lucide-react';
+import { 
+  Server, 
+  Globe, 
+  Trash2, 
+  Plus, 
+  Minus, 
+  ShoppingCart, 
+  ArrowRight, 
+  ShieldCheck, 
+  Sparkles,
+  Calendar,
+  Zap
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 
-const HostingCart: React.FC = () => {
-  const { items: allItems, removeFromCart, updateQuantity, clearCart } = useCart();
+const DOMAIN_DISCOUNTS: Record<number, number> = {
+  1: 0,
+  2: 5,
+  3: 10,
+  4: 12,
+  5: 15
+};
+
+const HOSTING_YEAR_DISCOUNTS: Record<number, number> = {
+  1: 20, // 20% annual discount
+  2: 25, // 25% for 2 years
+  3: 30, // 30% for 3 years
+  5: 35  // 35% for 5 years
+};
+
+export const HostingCart: React.FC = () => {
+  const { items: allItems, removeFromCart, updateQuantity, updateCartItem, clearCart } = useCart();
   const navigate = useNavigate();
 
   const items = allItems.filter((i) => i.category === 'Hosting & Domains');
@@ -15,20 +43,68 @@ const HostingCart: React.FC = () => {
   const taxes = 0;
   const total = subtotal + taxes;
 
+  const handleDomainDurationChange = (item: any, years: number) => {
+    // Base 1-year annual price
+    const base1Yr = item.baseAnnualPrice || (item.termYears ? Math.round(item.price / item.termYears / (1 - (DOMAIN_DISCOUNTS[item.termYears] || 0) / 100)) : item.price);
+    const discount = DOMAIN_DISCOUNTS[years] || 0;
+    const newPrice = Math.round(base1Yr * years * (1 - discount / 100));
+
+    updateCartItem(item.id, {
+      termYears: years,
+      baseAnnualPrice: base1Yr,
+      price: newPrice,
+      description: `${years} Year${years > 1 ? 's' : ''} Registration (Includes WHOIS Privacy)`
+    });
+    toast.success(`Updated to ${years} year${years > 1 ? 's' : ''} (${discount}% off)`);
+  };
+
+  const handleHostingDurationChange = (item: any, cycleStr: string) => {
+    // Determine monthly base
+    let monthlyBase = item.baseMonthlyPrice;
+    if (!monthlyBase) {
+      if (item.billingCycle === 'monthly') {
+        monthlyBase = item.price;
+      } else {
+        monthlyBase = Math.round(item.price / 12 / 0.8);
+      }
+    }
+
+    if (cycleStr === 'monthly') {
+      updateCartItem(item.id, {
+        billingCycle: 'monthly',
+        baseMonthlyPrice: monthlyBase,
+        price: monthlyBase,
+        termYears: 0
+      });
+      toast.success('Updated to Monthly billing');
+    } else {
+      const years = Number(cycleStr);
+      const discount = HOSTING_YEAR_DISCOUNTS[years] || 20;
+      const calculatedPrice = Math.round(monthlyBase * 12 * years * (1 - discount / 100));
+      updateCartItem(item.id, {
+        billingCycle: 'yearly',
+        baseMonthlyPrice: monthlyBase,
+        termYears: years,
+        price: calculatedPrice
+      });
+      toast.success(`Updated to ${years} Year${years > 1 ? 's' : ''} billing (${discount}% off)`);
+    }
+  };
+
   return (
     <Layout fullWidth>
-      <div className="bg-[#0a1628] pt-25 pb-16 text-white text-center">
-        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">
-          Review Your Order
+      <div className="bg-[#0a1628] pt-24 pb-16 text-white text-center">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4">
+          Review Your Hosting & Domain Order
         </h1>
         <p className="text-lg text-slate-300 max-w-2xl mx-auto">
-          You're just one step away from launching your next big idea.
+          Configure your registration duration with multi-year savings before proceeding to instant checkout.
         </p>
       </div>
 
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl shadow-sm border border-slate-200">
             <div className="bg-slate-100 p-6 rounded-full mb-6">
               <ShoppingCart className="w-16 h-16 text-slate-400" />
             </div>
@@ -38,7 +114,7 @@ const HostingCart: React.FC = () => {
             </p>
             <button
               onClick={() => navigate('/pricing')}
-              className="bg-[#0a1628] hover:bg-[#12284c] text-white px-8 py-3 rounded-lg font-medium transition-colors flex items-center gap-2"
+              className="bg-[#0a1628] hover:bg-[#12284c] text-white px-8 py-3.5 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 shadow-lg"
             >
               Browse Hosting Plans <ArrowRight className="w-5 h-5" />
             </button>
@@ -47,122 +123,144 @@ const HostingCart: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             {/* Left Column - Cart Items */}
             <div className="lg:col-span-2 space-y-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-slate-900">Cart Items ({items.length})</h2>
+              <div className="flex justify-between items-center mb-2">
+                <h2 className="text-xl font-black text-slate-900">Cart Items ({items.length})</h2>
                 <button 
                   onClick={clearCart}
-                  className="text-sm font-medium text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors"
+                  className="text-xs font-bold text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors"
                 >
-                  <Trash2 className="w-4 h-4" /> Clear Cart
+                  <Trash2 className="w-3.5 h-3.5" /> Clear Cart
                 </button>
               </div>
 
-              {items.map((item) => (
-                <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6 transition-shadow hover:shadow-md">
-                  <div className="bg-slate-50 p-4 rounded-xl shrink-0">
-                    {item.name.toLowerCase().includes('domain') ? (
-                      <Globe className="w-8 h-8 text-indigo-600" />
-                    ) : (
-                      <Server className="w-8 h-8 text-blue-600" />
-                    )}
-                  </div>
-                  
-                   <div className="flex-1">
-                     <h3 className="text-lg font-bold text-slate-900 mb-1">{item.name}</h3>
-                     <p className="text-sm text-slate-500">
-                       {typeof item.details === 'object' && item.details !== null ? 'Custom configuration' : (item.details || 'Billed Annually')}
-                     </p>
-                   </div>
+              {items.map((item) => {
+                const isDomain = item.itemType === 'domain' || item.name.toLowerCase().includes('domain');
+                const isHosting = !isDomain;
 
-                  <div className="flex items-center gap-8 w-full sm:w-auto justify-between sm:justify-end">
-                    <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200 p-1">
-                      <button
-                        onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
-                        className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded transition-colors"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className="w-10 text-center font-medium text-slate-900 text-sm">
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded transition-colors"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                return (
+                  <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all hover:border-blue-200">
+                    <div className="flex items-start gap-4">
+                      <div className="bg-slate-50 p-3.5 rounded-2xl shrink-0 border border-slate-100">
+                        {isDomain ? (
+                          <Globe className="w-7 h-7 text-indigo-600" />
+                        ) : (
+                          <Server className="w-7 h-7 text-blue-600" />
+                        )}
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900">{item.name}</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {typeof item.details === 'object' && item.details !== null 
+                            ? 'Custom resource configuration' 
+                            : (item.details || (item.billingCycle === 'monthly' ? 'Billed Monthly' : 'Billed Annually'))}
+                        </p>
+
+                        {/* Multi-Year / Duration Selector for Domains */}
+                        {isDomain && (
+                          <div className="mt-3 flex items-center gap-2">
+                            <Calendar size={14} className="text-indigo-600" />
+                            <span className="text-xs font-bold text-gray-700">Duration:</span>
+                            <select
+                              value={item.termYears || 1}
+                              onChange={(e) => handleDomainDurationChange(item, Number(e.target.value))}
+                              className="text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-lg px-2.5 py-1 outline-none cursor-pointer hover:border-indigo-400"
+                            >
+                              <option value={1}>1 Year (Regular)</option>
+                              <option value={2}>2 Years (Save 5%)</option>
+                              <option value={3}>3 Years (Save 10%) 🔥</option>
+                              <option value={4}>4 Years (Save 12%)</option>
+                              <option value={5}>5 Years (Save 15%) ⭐</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Multi-Year / Duration Selector for Hosting */}
+                        {isHosting && (
+                          <div className="mt-3 flex items-center gap-2">
+                            <Zap size={14} className="text-blue-600" />
+                            <span className="text-xs font-bold text-gray-700">Billing:</span>
+                            <select
+                              value={item.billingCycle === 'monthly' ? 'monthly' : String(item.termYears || 1)}
+                              onChange={(e) => handleHostingDurationChange(item, e.target.value)}
+                              className="text-xs font-bold bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-2.5 py-1 outline-none cursor-pointer hover:border-blue-400"
+                            >
+                              <option value="monthly">1 Month</option>
+                              <option value="1">1 Year (Save 20%) 🔥</option>
+                              <option value="2">2 Years (Save 25%)</option>
+                              <option value="3">3 Years (Save 30%) ⭐</option>
+                              <option value="5">5 Years (Save 35%) 🚀</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="text-right min-w-[100px]">
-                      <div className="text-lg font-bold text-slate-900">
-                        {formatCurrency(item.price * item.quantity)}
+                    <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0 border-slate-100">
+                      <div className="text-right">
+                        <div className="text-lg font-black text-slate-900">
+                          {formatCurrency(item.price * item.quantity)}
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {item.quantity > 1 ? `${formatCurrency(item.price)} each` : 'Total Price'}
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-500">
-                        {formatCurrency(item.price)} each
-                      </div>
-                    </div>
 
-                    <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Remove item"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                        title="Remove item"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Right Column - Order Summary */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-8">
-                <h2 className="text-xl font-bold text-slate-900 mb-6">Order Summary</h2>
-                
-                <div className="space-y-4 mb-6">
-                  <div className="flex justify-between items-center text-slate-600">
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 sticky top-24 space-y-6">
+                <h2 className="text-xl font-black text-slate-900">Order Summary</h2>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between text-slate-600">
                     <span>Subtotal</span>
-                    <span className="font-medium text-slate-900">{formatCurrency(subtotal)}</span>
+                    <span className="font-bold text-slate-900">{formatCurrency(subtotal)}</span>
                   </div>
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>Taxes & Fees</span>
-                    <span className="font-medium text-slate-900">{formatCurrency(taxes)}</span>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Setup & Activation</span>
+                    <span className="font-bold text-emerald-600">FREE</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Taxes & VAT</span>
+                    <span className="font-bold text-slate-900">{formatCurrency(0)}</span>
                   </div>
                   
-                  <div className="border-t border-slate-200 pt-4 mt-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-lg font-bold text-slate-900">Total</span>
-                      <span className="text-3xl font-extrabold text-[#7B61FF]">
-                        {formatCurrency(total)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Trust Badges */}
-                <div className="flex items-center justify-center gap-4 mb-6 text-slate-400">
-                  <div className="flex flex-col items-center">
-                    <ShieldCheck className="w-5 h-5 mb-1 text-green-500" />
-                    <span className="text-[10px] uppercase font-bold tracking-wider">Secure Payment</span>
-                  </div>
-                  <div className="w-px h-8 bg-slate-200"></div>
-                  <div className="flex flex-col items-center">
-                    <CheckCircle className="w-5 h-5 mb-1 text-blue-500" />
-                    <span className="text-[10px] uppercase font-bold tracking-wider">Money Back Guarantee</span>
+                  <div className="border-t border-slate-100 pt-4 flex justify-between items-baseline">
+                    <span className="text-base font-bold text-slate-900">Grand Total</span>
+                    <span className="text-2xl font-black text-blue-600">{formatCurrency(total)}</span>
                   </div>
                 </div>
 
                 <button
                   onClick={() => navigate('/hosting/checkout')}
-                  className="w-full bg-gradient-to-r from-[#7B61FF] to-[#0a1628] hover:from-[#6650d0] hover:to-[#12284c] text-white py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#7B61FF]/25 hover:shadow-xl hover:-translate-y-0.5"
+                  className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25"
                 >
-                  Proceed to Secure Checkout <ArrowRight className="w-5 h-5" />
+                  Proceed to Checkout <ArrowRight className="w-4 h-4" />
                 </button>
 
-                <p className="text-xs text-slate-500 text-center mt-4 flex flex-col gap-1">
-                  <span>By proceeding to checkout, you agree to our</span>
-                  <span className="text-[#7B61FF] font-medium">Terms of Service and Privacy Policy.</span>
-                </p>
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>30-Day Money-Back Guarantee</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <Sparkles className="w-4 h-4 text-blue-600" />
+                    <span>Instant Automated Provisioning</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -172,4 +270,4 @@ const HostingCart: React.FC = () => {
   );
 };
 
-export { HostingCart };
+export default HostingCart;

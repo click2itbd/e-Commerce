@@ -1,5 +1,5 @@
-import React from 'react';
-import { CheckCircle2, XCircle, ShoppingCart } from 'lucide-react';
+import React, { useState } from 'react';
+import { CheckCircle2, XCircle, ShoppingCart, Sparkles } from 'lucide-react';
 import { DomainAvailabilityResult, DomainPricing } from '../../services/hostingApi';
 import { useCart } from '../../context/CartContext';
 import { useNavigate } from 'react-router-dom';
@@ -12,35 +12,51 @@ interface DomainResultCardProps {
   onSearchAlternative: (domain: string) => void;
 }
 
+const DOMAIN_YEAR_DISCOUNTS: Record<number, number> = {
+  1: 0,
+  2: 5,   // 5% discount
+  3: 10,  // 10% discount
+  4: 12,  // 12% discount
+  5: 15,  // 15% discount
+};
+
 export const DomainResultCard: React.FC<DomainResultCardProps> = ({ result, pricing, onSearchAlternative }) => {
   const { addToCart } = useCart();
   const navigate = useNavigate();
+  const [selectedYears, setSelectedYears] = useState<number>(1);
+
+  const baseAnnualPrice = Number(result.price) || Number(pricing?.registerPrice) || 1200;
+  const currency = pricing?.currency || 'BDT';
+  const discountPercent = DOMAIN_YEAR_DISCOUNTS[selectedYears] || 0;
+  
+  // Total calculated price with multi-year discount
+  const rawTotal = baseAnnualPrice * selectedYears;
+  const discountedTotal = Math.round(rawTotal * (1 - discountPercent / 100));
 
   const handleAddToCart = () => {
     const tld = result.domain.split('.').pop() || '';
     const product = {
-      id: `domain_${result.domain}`,
-      name: `Domain Registration - ${result.domain}`,
-      description: '1 Year Registration',
-      price: result.price || pricing?.registerPrice || 1000,
+      id: `domain_${result.domain}_${selectedYears}yr`,
+      name: `Domain Registration - ${result.domain} (${selectedYears} ${selectedYears === 1 ? 'Year' : 'Years'})`,
+      description: `${selectedYears} Year${selectedYears > 1 ? 's' : ''} Registration (Includes WHOIS Privacy)`,
+      price: discountedTotal,
       category: 'Hosting & Domains',
       stock: 9999,
       images: [],
       createdAt: new Date().toISOString(),
       itemType: 'domain' as const,
       domainTld: tld,
-      termYears: 1,
+      termYears: selectedYears,
+      baseAnnualPrice: baseAnnualPrice,
     };
     addToCart(product as any);
-    toast.success(`Domain ${result.domain} added to cart`);
+    toast.success(`Domain ${result.domain} (${selectedYears} Year${selectedYears > 1 ? 's' : ''}) added to cart!`);
     navigate('/hosting/cart');
   };
 
   const isAvailable = result.available;
   const baseName = result.domain.substring(0, result.domain.lastIndexOf('.'));
   const tld = result.domain.substring(result.domain.lastIndexOf('.'));
-  const price = result.price || pricing?.registerPrice || 1000;
-  const currency = pricing?.currency || 'BDT';
 
   return (
     <div 
@@ -53,7 +69,7 @@ export const DomainResultCard: React.FC<DomainResultCardProps> = ({ result, pric
     >
       <div className="flex items-center gap-4">
         <div className={cn(
-          "w-12 h-12 rounded-full flex items-center justify-center border",
+          "w-12 h-12 rounded-full flex items-center justify-center border shrink-0",
           isAvailable 
             ? "bg-green-500/10 border-green-500/50" 
             : "bg-red-500/10 border-red-500/50"
@@ -80,20 +96,45 @@ export const DomainResultCard: React.FC<DomainResultCardProps> = ({ result, pric
         </div>
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex flex-wrap items-center justify-between md:justify-end gap-4 sm:gap-6">
         {isAvailable && (
-          <div className="text-right">
-            <div className="font-bold text-xl text-white">{currency} {price.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
-            <div className="text-xs text-gray-500">/year</div>
+          <div className="flex items-center gap-3">
+            {/* Multi-Year Dropdown */}
+            <div className="relative">
+              <select
+                value={selectedYears}
+                onChange={(e) => setSelectedYears(Number(e.target.value))}
+                className="bg-gray-800 text-white text-xs font-bold px-3 py-2 rounded-xl border border-gray-700 outline-none cursor-pointer hover:border-green-500 transition-colors"
+              >
+                <option value={1}>1 Year (Regular)</option>
+                <option value={2}>2 Years (Save 5%)</option>
+                <option value={3}>3 Years (Save 10%) 🔥</option>
+                <option value={4}>4 Years (Save 12%)</option>
+                <option value={5}>5 Years (Save 15%) ⭐</option>
+              </select>
+            </div>
+
+            {/* Price display */}
+            <div className="text-right">
+              <div className="font-bold text-xl text-white">
+                ৳{discountedTotal.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-400">
+                for {selectedYears} {selectedYears === 1 ? 'year' : 'years'}
+                {discountPercent > 0 && (
+                  <span className="text-emerald-400 ml-1 font-semibold">({discountPercent}% off)</span>
+                )}
+              </div>
+            </div>
           </div>
         )}
         
         {isAvailable && (
           <button
             onClick={handleAddToCart}
-            className="bg-[#10b981] hover:bg-[#059669] text-white px-5 py-3 rounded-lg font-bold flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] hover:-translate-y-0.5"
+            className="bg-[#10b981] hover:bg-[#059669] text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] hover:-translate-y-0.5"
           >
-            <ShoppingCart size={18} /> Add to Cart
+            <ShoppingCart size={16} /> Add to Cart
           </button>
         )}
       </div>

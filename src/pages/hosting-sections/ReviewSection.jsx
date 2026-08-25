@@ -164,7 +164,7 @@ export default function ReviewSection() {
         <div className="mb-10 rounded-2xl bg-[#0A1628] px-6 py-8 sm:px-10">
           <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-8 sm:gap-12 items-center">
             <div className="flex sm:flex-col items-baseline sm:items-start gap-2 sm:gap-1">
-              <span className="text-5xl font-bold text-white tabular-nums">
+              <span className="text-4xl sm:text-5xl font-bold text-white tabular-nums">
                 {stats.total ? stats.avg.toFixed(1) : '—'}
               </span>
               <div className="flex items-center gap-2">
