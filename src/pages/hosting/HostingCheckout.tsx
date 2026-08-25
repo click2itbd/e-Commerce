@@ -687,11 +687,11 @@ export const HostingCheckout: React.FC = () => {
                           </div>
                           <div>
                             <h4 className="font-bold text-gray-900 text-sm">bKash Manual Payment</h4>
-                            <p className="text-xs text-gray-500">Send Money (Personal)</p>
+                            <p className="text-xs text-gray-500">Make Payment</p>
                           </div>
                         </div>
                         <span className="text-xs font-semibold px-2.5 py-1 bg-pink-100 text-pink-700 rounded-full">
-                          Send Money
+                          Make Payment
                         </span>
                       </div>
                       
@@ -738,7 +738,7 @@ export const HostingCheckout: React.FC = () => {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-700">
                           <div className="flex items-start gap-2 bg-white/80 p-2 rounded-lg border border-pink-100/60">
                             <span className="w-5 h-5 rounded-full bg-pink-100 text-pink-700 font-bold text-[11px] flex items-center justify-center shrink-0">1</span>
-                            <span>Open bKash App & tap <strong>Send Money</strong></span>
+                            <span>Open bKash App & tap <strong>Make Payment</strong></span>
                           </div>
                           <div className="flex items-start gap-2 bg-white/80 p-2 rounded-lg border border-pink-100/60">
                             <span className="w-5 h-5 rounded-full bg-pink-100 text-pink-700 font-bold text-[11px] flex items-center justify-center shrink-0">2</span>
