@@ -77,9 +77,15 @@ export function createApp(): Express {
   const allowedOrigins = [
     "https://click2itbd.com",
     "https://www.click2itbd.com",
+    "http://click2itbd.com",
+    "http://103.49.202.200:4000",
+    "http://103.49.202.200",
+    "https://103.49.202.200",
     "http://localhost:3000",
+    "http://localhost:4000",
     "http://localhost:5173",
     "http://127.0.0.1:3000",
+    "http://127.0.0.1:4000",
     "http://127.0.0.1:5173",
     ...(config.cors?.origins || []),
   ];

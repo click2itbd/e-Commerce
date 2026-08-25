@@ -79,9 +79,32 @@ export async function getDomainSuggestions(domain: string): Promise<string[]> {
   return response.data || [];
 }
 
+const DEFAULT_DOMAIN_PRICING: DomainPricing[] = [
+  { tld: '.com', registerPrice: 1450, renewPrice: 1550, transferPrice: 1450, currency: 'BDT', isActive: true },
+  { tld: '.net', registerPrice: 1650, renewPrice: 1750, transferPrice: 1650, currency: 'BDT', isActive: true },
+  { tld: '.org', registerPrice: 1550, renewPrice: 1650, transferPrice: 1550, currency: 'BDT', isActive: true },
+  { tld: '.info', registerPrice: 650, renewPrice: 2400, transferPrice: 2400, currency: 'BDT', isActive: true },
+  { tld: '.biz', registerPrice: 850, renewPrice: 2300, transferPrice: 2300, currency: 'BDT', isActive: true },
+  { tld: '.co', registerPrice: 3400, renewPrice: 3400, transferPrice: 3400, currency: 'BDT', isActive: true },
+  { tld: '.xyz', registerPrice: 450, renewPrice: 1600, transferPrice: 1600, currency: 'BDT', isActive: true },
+  { tld: '.online', registerPrice: 550, renewPrice: 4200, transferPrice: 4200, currency: 'BDT', isActive: true },
+  { tld: '.store', registerPrice: 550, renewPrice: 3600, transferPrice: 3600, currency: 'BDT', isActive: true },
+  { tld: '.me', registerPrice: 1850, renewPrice: 2300, transferPrice: 2300, currency: 'BDT', isActive: true },
+  { tld: '.io', registerPrice: 4900, renewPrice: 5900, transferPrice: 5900, currency: 'BDT', isActive: true },
+  { tld: '.dev', registerPrice: 1850, renewPrice: 2100, transferPrice: 2100, currency: 'BDT', isActive: true },
+  { tld: '.tech', registerPrice: 650, renewPrice: 3100, transferPrice: 3100, currency: 'BDT', isActive: true },
+];
+
 export async function getDomainPricing(): Promise<DomainPricing[]> {
-  const response = await apiRequest<{ success: boolean; data: DomainPricing[] }>('/api/domains/pricing');
-  return response.data;
+  try {
+    const response = await apiRequest<{ success: boolean; data: DomainPricing[] }>('/api/domains/pricing');
+    if (response.success && Array.isArray(response.data) && response.data.length > 0) {
+      return response.data;
+    }
+  } catch {
+    // fallback below
+  }
+  return DEFAULT_DOMAIN_PRICING;
 }
 
 export interface HostingUsageStats {
