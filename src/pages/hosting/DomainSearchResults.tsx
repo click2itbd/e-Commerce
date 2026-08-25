@@ -23,7 +23,7 @@ export default function DomainSearchResults() {
   const [offerPhone, setOfferPhone] = useState('');
   const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
   
-  const { loading, results, search } = useDomainSearch();
+  const { loading, results, search, error } = useDomainSearch();
   
   // A base list of popular TLDs to check
   const popularTlds = ['.com', '.net', '.org', '.co', '.io', '.online', '.dev', '.tech', '.store', '.me'];
@@ -198,6 +198,12 @@ export default function DomainSearchResults() {
           </div>
 
           {/* Exact Match Result */}
+          {error && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 mb-4 md:mb-6 text-sm flex items-center justify-between">
+              <span>⚠️ {error}</span>
+            </div>
+          )}
+
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-4 md:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4">
             {loading ? (
               <div className="flex items-center gap-3 text-gray-500 py-4">

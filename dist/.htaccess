@@ -2,14 +2,14 @@
   RewriteEngine On
   RewriteBase /
 
+  # Forward /api requests to the Node.js backend on port 4000
+  RewriteCond %{REQUEST_URI} ^/api [NC]
+  RewriteRule ^api/(.*)$ http://127.0.0.1:4000/api/$1 [P,L]
+  RewriteRule ^api$ http://127.0.0.1:4000/api/ [P,L]
+
+  # Direct all other routes to React Single Page App (index.html)
   RewriteRule ^index\.html$ - [L]
-
-  # Bypass SPA rewrite for all API calls
-  RewriteRule ^api(?:/|$) - [L]
-
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteCond %{REQUEST_FILENAME} !-l
-
   RewriteRule . /index.html [L]
 </IfModule>

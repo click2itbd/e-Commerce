@@ -14,36 +14,28 @@ export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, 'us-central1');
 
-const siteKey = firebaseConfig.appCheck?.siteKey;
-
+const siteKey = (firebaseConfig as any).appCheck?.siteKey;
 const isBrowser = typeof window !== 'undefined';
-const isDev = isBrowser && window.location.hostname === 'localhost';
+const isDev = isBrowser && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const isRealSiteKey = siteKey && typeof siteKey === 'string' && !siteKey.includes('YOUR_') && !siteKey.includes('RECAPTCHA');
 
-if (isBrowser) {
+if (isBrowser && isRealSiteKey) {
   if (isDev) {
     try {
       (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-      if (!siteKey) {
-        console.warn('App Check siteKey missing in firebase-applet-config.json. App Check skipped in dev.');
-      } else {
-        initializeAppCheck(app, {
-          provider: new ReCaptchaV3Provider(siteKey),
-          isTokenAutoRefreshEnabled: true,
-        });
-      }
+      initializeAppCheck(app, {
+        provider: new ReCaptchaV3Provider(siteKey),
+        isTokenAutoRefreshEnabled: true,
+      });
     } catch (e) {
       console.warn('App Check init skipped:', e);
     }
   } else {
     try {
-      if (!siteKey) {
-        console.error('App Check siteKey missing in firebase-applet-config.json');
-      } else {
-        initializeAppCheck(app, {
-          provider: new ReCaptchaV3Provider(siteKey),
-          isTokenAutoRefreshEnabled: true,
-        });
-      }
+      initializeAppCheck(app, {
+        provider: new ReCaptchaV3Provider(siteKey),
+        isTokenAutoRefreshEnabled: true,
+      });
     } catch (e) {
       console.warn('App Check init skipped:', e);
     }

@@ -34,13 +34,12 @@ export function useDomainSearch() {
       setState(prev => ({ ...prev, loading: false, results }));
     } catch (err: any) {
       console.error('Domain search error:', err);
-      const results: DomainAvailabilityResult[] = domains.map(d => ({
-        domain: d,
-        available: false,
-        price: 0,
-        originalPrice: 0,
+      setState(prev => ({ 
+        ...prev, 
+        loading: false, 
+        results: [], 
+        error: 'Domain search service is currently unavailable. Please check your backend connection.' 
       }));
-      setState(prev => ({ ...prev, loading: false, results, error: null }));
     }
   }, []);
 
