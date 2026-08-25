@@ -3,9 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-// Load backend/.env regardless of where the process is started from
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+dotenv.config();
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
 
 export const config = {
