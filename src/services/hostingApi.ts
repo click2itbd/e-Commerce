@@ -60,12 +60,19 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
       signal: controller.signal,
     });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Network error' }));
-      throw new Error(error.error || `HTTP ${response.status}`);
+    const rawText = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error(`Non-JSON response (status ${response.status})`);
     }
 
-    return response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || `HTTP ${response.status}`);
+    }
+
+    return data;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -87,15 +94,59 @@ const DEFAULT_DOMAIN_PRICING: DomainPricing[] = [
   { tld: '.tech', registerPrice: 689, renewPrice: 3449, transferPrice: 3449, currency: 'BDT', isActive: true },
 ];
 
-export async function checkDomainAvailability(domains: string[]): Promise<DomainAvailabilityResult[]> {
-  const response = await apiRequest<{ success: boolean; data: DomainAvailabilityResult[]; error?: string }>('/api/domains/check', {
-    method: 'POST',
-    body: JSON.stringify({ domains }),
-  });
-  if (response && response.success && Array.isArray(response.data)) {
-    return response.data;
+async function checkDomainDnsAvailability(domain: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=SOA`, {
+      headers: { Accept: 'application/dns-json' },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      // Status 3 is NXDOMAIN (domain does not exist -> available)
+      if (data.Status === 3 && (!data.Answer || data.Answer.length === 0)) {
+        return true;
+      }
+      // Status 0 (NOERROR) or has answers -> registered / taken
+      if (data.Status === 0 || (data.Answer && data.Answer.length > 0)) {
+        return false;
+      }
+    }
+  } catch {
+    // ignore
   }
-  throw new Error(response?.error || 'Domain availability check failed');
+  return true;
+}
+
+export async function checkDomainAvailability(domains: string[]): Promise<DomainAvailabilityResult[]> {
+  try {
+    const response = await apiRequest<{ success: boolean; data: DomainAvailabilityResult[]; error?: string }>('/api/domains/check', {
+      method: 'POST',
+      body: JSON.stringify({ domains }),
+    });
+    if (response && response.success && Array.isArray(response.data) && response.data.length > 0) {
+      return response.data;
+    }
+  } catch {
+    // Backend offline or static host: resolve in parallel via DNS-over-HTTPS
+  }
+
+  const results = await Promise.all(
+    domains.map(async (domain) => {
+      const isAvailable = await checkDomainDnsAvailability(domain);
+      const tldMatch = domain.match(/\.[^.]+$/);
+      const tld = tldMatch ? tldMatch[0].toLowerCase() : '.com';
+      const pricing = DEFAULT_DOMAIN_PRICING.find(p => p.tld === tld) || DEFAULT_DOMAIN_PRICING[0];
+
+      return {
+        domain,
+        available: isAvailable,
+        price: pricing.registerPrice,
+        originalPrice: pricing.registerPrice,
+        currency: 'BDT',
+      };
+    })
+  );
+
+  return results;
 }
 
 export async function getDomainSuggestions(domain: string): Promise<string[]> {

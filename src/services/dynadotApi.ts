@@ -51,17 +51,28 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
     }
   }
   
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Network error' }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    const rawText = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error(`Non-JSON response (status ${response.status})`);
+    }
+
+    if (!response.ok) {
+      throw new Error(data?.error || `HTTP ${response.status}`);
+    }
+
+    return data;
+  } catch (error: any) {
+    throw error;
   }
-
-  return response.json();
 }
 
 export interface DomainAvailabilityResponse {
