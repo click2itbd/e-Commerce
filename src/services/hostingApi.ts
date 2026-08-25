@@ -51,7 +51,7 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
 
   try {
     const response = await fetch(url, {
@@ -70,6 +70,22 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
     clearTimeout(timeoutId);
   }
 }
+
+const DEFAULT_DOMAIN_PRICING: DomainPricing[] = [
+  { tld: '.com', registerPrice: 1529, renewPrice: 1655, transferPrice: 1529, currency: 'BDT', isActive: true },
+  { tld: '.net', registerPrice: 1808, renewPrice: 2170, transferPrice: 1808, currency: 'BDT', isActive: true },
+  { tld: '.org', registerPrice: 1669, renewPrice: 1808, transferPrice: 1669, currency: 'BDT', isActive: true },
+  { tld: '.info', registerPrice: 689, renewPrice: 2759, transferPrice: 2759, currency: 'BDT', isActive: true },
+  { tld: '.biz', registerPrice: 828, renewPrice: 2621, transferPrice: 2621, currency: 'BDT', isActive: true },
+  { tld: '.co', registerPrice: 3863, renewPrice: 3863, transferPrice: 3863, currency: 'BDT', isActive: true },
+  { tld: '.xyz', registerPrice: 419, renewPrice: 1794, transferPrice: 1794, currency: 'BDT', isActive: true },
+  { tld: '.online', registerPrice: 551, renewPrice: 4829, transferPrice: 4829, currency: 'BDT', isActive: true },
+  { tld: '.store', registerPrice: 551, renewPrice: 4139, transferPrice: 4139, currency: 'BDT', isActive: true },
+  { tld: '.me', registerPrice: 2069, renewPrice: 2621, transferPrice: 2621, currency: 'BDT', isActive: true },
+  { tld: '.io', registerPrice: 5519, renewPrice: 6899, transferPrice: 6899, currency: 'BDT', isActive: true },
+  { tld: '.dev', registerPrice: 2069, renewPrice: 2346, transferPrice: 2346, currency: 'BDT', isActive: true },
+  { tld: '.tech', registerPrice: 689, renewPrice: 3449, transferPrice: 3449, currency: 'BDT', isActive: true },
+];
 
 export async function checkDomainAvailability(domains: string[]): Promise<DomainAvailabilityResult[]> {
   try {
@@ -91,7 +107,7 @@ export async function checkDomainAvailability(domains: string[]): Promise<Domain
     return {
       domain,
       available: true,
-      price: match?.registerPrice || 1450,
+      price: match?.registerPrice || 1529,
       currency: 'BDT',
     };
   });
@@ -104,22 +120,6 @@ export async function getDomainSuggestions(domain: string): Promise<string[]> {
   });
   return response.data || [];
 }
-
-const DEFAULT_DOMAIN_PRICING: DomainPricing[] = [
-  { tld: '.com', registerPrice: 1450, renewPrice: 1550, transferPrice: 1450, currency: 'BDT', isActive: true },
-  { tld: '.net', registerPrice: 1650, renewPrice: 1750, transferPrice: 1650, currency: 'BDT', isActive: true },
-  { tld: '.org', registerPrice: 1550, renewPrice: 1650, transferPrice: 1550, currency: 'BDT', isActive: true },
-  { tld: '.info', registerPrice: 650, renewPrice: 2400, transferPrice: 2400, currency: 'BDT', isActive: true },
-  { tld: '.biz', registerPrice: 850, renewPrice: 2300, transferPrice: 2300, currency: 'BDT', isActive: true },
-  { tld: '.co', registerPrice: 3400, renewPrice: 3400, transferPrice: 3400, currency: 'BDT', isActive: true },
-  { tld: '.xyz', registerPrice: 450, renewPrice: 1600, transferPrice: 1600, currency: 'BDT', isActive: true },
-  { tld: '.online', registerPrice: 550, renewPrice: 4200, transferPrice: 4200, currency: 'BDT', isActive: true },
-  { tld: '.store', registerPrice: 550, renewPrice: 3600, transferPrice: 3600, currency: 'BDT', isActive: true },
-  { tld: '.me', registerPrice: 1850, renewPrice: 2300, transferPrice: 2300, currency: 'BDT', isActive: true },
-  { tld: '.io', registerPrice: 4900, renewPrice: 5900, transferPrice: 5900, currency: 'BDT', isActive: true },
-  { tld: '.dev', registerPrice: 1850, renewPrice: 2100, transferPrice: 2100, currency: 'BDT', isActive: true },
-  { tld: '.tech', registerPrice: 650, renewPrice: 3100, transferPrice: 3100, currency: 'BDT', isActive: true },
-];
 
 export async function getDomainPricing(): Promise<DomainPricing[]> {
   try {
