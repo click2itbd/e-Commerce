@@ -22,9 +22,24 @@ interface DomainPricing {
 const domainRouter = Router();
 
 async function getDomainConfig() {
-  const dynadotApiKey = process.env.DYNADOT_API_KEY || config.secrets.dynadotApiKey;
+  let dynadotApiKey = process.env.DYNADOT_API_KEY || (config.secrets as any)?.dynadotApiKey;
+  let domainApiType = process.env.DOMAIN_API_TYPE || (config as any).dynadot?.domainApiType;
+
+  if (!dynadotApiKey) {
+    try {
+      const doc = await getAdminDocument('settings', 'api_keys');
+      if (doc && doc.data) {
+        if (doc.data.dynadotApiKey) dynadotApiKey = doc.data.dynadotApiKey;
+        if (doc.data.domainApiKey) dynadotApiKey = doc.data.domainApiKey;
+        if (doc.data.domainApiType) domainApiType = doc.data.domainApiType;
+      }
+    } catch (e) {
+      console.warn('Error reading domain config from Firestore settings/api_keys:', e);
+    }
+  }
+
   return {
-    domainApiType: dynadotApiKey ? 'dynadot' : 'dummy',
+    domainApiType: dynadotApiKey ? (domainApiType || 'dynadot') : 'dummy',
     domainApiKey: dynadotApiKey || ''
   };
 }

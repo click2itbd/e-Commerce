@@ -12,12 +12,47 @@ import {
   ChevronRight,
   ShieldAlert,
   Globe,
-  Sparkles
+  Sparkles,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '../lib/utils';
+
+function playNotificationChime() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    
+    // Smooth, pleasant 3-tone chime (F5 -> A5 -> C6)
+    const playTone = (freq: number, start: number, duration: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, start);
+      
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.3, start + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(start);
+      osc.stop(start + duration);
+    };
+
+    const t = ctx.currentTime;
+    playTone(698.46, t, 0.22);        // F5 tone
+    playTone(880.00, t + 0.12, 0.22);  // A5 tone
+    playTone(1046.50, t + 0.24, 0.55); // C6 tone
+  } catch (e) {
+    console.debug('Notification sound playback error:', e);
+  }
+}
 
 interface AdminNotificationsProps {
   setActiveTab?: (tab: string) => void;
@@ -34,6 +69,34 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
       return new Set();
     }
   });
+  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('admin_notif_sound_enabled');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+  const initialLoadRef = useRef(false);
+  const knownNotifIdsRef = useRef<Set<string>>(new Set());
+  const soundEnabledRef = useRef(isSoundEnabled);
+
+  useEffect(() => {
+    soundEnabledRef.current = isSoundEnabled;
+  }, [isSoundEnabled]);
+
+  const toggleSound = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextVal = !isSoundEnabled;
+    setIsSoundEnabled(nextVal);
+    try {
+      localStorage.setItem('admin_notif_sound_enabled', JSON.stringify(nextVal));
+    } catch {}
+    if (nextVal) {
+      playNotificationChime();
+    }
+  };
+
   const [activeFilter, setActiveFilter] = useState<'all' | 'orders' | 'hosting' | 'support' | 'stock'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -189,6 +252,20 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
         const timeB = new Date(b.time).getTime() || 0;
         return timeB - timeA;
       });
+
+      // Check if there is any brand new action item arriving in real-time
+      if (initialLoadRef.current) {
+        const hasNewItem = arr.some(item => !knownNotifIdsRef.current.has(item.id));
+        if (hasNewItem && soundEnabledRef.current) {
+          playNotificationChime();
+        }
+      } else {
+        setTimeout(() => {
+          initialLoadRef.current = true;
+        }, 1500);
+      }
+
+      knownNotifIdsRef.current = new Set(arr.map(i => i.id));
       setNotifications(arr);
     };
 
@@ -286,15 +363,32 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
               </div>
             </div>
 
-            {unreadCount > 0 && (
-              <button 
+            <div className="flex items-center gap-2">
+              <button
                 type="button"
-                onClick={handleMarkAllRead}
-                className="text-[11px] font-bold text-blue-400 hover:text-blue-300 bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors"
+                onClick={toggleSound}
+                title={isSoundEnabled ? "Notification sound is ON (Click to mute)" : "Notification sound is MUTED (Click to unmute)"}
+                className={cn(
+                  "px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border",
+                  isSoundEnabled 
+                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30" 
+                    : "bg-white/10 text-gray-400 border-white/10 hover:bg-white/20"
+                )}
               >
-                <CheckCheck size={13} /> Mark all read
+                {isSoundEnabled ? <Volume2 size={13} className="text-emerald-400" /> : <VolumeX size={13} />}
+                <span className="text-[10px]">{isSoundEnabled ? 'Sound ON' : 'Muted'}</span>
               </button>
-            )}
+
+              {unreadCount > 0 && (
+                <button 
+                  type="button"
+                  onClick={handleMarkAllRead}
+                  className="text-[11px] font-bold text-blue-400 hover:text-blue-300 bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors"
+                >
+                  <CheckCheck size={13} /> Mark read
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Filter Bar */}

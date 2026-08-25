@@ -88,29 +88,14 @@ const DEFAULT_DOMAIN_PRICING: DomainPricing[] = [
 ];
 
 export async function checkDomainAvailability(domains: string[]): Promise<DomainAvailabilityResult[]> {
-  try {
-    const response = await apiRequest<{ success: boolean; data: DomainAvailabilityResult[] }>('/api/domains/check', {
-      method: 'POST',
-      body: JSON.stringify({ domains }),
-    });
-    if (response && response.success && Array.isArray(response.data) && response.data.length > 0) {
-      return response.data;
-    }
-  } catch (e) {
-    console.warn('Domain availability API request error, using fallback:', e);
-  }
-
-  // Graceful fallback: return availability based on domain query
-  return domains.map(domain => {
-    const tld = domain.substring(domain.lastIndexOf('.')) || '.com';
-    const match = DEFAULT_DOMAIN_PRICING.find(p => p.tld === tld);
-    return {
-      domain,
-      available: true,
-      price: match?.registerPrice || 1529,
-      currency: 'BDT',
-    };
+  const response = await apiRequest<{ success: boolean; data: DomainAvailabilityResult[]; error?: string }>('/api/domains/check', {
+    method: 'POST',
+    body: JSON.stringify({ domains }),
   });
+  if (response && response.success && Array.isArray(response.data)) {
+    return response.data;
+  }
+  throw new Error(response?.error || 'Domain availability check failed');
 }
 
 export async function getDomainSuggestions(domain: string): Promise<string[]> {

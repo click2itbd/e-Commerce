@@ -104,11 +104,11 @@ export class DynadotDomainProvider implements IDomainProvider {
       });
 
       const data = await this.dynadotRequest('search', params);
-      const searchResults: any[] = data?.SearchResponse?.SearchResults || [];
+      const searchResults: any[] = data?.SearchResponse?.SearchResults || data?.Response?.SearchResults || data?.SearchResults || [];
 
       if (searchResults.length > 0) {
         return domainList.map((domain, index) => {
-          const searchResult = searchResults.find((r: any) => r.DomainName?.toLowerCase() === domain.toLowerCase()) || searchResults[index];
+          const searchResult = searchResults.find((r: any) => (r.DomainName || r.Domain || r.domain || '')?.toLowerCase() === domain.toLowerCase()) || searchResults[index];
           const tldMatch = domain.match(/\.[^.]+$/);
           const tld = tldMatch ? tldMatch[0].replace(/^\./, '').toLowerCase() : 'com';
           const defaultPrice = (DEFAULT_TLD_PRICES[tld] || { register: 12.99 }).register;
@@ -123,7 +123,8 @@ export class DynadotDomainProvider implements IDomainProvider {
             };
           }
 
-          const isAvailable = String(searchResult.Available).toLowerCase() === 'yes';
+          const rawAvailable = String(searchResult.Available || searchResult.available || searchResult.Status || searchResult.status || '').toLowerCase();
+          const isAvailable = rawAvailable === 'yes' || rawAvailable === 'available' || rawAvailable === '1' || rawAvailable === 'true';
           const price = searchResult.Price ? parseFloat(searchResult.Price) : defaultPrice;
 
           return {
