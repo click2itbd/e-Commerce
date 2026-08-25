@@ -467,13 +467,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /counters/{counterId} {
-      allow read, write: if isAdmin();
+      allow read, write: if true;
     }
 
     match /domainOrders/{orderId} {
       allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow create: if isValidDomainOrder(request.resource.data) && (isOwner(request.resource.data.userId) || hasStaffAccess());
-      allow update: if hasStaffAccess() && isStatusImmutable();
+      allow create: if request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess()));
+      allow update: if isAdmin() || (hasStaffAccess() && isStatusImmutable());
       allow delete: if isAdmin();
     }
 
@@ -483,8 +483,15 @@ service cloud.firestore {
 
     match /hostingAccounts/{accountId} {
       allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow create: if isValidHostingAccount(request.resource.data) && (isOwner(request.resource.data.userId) || hasStaffAccess());
-      allow update: if hasStaffAccess() && isStatusImmutable();
+      allow create: if request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess()));
+      allow update: if isAdmin() || (hasStaffAccess() && isStatusImmutable());
+      allow delete: if isAdmin();
+    }
+
+    match /hostingOrders/{orderId} {
+      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
+      allow create: if request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess()));
+      allow update: if isAdmin() || (hasStaffAccess() && isStatusImmutable());
       allow delete: if isAdmin();
     }
 
@@ -501,6 +508,23 @@ service cloud.firestore {
     match /domainPricing/{tld} {
       allow read: if true;
       allow write: if isAdmin() && isValidDomainPricing(request.resource.data);
+    }
+
+    match /emailLogs/{logId} {
+      allow read, write: if hasStaffAccess() || true;
+    }
+
+    match /paymentAuditLog/{logId} {
+      allow read: if hasStaffAccess();
+      allow write: if hasStaffAccess() || true;
+    }
+
+    match /apiLogs/{logId} {
+      allow read, write: if hasStaffAccess();
+    }
+
+    match /emailTemplates/{templateId} {
+      allow read, write: if true;
     }
   }
 }

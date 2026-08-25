@@ -1,5 +1,5 @@
-import { getAdminDb } from '../firebase/admin';
-import { SmtpEmailProvider, SmtpConfig } from '../providers/email/SmtpEmailProvider';
+import { getAdminDb } from '../firebase/admin.js';
+import { SmtpEmailProvider, SmtpConfig } from '../providers/email/SmtpEmailProvider.js';
 
 export interface EmailOptions {
   to: string;

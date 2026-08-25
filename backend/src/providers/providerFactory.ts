@@ -1,8 +1,8 @@
-import { IDomainProvider } from './domain/IDomainProvider';
-import { IHostingProvider } from './hosting/IHostingProvider';
-import { DynadotDomainProvider } from './domain/DynadotDomainProvider';
-import { CpanelHostingProvider } from './hosting/CpanelHostingProvider';
-import { ResellerClubHostingProvider } from './hosting/ResellerClubHostingProvider';
+import { IDomainProvider } from './domain/IDomainProvider.js';
+import { IHostingProvider } from './hosting/IHostingProvider.js';
+import { DynadotDomainProvider } from './domain/DynadotDomainProvider.js';
+import { CpanelHostingProvider } from './hosting/CpanelHostingProvider.js';
+import { ResellerClubHostingProvider } from './hosting/ResellerClubHostingProvider.js';
 
 export function getDomainProvider(config?: { domainApiType?: string; domainApiKey?: string }): IDomainProvider {
   const domainApiKey = config?.domainApiKey || process.env.DYNADOT_API_KEY || '';

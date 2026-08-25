@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  Cloud,
   Menu,
   X,
   User,
   LayoutDashboard,
-  Server,
   LogOut,
   Phone,
   Mail,
   ShoppingCart,
   ChevronDown,
+  Globe,
+  Tag,
+  Shield,
+  Layers,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
@@ -22,6 +24,7 @@ import { signOut } from "firebase/auth";
 export const HostingNavbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [expandedMobileDropdown, setExpandedMobileDropdown] = useState<string | null>(null);
 
   const { user, isAdmin } = useAuth();
   const { items } = useCart();
@@ -45,6 +48,12 @@ export const HostingNavbar: React.FC = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+    setExpandedMobileDropdown(null);
+  }, [location.pathname]);
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -61,20 +70,20 @@ export const HostingNavbar: React.FC = () => {
       name: "Pricing",
       path: "/pricing",
       subLinks: [
-        { name: "Shared cPanel Hosting", path: "/pricing#shared-hosting" },
-        { name: "WordPress Cloud", path: "/pricing#wordpress-cloud" },
-        { name: "Cloud VPS Servers", path: "/pricing#cloud-vps" },
-        { name: "Custom Package Builder", path: "/pricing#custom-package" },
-        { name: "Compare All Features", path: "/pricing#compare-plans" },
+        { name: "Shared cPanel Hosting", path: "/pricing#shared-hosting", icon: Layers },
+        { name: "WordPress Cloud", path: "/pricing#wordpress-cloud", icon: Shield },
+        { name: "CloudLinux License", path: "/pricing#cloudlinux-license", icon: Globe },
+        { name: "Custom Package Builder", path: "/pricing#custom-package", icon: Tag },
+        { name: "Compare All Features", path: "/pricing#compare-plans", icon: Layers },
       ],
     },
     {
       name: "Domain",
       path: "/domain",
       subLinks: [
-        { name: "Domain Registration", path: "/domain" },
-        { name: "Domain Transfer", path: "/domain/transfer" },
-        { name: "Domain Renewal", path: "/domain-renewal" },
+        { name: "Domain Registration", path: "/domain", icon: Globe },
+        { name: "Domain Transfer", path: "/domain/transfer", icon: Globe },
+        { name: "Domain Renewal", path: "/domain-renewal", icon: Globe },
       ],
     },
     { name: "Support", path: "/support" },
@@ -87,21 +96,36 @@ export const HostingNavbar: React.FC = () => {
     return location.pathname === path;
   };
 
+  const toggleMobileDropdown = (name: string) => {
+    setExpandedMobileDropdown((prev) => (prev === name ? null : name));
+  };
+
+  const handleNavClick = (path: string) => {
+    setIsMobileMenuOpen(false);
+    if (path.includes("#")) {
+      const hash = path.split("#")[1];
+      const el = document.getElementById(hash);
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: "smooth" }), 100);
+      }
+    }
+  };
+
   return (
     <header
-      className={`sticky top-0 left-0 right-0 z-50 w-full transition-all duration-300`}
+      className="sticky top-0 left-0 right-0 z-50 w-full transition-all duration-300"
     >
-      {/* Top Bar */}
-      <div className="bg-[#060d1f] text-gray-300 text-xs py-1.5 px-10 hidden sm:block">
+      {/* Top Bar - Desktop */}
+      <div className="bg-[#060d1f] text-gray-300 text-xs py-1.5 px-4 sm:px-10 hidden sm:block">
         <div className="container mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-1">
-              <Phone size={12} />
-              <span>{settings?.contactPhone || "+1 (555) 123-4567"}</span>
+              <Phone size={12} className="text-blue-400" />
+              <span>{settings?.contactPhone || "+880 1886-920755"}</span>
             </div>
             <div className="flex items-center space-x-1">
-              <Mail size={12} />
-              <span>{settings?.contactEmail || "support@click2itbd.com"}</span>
+              <Mail size={12} className="text-blue-400" />
+              <span>{settings?.contactEmail || "info@click2itbd.com"}</span>
             </div>
           </div>
           <div className="flex items-center space-x-4">
@@ -117,7 +141,7 @@ export const HostingNavbar: React.FC = () => {
                 {isAdmin && (
                   <Link
                     to="/admin"
-                    className="flex items-center space-x-1 hover:text-white transition-colors"
+                    className="flex items-center space-x-1 hover:text-white transition-colors text-amber-400"
                   >
                     <LayoutDashboard size={12} />
                     <span>Admin</span>
@@ -125,7 +149,7 @@ export const HostingNavbar: React.FC = () => {
                 )}
                 <button
                   onClick={handleLogout}
-                  className="flex items-center space-x-1 hover:text-white transition-colors"
+                  className="flex items-center space-x-1 hover:text-red-400 transition-colors"
                 >
                   <LogOut size={12} />
                   <span>Logout</span>
@@ -146,7 +170,11 @@ export const HostingNavbar: React.FC = () => {
 
       {/* Main Navbar */}
       <div
-        className={`transition-all duration-300 ${isScrolled ? "bg-[#0a1628]/95 backdrop-blur-md shadow-lg py-3" : "bg-[#0a1628] py-4"}`}
+        className={`transition-all duration-300 ${
+          isScrolled
+            ? "bg-[#0a1628]/95 backdrop-blur-md shadow-lg py-2.5 sm:py-3"
+            : "bg-[#0a1628] py-3 sm:py-4"
+        }`}
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">
@@ -165,14 +193,14 @@ export const HostingNavbar: React.FC = () => {
                   className="h-8 md:h-10 object-contain"
                 />
               )}
-              <span className="text-white font-semibold group-hover:text-primary transition-colors">
+              <span className="text-white font-bold text-base sm:text-lg tracking-tight group-hover:text-blue-400 transition-colors">
                 CLICK2IT
               </span>
             </Link>
 
             {/* Desktop Nav Links */}
             <div className="hidden md:flex items-center space-x-6">
-              <nav className="hidden md:flex items-center space-x-1">
+              <nav className="flex items-center space-x-1">
                 {navLinks.map((link) =>
                   link.subLinks ? (
                     <div key={link.name} className="relative group">
@@ -184,32 +212,28 @@ export const HostingNavbar: React.FC = () => {
                             : "text-gray-300 hover:text-white hover:bg-white/5"
                         }`}
                       >
-                        {link.name}{" "}
+                        {link.name}
                         <ChevronDown
                           size={14}
                           className="group-hover:rotate-180 transition-transform duration-200"
                         />
                       </button>
-                      <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-[#0a1628] rounded-xl shadow-xl border border-gray-100 dark:border-gray-800 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 transform translate-y-2 group-hover:translate-y-0">
+                      <div className="absolute top-full left-0 mt-2 w-52 bg-[#0d1d36] rounded-xl shadow-2xl border border-gray-700/60 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 transform translate-y-2 group-hover:translate-y-0 overflow-hidden">
                         <div className="p-2 space-y-1">
-                          {link.subLinks.map((sub) => (
-                            <Link
-                              key={sub.name}
-                              to={sub.path}
-                              onClick={() => {
-                                if (sub.path.includes("#")) {
-                                  const hash = sub.path.split("#")[1];
-                                  const el = document.getElementById(hash);
-                                  if (el) {
-                                    el.scrollIntoView({ behavior: "smooth" });
-                                  }
-                                }
-                              }}
-                              className="block px-4 py-2.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-white/10 rounded-lg transition-colors font-semibold"
-                            >
-                              {sub.name}
-                            </Link>
-                          ))}
+                          {link.subLinks.map((sub) => {
+                            const IconComponent = sub.icon;
+                            return (
+                              <Link
+                                key={sub.name}
+                                to={sub.path}
+                                onClick={() => handleNavClick(sub.path)}
+                                className="flex items-center gap-2.5 px-3 py-2 text-xs text-gray-300 hover:text-white hover:bg-blue-600/20 rounded-lg transition-colors font-medium"
+                              >
+                                <IconComponent size={14} className="text-blue-400" />
+                                <span>{sub.name}</span>
+                              </Link>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -230,16 +254,16 @@ export const HostingNavbar: React.FC = () => {
               </nav>
             </div>
 
-            {/* CTA Button and Cart */}
-            <div className="hidden md:flex items-center space-x-4">
-              {/* Cart Icon Desktop */}
+            {/* Desktop Actions */}
+            <div className="hidden md:flex items-center space-x-3">
               <Link
                 to="/hosting/cart"
-                className="relative p-2 text-gray-300 hover:text-white transition-colors mr-2"
+                className="relative p-2 text-gray-300 hover:text-white transition-colors"
+                title="View Hosting Cart"
               >
                 <ShoppingCart size={22} />
                 {cartCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center border border-[#0a1628]">
+                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center border border-[#0a1628]">
                     {cartCount}
                   </span>
                 )}
@@ -247,163 +271,174 @@ export const HostingNavbar: React.FC = () => {
               {user ? (
                 <Link
                   to="/profile"
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all transform hover:scale-105 shadow-lg shadow-blue-500/30 flex items-center gap-2"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5"
                 >
-                  <User size={16} /> Profile
+                  <User size={14} /> My Profile
                 </Link>
               ) : (
                 <Link
                   to="/login"
-                  className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all transform hover:scale-105 shadow-lg shadow-orange-500/30 flex items-center gap-2"
+                  className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-md shadow-orange-500/20 flex items-center gap-1.5"
                 >
-                  <LogOut size={16} className="rotate-180" /> Login
+                  <User size={14} /> Login
                 </Link>
               )}
             </div>
 
-            {/* Mobile menu button */}
-            <div className="md:hidden flex items-center">
+            {/* Mobile Header Icons: Cart + Hamburger */}
+            <div className="md:hidden flex items-center space-x-2">
+              <Link
+                to="/hosting/cart"
+                className="relative p-2 text-gray-300 hover:text-white"
+                title="Cart"
+              >
+                <ShoppingCart size={20} />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center border border-[#0a1628]">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="text-gray-300 hover:text-white focus:outline-none p-2"
+                className="text-gray-300 hover:text-white p-2 rounded-lg bg-white/5 border border-white/10"
+                aria-label="Toggle navigation menu"
               >
-                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Mobile Menu Slide-down */}
-      <div
-        className={`md:hidden absolute w-full bg-[#0a1628] border-t border-gray-800 transition-all duration-300 ease-in-out origin-top ${
-          isMobileMenuOpen
-            ? "opacity-100 scale-y-100"
-            : "opacity-0 scale-y-0 h-0 overflow-hidden"
-        }`}
-      >
-        <div className="px-4 pt-2 pb-6 space-y-1 shadow-2xl">
-          {navLinks.map((link) =>
-            link.subLinks ? (
-              <div key={link.name} className="space-y-1">
-                <div className="px-3 py-2 text-sm font-bold text-gray-500 uppercase tracking-wider">
-                  {link.name}
-                </div>
-                {link.subLinks.map((sub) => (
-                  <Link
-                    key={sub.name}
-                    to={sub.path}
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      if (sub.path.includes("#")) {
-                        const hash = sub.path.split("#")[1];
-                        const el = document.getElementById(hash);
-                        if (el) {
-                          setTimeout(() => el.scrollIntoView({ behavior: "smooth" }), 150);
-                        }
-                      }
-                    }}
-                    className="block px-3 py-3 pl-6 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5 border-l-2 border-transparent hover:border-blue-500"
+      {/* Mobile Menu Slide-down with Collapsible Accordions */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden w-full bg-[#0a1628] border-t border-gray-800 shadow-2xl max-h-[calc(100vh-70px)] overflow-y-auto">
+          <div className="px-4 py-3 space-y-1">
+            {navLinks.map((link) =>
+              link.subLinks ? (
+                <div key={link.name} className="border-b border-gray-800/60 pb-1">
+                  {/* Parent Dropdown Button */}
+                  <button
+                    type="button"
+                    onClick={() => toggleMobileDropdown(link.name)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold text-gray-200 hover:text-white hover:bg-white/5 transition-colors"
                   >
-                    {sub.name}
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <Link
-                key={link.name}
-                to={link.path}
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="block px-3 py-3 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
-              >
-                {link.name}
-              </Link>
-            ),
-          )}
+                    <span>{link.name}</span>
+                    <ChevronDown
+                      size={16}
+                      className={`text-gray-400 transition-transform duration-200 ${
+                        expandedMobileDropdown === link.name ? "rotate-180 text-blue-400" : ""
+                      }`}
+                    />
+                  </button>
 
-          <div className="border-t border-gray-800 my-4 pt-4">
-            <Link
-              to="/hosting/cart"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
-            >
-              <div className="relative">
-                <ShoppingCart size={20} />
+                  {/* Collapsible Sublinks */}
+                  {expandedMobileDropdown === link.name && (
+                    <div className="pl-3 pr-1 py-1 space-y-1 bg-[#060d1f]/60 rounded-lg mt-1 mb-2 border border-gray-800">
+                      {link.subLinks.map((sub) => {
+                        const IconComp = sub.icon;
+                        return (
+                          <Link
+                            key={sub.name}
+                            to={sub.path}
+                            onClick={() => handleNavClick(sub.path)}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium text-gray-300 hover:text-white hover:bg-blue-600/20 transition-colors"
+                          >
+                            <IconComp size={14} className="text-blue-400" />
+                            <span>{sub.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  key={link.name}
+                  to={link.path}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`block px-3 py-2.5 rounded-lg text-sm font-semibold border-b border-gray-800/60 transition-colors ${
+                    isActive(link.path)
+                      ? "text-blue-400 bg-blue-500/10"
+                      : "text-gray-200 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  {link.name}
+                </Link>
+              ),
+            )}
+
+            {/* Mobile Actions: Cart & Profile & Auth */}
+            <div className="pt-3 pb-2 space-y-2">
+              <Link
+                to="/hosting/cart"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold bg-white/5 border border-gray-800 text-gray-200 hover:text-white"
+              >
+                <span className="flex items-center gap-2">
+                  <ShoppingCart size={16} className="text-orange-400" />
+                  <span>Shopping Cart</span>
+                </span>
                 {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
-                    {cartCount}
+                  <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    {cartCount} items
                   </span>
                 )}
-              </div>
-              <span>Cart</span>
-            </Link>
-            {user ? (
-              <>
-                <Link
-                  to="/profile"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
-                >
-                  <User size={18} />
-                  <span>My Profile</span>
-                </Link>
-                {isAdmin && (
-                  <Link
-                    to="/admin"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
-                  >
-                    <LayoutDashboard size={18} />
-                    <span>Admin Dashboard</span>
-                  </Link>
-                )}
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium text-red-400 hover:text-red-300 hover:bg-white/5"
-                >
-                  <LogOut size={18} />
-                  <span>Logout</span>
-                </button>
-              </>
-            ) : (
-              <Link
-                to="/login"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="flex items-center space-x-2 px-3 py-3 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
-              >
-                <User size={18} />
-                <span>Login</span>
               </Link>
-            )}
-          </div>
 
-          <div className="mt-4 px-3">
-            {user ? (
-              <Link
-                to="/dashboard"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="block w-full text-center bg-gradient-to-r from-blue-500 to-blue-600 text-white px-5 py-3 rounded-lg font-semibold shadow-lg"
-              >
-                Go to Profile
-              </Link>
-            ) : (
-              <Link
-                to="/login"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="block w-full text-center bg-gradient-to-r from-orange-500 to-orange-600 text-white px-5 py-3 rounded-lg font-semibold shadow-lg"
-              >
-                Login
-              </Link>
-            )}
+              {user ? (
+                <>
+                  <Link
+                    to="/profile"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold bg-blue-600/10 border border-blue-500/20 text-blue-300 hover:text-white"
+                  >
+                    <User size={16} />
+                    <span>My Profile & Services</span>
+                  </Link>
+
+                  {isAdmin && (
+                    <Link
+                      to="/admin"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-300 hover:text-white"
+                    >
+                      <LayoutDashboard size={16} />
+                      <span>Admin Dashboard</span>
+                    </Link>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleLogout();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-colors text-left"
+                  >
+                    <LogOut size={16} />
+                    <span>Logout</span>
+                  </button>
+                </>
+              ) : (
+                <div className="pt-2">
+                  <Link
+                    to="/login"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block w-full text-center bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold py-2.5 px-4 rounded-lg text-sm shadow-md"
+                  >
+                    Login / Create Account
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </header>
   );
 };
 
-
-
+export default HostingNavbar;

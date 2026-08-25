@@ -118,3 +118,35 @@ export const getEmailLogsForOrder = async (orderId: string): Promise<EmailLog[]>
     return [];
   }
 };
+
+export const sendEmail = async ({
+  to,
+  subject,
+  html,
+  category,
+  orderId,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+  category?: string;
+  orderId?: string;
+}) => {
+  try {
+    const response = await apiRequest<{ success: boolean }>('/api/send-email', {
+      method: 'POST',
+      body: JSON.stringify({
+        to,
+        subject,
+        html,
+        category,
+        orderId,
+      }),
+    });
+    return response?.success ?? true;
+  } catch (err) {
+    console.error('Failed to send email:', err);
+    return false;
+  }
+};
+

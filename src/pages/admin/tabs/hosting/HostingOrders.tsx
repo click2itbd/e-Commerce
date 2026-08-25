@@ -143,7 +143,7 @@ export default function HostingOrders() {
       if (paymentAction === 'reject') {
         body.reason = rejectionReason || 'Manual verification failed';
       }
-      const response = await fetch(getApiUrl(`/api/admin/orders/${selectedOrder.id}/payment/verify`), {
+      const response = await fetch(getApiUrl(`/api/orders/admin/${selectedOrder.id}/payment/verify`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -232,12 +232,16 @@ export default function HostingOrders() {
     setStatusUpdating(true);
     const toastId = toast.loading('Accepting order and initiating WHM provisioning...');
     try {
-      // 1. Immediately update status to "provisioning"
-      await updateDoc(doc(db, 'orders', order.id), {
-        status: 'provisioning',
-        providerStatus: 'processing',
-        updatedAt: new Date().toISOString(),
-      });
+      // 1. Optimistic status update in UI (backend updates Firestore via Admin SDK)
+      try {
+        await updateDoc(doc(db, 'orders', order.id), {
+          status: 'provisioning',
+          providerStatus: 'processing',
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        // Direct write might be restricted by Firestore rules; backend handles it
+      }
       try {
         await updateDoc(doc(db, 'hostingOrders', order.id), {
           status: 'provisioning',
@@ -252,7 +256,7 @@ export default function HostingOrders() {
 
       // 2. Call backend fulfillment / payment verify
       const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
-      const response = await fetch(getApiUrl(`/api/admin/orders/${order.id}/payment/verify`), {
+      const response = await fetch(getApiUrl(`/api/orders/admin/${order.id}/payment/verify`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -270,11 +274,13 @@ export default function HostingOrders() {
         }
       } else {
         const errorMsg = data.error || data.message || 'WHM provisioning call failed';
-        await updateDoc(doc(db, 'orders', order.id), {
-          status: 'failed',
-          provisioningError: errorMsg,
-          updatedAt: new Date().toISOString(),
-        });
+        try {
+          await updateDoc(doc(db, 'orders', order.id), {
+            status: 'failed',
+            provisioningError: errorMsg,
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (e) {}
         setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'failed' as any, provisioningError: errorMsg } : o));
         if (selectedOrder?.id === order.id) {
           setSelectedOrder(prev => prev ? { ...prev, status: 'failed' as any, provisioningError: errorMsg } : null);
@@ -640,49 +646,75 @@ export default function HostingOrders() {
 
                     {/* Workflow Quick Action Buttons */}
                     <div className="pt-2">
-                      {selectedOrder.status === 'pending' && (
-                        <button
-                          onClick={() => handleAcceptOrder(selectedOrder)}
-                          disabled={statusUpdating}
-                          className="w-full py-2.5 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          Accept & Provision WHM Account
-                        </button>
-                      )}
+                      {(() => {
+                        const hasDomain = selectedOrder.items?.some((i: any) => i.itemType === 'domain' || i.itemType === 'domain_renewal' || i.itemType === 'domain_transfer') || domainOrders.length > 0;
+                        const hasHosting = selectedOrder.items?.some((i: any) => i.itemType === 'hosting') || hostingAccounts.length > 0;
+                        
+                        let acceptLabel = 'Accept & Process Order';
+                        let retryLabel = 'Retry Processing';
+                        let ActionIcon = CheckCircle;
 
-                      {(selectedOrder.status === 'provisioning' || selectedOrder.status === 'processing') && (
-                        <div className="space-y-2">
-                          <button
-                            onClick={() => handleMarkCompletedOrder(selectedOrder)}
-                            disabled={statusUpdating}
-                            className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            Mark Completed (Account Live)
-                          </button>
-                          <p className="text-xs text-purple-600 font-medium text-center animate-pulse">
-                            WHM Provisioning in progress. Click Complete once server account is verified.
-                          </p>
-                        </div>
-                      )}
+                        if (hasDomain && hasHosting) {
+                          acceptLabel = 'Accept & Provision Order (Domain + WHM)';
+                          retryLabel = 'Retry Provisioning (Domain + WHM)';
+                        } else if (hasDomain) {
+                          acceptLabel = 'Accept & Provision Domain';
+                          retryLabel = 'Retry Domain Registration';
+                          ActionIcon = Globe;
+                        } else if (hasHosting) {
+                          acceptLabel = 'Accept & Provision WHM Account';
+                          retryLabel = 'Retry WHM Provisioning';
+                          ActionIcon = Server;
+                        }
 
-                      {selectedOrder.status === 'failed' && (
-                        <div className="space-y-2">
-                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
-                            <p className="font-bold">Provisioning Error:</p>
-                            <p>{(selectedOrder as any).provisioningError || 'WHM provisioning failed or server timed out.'}</p>
-                          </div>
-                          <button
-                            onClick={() => handleAcceptOrder(selectedOrder)}
-                            disabled={statusUpdating}
-                            className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
-                          >
-                            <Server className="w-4 h-4" />
-                            Retry WHM Provisioning
-                          </button>
-                        </div>
-                      )}
+                        return (
+                          <>
+                            {selectedOrder.status === 'pending' && (
+                              <button
+                                onClick={() => handleAcceptOrder(selectedOrder)}
+                                disabled={statusUpdating}
+                                className="w-full py-2.5 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                              >
+                                <ActionIcon className="w-4 h-4" />
+                                {acceptLabel}
+                              </button>
+                            )}
+
+                            {(selectedOrder.status === 'provisioning' || selectedOrder.status === 'processing') && (
+                              <div className="space-y-2">
+                                <button
+                                  onClick={() => handleMarkCompletedOrder(selectedOrder)}
+                                  disabled={statusUpdating}
+                                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                  Mark Completed (Live)
+                                </button>
+                                <p className="text-xs text-purple-600 font-medium text-center animate-pulse">
+                                  Provisioning in progress. Click Complete once verified.
+                                </p>
+                              </div>
+                            )}
+
+                            {selectedOrder.status === 'failed' && (
+                              <div className="space-y-2">
+                                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                                  <p className="font-bold">Provisioning Status:</p>
+                                  <p>{(selectedOrder as any).provisioningError || (hasDomain ? 'Domain registration pending Dynadot balance or provider approval.' : 'WHM provisioning failed or server timed out.')}</p>
+                                </div>
+                                <button
+                                  onClick={() => handleAcceptOrder(selectedOrder)}
+                                  disabled={statusUpdating}
+                                  className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                                >
+                                  <ActionIcon className="w-4 h-4" />
+                                  {retryLabel}
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

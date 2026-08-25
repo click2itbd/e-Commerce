@@ -8,6 +8,7 @@ import WordPressCloudSection from '../hosting-sections/WordPressCloudSection';
 import CloudVpsSection from '../hosting-sections/CloudVpsSection';
 import ComparePlansSection from '../hosting-sections/ComparePlansSection';
 import CustomHostingBuilder from '../hosting-sections/CustomHostingBuilder';
+import CloudLinuxLicenseSection from '../hosting-sections/CloudLinuxLicenseSection';
 import { Shield, Check, X, ChevronDown } from 'lucide-react';
 
 export default function PricingPage() {
@@ -76,12 +77,17 @@ export default function PricingPage() {
         <WordPressCloudSection />
       </div>
 
-      {/* 3. High Performance KVM Cloud VPS */}
-      <div className="w-full">
+      {/* 3. High Performance KVM Cloud VPS (Hidden temporarily) */}
+      {/* <div className="w-full">
         <CloudVpsSection />
+      </div> */}
+
+      {/* 4. CloudLinux OS License Pricing & Compare */}
+      <div id="cloudlinux-license" className="w-full scroll-mt-20">
+        <CloudLinuxLicenseSection />
       </div>
 
-      {/* 4. Interactive Custom Package Builder */}
+      {/* 5. Interactive Custom Package Builder */}
       <div className="w-full">
         <CustomHostingBuilder />
       </div>

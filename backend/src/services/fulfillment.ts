@@ -1,10 +1,9 @@
-import { getAdminDb, getAdminDocument, isUserAdmin } from '../firebase/admin';
-import { sendEmail } from './email';
-import { getDomainProvider } from '../providers/providerFactory';
-import { getDomainPricingSettings } from './domainPricing';
-import { getHostingProvider } from '../providers/providerFactory';
-import { ProviderError } from '../providers/domain/DynadotDomainProvider';
-import { classifyHostingError } from './hosting';
+import { getAdminDb, getAdminDocument, isUserAdmin } from '../firebase/admin.js';
+import { sendEmail } from './email.js';
+import { getDomainProvider, getHostingProvider } from '../providers/providerFactory.js';
+import { getDomainPricingSettings } from './domainPricing.js';
+import { ProviderError } from '../providers/domain/DynadotDomainProvider.js';
+import { classifyHostingError } from './hosting.js';
 import { config } from '../config/index.js';
 
 export interface FulfillmentResult {
@@ -187,7 +186,13 @@ async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorU
     };
   }
 
-  if (domainData.status !== 'pending' && domainData.status !== 'pending_payment' && domainData.status !== 'payment_verified') {
+  if (
+    domainData.status !== 'pending' &&
+    domainData.status !== 'pending_payment' &&
+    domainData.status !== 'payment_verified' &&
+    domainData.status !== 'failed' &&
+    domainData.status !== 'manual_review'
+  ) {
     return {
       itemId: domainOrderId,
       type: 'domain',
@@ -323,7 +328,7 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
     };
   }
 
-  if (hostingData.status !== 'pending' && hostingData.status !== 'pending_payment' && hostingData.provisioningStatus !== 'pending') {
+  if (hostingData.status !== 'pending' && hostingData.status !== 'pending_payment' && hostingData.status !== 'failed' && hostingData.status !== 'manual_review' && hostingData.provisioningStatus !== 'pending' && hostingData.provisioningStatus !== 'failed') {
     return {
       itemId: hostingAccountId,
       type: 'hosting',
@@ -334,30 +339,27 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
     };
   }
 
-  const { provider } = await getHostingProviderWithSettings();
-  const idempotencyKey = `${hostingData.domain}-${hostingData.planId}-${hostingData.billingCycle}`;
-
-  const existing = await db.collection('hostingAccounts')
-    .where('idempotencyKey', '==', idempotencyKey)
-    .where('status', '!=', 'cancelled')
-    .limit(1)
-    .get();
-
-  if (!existing.empty) {
-    return {
-      itemId: hostingAccountId,
-      type: 'hosting',
-      action: 'provision',
-      success: true,
-      status: 'active',
-      error: 'Account already exists',
-    };
+  let contactEmail = hostingData.contactEmail || hostingData.customerEmail || '';
+  let customerName = hostingData.customerName || '';
+  if ((!contactEmail || !customerName) && hostingData.orderId) {
+    try {
+      const orderDoc = await db.collection('orders').doc(hostingData.orderId).get();
+      if (orderDoc.exists) {
+        const oData = orderDoc.data() || {};
+        if (!contactEmail) contactEmail = oData.customerEmail || oData.email || '';
+        if (!customerName) customerName = oData.customerName || '';
+      }
+    } catch (e) {
+      console.warn('Error loading order for hosting account:', e);
+    }
   }
+
+  const { provider } = await getHostingProviderWithSettings();
 
   try {
     const result = await provider.provisionAccount({
-      domain: hostingData.domain,
-      contactEmail: hostingData.contactEmail || hostingData.customerEmail || '',
+      domain: hostingData.domain || 'click2itbd.com',
+      contactEmail,
       billingCycle: hostingData.billingCycle || 'monthly',
       planCode: hostingData.planId || 'default',
     });
@@ -371,6 +373,8 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
         provisioningStatus: 'completed',
         cPanelUrl: result.cPanelUrl,
         nameservers: result.nameservers || [],
+        contactEmail,
+        customerEmail: contactEmail,
         updatedAt: now,
       });
     } else {
@@ -378,26 +382,110 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
         status: 'failed',
         provisioningStatus: 'failed',
         error: result.error,
+        contactEmail,
+        customerEmail: contactEmail,
         updatedAt: now,
       });
     }
 
     await writeAuditLog(db, hostingAccountId, isSuccess ? 'fulfilled' : 'fulfillment_failed', actorUid, hostingData.status, isSuccess ? 'active' : 'failed', null, result?.error || null);
 
-    if (isSuccess && hostingData.customerEmail) {
+    if (isSuccess && contactEmail) {
       const fromName = await getSiteName();
-      const html = `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-          <h2 style="color: #16a34a;">Hosting Account Provisioned</h2>
-          <p>Hi,</p>
-          <p>Your hosting account for <strong>${hostingData.domain}</strong> has been successfully provisioned.</p>
-          ${result.cPanelUrl ? `<p><strong>Control Panel:</strong> <a href="${result.cPanelUrl}">${result.cPanelUrl}</a></p>` : ''}
-          ${result.nameservers?.length ? `<p><strong>Nameservers:</strong> ${result.nameservers.join(', ')}</p>` : ''}
-          <p><strong>Billing Cycle:</strong> ${hostingData.billingCycle}</p>
-          <p style="color: #888; font-size: 0.9em;">Thank you for choosing ${fromName}.</p>
+      let emailSubject = `🎉 Your Hosting Account is Ready - ${hostingData.domain}`;
+      let heading = 'Welcome to Click2IT Cloud Hosting!';
+      let badgeText = '✓ Hosting Account Active';
+      let bodyHtml = `
+        <p>Dear <strong>${customerName || 'Valued Customer'}</strong>,</p>
+        <p>Congratulations! Your cPanel cloud hosting account for <strong>${hostingData.domain}</strong> is now active and ready for your website.</p>
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; margin: 18px 0;">
+          <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 10px; text-transform: uppercase;">cPanel Login Details</div>
+          <div style="font-size: 14px; margin-bottom: 6px;"><strong>Domain:</strong> ${hostingData.domain}</div>
+          <div style="font-size: 14px; margin-bottom: 6px;"><strong>cPanel Username:</strong> <code style="background:#e2e8f0; padding:2px 6px; border-radius:4px;">${result.providerAccountId || 'See control panel'}</code></div>
+          ${result.cPanelUrl ? `<div style="font-size: 14px; margin-bottom: 6px;"><strong>Control Panel:</strong> <a href="${result.cPanelUrl}" style="color: #2563eb; font-weight: 600;">${result.cPanelUrl}</a></div>` : ''}
+          ${result.nameservers?.length ? `<div style="font-size: 14px; margin-top: 10px;"><strong>Nameservers:</strong><br>${result.nameservers.map((ns: string) => `• ${ns}`).join('<br>')}</div>` : ''}
         </div>
+        <p>You can also log in to your account from your client portal at <a href="https://click2itbd.com" style="color: #2563eb;">click2itbd.com</a> anytime.</p>
       `;
-      await sendEmail({ to: hostingData.customerEmail, subject: `Hosting Ready: ${hostingData.domain}`, html, orderId: hostingData.orderId, customerEmail: hostingData.customerEmail, category: 'hosting' });
+      let footerNote = 'Need help moving your site? Contact our 24/7 technical support team.';
+
+      try {
+        const tmplSnap = await db.collection('emailTemplates').doc('welcome_hosting').get();
+        if (tmplSnap.exists) {
+          const tData = tmplSnap.data() || {};
+          if (tData.subject) {
+            emailSubject = tData.subject
+              .replace(/\{\{domain\}\}/g, hostingData.domain)
+              .replace(/\{\{customerName\}\}/g, customerName || 'Valued Customer')
+              .replace(/\{\{username\}\}/g, result.providerAccountId || '')
+              .replace(/\{\{cPanelUrl\}\}/g, result.cPanelUrl || '');
+          }
+          if (tData.heading) heading = tData.heading;
+          if (tData.badgeText) badgeText = tData.badgeText;
+          if (tData.bodyHtml) {
+            bodyHtml = tData.bodyHtml
+              .replace(/\{\{domain\}\}/g, hostingData.domain)
+              .replace(/\{\{customerName\}\}/g, customerName || 'Valued Customer')
+              .replace(/\{\{username\}\}/g, result.providerAccountId || '')
+              .replace(/\{\{cPanelUrl\}\}/g, result.cPanelUrl || '')
+              .replace(/\{\{nameservers\}\}/g, (result.nameservers || []).join(', '));
+          }
+          if (tData.footerNote !== undefined) footerNote = tData.footerNote;
+        }
+      } catch (tmplErr) {
+        console.warn('Could not load custom email template from Firestore:', tmplErr);
+      }
+
+      const fullHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 25px 10px;">
+            <tr>
+              <td align="center">
+                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #e5e7eb;">
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #0a1628 0%, #1e3a8a 100%); padding: 30px 24px; text-align: center;">
+                      <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">${fromName}</h1>
+                      <p style="margin: 4px 0 0; color: #93c5fd; font-size: 13px;">${heading}</p>
+                      <div style="margin-top: 14px; display: inline-block; background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; border-radius: 30px; padding: 4px 14px;">
+                        <span style="color: #4ade80; font-size: 12px; font-weight: 700; text-transform: uppercase;">${badgeText}</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 24px 28px; color: #1f2937; line-height: 1.6; font-size: 14px;">
+                      ${bodyHtml}
+                    </td>
+                  </tr>
+                  ${footerNote ? `
+                  <tr>
+                    <td style="padding: 0 28px 20px;">
+                      <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 12px; color: #1e40af;">
+                        ${footerNote}
+                      </div>
+                    </td>
+                  </tr>
+                  ` : ''}
+                  <tr>
+                    <td style="background-color: #f8fafc; border-top: 1px solid #e5e7eb; padding: 20px 24px; text-align: center; font-size: 12px; color: #64748b;">
+                      <p style="margin: 0; font-weight: 700; color: #0f172a;">${fromName}</p>
+                      <p style="margin: 4px 0 0;">Email: info@click2itbd.com | Web: click2itbd.com</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `;
+
+      await sendEmail({ to: contactEmail, subject: emailSubject, html: fullHtml, orderId: hostingData.orderId, customerEmail: contactEmail, category: 'hosting' });
     }
 
     return {
@@ -437,10 +525,22 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
 }
 
 async function getDomainConfig() {
-  const dynadotApiKey = process.env.DYNADOT_API_KEY || config.secrets.dynadotApiKey || '';
+  let dynadotApiKey = process.env.DYNADOT_API_KEY || config.secrets.dynadotApiKey || '';
   if (!dynadotApiKey) {
-    console.warn('[Fulfillment] No Dynadot API key found in .env (DYNADOT_API_KEY) — domain orders will fail');
+    try {
+      const apiKeysDoc = await getAdminDocument('settings', 'api_keys');
+      if (apiKeysDoc.exists && apiKeysDoc.data?.dynadotApiKey) {
+        dynadotApiKey = apiKeysDoc.data.dynadotApiKey;
+      }
+    } catch (e) {
+      console.warn('[Fulfillment] Error reading api_keys from Firestore:', e);
+    }
   }
+
+  if (!dynadotApiKey) {
+    console.warn('[Fulfillment] No Dynadot API key found in .env or settings/api_keys — domain orders will fail');
+  }
+
   return {
     domainApiType: dynadotApiKey ? 'dynadot' : 'dummy',
     domainApiKey: dynadotApiKey,
@@ -448,16 +548,30 @@ async function getDomainConfig() {
 }
 
 async function getHostingProviderWithSettings() {
-  const hostingApiType = process.env.WHM_API_TYPE || config.secrets.whmApiType || 'cpanel';
-  const hostingApiKey = process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || config.secrets.whmApiToken || config.secrets.whmApiKey || '';
-  const hostingApiUrl = process.env.WHM_URL || process.env.WHM_API_URL || config.secrets.whmApiUrl || '';
-  const hostingApiUsername = (process.env.WHM_USERNAME || config.secrets.whmUsername || 'root').trim();
+  let hostingApiType = process.env.WHM_API_TYPE || config.secrets.whmApiType || 'cpanel';
+  let hostingApiKey = process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || config.secrets.whmApiToken || config.secrets.whmApiKey || '';
+  let hostingApiUrl = process.env.WHM_URL || process.env.WHM_API_URL || config.secrets.whmApiUrl || '';
+  let hostingApiUsername = (process.env.WHM_USERNAME || config.secrets.whmUsername || 'root').trim();
+
+  if (!hostingApiKey || !hostingApiUrl) {
+    try {
+      const hostingDoc = await getAdminDocument('settings', 'hostingApiConfig');
+      if (hostingDoc.exists && hostingDoc.data) {
+        if (!hostingApiKey && hostingDoc.data.hostingApiKey) hostingApiKey = hostingDoc.data.hostingApiKey;
+        if (!hostingApiUrl && hostingDoc.data.hostingApiUrl) hostingApiUrl = hostingDoc.data.hostingApiUrl;
+        if (hostingDoc.data.hostingApiType) hostingApiType = hostingDoc.data.hostingApiType;
+        if (hostingDoc.data.hostingApiUsername) hostingApiUsername = hostingDoc.data.hostingApiUsername;
+      }
+    } catch (e) {
+      console.warn('[Fulfillment] Error reading hostingApiConfig from Firestore:', e);
+    }
+  }
 
   if (!hostingApiKey) {
-    throw new Error('No WHM API token configured. Set WHM_API_TOKEN in backend/.env');
+    throw new Error('No WHM API token configured. Set in Admin Hosting API Settings or backend/.env');
   }
   if (!hostingApiUrl) {
-    throw new Error('No WHM API URL configured. Set WHM_URL or WHM_API_URL in backend/.env');
+    throw new Error('No WHM API URL configured. Set in Admin Hosting API Settings or backend/.env');
   }
 
   const provider = getHostingProvider({

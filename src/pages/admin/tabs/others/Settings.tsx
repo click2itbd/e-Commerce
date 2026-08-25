@@ -18,10 +18,10 @@ import { cn, formatCurrency } from "../../../../lib/utils";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../../../../firebase";
 import { useSettings } from "../../../../context/SettingsContext";
-import { CRMIntegrationsSetting } from "../../../../components/CRMIntegrationsSetting";
 import { SiteSettings } from "../../../../types";
 import { useAuth } from "../../../../context/AuthContext";
 import { getApiUrl } from "../../../../services/apiClient";
+import EmailTemplatesManager from "./EmailTemplatesManager";
 
 export const Settings = () => {
   const { settings, updateSettings } = useSettings();
@@ -832,6 +832,7 @@ export const Settings = () => {
               </div>
             </div>
           ) : settingsTab === "email" ? (
+            <>
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
               <div className="p-4 border-b border-gray-100">
                 <h3 className="text-sm font-bold text-gray-700">
@@ -930,6 +931,10 @@ export const Settings = () => {
                 </div>
               </div>
             </div>
+
+            {/* Email & Welcome Templates Manager */}
+            <EmailTemplatesManager />
+            </>
           ) : settingsTab === "sms" ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
               <div className="p-4 border-b border-gray-100">

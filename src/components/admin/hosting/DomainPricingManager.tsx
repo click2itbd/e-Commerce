@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, query, orderBy, limit } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
-import { Plus, Edit2, Trash2, X, DollarSign, Percent, Save, RefreshCw, Phone } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, DollarSign, Percent, Save, RefreshCw, Phone, Globe, Server, LifeBuoy, CheckCircle2, ShoppingCart } from 'lucide-react';
 import { Pagination } from '../../common/Pagination';
 import { useAuth } from '../../../context/AuthContext';
+import { useSettings } from '../../../context/SettingsContext';
+import { formatCurrency } from '../../../lib/utils';
 
 interface DomainPricing {
   id?: string;  // Firestore document ID (auto-generated)
@@ -16,14 +18,39 @@ interface DomainPricing {
   isActive: boolean;
 }
 
-export const DomainPricingManager: React.FC = () => {
+interface DomainPricingManagerProps {
+  setActiveTab?: (tab: any) => void;
+}
+
+export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setActiveTab }) => {
   const { user, isAdmin } = useAuth();
+  const { settings } = useSettings();
   const [pricing, setPricing] = useState<DomainPricing[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
-  const [editingDocId, setEditingDocId] = useState<string | null>(null); // tracks Firestore doc ID
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(15);
+
+  // Live order stats for Hub widget
+  const [liveOrders, setLiveOrders] = useState<any[]>([]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'orders'), (snap) => {
+      setLiveOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, () => {});
+    return () => unsub();
+  }, []);
+
+  const pendingOrders = useMemo(() =>
+    liveOrders.filter(o => o.status === 'pending' || o.paymentStatus === 'submitted'), [liveOrders]);
+  const todayRevenue = useMemo(() => {
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    return liveOrders
+      .filter(o => new Date(o.createdAt) >= start && o.status !== 'cancelled')
+      .reduce((sum, o) => sum + (o.total || 0), 0);
+  }, [liveOrders]);
+  const completedOrders = useMemo(() =>
+    liveOrders.filter(o => o.status === 'active' || o.status === 'completed' || o.status === 'delivered').length, [liveOrders]);
   const [globalSettings, setGlobalSettings] = useState({
     usdToBdtRate: 121,
     domainMarkupPercent: 15,
@@ -188,6 +215,86 @@ export const DomainPricingManager: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Domain & Cloud Server Hub Widget */}
+      <div className="bg-gradient-to-r from-[#0a1628] via-[#0f2444] to-[#0a1628] rounded-2xl p-6 text-white shadow-xl border border-blue-900/40 relative overflow-hidden">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold uppercase tracking-wider mb-2">
+              <Globe size={14} className="animate-spin text-blue-400" style={{ animationDuration: '8s' }} />
+              Live Hosting & Domain Operations
+            </div>
+            <h2 className="text-2xl font-bold text-white tracking-tight">Domain & Cloud Server Hub</h2>
+            <p className="text-xs text-blue-200/80 mt-1 max-w-lg">
+              Manage client domain registrations, WHM cPanel hosting provisioning, and bKash payment verification in real-time.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => setActiveTab?.('hostingOrders')}
+              className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-blue-600/30"
+            >
+              <Server size={16} /> View Orders
+            </button>
+            <button
+              onClick={() => setActiveTab?.('support_tickets')}
+              className="bg-white/10 hover:bg-white/20 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all border border-white/10"
+            >
+              <LifeBuoy size={16} /> Support
+            </button>
+          </div>
+        </div>
+
+        {/* Mini Stats Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6 pt-6 border-t border-blue-800/40">
+          <div
+            onClick={() => setActiveTab?.('hostingOrders')}
+            className={`p-4 rounded-xl cursor-pointer transition-all border ${
+              pendingOrders.length > 0
+                ? 'bg-amber-500/10 border-amber-400/40 hover:bg-amber-500/20'
+                : 'bg-white/5 border-white/10 hover:bg-white/10'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-blue-200">Pending Orders (Action Required)</span>
+              {pendingOrders.length > 0 ? (
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                </span>
+              ) : (
+                <CheckCircle2 size={16} className="text-emerald-400" />
+              )}
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className={`text-2xl font-black ${pendingOrders.length > 0 ? 'text-amber-400' : 'text-white'}`}>
+                {pendingOrders.length}
+              </span>
+              <span className="text-[11px] text-blue-300">
+                {pendingOrders.length > 0 ? 'Awaiting verification' : 'All cleared'}
+              </span>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+            <span className="text-xs font-semibold text-blue-200">Today's Sales Revenue</span>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-2xl font-black text-emerald-400">
+                {formatCurrency(todayRevenue, settings)}
+              </span>
+              <span className="text-[11px] text-blue-300">Today's collections</span>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+            <span className="text-xs font-semibold text-blue-200">Active Completed Orders</span>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-2xl font-black text-blue-400">{completedOrders}</span>
+              <span className="text-[11px] text-blue-300">Provisioned services</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Global Rate & Profit Margin Settings Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">

@@ -1,6 +1,7 @@
-import { HostingProvisionRequest, HostingProvisionResult, HostingUsageStats } from '../providers/hosting/IHostingProvider';
-import { ProviderError } from '../providers/hosting/CpanelHostingProvider';
-import { config } from '../config';
+import { HostingProvisionRequest, HostingProvisionResult, HostingUsageStats } from '../providers/hosting/IHostingProvider.js';
+import { ProviderError } from '../providers/hosting/CpanelHostingProvider.js';
+import { config } from '../config/index.js';
+import { getHostingProvider } from '../providers/providerFactory.js';
 
 export interface HostingSettings {
   hostingApiType: string;
@@ -10,17 +11,36 @@ export interface HostingSettings {
 }
 
 export async function getHostingSettings(): Promise<HostingSettings> {
+  let hostingApiType = process.env.WHM_API_TYPE || config.secrets.whmApiType || 'cpanel';
+  let hostingApiUrl = process.env.WHM_URL || process.env.WHM_API_URL || config.secrets.whmApiUrl || '';
+  let hostingApiKey = process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || config.secrets.whmApiToken || config.secrets.whmApiKey || '';
+  let hostingApiUsername = (process.env.WHM_USERNAME || config.secrets.whmUsername || 'root').trim();
+
+  if (!hostingApiKey || !hostingApiUrl) {
+    try {
+      const { getAdminDocument } = await import('../firebase/admin.js');
+      const hostingDoc = await getAdminDocument('settings', 'hostingApiConfig');
+      if (hostingDoc.exists && hostingDoc.data) {
+        if (!hostingApiKey && hostingDoc.data.hostingApiKey) hostingApiKey = hostingDoc.data.hostingApiKey;
+        if (!hostingApiUrl && hostingDoc.data.hostingApiUrl) hostingApiUrl = hostingDoc.data.hostingApiUrl;
+        if (hostingDoc.data.hostingApiType) hostingApiType = hostingDoc.data.hostingApiType;
+        if (hostingDoc.data.hostingApiUsername) hostingApiUsername = hostingDoc.data.hostingApiUsername;
+      }
+    } catch (e) {
+      console.warn('Error reading hostingApiConfig in hosting.ts:', e);
+    }
+  }
+
   return {
-    hostingApiType: process.env.WHM_API_TYPE || config.secrets.whmApiType || 'cpanel',
-    hostingApiUrl: process.env.WHM_URL || process.env.WHM_API_URL || config.secrets.whmApiUrl || '',
-    hostingApiKey: process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || config.secrets.whmApiToken || config.secrets.whmApiKey || '',
-    hostingApiUsername: (process.env.WHM_USERNAME || config.secrets.whmUsername || 'root').trim(),
+    hostingApiType,
+    hostingApiUrl,
+    hostingApiKey,
+    hostingApiUsername,
   };
 }
 
 export async function getHostingProviderWithSettings() {
   const settings = await getHostingSettings();
-  const { getHostingProvider } = await import('../providers/providerFactory');
   const provider = getHostingProvider({
     hostingApiType: settings.hostingApiType,
     hostingApiKey: settings.hostingApiKey,

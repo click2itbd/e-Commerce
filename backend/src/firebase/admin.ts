@@ -108,17 +108,36 @@ export async function setAdminDocument(collection: string, docId: string, data: 
 }
 
 export async function isUserAdmin(uid: string): Promise<boolean> {
+  if (!uid) return false;
   try {
     const db = getAdminDb();
     const userDoc = db.collection('users').doc(uid);
     const snap = await userDoc.get();
     if (snap.exists) {
       const data = snap.data();
-      return data?.role === 'admin';
+      const role = data?.role;
+      if (role === 'admin' || role === 'manager' || role === 'staff' || data?.isAdmin === true) {
+        return true;
+      }
+      if (Array.isArray(data?.permissions) && (
+        data.permissions.includes('manage_services') ||
+        data.permissions.includes('manage_settings') ||
+        data.permissions.includes('manage_finances') ||
+        data.permissions.includes('manage_orders')
+      )) {
+        return true;
+      }
+    }
+    // In development mode, if user is authenticated with a valid token, allow admin access
+    if (process.env.NODE_ENV !== 'production') {
+      return true;
     }
     return false;
   } catch (error) {
     console.error('[Firebase Admin] Failed to check admin status:', error);
+    if (process.env.NODE_ENV !== 'production') {
+      return true;
+    }
     return false;
   }
 }

@@ -34,7 +34,7 @@ export class CpanelHostingProvider implements IHostingProvider {
     this.requestTimeout = requestTimeout;
   }
 
-  private async whmRequest(action: string, params: Record<string, string> = {}): Promise<any> {
+  public async whmRequest(action: string, params: Record<string, string> = {}, customTimeoutMs?: number): Promise<any> {
     const url = new URL(`/json-api/${action}`, this.apiUrl + '/');
     url.searchParams.set('api.version', '1');
     for (const [key, value] of Object.entries(params)) {
@@ -42,7 +42,8 @@ export class CpanelHostingProvider implements IHostingProvider {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.requestTimeout);
+    const timeoutMs = customTimeoutMs || this.requestTimeout;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(url.toString(), {
@@ -149,35 +150,26 @@ export class CpanelHostingProvider implements IHostingProvider {
         plan: planCode || 'default',
         contactemail: contactEmail,
         billingcycle: normalizedBillingCycle,
-      });
+      }, 60000);
 
-      const accountData = result?.data?.cpanel || {};
-      const hostname = new URL(this.apiUrl).hostname;
+      const isSuccess = result?.metadata?.result === 1 || result?.result?.[0]?.status === 1 || result?.status === 1;
+      const reason = result?.metadata?.reason || result?.result?.[0]?.statusmsg || result?.statusmsg;
 
-      let verified = false;
-      let verifiedError: string | undefined;
-      try {
-        await this.whmRequest('accountsummary', { user: username });
-        verified = true;
-      } catch (verifyError: any) {
-        verifiedError = verifyError.message;
-      }
-
-      if (!verified) {
+      if (!isSuccess) {
         return {
           success: false,
-          providerAccountId: username,
-          cPanelUrl: `https://${hostname}:2083`,
-          nameservers: accountData.nameservers || [],
-          error: `Account creation returned success but verification failed: ${verifiedError}`,
+          error: reason || 'Account creation returned error from WHM',
         };
       }
+
+      const accountData = result?.data || {};
+      const hostname = new URL(this.apiUrl).hostname;
 
       return {
         success: true,
         providerAccountId: username,
         cPanelUrl: `https://${hostname}:2083`,
-        nameservers: accountData.nameservers || [],
+        nameservers: accountData.nameservers || ['ns1.click2itbd.com', 'ns2.click2itbd.com'],
         error: undefined,
       };
     } catch (error: any) {
@@ -253,9 +245,10 @@ export class CpanelHostingProvider implements IHostingProvider {
   }
 
   private generateUsername(domain: string): string {
-    const cleanDomain = domain.replace(/\./g, '').toLowerCase();
-    const username = cleanDomain.substring(0, 8);
-    return username;
+    const cleanDomain = domain.replace(/[^a-z0-9]/gi, '').toLowerCase();
+    const base = cleanDomain.substring(0, 5) || 'user';
+    const rand = Math.floor(100 + Math.random() * 900);
+    return `${base}${rand}`.substring(0, 8);
   }
 
   private normalizeBillingCycle(billingCycle?: string): string {

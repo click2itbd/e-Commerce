@@ -168,15 +168,25 @@ export class DynadotDomainProvider implements IDomainProvider {
         duration: String(request.years || 1),
       });
 
-      const regResult = data?.RegisterResponse?.RegisterResults?.[0];
-      const isSuccess = regResult?.Status?.toLowerCase() === 'success';
+      const resp = data?.RegisterResponse;
+      const regResult = resp?.RegisterResults?.[0];
+      const isSuccess = regResult?.Status?.toLowerCase() === 'success' || resp?.Status?.toLowerCase() === 'success';
+
+      let errorMessage: string | undefined;
+      if (!isSuccess) {
+        if (resp?.Status === 'insufficient_funds') {
+          errorMessage = 'Dynadot API: insufficient_funds (Please recharge your Dynadot account USD balance).';
+        } else {
+          errorMessage = regResult?.Message || resp?.Status || resp?.Error || 'Registration failed';
+        }
+      }
 
       return {
         success: isSuccess,
         domain: request.domain,
         registrationId: regResult?.RegistrationID,
         expiresAt: regResult?.ExpirationDate,
-        error: isSuccess ? undefined : (regResult?.Message || 'Registration failed'),
+        error: isSuccess ? undefined : errorMessage,
       };
     } catch (error: any) {
       throw error;

@@ -13,6 +13,7 @@ import DomainPricingSection from './hosting-sections/DomainPricingSection';
 import HostingPlansSection from './hosting-sections/HostingPlansSection';
 import WordPressCloudSection from './hosting-sections/WordPressCloudSection';
 import CloudVpsSection from './hosting-sections/CloudVpsSection';
+import CloudLinuxLicenseSection from './hosting-sections/CloudLinuxLicenseSection';
 import ServicesGrid from './hosting-sections/ServicesGrid';
 import MiddleBannerSection from './hosting-sections/MiddleBannerSection';
 import SecureServiceSection from './hosting-sections/SecureServiceSection';
@@ -99,10 +100,13 @@ export default function Hosting() {
       {/* 5. BDIX Turbo / Managed WordPress & WooCommerce Cloud Hosting */}
       <WordPressCloudSection />
 
-      {/* 6. High Performance KVM Cloud VPS & Dedicated Servers */}
-      <CloudVpsSection />
+      {/* 6. High Performance KVM Cloud VPS & Dedicated Servers (Hidden temporarily) */}
+      {/* <CloudVpsSection /> */}
 
-      {/* 7. Our Services — 3x2 grid */}
+      {/* 7. CloudLinux OS License Pricing & Comparison */}
+      <CloudLinuxLicenseSection />
+
+      {/* 8. Our Services — 3x2 grid */}
       <ServicesGrid
         services={services}
         onNavigate={navigate}

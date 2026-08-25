@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import { createApp } from './app';
-import { requireFirebaseAuth } from './middleware/firebaseAuth';
-import { config, validateEnvironment } from './config';
+import { createApp } from './app.js';
+import { requireFirebaseAuth } from './middleware/firebaseAuth.js';
+import { config, validateEnvironment } from './config/index.js';
 
 validateEnvironment();
 

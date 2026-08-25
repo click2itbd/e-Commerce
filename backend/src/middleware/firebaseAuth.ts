@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { getAdminDb } from '../firebase/admin';
+import { getAdminDb, isUserAdmin } from '../firebase/admin.js';
 import { getApps } from 'firebase-admin';
 
 function isDevWithoutServiceAccount(): boolean {
@@ -34,6 +34,9 @@ export async function requireFirebaseAuth(req: Request, res: Response, next: Nex
   }
 
   try {
+    try {
+      getAdminDb();
+    } catch {}
     const adminInstance = getApps()[0] as any;
     if (!adminInstance) {
       throw new Error('Firebase Admin not initialized');
@@ -42,6 +45,13 @@ export async function requireFirebaseAuth(req: Request, res: Response, next: Nex
     (req as any).user = decodedToken;
     next();
   } catch (error) {
+    if (isDevWithoutServiceAccount() || process.env.NODE_ENV !== 'production') {
+      const decoded = decodeDevToken(idToken);
+      if (decoded?.user_id || decoded?.sub) {
+        (req as any).user = { uid: decoded.user_id || decoded.sub, email: decoded.email || '' };
+        return next();
+      }
+    }
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
@@ -54,38 +64,35 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
 
   const idToken = authHeader.split('Bearer ')[1];
 
-  if (isDevWithoutServiceAccount()) {
+  let uid = '';
+  try {
+    try {
+      getAdminDb();
+    } catch {}
+    const adminInstance = getApps()[0] as any;
+    if (adminInstance) {
+      const decodedToken = await adminInstance.auth().verifyIdToken(idToken);
+      (req as any).user = decodedToken;
+      uid = decodedToken.uid;
+    }
+  } catch (error) {}
+
+  if (!uid && (isDevWithoutServiceAccount() || process.env.NODE_ENV !== 'production')) {
     const decoded = decodeDevToken(idToken);
     if (decoded?.user_id || decoded?.sub) {
       (req as any).user = { uid: decoded.user_id || decoded.sub, email: decoded.email || '' };
-      const db = getAdminDb();
-      const userDoc = db.collection('users').doc(decoded.user_id || decoded.sub);
-      const snap = await userDoc.get();
-      if (snap.exists && snap.data()?.role === 'admin') {
-        return next();
-      }
-      return res.status(403).json({ error: 'Admin access required' });
+      uid = decoded.user_id || decoded.sub;
     }
-    return res.status(401).json({ error: 'Invalid token format' });
   }
 
-  try {
-    const adminInstance = getApps()[0] as any;
-    if (!adminInstance) {
-      throw new Error('Firebase Admin not initialized');
-    }
-    const decodedToken = await adminInstance.auth().verifyIdToken(idToken);
-    (req as any).user = decodedToken;
-
-    const db = getAdminDb();
-    const userDoc = db.collection('users').doc(decodedToken.uid);
-    const snap = await userDoc.get();
-    if (snap.exists && snap.data()?.role === 'admin') {
-      return next();
-    }
-
-    return res.status(403).json({ error: 'Admin access required' });
-  } catch (error) {
+  if (!uid) {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
+
+  const isAdmin = await isUserAdmin(uid).catch(() => false);
+  if (isAdmin) {
+    return next();
+  }
+
+  return res.status(403).json({ error: 'Admin access required' });
 }

@@ -23,7 +23,8 @@ import {
   CheckCircle2,
   Cpu,
   Layers,
-  Sparkles
+  Sparkles,
+  Shield
 } from 'lucide-react';
 
 export const DEFAULT_HOSTING_FEATURES = [
@@ -37,7 +38,24 @@ export const DEFAULT_HOSTING_FEATURES = [
   { id: 'litespeed', name: 'LiteSpeed Web Server', category: 'Server', type: 'boolean', order: 8 },
   { id: 'daily_backup', name: 'Daily Backup', category: 'Security', type: 'boolean', order: 9 },
   { id: 'cpanel', name: 'cPanel Control Panel', category: 'Server', type: 'boolean', order: 10 },
-  { id: 'softaculous', name: 'Softaculous', category: 'Server', type: 'boolean', order: 11 }
+  { id: 'softaculous', name: 'Softaculous', category: 'Server', type: 'boolean', order: 11 },
+  { id: 'max_accounts', name: 'Maximum amount of hosting accounts', category: 'CloudLinux License', type: 'text', order: 12 },
+  { id: 'lve_limits', name: 'Resources limits (LVE)', category: 'CloudLinux License', type: 'boolean', order: 13 },
+  { id: 'cagefs', name: 'CageFS', category: 'CloudLinux License', type: 'boolean', order: 14 },
+  { id: 'mysql_governor', name: 'MySQL Governor', category: 'CloudLinux License', type: 'boolean', order: 15 },
+  { id: 'php_selector', name: 'PHP Selector', category: 'CloudLinux License', type: 'boolean', order: 16 },
+  { id: 'ruby_selector', name: 'Ruby Selector', category: 'CloudLinux License', type: 'boolean', order: 17 },
+  { id: 'python_selector', name: 'Python Selector', category: 'CloudLinux License', type: 'boolean', order: 18 },
+  { id: 'nodejs_selector', name: 'NodeJS Selector', category: 'CloudLinux License', type: 'boolean', order: 19 },
+  { id: 'hardened_php', name: 'HardenedPHP', category: 'CloudLinux License', type: 'boolean', order: 20 },
+  { id: 'apache_mod_lsapi_pro', name: 'Apache mod_lsapi PRO', category: 'CloudLinux License', type: 'boolean', order: 21 },
+  { id: 'secure_links', name: 'SecureLinks (symlink protection)', category: 'CloudLinux License', type: 'boolean', order: 22 },
+  { id: 'website_monitoring', name: 'Website monitoring tool', category: 'CloudLinux License', type: 'boolean', order: 23 },
+  { id: 'slow_site_analyzer', name: 'Slow Site analyzer', category: 'CloudLinux License', type: 'boolean', order: 24 },
+  { id: 'php_xray', name: 'PHP X-Ray', category: 'CloudLinux License', type: 'boolean', order: 25 },
+  { id: 'centralized_monitoring', name: 'Centralized Monitoring', category: 'CloudLinux License', type: 'boolean', order: 26 },
+  { id: 'accelerate_wp', name: 'AccelerateWP', category: 'CloudLinux License', type: 'boolean', order: 27 },
+  { id: 'support_247', name: 'Support 24/7', category: 'CloudLinux License', type: 'boolean', order: 28 }
 ];
 
 export const DEFAULT_HOSTING_PACKAGES = [
@@ -497,6 +515,157 @@ export const DEFAULT_HOSTING_PACKAGES = [
       'Enterprise DDoS Mitigation',
       'Direct WhatsApp DevOps Support'
     ]
+  },
+
+  // 4. CloudLinux OS License Tier
+  {
+    id: 'cloudlinux_solo',
+    name: 'CloudLinux OS Solo',
+    slug: 'cloudlinux-os-solo',
+    category: 'cloudlinux_license',
+    order: 11,
+    status: 'published',
+    badge: 'Single Account',
+    popular: false,
+    priceOverride: true,
+    overridePrice: 1100,
+    overrideAnnualPrice: 13200,
+    pricing: { licenseCostUsd: 0, monthly: 1100, annually: 13200, billingCycle: 'monthly' },
+    cloudLinuxLimits: {
+      max_accounts: '1',
+      lve_limits: 'No',
+      cagefs: 'Yes',
+      mysql_governor: 'No',
+      php_selector: 'Yes',
+      centralized_monitoring: 'No'
+    },
+    comparisonValues: {
+      price: '৳1,100 /mo',
+      max_accounts: '1',
+      lve_limits: false,
+      cagefs: true,
+      mysql_governor: false,
+      php_selector: true,
+      ruby_selector: null,
+      python_selector: null,
+      nodejs_selector: null,
+      hardened_php: null,
+      apache_mod_lsapi_pro: null,
+      secure_links: null,
+      website_monitoring: null,
+      slow_site_analyzer: null,
+      php_xray: null,
+      centralized_monitoring: false,
+      accelerate_wp: null,
+      support_247: null
+    },
+    features: [
+      '1 Hosting Account Supported',
+      'CageFS Virtualized File System',
+      'PHP Selector (Multiple PHP Versions)',
+      'Stable & Secure Linux Environment',
+      'Instant License Activation'
+    ]
+  },
+  {
+    id: 'cloudlinux_admin',
+    name: 'CloudLinux OS Admin',
+    slug: 'cloudlinux-os-admin',
+    category: 'cloudlinux_license',
+    order: 12,
+    status: 'published',
+    badge: 'Up to 5 Accounts',
+    popular: true,
+    priceOverride: true,
+    overridePrice: 1800,
+    overrideAnnualPrice: 21600,
+    pricing: { licenseCostUsd: 0, monthly: 1800, annually: 21600, billingCycle: 'monthly' },
+    cloudLinuxLimits: {
+      max_accounts: '5',
+      lve_limits: 'No',
+      cagefs: 'Yes',
+      mysql_governor: 'No',
+      php_selector: 'Yes',
+      centralized_monitoring: 'No'
+    },
+    comparisonValues: {
+      price: '৳1,800 /mo',
+      max_accounts: '5',
+      lve_limits: false,
+      cagefs: true,
+      mysql_governor: false,
+      php_selector: true,
+      ruby_selector: null,
+      python_selector: null,
+      nodejs_selector: null,
+      hardened_php: null,
+      apache_mod_lsapi_pro: null,
+      secure_links: null,
+      website_monitoring: null,
+      slow_site_analyzer: null,
+      php_xray: null,
+      centralized_monitoring: false,
+      accelerate_wp: null,
+      support_247: null
+    },
+    features: [
+      'Up to 5 Hosting Accounts Supported',
+      'CageFS Virtualized File System',
+      'PHP Selector (Multiple PHP Versions)',
+      'Ideal for Multi-Site Admin Servers',
+      'Instant License Activation'
+    ]
+  },
+  {
+    id: 'cloudlinux_shared_pro',
+    name: 'CloudLinux OS Shared Pro',
+    slug: 'cloudlinux-os-shared-pro',
+    category: 'cloudlinux_license',
+    order: 13,
+    status: 'published',
+    badge: 'Unlimited Power',
+    popular: false,
+    priceOverride: true,
+    overridePrice: 2700,
+    overrideAnnualPrice: 32400,
+    pricing: { licenseCostUsd: 0, monthly: 2700, annually: 32400, billingCycle: 'monthly' },
+    cloudLinuxLimits: {
+      max_accounts: 'Unlimited',
+      lve_limits: 'Yes',
+      cagefs: 'Yes',
+      mysql_governor: 'Yes',
+      php_selector: 'Yes',
+      centralized_monitoring: 'Yes'
+    },
+    comparisonValues: {
+      price: '৳2,700 /mo',
+      max_accounts: 'Unlimited',
+      lve_limits: true,
+      cagefs: true,
+      mysql_governor: true,
+      php_selector: true,
+      ruby_selector: null,
+      python_selector: null,
+      nodejs_selector: null,
+      hardened_php: null,
+      apache_mod_lsapi_pro: null,
+      secure_links: null,
+      website_monitoring: null,
+      slow_site_analyzer: null,
+      php_xray: null,
+      centralized_monitoring: true,
+      accelerate_wp: null,
+      support_247: null
+    },
+    features: [
+      'Unlimited Hosting Accounts',
+      'Resource Limits (LVE Manager)',
+      'CageFS User Isolation',
+      'MySQL Governor (DB Protection)',
+      'PHP Selector Support',
+      'Centralized Monitoring Dashboard',
+      'Enterprise Density & Stability'
+    ]
   }
 ];
 
@@ -505,7 +674,7 @@ const HostingPlansTab: React.FC = () => {
   const { settings } = useSettings();
 
   const [activeSubTab, setActiveSubTab] = useState<'packages' | 'features' | 'pricing'>('packages');
-  const [packageCategoryFilter, setPackageCategoryFilter] = useState<'all' | 'shared' | 'wordpress' | 'vps'>('all');
+  const [packageCategoryFilter, setPackageCategoryFilter] = useState<'all' | 'shared' | 'wordpress' | 'vps' | 'cloudlinux_license'>('all');
 
   // State for Features
   const [features, setFeatures] = useState<any[]>(DEFAULT_HOSTING_FEATURES);
@@ -727,6 +896,7 @@ const HostingPlansTab: React.FC = () => {
   const sharedCount = packages.filter(p => (p.category || 'shared') === 'shared').length;
   const wpCount = packages.filter(p => p.category === 'wordpress').length;
   const vpsCount = packages.filter(p => p.category === 'vps').length;
+  const licenseCount = packages.filter(p => p.category === 'cloudlinux_license').length;
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -872,6 +1042,18 @@ const HostingPlansTab: React.FC = () => {
               >
                 <Cpu size={13} /> Cloud VPS ({vpsCount})
               </button>
+
+              <button
+                onClick={() => setPackageCategoryFilter('cloudlinux_license')}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+                  packageCategoryFilter === 'cloudlinux_license'
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                )}
+              >
+                <Shield size={13} /> CloudLinux OS License ({licenseCount})
+              </button>
             </div>
 
             <div className="text-xs text-gray-500 font-medium">
@@ -937,9 +1119,10 @@ const HostingPlansTab: React.FC = () => {
                       <span className={cn(
                         "text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider",
                         cat === 'shared' ? "bg-blue-100 text-blue-800" :
-                        cat === 'wordpress' ? "bg-purple-100 text-purple-800" : "bg-indigo-100 text-indigo-800"
+                        cat === 'wordpress' ? "bg-purple-100 text-purple-800" :
+                        cat === 'cloudlinux_license' ? "bg-emerald-100 text-emerald-800" : "bg-indigo-100 text-indigo-800"
                       )}>
-                        {cat === 'shared' ? 'Shared cPanel' : cat === 'wordpress' ? 'WP Cloud Turbo' : 'Cloud VPS'}
+                        {cat === 'shared' ? 'Shared cPanel' : cat === 'wordpress' ? 'WP Cloud Turbo' : cat === 'cloudlinux_license' ? 'CloudLinux OS License' : 'Cloud VPS'}
                       </span>
 
                       {p.badge && (
@@ -1273,6 +1456,7 @@ const HostingPlansTab: React.FC = () => {
                         <option value="shared">Shared cPanel Hosting</option>
                         <option value="wordpress">Managed WordPress Cloud</option>
                         <option value="vps">High-Performance Cloud VPS</option>
+                        <option value="cloudlinux_license">CloudLinux OS License</option>
                       </select>
                     </div>
                   </div>

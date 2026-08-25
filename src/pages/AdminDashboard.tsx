@@ -3382,7 +3382,7 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
         ) : activeTab === 'activeHostingAccounts' && (hasPermission('manage_services') || isAdmin) ? (
           <ActiveHostingAccountsTab />
         ) : activeTab === 'domainPricing' && (hasPermission('manage_settings') || isAdmin) ? (
-          <DomainPricingManagerTab />
+          <DomainPricingManagerTab setActiveTab={setActiveTab} />
         ) : activeTab === 'domainOffers' ? (
           <DomainOffersTab />
         ) : activeTab === 'domainRenewals' ? (
