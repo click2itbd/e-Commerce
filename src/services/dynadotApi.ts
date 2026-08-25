@@ -26,6 +26,8 @@ function setCache<T>(key: string, value: T): void {
 
 const inFlightRequests = new Map<string, Promise<any>>();
 
+import { auth } from '../firebase';
+
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const cleanBase = API_BASE_URL.replace(/\/+$/, '');
   let cleanPath = path.startsWith('/') ? path : `/${path}`;
@@ -35,13 +37,23 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   }
 
   const url = `${cleanBase}${cleanPath}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+
+  if (!headers['Authorization'] && typeof window !== 'undefined' && auth.currentUser) {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    } catch {
+      // ignore
+    }
+  }
   
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -218,16 +230,20 @@ export const createDomainRenewalOrder = async (params: {
       headers['X-Idempotency-Key'] = params.idempotencyKey;
     }
 
-    const response = await apiRequest<{ success: boolean; data: CreateRenewalOrderResult }>('/api/domains/renewal-order', {
+    const response = await apiRequest<{ success: boolean; data?: any; orderId?: string; order?: any; error?: string }>('/api/domains/renewal-order', {
       method: 'POST',
       headers,
       body: JSON.stringify(params),
     });
     
     if (response.success) {
-      return response.data;
+      return {
+        success: true,
+        orderId: response.orderId || response.data?.orderId,
+        order: response.order || response.data?.order || response.data,
+      };
     } else {
-      throw new Error(response.data?.error || 'Failed to create renewal order');
+      throw new Error(response.error || response.data?.error || 'Failed to create renewal order');
     }
   } catch (error: any) {
     console.error('Create renewal order error:', error);
@@ -258,16 +274,20 @@ export const createDomainTransferOrder = async (params: {
       headers['X-Idempotency-Key'] = params.idempotencyKey;
     }
 
-    const response = await apiRequest<{ success: boolean; data: CreateTransferOrderResult }>('/api/domains/transfer', {
+    const response = await apiRequest<{ success: boolean; data?: any; orderId?: string; order?: any; error?: string }>('/api/domains/transfer', {
       method: 'POST',
       headers,
       body: JSON.stringify(params),
     });
     
     if (response.success) {
-      return response.data;
+      return {
+        success: true,
+        orderId: response.orderId || response.data?.orderId,
+        order: response.order || response.data?.order || response.data,
+      };
     } else {
-      throw new Error(response.data?.error || 'Failed to create transfer order');
+      throw new Error(response.error || response.data?.error || 'Failed to create transfer order');
     }
   } catch (error: any) {
     console.error('Create transfer order error:', error);

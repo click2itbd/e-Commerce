@@ -25,6 +25,8 @@ export interface DomainPricing {
 
 const API_BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '');
 
+import { auth } from '../firebase';
+
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const cleanBase = API_BASE_URL.replace(/\/+$/, '');
   let cleanPath = path.startsWith('/') ? path : `/${path}`;
@@ -34,12 +36,23 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   }
 
   const url = `${cleanBase}${cleanPath}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> || {}),
+  };
+
+  if (!headers['Authorization'] && typeof window !== 'undefined' && auth.currentUser) {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    } catch {
+      // ignore
+    }
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
+    headers,
   });
 
   if (!response.ok) {

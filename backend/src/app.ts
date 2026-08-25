@@ -176,12 +176,12 @@ export function createApp(): Express {
   apiRouter.use("/public", publicRouter);
   apiRouter.use("/domains", domainRouter);
   apiRouter.use("/hosting", hostingRouter);
-  apiRouter.use("/send-email", emailRouter);
   apiRouter.use("/orders", ordersRouter);
   apiRouter.use("/admin", adminRouter);
   apiRouter.use("/ai", aiRouter);
   apiRouter.use("/webhook", webhookRouter);
-  apiRouter.use("/send-whatsapp-campaign", campaignRouter);
+  apiRouter.use("/", emailRouter);
+  apiRouter.use("/", campaignRouter);
 
   app.use("/api", apiRouter);
   app.use("/", apiRouter);

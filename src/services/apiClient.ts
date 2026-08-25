@@ -1,3 +1,5 @@
+import { auth } from '../firebase';
+
 const API_BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '');
 
 async function apiRequest<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
@@ -13,8 +15,18 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, token?: st
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
   };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+
+  let authToken = token;
+  if (!authToken && typeof window !== 'undefined' && auth.currentUser) {
+    try {
+      authToken = await auth.currentUser.getIdToken();
+    } catch {
+      // ignore
+    }
+  }
+
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
   }
 
   const response = await fetch(url, {
