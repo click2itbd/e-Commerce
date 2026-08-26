@@ -155,13 +155,16 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             servicesRevenue += itemPrice;
           } else {
             hardwareRevenue += itemPrice;
-            const knownCost = productCostMap.get(item.id) || Number((item as any).costPrice) || Number((item as any).purchasePrice) || (itemPrice * 0.82);
+            const savedCostPrice = (item as any).costPrice;
+            const knownCost = (savedCostPrice !== undefined && savedCostPrice !== null && savedCostPrice > 0)
+              ? Number(savedCostPrice)
+              : (productCostMap.get(item.id) || Number((item as any).purchasePrice) || (itemPrice * 0.82));
             hardwareCOGS += knownCost * (Number(item.quantity) || 1);
           }
         });
       } else {
         hardwareRevenue += orderTotal;
-        hardwareCOGS += orderTotal * 0.82;
+        hardwareCOGS += (order as any).totalCost || (orderTotal * 0.82);
       }
     });
 
@@ -253,11 +256,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             } else if (iType === 'domain' || iType === 'domain_renewal') {
               cost += 1150 * iQty;
             } else {
-              cost += (productCostMap.get(i.id) || (Number(i.price) * 0.8)) * iQty;
+              const savedCostPrice = (i as any).costPrice;
+              const knownCost = (savedCostPrice !== undefined && savedCostPrice !== null && savedCostPrice > 0)
+                ? Number(savedCostPrice)
+                : (productCostMap.get(i.id) || Number(i.price) * 0.8);
+              cost += knownCost * iQty;
             }
           });
         } else {
-          cost = rev * 0.8;
+          cost = (o as any).totalCost || (rev * 0.8);
         }
         entry.cogs += cost;
       }
@@ -424,7 +431,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         {/* Net Profit */}
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Net Profit (আসল লাভ)</span>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Net Profit</span>
             <div className={cn(
               "p-2 rounded-xl",
               financialMetrics.netProfit >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"

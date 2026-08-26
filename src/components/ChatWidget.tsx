@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
   Bot, 
   MessageCircle, 
@@ -38,6 +39,7 @@ const starterPrompts = [
 ];
 
 export const ChatWidget: React.FC = () => {
+  const location = useLocation();
   const { user } = useAuth();
   const { settings } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
@@ -53,6 +55,11 @@ export const ChatWidget: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Hide widget on Admin Panel and POS routes
+  if (location.pathname.startsWith('/admin') || location.pathname.startsWith('/pos')) {
+    return null;
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

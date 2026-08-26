@@ -13,7 +13,15 @@ import {
   FileText,
 } from 'lucide-react';
 
-const Vendors: React.FC = () => {
+interface VendorsProps {
+  setSelectedLedgerEntity?: (entity: { id: string; name: string; type: 'customer' | 'vendor' }) => void;
+  setActiveTab?: (tab: string) => void;
+}
+
+const Vendors: React.FC<VendorsProps> = ({
+  setSelectedLedgerEntity,
+  setActiveTab,
+}) => {
   const { isAdmin, hasPermission } = useAuth();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [isAddingVendor, setIsAddingVendor] = useState(false);
@@ -80,6 +88,15 @@ const Vendors: React.FC = () => {
     }
   };
 
+  const handleViewLedger = (vendor: Vendor) => {
+    if (setSelectedLedgerEntity) {
+      setSelectedLedgerEntity({ id: vendor.id, name: vendor.name, type: 'vendor' });
+    }
+    if (setActiveTab) {
+      setActiveTab('ledger');
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="p-6 border-b border-gray-100 flex items-center justify-between">
@@ -100,7 +117,7 @@ const Vendors: React.FC = () => {
         <form onSubmit={handleSaveVendor} className="p-6 bg-gray-50 border-b border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Vendor Name</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Company / Vendor Name</label>
               <input
                 type="text"
                 required
@@ -120,17 +137,6 @@ const Vendors: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
-              <input
-                type="text"
-                value={vendorFormData.category}
-                onChange={e => setVendorFormData({ ...vendorFormData, category: e.target.value })}
-                className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-              />
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone</label>
               <input
                 type="tel"
@@ -139,6 +145,21 @@ const Vendors: React.FC = () => {
                 onChange={e => setVendorFormData({ ...vendorFormData, phone: e.target.value })}
                 className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
               />
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
+              <select
+                value={vendorFormData.category}
+                onChange={e => setVendorFormData({ ...vendorFormData, category: e.target.value })}
+                className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
+              >
+                <option value="General">General</option>
+                <option value="Hardware">Hardware</option>
+                <option value="Software">Software</option>
+                <option value="Accessories">Accessories</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Address</label>
@@ -173,7 +194,7 @@ const Vendors: React.FC = () => {
         <table className="w-full text-left">
           <thead className="bg-gray-50 text-xs font-bold text-gray-500 uppercase">
             <tr>
-              <th className="px-6 py-4">Name</th>
+              <th className="px-6 py-4">Vendor Name</th>
               <th className="px-6 py-4">Category</th>
               <th className="px-6 py-4">Contact</th>
               <th className="px-6 py-4 text-right">Actions</th>
@@ -184,7 +205,7 @@ const Vendors: React.FC = () => {
               <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4">
                   <button
-                    onClick={() => console.log('Vendor ledger:', vendor.id, vendor.name)}
+                    onClick={() => handleViewLedger(vendor)}
                     className="font-medium text-sm text-[#EF4444] hover:underline text-left"
                   >
                     {vendor.name}
@@ -200,7 +221,7 @@ const Vendors: React.FC = () => {
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <button
-                      onClick={() => console.log('Vendor ledger:', vendor.id, vendor.name)}
+                      onClick={() => handleViewLedger(vendor)}
                       className="p-2 text-[#EF4444] hover:bg-red-50 rounded-md transition-all"
                       title="View Ledger"
                     >

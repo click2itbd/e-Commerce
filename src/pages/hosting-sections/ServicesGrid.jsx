@@ -15,7 +15,7 @@ export default function ServicesGrid({ services = [], onNavigate, theme = 'dark'
   const isLight = theme === 'light';
 
   return (
-    <div className="container mx-auto pb-8">
+    <div className="container mx-auto py-16">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
         {displayServices.slice(0, 6).map((service, idx) => {
           const Icon = service.icon || Server;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, getDocs, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, addDoc, deleteDoc, doc, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Order, Product, Customer, CartItem } from '../types';
 import { formatCurrency } from '../lib/utils';

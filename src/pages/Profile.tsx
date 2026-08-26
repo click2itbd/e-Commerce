@@ -107,7 +107,11 @@ export const Profile: React.FC = () => {
         );
         const snap = await getDocs(q);
         let data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        data.sort((a: any, b: any) => {
+          const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+          const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
         setOffers(data);
       } catch (err) {
         console.error('Error fetching offers:', err);
@@ -126,11 +130,23 @@ export const Profile: React.FC = () => {
       try {
         const q = query(
           collection(db, 'orders'),
-          where('userId', '==', user.uid),
-          orderBy('createdAt', 'desc')
+          where('userId', '==', user.uid)
         );
         const snap = await getDocs(q);
-        setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        let fetchedOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        // Client-side sort to avoid requiring a composite index in Firestore
+        fetchedOrders.sort((a: any, b: any) => {
+          const getOrderDate = (val: any) => {
+            if (!val) return 0;
+            if (val.toDate) return val.toDate().getTime();
+            if (val.seconds) return val.seconds * 1000;
+            return new Date(val).getTime();
+          };
+          return getOrderDate(b.createdAt) - getOrderDate(a.createdAt);
+        });
+        
+        setOrders(fetchedOrders);
       } catch (err) {
         console.error('Error fetching orders:', err);
       } finally {
@@ -502,7 +518,15 @@ export const Profile: React.FC = () => {
                   const isCancelled = order.status === 'cancelled' || order.paymentStatus === 'cancelled';
                   const isPending = !isPaid && !isFailed && !isCancelled;
                   const isExpanded = expandedOrderId === order.id;
-                  const date = new Date(order.createdAt).toLocaleDateString('en-BD', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                  
+                  const getOrderDate = (val: any) => {
+                    if (!val) return new Date();
+                    if (val.toDate) return val.toDate();
+                    if (val.seconds) return new Date(val.seconds * 1000);
+                    return new Date(val);
+                  };
+                  
+                  const date = getOrderDate(order.createdAt).toLocaleDateString('en-BD', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
                   return (
                     <div key={order.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all">
@@ -523,13 +547,21 @@ export const Profile: React.FC = () => {
                             <div className="text-xs text-gray-400 mt-0.5">{date}</div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 ml-auto">
-                          <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                        <div className="flex flex-wrap items-center gap-2 ml-auto justify-end">
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                            order.status === 'delivered' || order.status === 'completed' || order.status === 'active' ? 'bg-green-100 text-green-700' :
+                            order.status === 'processing' || order.status === 'shipped' ? 'bg-blue-100 text-blue-700' :
+                            order.status === 'cancelled' ? 'bg-gray-100 text-gray-600' :
+                            'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            📦 {order.status || 'pending'}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
                             isPaid ? 'bg-green-100 text-green-700' : isFailed ? 'bg-red-100 text-red-700' : isCancelled ? 'bg-gray-100 text-gray-600' : 'bg-yellow-100 text-yellow-700'
                           }`}>
-                            {isPaid ? '✓ Paid' : isFailed ? '✗ Failed' : isCancelled ? '✗ Cancelled' : '⏳ Pending'}
+                            💳 {isPaid ? 'Paid' : isFailed ? 'Failed' : isCancelled ? 'Cancelled' : 'Pending'}
                           </span>
-                          <span className="font-black text-gray-900 text-lg">{formatCurrency(order.total)}</span>
+                          <span className="font-black text-gray-900 text-lg ml-2">{formatCurrency(order.total)}</span>
                           <ChevronRight size={16} className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         </div>
                       </button>

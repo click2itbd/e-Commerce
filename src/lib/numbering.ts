@@ -1,7 +1,7 @@
 import { doc, runTransaction, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-export async function generateDocumentNumber(type: 'INV' | 'QUO' | 'CHA' | 'REC'): Promise<string> {
+export async function generateDocumentNumber(type: 'INV' | 'QUO' | 'CHA' | 'REC' | 'SR' | 'PR'): Promise<string> {
   const counterRef = doc(db, 'counters', type);
 
   return await runTransaction(db, async (transaction) => {

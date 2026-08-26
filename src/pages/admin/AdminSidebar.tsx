@@ -67,27 +67,17 @@ interface AdminSidebarProps {
   setActiveTab: (tab: string) => void;
   isAdmin: boolean;
   isManager: boolean;
+  isStaff?: boolean;
   hasPermission: (permission: string) => boolean;
   navigate: (path: string) => void;
 }
-
-/**
- * NOTE: The following sidebar items currently have no dedicated render logic
- * in AdminDashboard.tsx and will show a blank/fallback state until implemented
- * in a later phase:
- *   - Deposit/Withdraw (deposits_withdrawals)
- *   - Account Balance (account_balance)
- *   - Account Statement (account_statement)
- *   - Balance Sheet (balance_sheet)
- *   - Trial Balance (trial_balance)
- *   - Transaction History (transaction_history)
- */
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   activeTab,
   setActiveTab,
   isAdmin,
   isManager,
+  isStaff,
   hasPermission,
   navigate,
 }) => {
@@ -242,105 +232,112 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
 
         {/* Marketing */}
-        <div className="px-4 mb-2">
-          <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Marketing</div>
-          {hasPermission('manage_marketing') && (
-            <button onClick={() => setActiveTab('campaigns')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'campaigns' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <Tag size={16} className={activeTab === 'campaigns' ? "text-blue-600" : "text-gray-400"} /> Marketing
-            </button>
-          )}
-          {hasPermission('manage_marketing') && (
-            <button onClick={() => setActiveTab('discountCodes')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'discountCodes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <Percent size={16} className={activeTab === 'discountCodes' ? "text-blue-600" : "text-gray-400"} /> Discounts
-            </button>
-          )}
-        </div>
+        {(!isStaff || isAdmin || isManager) && (
+          <div className="px-4 mb-2">
+            <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Marketing</div>
+            {hasPermission('manage_marketing') && (
+              <button onClick={() => setActiveTab('campaigns')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'campaigns' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Tag size={16} className={activeTab === 'campaigns' ? "text-blue-600" : "text-gray-400"} /> Marketing
+              </button>
+            )}
+            {hasPermission('manage_marketing') && (
+              <button onClick={() => setActiveTab('discountCodes')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'discountCodes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Percent size={16} className={activeTab === 'discountCodes' ? "text-blue-600" : "text-gray-400"} /> Discounts
+              </button>
+            )}
+          </div>
+        )}
 
         {/* HR */}
-        <div className="px-4 mb-2">
-          <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Human Resource</div>
-          {hasPermission('manage_users') && (
-            <button onClick={() => setActiveTab('users')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'users' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <Users size={16} className={activeTab === 'users' ? "text-blue-600" : "text-gray-400"} /> App Access
-            </button>
-          )}
-          {hasPermission('manage_hr') && (
-            <>
-              <button onClick={() => setActiveTab('employees')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'employees' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                <Briefcase size={16} className={activeTab === 'employees' ? "text-blue-600" : "text-gray-400"} /> Employees
+        {(!isStaff || isAdmin || isManager) && (
+          <div className="px-4 mb-2">
+            <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Human Resource</div>
+            {hasPermission('manage_users') && (
+              <button onClick={() => setActiveTab('users')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'users' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Users size={16} className={activeTab === 'users' ? "text-blue-600" : "text-gray-400"} /> App Access
               </button>
-              <button onClick={() => setActiveTab('leave')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'leave' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                <CheckCircle size={16} className={activeTab === 'leave' ? "text-blue-600" : "text-gray-400"} /> Leave
-              </button>
-              <button onClick={() => setActiveTab('salary')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'salary' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                <CreditCard size={16} className={activeTab === 'salary' ? "text-blue-600" : "text-gray-400"} /> Salary Overview
-              </button>
-            </>
-          )}
-        </div>
+            )}
+            {hasPermission('manage_hr') && (
+              <>
+                <button onClick={() => setActiveTab('employees')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'employees' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                  <Briefcase size={16} className={activeTab === 'employees' ? "text-blue-600" : "text-gray-400"} /> Employees
+                </button>
+                <button onClick={() => setActiveTab('leave')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'leave' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                  <CheckCircle size={16} className={activeTab === 'leave' ? "text-blue-600" : "text-gray-400"} /> Leave
+                </button>
+                <button onClick={() => setActiveTab('salary')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'salary' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                  <CreditCard size={16} className={activeTab === 'salary' ? "text-blue-600" : "text-gray-400"} /> Salary Overview
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
-        <div className="px-4 mb-6">
-          <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Other</div>
-          {hasPermission('manage_settings') && (
-            <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Site Menus
+        {/* Other */}
+        {(!isStaff || isAdmin || isManager) && (
+          <div className="px-4 mb-6">
+            <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Other</div>
+            {hasPermission('manage_settings') && (
+              <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Site Menus
+              </button>
+            )}
+            <button onClick={() => setActiveTab('crm')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'crm' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+              <Users size={16} className={activeTab === 'crm' ? "text-blue-600" : "text-gray-400"} /> CRM System
             </button>
-          )}
-          <button onClick={() => setActiveTab('crm')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'crm' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-            <Users size={16} className={activeTab === 'crm' ? "text-blue-600" : "text-gray-400"} /> CRM System
-          </button>
-          <button onClick={() => setActiveTab('tasks')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'tasks' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-            <CheckSquare size={16} className={activeTab === 'tasks' ? "text-blue-600" : "text-gray-400"} /> To-Do List
-          </button>
-          <button onClick={() => setActiveTab('support_tickets')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'support_tickets' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-            <LifeBuoy size={16} className={activeTab === 'support_tickets' ? "text-blue-600" : "text-gray-400"} /> Support Tickets
-          </button>
-          {hasPermission('manage_services') && (
-            <button onClick={() => setActiveTab('hostingPlans')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <Server size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} /> Hosting Plans
+            <button onClick={() => setActiveTab('tasks')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'tasks' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+              <CheckSquare size={16} className={activeTab === 'tasks' ? "text-blue-600" : "text-gray-400"} /> To-Do List
             </button>
-          )}
-          {hasPermission('manage_services') && (
-            <button onClick={() => setActiveTab('hostingServices')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingServices' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <Server size={16} className={activeTab === 'hostingServices' ? "text-blue-600" : "text-gray-400"} /> Hosting Services
+            <button onClick={() => setActiveTab('support_tickets')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'support_tickets' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+              <LifeBuoy size={16} className={activeTab === 'support_tickets' ? "text-blue-600" : "text-gray-400"} /> Support Tickets
             </button>
-          )}
-          {isAdmin && (
-            <button onClick={() => setActiveTab('hosting_api_settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hosting_api_settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <Plug size={16} className={activeTab === 'hosting_api_settings' ? "text-blue-600" : "text-gray-400"} /> API Settings
-            </button>
-          )}
-          {hasPermission('manage_services') && (
-            <button onClick={() => setActiveTab('domainOrders')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'domainOrders' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <Server size={16} className={activeTab === 'domainOrders' ? "text-blue-600" : "text-gray-400"} /> Domain Orders
-            </button>
-          )}
-          {(isAdmin || isManager) && (
-            <button onClick={() => setActiveTab('provisioningLogs')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'provisioningLogs' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <Server size={16} className={activeTab === 'provisioningLogs' ? "text-blue-600" : "text-gray-400"} /> Provisioning Logs
-            </button>
-          )}
-          {hasPermission('manage_services') && (
-            <button onClick={() => setActiveTab('hostingAccounts')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingAccounts' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <Server size={16} className={activeTab === 'hostingAccounts' ? "text-blue-600" : "text-gray-400"} /> Hosting Accounts
-            </button>
-          )}
-          {hasPermission('manage_services') && (
-            <button onClick={() => setActiveTab('domainPricing')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'domainPricing' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <Server size={16} className={activeTab === 'domainPricing' ? "text-blue-600" : "text-gray-400"} /> Domain Pricing
-            </button>
-          )}
-          {hasPermission('manage_settings') && (
-            <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
-            </button>
-          )}
-          {isAdmin && (
-            <button onClick={() => navigate('/admin/billing')} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors text-purple-600 font-bold hover:bg-purple-50">
-              <ArrowLeftRight size={16} className="text-purple-600" /> Web Host Billing
-            </button>
-          )}
-        </div>
+            {hasPermission('manage_services') && (
+              <button onClick={() => setActiveTab('hostingPlans')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Server size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} /> Hosting Plans
+              </button>
+            )}
+            {hasPermission('manage_services') && (
+              <button onClick={() => setActiveTab('hostingServices')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingServices' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Server size={16} className={activeTab === 'hostingServices' ? "text-blue-600" : "text-gray-400"} /> Hosting Services
+              </button>
+            )}
+            {isAdmin && (
+              <button onClick={() => setActiveTab('hosting_api_settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hosting_api_settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Plug size={16} className={activeTab === 'hosting_api_settings' ? "text-blue-600" : "text-gray-400"} /> API Settings
+              </button>
+            )}
+            {hasPermission('manage_services') && (
+              <button onClick={() => setActiveTab('domainOrders')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'domainOrders' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Server size={16} className={activeTab === 'domainOrders' ? "text-blue-600" : "text-gray-400"} /> Domain Orders
+              </button>
+            )}
+            {(isAdmin || isManager) && (
+              <button onClick={() => setActiveTab('provisioningLogs')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'provisioningLogs' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Server size={16} className={activeTab === 'provisioningLogs' ? "text-blue-600" : "text-gray-400"} /> Provisioning Logs
+              </button>
+            )}
+            {hasPermission('manage_services') && (
+              <button onClick={() => setActiveTab('hostingAccounts')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'hostingAccounts' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Server size={16} className={activeTab === 'hostingAccounts' ? "text-blue-600" : "text-gray-400"} /> Hosting Accounts
+              </button>
+            )}
+            {hasPermission('manage_services') && (
+              <button onClick={() => setActiveTab('domainPricing')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'domainPricing' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Server size={16} className={activeTab === 'domainPricing' ? "text-blue-600" : "text-gray-400"} /> Domain Pricing
+              </button>
+            )}
+            {hasPermission('manage_settings') && (
+              <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
+              </button>
+            )}
+            {isAdmin && (
+              <button onClick={() => navigate('/admin/billing')} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors text-purple-600 font-bold hover:bg-purple-50">
+                <ArrowLeftRight size={16} className="text-purple-600" /> Web Host Billing
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </aside>
   );

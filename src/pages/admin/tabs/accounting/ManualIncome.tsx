@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../../firebase';
-import { collection, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
-import { Transaction, TransactionCategory, SiteSettings } from '../../../../types';
+import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { Transaction, TransactionCategory, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
@@ -9,34 +9,88 @@ import { useSettings } from '../../../../context/SettingsContext';
 import {
   Download,
   Plus,
-  XCircle,
   List,
+  Search,
+  Printer,
+  Trash2,
+  Edit2,
+  TrendingUp,
+  X,
+  CheckCircle,
 } from 'lucide-react';
+import { Pagination } from '../../../../components/common/Pagination';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
-const ManualIncomeTab: React.FC = () => {
-  const { hasPermission } = useAuth();
+interface ManualIncomeTabProps {
+  setSelectedLedgerEntity?: (v: any) => void;
+  setActiveTab?: (tab: string) => void;
+}
+
+const ManualIncomeTab: React.FC<ManualIncomeTabProps> = ({
+  setActiveTab,
+}) => {
+  const { hasPermission, isAdmin } = useAuth();
   const { settings } = useSettings();
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [transactionCategories, setTransactionCategories] = useState<TransactionCategory[]>([]);
-  const [isAddingManualTransaction, setIsAddingManualTransaction] = useState(false);
-  const [manualTransactionType, setManualTransactionType] = useState<'income' | 'expense'>('income');
-  const [newManualTransaction, setNewManualTransaction] = useState<Partial<Transaction>>({
+  const [categories, setCategories] = useState<TransactionCategory[]>([]);
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form State
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [formData, setFormData] = useState({
     amount: 0,
     date: new Date().toISOString().split('T')[0],
     description: '',
     categoryId: '',
+    paymentAccountId: '',
+    entityName: '',
+    reference: '',
   });
+
+  // Table Filters
+  const [startDate, setStartDate] = useState(
+    new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]
+  );
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   const fetchData = async () => {
     try {
-      const txSnap = await getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc')));
-      setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
+      setLoading(true);
+      const [txSnap, catSnap, accSnap] = await Promise.all([
+        getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc'))),
+        getDocs(query(collection(db, 'transaction_categories'), orderBy('name'))),
+        getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
+      ]);
 
-      const catSnap = await getDocs(query(collection(db, 'transaction_categories'), orderBy('name')));
-      setTransactionCategories(catSnap.docs.map(d => ({ id: d.id, ...d.data() } as TransactionCategory)));
+      const allTx = txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+      setTransactions(allTx.filter(t => t.type === 'income'));
+
+      const cats = catSnap.docs.map(d => ({ id: d.id, ...d.data() } as TransactionCategory));
+      setCategories(cats.filter(c => c.type === 'income' || !c.type));
+
+      const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
+      setPaymentAccounts(accs);
+
+      if (accs.length > 0 && !formData.paymentAccountId) {
+        setFormData(prev => ({ ...prev, paymentAccountId: accs[0].id }));
+      }
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load data');
+      toast.error('Failed to load income data');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -44,42 +98,177 @@ const ManualIncomeTab: React.FC = () => {
     fetchData();
   }, []);
 
-  const handleSaveManualTransaction = async (e: React.FormEvent) => {
+  const handleSaveIncome = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newManualTransaction.amount || newManualTransaction.amount <= 0 || !newManualTransaction.description) {
-      toast.error('Please enter amount and description');
+    if (!formData.amount || formData.amount <= 0 || !formData.description.trim()) {
+      toast.error('Please enter a valid amount and description');
       return;
     }
 
-    const selectedCategory = transactionCategories.find(c => c.id === newManualTransaction.categoryId);
-
     try {
-      const transactionData: Omit<Transaction, 'id'> = {
-        type: manualTransactionType,
-        amount: newManualTransaction.amount,
-        date: newManualTransaction.date || new Date().toISOString().split('T')[0],
-        description: newManualTransaction.description || '',
+      setSubmitting(true);
+      const selectedCat = categories.find(c => c.id === formData.categoryId);
+      const selectedAcc = paymentAccounts.find(a => a.id === formData.paymentAccountId);
+
+      const incomeData = {
+        type: 'income',
+        amount: Number(formData.amount),
+        date: new Date(formData.date).toISOString(),
+        description: formData.description,
+        categoryId: formData.categoryId || '',
+        category: selectedCat ? selectedCat.name : 'General Income',
+        categoryName: selectedCat ? selectedCat.name : 'General Income',
+        paymentAccountId: selectedAcc?.id || '',
+        paymentMethod: selectedAcc?.type || selectedAcc?.name || 'cash',
         entityId: 'manual',
-        entityName: 'Manual Entry',
-        categoryId: newManualTransaction.categoryId,
-        categoryName: selectedCategory ? selectedCategory.name : 'Uncategorized',
-        createdAt: new Date().toISOString(),
+        entityName: formData.entityName || 'Customer / Payer',
+        reference: formData.reference || '',
+        updatedAt: new Date().toISOString(),
       };
 
-      const docRef = await addDoc(collection(db, 'transactions'), transactionData);
-      setIsAddingManualTransaction(false);
-      setNewManualTransaction({
+      if (editingTx) {
+        await updateDoc(doc(db, 'transactions', editingTx.id), incomeData);
+        toast.success('Income entry updated successfully');
+      } else {
+        await addDoc(collection(db, 'transactions'), {
+          ...incomeData,
+          createdAt: new Date().toISOString(),
+        });
+        toast.success('Income entry recorded successfully');
+      }
+
+      setIsAdding(false);
+      setEditingTx(null);
+      setFormData({
         amount: 0,
         date: new Date().toISOString().split('T')[0],
         description: '',
         categoryId: '',
+        paymentAccountId: paymentAccounts[0]?.id || '',
+        entityName: '',
+        reference: '',
       });
-      toast.success('Transaction saved successfully');
       fetchData();
-    } catch (error) {
-      console.error('Error saving manual transaction:', error);
-      toast.error('Failed to save transaction');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to save income');
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const handleEditClick = (tx: Transaction) => {
+    setEditingTx(tx);
+    setFormData({
+      amount: tx.amount || 0,
+      date: new Date(tx.date).toISOString().split('T')[0],
+      description: tx.description || '',
+      categoryId: tx.categoryId || '',
+      paymentAccountId: tx.paymentAccountId || '',
+      entityName: tx.entityName || '',
+      reference: tx.reference || '',
+    });
+    setIsAdding(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this income entry?')) return;
+    try {
+      await deleteDoc(doc(db, 'transactions', id));
+      toast.success('Income entry deleted');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to delete');
+    }
+  };
+
+  // Filter logic
+  const filteredIncomes = transactions.filter(tx => {
+    const txDateStr = new Date(tx.date).toISOString().split('T')[0];
+    const matchesDate = txDateStr >= startDate && txDateStr <= endDate;
+    if (!matchesDate) return false;
+
+    if (categoryFilter !== 'all') {
+      if (tx.categoryId !== categoryFilter && tx.category !== categoryFilter) return false;
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchesDesc = (tx.description || '').toLowerCase().includes(q);
+      const matchesEntity = (tx.entityName || '').toLowerCase().includes(q);
+      const matchesCat = (tx.category || '').toLowerCase().includes(q);
+      const matchesRef = (tx.reference || '').toLowerCase().includes(q);
+      if (!matchesDesc && !matchesEntity && !matchesCat && !matchesRef) return false;
+    }
+
+    return true;
+  });
+
+  const totalIncomeAmount = filteredIncomes.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+
+  // Export CSV
+  const exportToCSV = () => {
+    if (filteredIncomes.length === 0) {
+      toast.error('No records to export');
+      return;
+    }
+
+    const headers = ['Date', 'Category', 'Received From', 'Description', 'Method', 'Reference', 'Amount (৳)'];
+    const rows = filteredIncomes.map(tx => [
+      new Date(tx.date).toLocaleDateString(),
+      `"${tx.category || 'General'}"`,
+      `"${tx.entityName || '-'}"`,
+      `"${tx.description || '-'}"`,
+      tx.paymentMethod || 'cash',
+      tx.reference || '',
+      tx.amount,
+    ]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Income_Report_${startDate}_to_${endDate}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Export PDF
+  const exportToPDF = () => {
+    if (filteredIncomes.length === 0) {
+      toast.error('No records to export');
+      return;
+    }
+
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text(settings?.siteName || 'Click2IT', 14, 18);
+    doc.setFontSize(11);
+    doc.text('Operating & Other Income Report', 14, 25);
+    doc.setFontSize(9);
+    doc.text(`Period: ${startDate} to ${endDate} | Total Income: ${formatCurrency(totalIncomeAmount, settings)}`, 14, 31);
+
+    const body = filteredIncomes.map(tx => [
+      new Date(tx.date).toLocaleDateString(),
+      tx.category || 'General',
+      tx.entityName || '-',
+      tx.description || '-',
+      tx.paymentMethod || 'cash',
+      formatCurrency(tx.amount, settings),
+    ]);
+
+    autoTable(doc, {
+      startY: 36,
+      head: [['Date', 'Category', 'Received From', 'Description', 'Account/Method', 'Amount (৳)']],
+      body: body,
+      theme: 'striped',
+      headStyles: { fillColor: [8, 22, 33] },
+      styles: { fontSize: 7 },
+    });
+
+    doc.save(`Income_Report_${startDate}_to_${endDate}.pdf`);
   };
 
   if (!hasPermission('manage_finances')) {
@@ -87,123 +276,363 @@ const ManualIncomeTab: React.FC = () => {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Download className="text-[#EF4444]" /> Manual Income
-        </h2>
-        <div className="flex gap-2">
-          <button
-            onClick={() => {}}
-            className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md flex items-center gap-2 hover:bg-gray-200 transition-all font-bold text-sm"
-          >
-            <List size={18} /> Manage Categories
-          </button>
-          <button
-            onClick={() => {
-              setManualTransactionType('income');
-              setNewManualTransaction({amount: 0, date: new Date().toISOString().split('T')[0], description: '', categoryId: ''});
-              setIsAddingManualTransaction(true);
-            }}
-            className="bg-[#EF4444] text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-red-600 transition-all font-bold text-sm"
-          >
-            <Plus size={18} /> Record Income
-          </button>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden space-y-6">
+      {/* Header Bar */}
+      <div className="p-6 pb-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Download className="text-[#EF4444]" /> Manual & Other Income
+          </h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Record and manage non-invoice incomes, service fees, commissions, and scrap sales.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {setActiveTab && (
+            <button
+              onClick={() => setActiveTab('tx_categories')}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all"
+            >
+              <List size={14} /> Income Categories
+            </button>
+          )}
+          {!isAdding && (
+            <button
+              onClick={() => {
+                setEditingTx(null);
+                setFormData({
+                  amount: 0,
+                  date: new Date().toISOString().split('T')[0],
+                  description: '',
+                  categoryId: categories[0]?.id || '',
+                  paymentAccountId: paymentAccounts[0]?.id || '',
+                  entityName: '',
+                  reference: '',
+                });
+                setIsAdding(true);
+              }}
+              className="bg-[#081621] hover:bg-[#EF4444] text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm"
+            >
+              <Plus size={14} /> Add New Income
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="p-6 overflow-x-auto">
-        <table className="w-full text-left">
-          <thead className="bg-gray-50 text-xs font-bold text-gray-500 uppercase">
-            <tr>
-              <th className="px-6 py-4">Date</th>
-              <th className="px-6 py-4">Category</th>
-              <th className="px-6 py-4">Description</th>
-              <th className="px-6 py-4 text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {transactions.filter(t => t.type === 'income' && t.entityId === 'manual').sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t => (
-              <tr key={t.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 text-sm">{t.date}</td>
-                <td className="px-6 py-4 font-bold text-sm">{t.categoryName || 'Uncategorized'}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{t.description}</td>
-                <td className="px-6 py-4 text-right font-bold text-green-600">{formatCurrency(t.amount, settings)}</td>
-              </tr>
-            ))}
-            {transactions.filter(t => t.type === 'income' && t.entityId === 'manual').length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">No manual income recorded.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      {/* KPI Cards */}
+      <div className="px-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-green-50/70 border border-green-200 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-green-700 uppercase tracking-wider">Filtered Income Total</span>
+            <TrendingUp size={16} className="text-green-600" />
+          </div>
+          <span className="text-2xl font-black text-green-950 mt-1 block">
+            {formatCurrency(totalIncomeAmount, settings)}
+          </span>
+          <span className="text-[10px] text-green-600 mt-1 block">Total for {startDate} to {endDate}</span>
+        </div>
+
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Income Records</span>
+          <span className="text-xl font-black text-gray-900 mt-1 block">{filteredIncomes.length}</span>
+          <span className="text-[10px] text-gray-500 mt-1 block">Total entries matching filters</span>
+        </div>
+
+        <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-4">
+          <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">Active Categories</span>
+          <span className="text-xl font-black text-blue-950 mt-1 block">{categories.length} Categories</span>
+          <span className="text-[10px] text-blue-600 mt-1 block">Configured income heads</span>
+        </div>
       </div>
 
-      {isAddingManualTransaction && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">Record Manual {manualTransactionType === 'income' ? 'Income' : 'Expense'}</h2>
-              <button onClick={() => setIsAddingManualTransaction(false)} className="text-gray-400 hover:text-gray-600">
-                <XCircle size={24} />
+      {/* Add / Edit Form */}
+      {isAdding && (
+        <div className="px-6 pb-6">
+          <div className="bg-gray-50/70 border border-gray-200 rounded-xl p-5">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">
+                {editingTx ? 'Edit Income Entry' : 'Record New Income'}
+              </h3>
+              <button onClick={() => { setIsAdding(false); setEditingTx(null); }} className="text-gray-400 hover:text-gray-600">
+                <X size={18} />
               </button>
             </div>
-            <form onSubmit={handleSaveManualTransaction} className="space-y-4">
+
+            <form onSubmit={handleSaveIncome} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-bold text-gray-700 uppercase mb-1">
+                    Income Category <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={formData.categoryId}
+                    onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg p-2 font-medium"
+                  >
+                    <option value="">-- Select Category --</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 uppercase mb-1">
+                    Deposit Into Account <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={formData.paymentAccountId}
+                    onChange={e => setFormData({ ...formData, paymentAccountId: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg p-2 font-medium"
+                  >
+                    {paymentAccounts.map(a => (
+                      <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 uppercase mb-1">
+                    Amount (৳) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    value={formData.amount || ''}
+                    onChange={e => setFormData({ ...formData, amount: Number(e.target.value) })}
+                    placeholder="e.g. 5000"
+                    className="w-full border border-gray-200 rounded-lg p-2 font-black text-gray-900 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-bold text-gray-700 uppercase mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    onChange={e => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg p-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 uppercase mb-1">Received From (Payer Name)</label>
+                  <input
+                    type="text"
+                    value={formData.entityName}
+                    onChange={e => setFormData({ ...formData, entityName: e.target.value })}
+                    placeholder="e.g. Client / Payer name"
+                    className="w-full border border-gray-200 rounded-lg p-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 uppercase mb-1">Reference / Money Receipt #</label>
+                  <input
+                    type="text"
+                    value={formData.reference}
+                    onChange={e => setFormData({ ...formData, reference: e.target.value })}
+                    placeholder="e.g. MR-1049"
+                    className="w-full border border-gray-200 rounded-lg p-2"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
+                <label className="block font-bold text-gray-700 uppercase mb-1">
+                  Description / Remarks <span className="text-red-500">*</span>
+                </label>
                 <input
-                  type="date"
+                  type="text"
                   required
-                  value={newManualTransaction.date}
-                  onChange={e => setNewManualTransaction({ ...newManualTransaction, date: e.target.value })}
-                  className="w-full border-gray-200 rounded-md focus:ring-[#EF4444]"
+                  value={formData.description}
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="e.g. Website customization service fee"
+                  className="w-full border border-gray-200 rounded-lg p-2"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category (Optional)</label>
-                <select
-                  value={newManualTransaction.categoryId || ''}
-                  onChange={e => setNewManualTransaction({ ...newManualTransaction, categoryId: e.target.value })}
-                  className="w-full border-gray-200 rounded-md focus:ring-[#EF4444]"
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-[#EF4444] hover:bg-red-600 text-white px-5 py-2 rounded-lg font-bold transition-all shadow-sm flex items-center gap-1.5"
                 >
-                  <option value="">Uncategorized</option>
-                  {transactionCategories.filter(c => c.type === manualTransactionType).map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Amount</label>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  required
-                  value={newManualTransaction.amount || ''}
-                  onChange={e => setNewManualTransaction({ ...newManualTransaction, amount: parseFloat(e.target.value) || 0 })}
-                  className="w-full border-gray-200 rounded-md focus:ring-[#EF4444]"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Description</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={newManualTransaction.description}
-                  onChange={e => setNewManualTransaction({ ...newManualTransaction, description: e.target.value })}
-                  className="w-full border-gray-200 rounded-md focus:ring-[#EF4444]"
-                  placeholder="e.g. Office Supplies, Salary, etc."
-                />
-              </div>
-              <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => setIsAddingManualTransaction(false)} className="flex-1 px-4 py-2 border border-gray-200 text-gray-600 rounded-md font-bold hover:bg-gray-50">Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-[#EF4444] text-white rounded-md font-bold hover:bg-red-600">Save</button>
+                  <CheckCircle size={14} /> {submitting ? 'Saving...' : editingTx ? 'Update Income' : 'Record Income'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsAdding(false); setEditingTx(null); }}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold"
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Filter Row: Category, Date, Search, Export */}
+      <div className="px-6 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <select
+              value={categoryFilter}
+              onChange={e => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
+              className="py-1.5 px-3 text-xs border border-gray-200 rounded-lg outline-none font-medium"
+            >
+              <option value="all">-- All Categories --</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+            <label className="text-[10px] font-bold text-gray-500 uppercase">From</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }}
+              className="border-none bg-transparent text-xs font-bold text-gray-800 p-0 focus:ring-0"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+            <label className="text-[10px] font-bold text-gray-500 uppercase">To</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }}
+              className="border-none bg-transparent text-xs font-bold text-gray-800 p-0 focus:ring-0"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="relative w-full md:w-56">
+            <input
+              type="text"
+              placeholder="Search description, payer..."
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-red-100"
+            />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={13} />
+          </div>
+
+          <button
+            onClick={exportToCSV}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
+            title="Export CSV"
+          >
+            <Download size={13} /> CSV
+          </button>
+          <button
+            onClick={exportToPDF}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
+            title="Export PDF"
+          >
+            <Printer size={13} /> PDF
+          </button>
+        </div>
+      </div>
+
+      {/* Income Table */}
+      <div className="overflow-x-auto border-t border-gray-100">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-gray-50 text-gray-500 uppercase font-bold border-b border-gray-200">
+            <tr>
+              <th className="px-6 py-3.5">Date</th>
+              <th className="px-6 py-3.5">Category</th>
+              <th className="px-6 py-3.5">Received From</th>
+              <th className="px-6 py-3.5">Description</th>
+              <th className="px-6 py-3.5">Account / Method</th>
+              <th className="px-6 py-3.5 text-right">Amount (৳)</th>
+              <th className="px-6 py-3.5 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-12 text-center text-gray-400">Loading income entries...</td>
+              </tr>
+            ) : filteredIncomes.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-12 text-center text-gray-400 italic">
+                  No income entries found matching the filter criteria.
+                </td>
+              </tr>
+            ) : (
+              filteredIncomes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((tx, idx) => (
+                <tr key={tx.id || idx} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-3.5 text-gray-500 whitespace-nowrap">
+                    {new Date(tx.date).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-3.5">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800">
+                      {tx.category || 'Income'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3.5 font-bold text-gray-800">
+                    {tx.entityName || '-'}
+                  </td>
+                  <td className="px-6 py-3.5 font-medium text-gray-800">
+                    {tx.description}
+                    {tx.reference && <span className="text-[10px] font-mono text-gray-400 block">Ref: #{tx.reference}</span>}
+                  </td>
+                  <td className="px-6 py-3.5">
+                    <span className="text-[10px] font-bold uppercase text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                      {tx.paymentMethod || 'cash'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3.5 text-right font-black text-green-600 text-sm">
+                    {formatCurrency(tx.amount, settings)}
+                  </td>
+                  <td className="px-6 py-3.5 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button
+                        onClick={() => handleEditClick(tx)}
+                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                        title="Edit Entry"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDelete(tx.id)}
+                          className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                          title="Delete Entry"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      <div className="p-6 pt-0">
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredIncomes.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+        />
+      </div>
     </div>
   );
 };

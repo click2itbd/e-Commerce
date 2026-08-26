@@ -61,27 +61,54 @@ const Services: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const salesSnap = await getDocs(query(collection(db, 'sales'), orderBy('soldAt', 'desc')));
-      const serials: SoldSerial[] = [];
-      salesSnap.forEach(docSnap => {
+      // 1. Query sold_serials directly
+      const serialsSnap = await getDocs(query(collection(db, 'sold_serials'), orderBy('soldAt', 'desc')));
+      const serials: SoldSerial[] = serialsSnap.docs.map(docSnap => {
         const data = docSnap.data();
-        if (data.serials && Array.isArray(data.serials)) {
-          data.serials.forEach((serial: string, idx: number) => {
-            serials.push({
-              id: `${docSnap.id}-${idx}`,
-              serial,
-              productName: data.productName || 'Unknown Product',
-              customerName: data.customerName || 'Walk-in Customer',
-              customerPhone: data.customerPhone || '',
-              warrantyEndDate: data.warrantyEndDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-              soldAt: data.soldAt || new Date().toISOString(),
-              orderId: docSnap.id,
-            });
+        return {
+          id: docSnap.id,
+          serial: data.serial || '',
+          productName: data.productName || 'Product',
+          customerName: data.customerName || 'Walk-in Customer',
+          customerPhone: data.customerPhone || '',
+          warrantyEndDate: data.warrantyEndDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          soldAt: data.soldAt || new Date().toISOString(),
+          orderId: data.orderId || data.orderDocumentNumber || docSnap.id,
+        };
+      });
+
+      // 2. Also check recent orders for any items with selectedSerials
+      const ordersSnap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(100)));
+      ordersSnap.forEach(orderDoc => {
+        const orderData = orderDoc.data();
+        if (orderData.items && Array.isArray(orderData.items)) {
+          orderData.items.forEach((itm: any) => {
+            if (itm.selectedSerials && Array.isArray(itm.selectedSerials)) {
+              itm.selectedSerials.forEach((ser: string) => {
+                if (!serials.some(s => s.serial.toLowerCase() === ser.toLowerCase())) {
+                  const months = itm.warrantyMonths || 12;
+                  const soldDate = orderData.createdAt || new Date().toISOString();
+                  const endD = new Date(new Date(soldDate).getTime() + months * 30 * 24 * 60 * 60 * 1000).toISOString();
+                  serials.push({
+                    id: `${orderDoc.id}-${ser}`,
+                    serial: ser,
+                    productName: itm.name || 'Product',
+                    customerName: orderData.customerName || 'Customer',
+                    customerPhone: orderData.customerPhone || '',
+                    warrantyEndDate: endD,
+                    soldAt: soldDate,
+                    orderId: orderData.documentNumber || orderDoc.id,
+                  });
+                }
+              });
+            }
           });
         }
       });
+
       setSoldSerials(serials);
 
+      // 3. Fetch Service Records
       const servicesSnap = await getDocs(query(collection(db, 'services'), orderBy('receivedAt', 'desc')));
       const records: ServiceRecord[] = servicesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ServiceRecord));
       setServiceRecords(records);

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, query, getDocs, orderBy } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, query, getDocs, orderBy } from 'firebase/firestore';
 import { db, firebaseConfig } from '../../../../firebase';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { UserProfile, UserPermission } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { Users as UsersIcon, Mail, X } from 'lucide-react';
+import { Users as UsersIcon, Mail, X, Trash2, Shield, Key } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 import { Pagination } from '../../../../components/common/Pagination';
 
@@ -18,7 +18,7 @@ const UsersTab: React.FC = () => {
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [editingUserPermissions, setEditingUserPermissions] = useState<any | null>(null);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
-  const [userFormData, setUserFormData] = useState({ name: '', email: '', password: '', role: 'user', permissions: [] as UserPermission[] });
+  const [userFormData, setUserFormData] = useState({ name: '', email: '', password: '', role: 'staff', permissions: [] as UserPermission[] });
 
   useEffect(() => {
     fetchData();
@@ -26,9 +26,9 @@ const UsersTab: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const q = query(collection(db, 'users'), orderBy('name'));
+      const q = query(collection(db, 'users'));
       const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as UserProfile));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data() } as unknown as UserProfile));
       setUsers(data);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -40,7 +40,7 @@ const UsersTab: React.FC = () => {
       let permissions: UserPermission[] = [];
       if (newRole === 'admin') permissions = ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing'];
       else if (newRole === 'manager') permissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports'];
-      else if (newRole === 'staff') permissions = ['view_dashboard', 'manage_inventory', 'manage_orders'];
+      else if (newRole === 'staff') permissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_services', 'manage_finances'];
       
       await updateDoc(doc(db, 'users', userId), {
         role: newRole,
@@ -67,16 +67,66 @@ const UsersTab: React.FC = () => {
       
       const userCred = await createUserWithEmailAndPassword(secondaryAuth, userFormData.email, userFormData.password);
       
-      await doc(db, 'users', userCred.user.uid);
+      let defaultPermissions: UserPermission[] = userFormData.permissions;
+      if (defaultPermissions.length === 0) {
+        if (userFormData.role === 'admin') {
+          defaultPermissions = ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing'];
+        } else if (userFormData.role === 'manager') {
+          defaultPermissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports'];
+        } else if (userFormData.role === 'staff') {
+          defaultPermissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_services', 'manage_finances'];
+        }
+      }
+
+      await setDoc(doc(db, 'users', userCred.user.uid), {
+        uid: userCred.user.uid,
+        displayName: userFormData.name || userFormData.email.split('@')[0],
+        email: userFormData.email,
+        role: userFormData.role,
+        permissions: defaultPermissions,
+        createdAt: new Date().toISOString()
+      });
       
       await secondaryAuth.signOut();
       
-      toast.success('User added successfully');
+      toast.success('Staff/Portal user added successfully');
       setIsAddingUser(false);
+      setUserFormData({ name: '', email: '', password: '', role: 'staff', permissions: [] });
       fetchData();
     } catch (err: any) {
       toast.error('Error adding user: ' + err.message);
     }
+  };
+
+  const handleDeleteUser = async (user: UserProfile) => {
+    if (!window.confirm(`Are you sure you want to remove ${user.displayName || user.email}?`)) return;
+    try {
+      await deleteDoc(doc(db, 'users', user.uid || (user as any).id));
+      toast.success('User removed from database');
+      fetchData();
+    } catch (err: any) {
+      toast.error('Failed to delete user: ' + err.message);
+    }
+  };
+
+  const [selectedRoleCategory, setSelectedRoleCategory] = useState<'all' | 'staff' | 'manager' | 'admin' | 'user'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredUsers = users.filter(u => {
+    const matchesCategory = selectedRoleCategory === 'all' || (u.role || 'user') === selectedRoleCategory;
+    const matchesSearch = !searchQuery || 
+      (u.displayName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.uid || (u as any).id || '').toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  const roleCounts = {
+    all: users.length,
+    staff: users.filter(u => u.role === 'staff').length,
+    manager: users.filter(u => u.role === 'manager').length,
+    admin: users.filter(u => u.role === 'admin').length,
+    user: users.filter(u => !u.role || u.role === 'user').length,
   };
 
   if (!isAdmin) {
@@ -84,17 +134,117 @@ const UsersTab: React.FC = () => {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <UsersIcon className="text-[#EF4444]" /> User Management
-        </h2>
-        <button onClick={() => {
-          setUserFormData({ name: '', email: '', password: '', role: 'user', permissions: [] });
-          setIsAddingUser(true);
-        }} className="bg-[#081621] text-white px-4 py-2 rounded-md hover:bg-[#EF4444] transition-all font-bold text-sm">
-           + Add User
-        </button>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden space-y-4">
+      <div className="p-6 pb-0">
+        <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
+          <div>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <UsersIcon className="text-[#EF4444]" /> Staff & App Access Management
+              <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full ml-2">
+                {filteredUsers.length} of {users.length} Users
+              </span>
+            </h2>
+            <p className="text-xs text-gray-500 mt-1">Create and manage access levels for offline shop staff, managers, and administrators.</p>
+          </div>
+          <button onClick={() => {
+            setUserFormData({ name: '', email: '', password: '', role: 'staff', permissions: [] });
+            setIsAddingUser(true);
+          }} className="bg-[#081621] text-white px-4 py-2 rounded-md hover:bg-[#EF4444] transition-all font-bold text-sm flex items-center gap-1.5 shadow-sm">
+             + Add Staff / User
+          </button>
+        </div>
+
+        {/* Role Category Pills & Search */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <button
+              onClick={() => { setSelectedRoleCategory('all'); setCurrentPage(1); }}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5",
+                selectedRoleCategory === 'all'
+                  ? "bg-[#081621] text-white shadow-sm"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              )}
+            >
+              All Users
+              <span className={cn("px-1.5 py-0.2 rounded-full text-[10px]", selectedRoleCategory === 'all' ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700")}>
+                {roleCounts.all}
+              </span>
+            </button>
+            <button
+              onClick={() => { setSelectedRoleCategory('staff'); setCurrentPage(1); }}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5",
+                selectedRoleCategory === 'staff'
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+              )}
+            >
+              Staff (Offline Shop)
+              <span className={cn("px-1.5 py-0.2 rounded-full text-[10px]", selectedRoleCategory === 'staff' ? "bg-white/20 text-white" : "bg-blue-200 text-blue-800")}>
+                {roleCounts.staff}
+              </span>
+            </button>
+            <button
+              onClick={() => { setSelectedRoleCategory('manager'); setCurrentPage(1); }}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5",
+                selectedRoleCategory === 'manager'
+                  ? "bg-amber-600 text-white shadow-sm"
+                  : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+              )}
+            >
+              Managers
+              <span className={cn("px-1.5 py-0.2 rounded-full text-[10px]", selectedRoleCategory === 'manager' ? "bg-white/20 text-white" : "bg-amber-200 text-amber-800")}>
+                {roleCounts.manager}
+              </span>
+            </button>
+            <button
+              onClick={() => { setSelectedRoleCategory('admin'); setCurrentPage(1); }}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5",
+                selectedRoleCategory === 'admin'
+                  ? "bg-purple-600 text-white shadow-sm"
+                  : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+              )}
+            >
+              Admins
+              <span className={cn("px-1.5 py-0.2 rounded-full text-[10px]", selectedRoleCategory === 'admin' ? "bg-white/20 text-white" : "bg-purple-200 text-purple-800")}>
+                {roleCounts.admin}
+              </span>
+            </button>
+            <button
+              onClick={() => { setSelectedRoleCategory('user'); setCurrentPage(1); }}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5",
+                selectedRoleCategory === 'user'
+                  ? "bg-gray-700 text-white shadow-sm"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              )}
+            >
+              Customers (Users)
+              <span className={cn("px-1.5 py-0.2 rounded-full text-[10px]", selectedRoleCategory === 'user' ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700")}>
+                {roleCounts.user}
+              </span>
+            </button>
+          </div>
+
+          <div className="relative min-w-[240px]">
+            <input
+              type="text"
+              placeholder="Search by name, email..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none"
+            />
+            <UsersIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -105,47 +255,71 @@ const UsersTab: React.FC = () => {
               <th className="px-6 py-4">Email</th>
               <th className="px-6 py-4">Joined</th>
               <th className="px-6 py-4">Role</th>
+              <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(user => (
-              <tr key={user.uid} className="hover:bg-gray-50 transition-colors">
+            {filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(user => (
+              <tr key={user.uid || (user as any).id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 font-bold">
+                    <div className="h-8 w-8 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-bold text-xs border border-blue-100">
                       {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
                     </div>
-                    <span className="font-medium text-sm text-gray-900">{user.displayName || 'No Name'}</span>
+                    <div>
+                      <span className="font-bold text-sm text-gray-900 block">{user.displayName || 'Unnamed User'}</span>
+                      <span className="text-[10px] text-gray-400 font-mono">UID: {(user.uid || (user as any).id || '').slice(0, 8)}...</span>
+                    </div>
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <a href={`mailto:${user.email}`} className="text-blue-600 hover:underline flex items-center gap-1 text-sm">
+                  <a href={`mailto:${user.email}`} className="text-blue-600 hover:underline flex items-center gap-1 text-sm font-medium">
                     <Mail size={12} /> {user.email}
                   </a>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500">
                   {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                 </td>
-                <td className="px-6 py-4 flex items-center gap-2">
-                  <select
-                    value={user.role}
-                    onChange={(e) => handleUpdateUserRole(user.uid, e.target.value)}
-                     className="text-xs border-gray-200 rounded-md focus:ring-[#EF4444]"
-                  >
-                    <option value="user">User</option>
-                    <option value="staff">Staff</option>
-                    <option value="manager">Manager</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                  <button 
-                    onClick={() => {
-                      setEditingUserPermissions(user);
-                      setShowPermissionsModal(true);
-                    }}
-                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                  >
-                    Permissions
-                  </button>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={user.role || 'user'}
+                      onChange={(e) => handleUpdateUserRole(user.uid || (user as any).id, e.target.value)}
+                      className={cn(
+                        "text-xs font-bold rounded-md px-2.5 py-1 border transition-colors",
+                        user.role === 'admin' ? "bg-purple-50 text-purple-700 border-purple-200" :
+                        user.role === 'manager' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                        user.role === 'staff' ? "bg-blue-50 text-blue-700 border-blue-200" :
+                        "bg-gray-50 text-gray-700 border-gray-200"
+                      )}
+                    >
+                      <option value="user">User (Customer)</option>
+                      <option value="staff">Staff (Offline Shop)</option>
+                      <option value="manager">Manager</option>
+                      <option value="admin">Admin (Full Access)</option>
+                    </select>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <button 
+                      onClick={() => {
+                        setEditingUserPermissions(user);
+                        setShowPermissionsModal(true);
+                      }}
+                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold px-2.5 py-1 rounded transition-colors"
+                      title="Edit Permissions"
+                    >
+                      Permissions
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUser(user)}
+                      className="text-gray-400 hover:text-red-600 p-1 rounded transition-colors"
+                      title="Delete User"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -155,7 +329,7 @@ const UsersTab: React.FC = () => {
 
       <Pagination
         currentPage={currentPage}
-        totalItems={users.length}
+        totalItems={filteredUsers.length}
         itemsPerPage={itemsPerPage}
         onPageChange={setCurrentPage}
         onItemsPerPageChange={setItemsPerPage}

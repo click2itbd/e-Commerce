@@ -56,8 +56,15 @@ const SaleReturnTab = lazy(() => import('./admin/tabs/sales/SaleReturn').then(m 
 const CustomersTab = lazy(() => import('./admin/tabs/sales/Customers').then(m => ({ default: m.default })));
 const VendorsTab = lazy(() => import('./admin/tabs/purchase/Vendors').then(m => ({ default: m.default })));
 const CustomerReceiveReportTab = lazy(() => import('./admin/tabs/accounting/CustomerReceiveReport').then(m => ({ default: m.default })));
+const TransactionHistoryTab = lazy(() => import('./admin/tabs/accounting/TransactionHistory').then(m => ({ default: m.default })));
+const AccountStatementTab = lazy(() => import('./admin/tabs/accounting/AccountStatement').then(m => ({ default: m.default })));
+const BalanceSheetTab = lazy(() => import('./admin/tabs/accounting/BalanceSheet').then(m => ({ default: m.default })));
+const TrialBalanceTab = lazy(() => import('./admin/tabs/accounting/TrialBalance').then(m => ({ default: m.default })));
+const AccountBalanceTab = lazy(() => import('./admin/tabs/accounting/AccountBalance').then(m => ({ default: m.default })));
+const DepositsWithdrawalsTab = lazy(() => import('./admin/tabs/accounting/DepositsWithdrawals').then(m => ({ default: m.default })));
+const StockAccountingTab = lazy(() => import('./admin/tabs/accounting/StockAccounting').then(m => ({ default: m.default })));
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit2, Trash2, Package, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare, Globe, Terminal, RefreshCw, DollarSign } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, Boxes, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare, Globe, Terminal, RefreshCw, DollarSign } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
@@ -212,6 +219,23 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
   });
 
   const { isAdmin, isManager, isStaff, hasPermission } = useAuth();
+  const OFFLINE_SHOP_TABS = [
+    'dashboard', 'analytics', 'inventory', 'sales', 'sale_return', 'orders', 
+    'customers', 'quotations', 'purchases', 'purchase_return', 'vendors', 
+    'services', 'payment_accounts', 'ledger', 'manual_income', 'manual_expense', 
+    'tx_categories', 'reports', 'customer_receive_report', 'deposits_withdrawals', 
+    'account_balance', 'account_statement', 'balance_sheet', 'trial_balance', 
+    'transaction_history', 'all_reports'
+  ];
+
+  useEffect(() => {
+    if (isStaff && !isAdmin && !isManager) {
+      if (!OFFLINE_SHOP_TABS.includes(activeTab)) {
+        setActiveTab('sales');
+      }
+    }
+  }, [isStaff, isAdmin, isManager, activeTab]);
+
   const [showLedgerReportModal, setShowLedgerReportModal] = useState<boolean>(false);
   const [ledgerReportModalData, setLedgerReportModalData] = useState<any[]>([]);
   const [ledgerReportType, setLedgerReportType] = useState<'income' | 'expense' | null>(null);
@@ -1265,6 +1289,55 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
           debouncedFetchData();
         } catch (error) {
           toast.error('Failed to delete some products');
+        }
+      }
+    });
+  };
+
+  const handleDeleteOrder = async (order: any) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Sale / Order',
+      message: `Are you sure you want to permanently delete ${order.documentNumber || order.id}? This will restore stock, available serials, and remove associated transactions.`,
+      confirmText: 'Delete Permanently',
+      confirmColor: 'bg-red-600 hover:bg-red-700',
+      onConfirm: async () => {
+        try {
+          // 1. Delete associated transactions
+          const txSnap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', order.id)));
+          await Promise.all(txSnap.docs.map(d => deleteDoc(doc(db, 'transactions', d.id))));
+
+          // 2. Revert stock and available serials
+          if (order.type === 'invoice' || order.type === 'challan' || order.type === 'sale') {
+            for (const item of (order.items || [])) {
+              if (item.productId || item.id) {
+                const prodRef = doc(db, 'products', item.productId || item.id);
+                const currentProd = products.find(p => p.id === (item.productId || item.id));
+                if (currentProd) {
+                  const updates: any = {};
+                  updates.stock = (currentProd.stock || 0) + (item.quantity || 0);
+                  
+                  if (item.selectedSerials && item.selectedSerials.length > 0) {
+                    const newAvailable = [...(currentProd.availableSerials || []), ...item.selectedSerials];
+                    updates.availableSerials = newAvailable;
+                  }
+                  await updateDoc(prodRef, updates);
+                }
+              }
+            }
+
+            // 3. Delete sold_serials records
+            const serialsSnap = await getDocs(query(collection(db, 'sold_serials'), where('orderId', '==', order.id)));
+            await Promise.all(serialsSnap.docs.map(d => deleteDoc(doc(db, 'sold_serials', d.id))));
+          }
+
+          // 4. Finally delete the order itself
+          await deleteDoc(doc(db, 'orders', order.id));
+          toast.success(`Order deleted and reverted successfully`);
+          debouncedFetchData();
+        } catch (error) {
+          console.error('Error deleting order:', error);
+          toast.error('Failed to fully delete the order');
         }
       }
     });
@@ -2928,116 +3001,118 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
            </div>
            
             {/* Section 2: Domain & Web Hosting */}
-            <div className="px-4 mb-3">
-              <div className="text-[10px] uppercase font-bold text-blue-600 tracking-wider mb-1 px-3 flex items-center gap-1.5">
-                <Globe size={12} className="text-blue-600" /> Domain & Web Hosting
-              </div>
-              {(hasPermission('manage_services') || isAdmin) && (
-                <button
-                  onClick={() => setActiveTab('hostingOrders')}
-                  className={cn(
-                    "w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors",
-                    activeTab === 'hostingOrders' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <Server size={16} className={activeTab === 'hostingOrders' ? "text-blue-600" : "text-gray-400"} />
-                    <span>Hosting Orders</span>
-                  </div>
-                </button>
-              )}
-              {(hasPermission('manage_services') || isAdmin) && (
-                <button
-                  onClick={() => setActiveTab('activeHostingAccounts')}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    activeTab === 'activeHostingAccounts' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                  )}
-                >
-                  <Users size={16} className={activeTab === 'activeHostingAccounts' ? "text-blue-600" : "text-gray-400"} />
-                  <span>Active Accounts</span>
-                </button>
-              )}
-              {(hasPermission('manage_settings') || isAdmin) && (
-                <button
-                  onClick={() => setActiveTab('domainPricing')}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    activeTab === 'domainPricing' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                  )}
-                >
-                  <DollarSign size={16} className={activeTab === 'domainPricing' ? "text-blue-600" : "text-gray-400"} />
-                  <span>Domain Pricing & TLD Rates</span>
-                </button>
-              )}
-              {(hasPermission('manage_services') || isAdmin) && (
-                <button
-                  onClick={() => setActiveTab('hostingPlans')}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                  )}
-                >
-                  <HardDrive size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} />
-                  <span>Hosting Packages</span>
-                </button>
-              )}
-              {(hasPermission('manage_settings') || isAdmin) && (
-                <button
-                  onClick={() => setActiveTab('domainOffers')}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    activeTab === 'domainOffers' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                  )}
-                >
-                  <Tag size={16} className={activeTab === 'domainOffers' ? "text-blue-600" : "text-gray-400"} />
-                  <span>Domain Offer Request</span>
-                </button>
-              )}
-              {(hasPermission('manage_settings') || isAdmin) && (
-                <button
-                  onClick={() => setActiveTab('domainRenewals')}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    activeTab === 'domainRenewals' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                  )}
-                >
-                  <RefreshCw size={16} className={activeTab === 'domainRenewals' ? "text-blue-600" : "text-gray-400"} />
-                  <span>Domain Renewals</span>
-                </button>
-              )}
-              <button
-                onClick={() => setActiveTab('support_tickets')}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                  activeTab === 'support_tickets' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+            {(!isStaff || isAdmin || isManager) && (
+              <div className="px-4 mb-3">
+                <div className="text-[10px] uppercase font-bold text-blue-600 tracking-wider mb-1 px-3 flex items-center gap-1.5">
+                  <Globe size={12} className="text-blue-600" /> Domain & Web Hosting
+                </div>
+                {(hasPermission('manage_services') || isAdmin) && (
+                  <button
+                    onClick={() => setActiveTab('hostingOrders')}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors",
+                      activeTab === 'hostingOrders' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Server size={16} className={activeTab === 'hostingOrders' ? "text-blue-600" : "text-gray-400"} />
+                      <span>Hosting Orders</span>
+                    </div>
+                  </button>
                 )}
-              >
-                <LifeBuoy size={16} className={activeTab === 'support_tickets' ? "text-blue-600" : "text-gray-400"} />
-                <span>Support Tickets</span>
-              </button>
-              {(hasPermission('manage_settings') || isAdmin) && (
+                {(hasPermission('manage_services') || isAdmin) && (
+                  <button
+                    onClick={() => setActiveTab('activeHostingAccounts')}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                      activeTab === 'activeHostingAccounts' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    <Users size={16} className={activeTab === 'activeHostingAccounts' ? "text-blue-600" : "text-gray-400"} />
+                    <span>Active Accounts</span>
+                  </button>
+                )}
+                {(hasPermission('manage_settings') || isAdmin) && (
+                  <button
+                    onClick={() => setActiveTab('domainPricing')}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                      activeTab === 'domainPricing' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    <DollarSign size={16} className={activeTab === 'domainPricing' ? "text-blue-600" : "text-gray-400"} />
+                    <span>Domain Pricing & TLD Rates</span>
+                  </button>
+                )}
+                {(hasPermission('manage_services') || isAdmin) && (
+                  <button
+                    onClick={() => setActiveTab('hostingPlans')}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                      activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    <HardDrive size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} />
+                    <span>Hosting Packages</span>
+                  </button>
+                )}
+                {(hasPermission('manage_settings') || isAdmin) && (
+                  <button
+                    onClick={() => setActiveTab('domainOffers')}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                      activeTab === 'domainOffers' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    <Tag size={16} className={activeTab === 'domainOffers' ? "text-blue-600" : "text-gray-400"} />
+                    <span>Domain Offer Request</span>
+                  </button>
+                )}
+                {(hasPermission('manage_settings') || isAdmin) && (
+                  <button
+                    onClick={() => setActiveTab('domainRenewals')}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                      activeTab === 'domainRenewals' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    <RefreshCw size={16} className={activeTab === 'domainRenewals' ? "text-blue-600" : "text-gray-400"} />
+                    <span>Domain Renewals</span>
+                  </button>
+                )}
                 <button
-                  onClick={() => setActiveTab('hosting_api_settings')}
+                  onClick={() => setActiveTab('support_tickets')}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    activeTab === 'hosting_api_settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                    activeTab === 'support_tickets' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
                   )}
                 >
-                  <Plug size={16} className={activeTab === 'hosting_api_settings' ? "text-blue-600" : "text-gray-400"} />
-                  <span>Hosting API Settings</span>
+                  <LifeBuoy size={16} className={activeTab === 'support_tickets' ? "text-blue-600" : "text-gray-400"} />
+                  <span>Support Tickets</span>
                 </button>
-              )}
-              {isAdmin && (
-                <button
-                  onClick={() => navigate('/admin/billing')}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors text-purple-600 font-bold hover:bg-purple-50"
-                >
-                  <ArrowLeftRight size={16} className="text-purple-600" />
-                  <span>Web Host Billing</span>
-                </button>
-              )}
-            </div>
+                {(hasPermission('manage_settings') || isAdmin) && (
+                  <button
+                    onClick={() => setActiveTab('hosting_api_settings')}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                      activeTab === 'hosting_api_settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    <Plug size={16} className={activeTab === 'hosting_api_settings' ? "text-blue-600" : "text-gray-400"} />
+                    <span>Hosting API Settings</span>
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    onClick={() => navigate('/admin/billing')}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors text-purple-600 font-bold hover:bg-purple-50"
+                  >
+                    <ArrowLeftRight size={16} className="text-purple-600" />
+                    <span>Web Host Billing</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Section 3: Sale & Customer */}
             <div className="px-4 mb-2">
@@ -3124,6 +3199,11 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
                  <FileText size={16} className={activeTab === 'reports' ? "text-blue-600" : "text-gray-400"} /> Sales Accounting
                </button>
              )}
+             {hasPermission('manage_finances') && (
+               <button onClick={() => setActiveTab('stock_accounting')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'stock_accounting' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Boxes size={16} className={activeTab === 'stock_accounting' ? "text-blue-600" : "text-gray-400"} /> Stock Accounting
+               </button>
+             )}
              {hasPermission('manage_reports') && (
                <button onClick={() => setActiveTab('customer_receive_report')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'customer_receive_report' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Receipt size={16} className={activeTab === 'customer_receive_report' ? "text-blue-600" : "text-gray-400"} /> Receive Report
@@ -3167,29 +3247,32 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
            </div>
 
            {/* Marketing */}
-           <div className="px-4 mb-2">
-             <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Marketing & Feedback</div>
-             {hasPermission('manage_marketing') && (
-               <button onClick={() => setActiveTab('campaigns')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'campaigns' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Tag size={16} className={activeTab === 'campaigns' ? "text-blue-600" : "text-gray-400"} /> Marketing
-               </button>
-             )}
-             {hasPermission('manage_marketing') && (
-               <button onClick={() => setActiveTab('discountCodes')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'discountCodes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Percent size={16} className={activeTab === 'discountCodes' ? "text-blue-600" : "text-gray-400"} /> Discounts
-               </button>
-             )}
-             {hasPermission('manage_marketing') && (
-               <button onClick={() => setActiveTab('reviews')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'reviews' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Star size={16} className={activeTab === 'reviews' ? "text-blue-600" : "text-gray-400"} /> Reviews
-               </button>
-             )}
-           </div>
+           {(!isStaff || isAdmin || isManager) && (
+             <div className="px-4 mb-2">
+               <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Marketing & Feedback</div>
+               {hasPermission('manage_marketing') && (
+                 <button onClick={() => setActiveTab('campaigns')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'campaigns' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Tag size={16} className={activeTab === 'campaigns' ? "text-blue-600" : "text-gray-400"} /> Marketing
+                 </button>
+               )}
+               {hasPermission('manage_marketing') && (
+                 <button onClick={() => setActiveTab('discountCodes')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'discountCodes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Percent size={16} className={activeTab === 'discountCodes' ? "text-blue-600" : "text-gray-400"} /> Discounts
+                 </button>
+               )}
+               {hasPermission('manage_marketing') && (
+                 <button onClick={() => setActiveTab('reviews')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'reviews' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Star size={16} className={activeTab === 'reviews' ? "text-blue-600" : "text-gray-400"} /> Reviews
+                 </button>
+               )}
+             </div>
+           )}
 
            {/* HR */}
-           <div className="px-4 mb-2">
-             <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Human Resource</div>
-             {hasPermission('manage_users') && (
+           {(!isStaff || isAdmin || isManager) && (
+             <div className="px-4 mb-2">
+               <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Human Resource</div>
+               {hasPermission('manage_users') && (
                  <button onClick={() => setActiveTab('users')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'users' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                    <Users size={16} className={activeTab === 'users' ? "text-blue-600" : "text-gray-400"} /> App Access
                  </button>
@@ -3197,37 +3280,41 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
                {hasPermission('manage_hr') && (
                  <>
                    <button onClick={() => setActiveTab('employees')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'employees' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                   <Briefcase size={16} className={activeTab === 'employees' ? "text-blue-600" : "text-gray-400"} /> Employees
-                 </button>
-                 <button onClick={() => setActiveTab('leave')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'leave' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                   <CheckCircle size={16} className={activeTab === 'leave' ? "text-blue-600" : "text-gray-400"} /> Leave
-                 </button>
-                 <button onClick={() => setActiveTab('salary')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'salary' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                   <CreditCard size={16} className={activeTab === 'salary' ? "text-blue-600" : "text-gray-400"} /> Salary Overview
-                 </button>
-               </>
-             )}
-           </div>
+                     <Briefcase size={16} className={activeTab === 'employees' ? "text-blue-600" : "text-gray-400"} /> Employees
+                   </button>
+                   <button onClick={() => setActiveTab('leave')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'leave' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                     <CheckCircle size={16} className={activeTab === 'leave' ? "text-blue-600" : "text-gray-400"} /> Leave
+                   </button>
+                   <button onClick={() => setActiveTab('salary')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'salary' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                     <CreditCard size={16} className={activeTab === 'salary' ? "text-blue-600" : "text-gray-400"} /> Salary Overview
+                   </button>
+                 </>
+               )}
+             </div>
+           )}
 
-            <div className="px-4 mb-6">
-              <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">System & Settings</div>
-              {hasPermission('manage_settings') && (
-                <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                  <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Site Menus
-                </button>
-              )}
-              <button onClick={() => setActiveTab('crm')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'crm' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                <Users size={16} className={activeTab === 'crm' ? "text-blue-600" : "text-gray-400"} /> CRM System
-              </button>
-              <button onClick={() => setActiveTab('tasks')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'tasks' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                <CheckCircle size={16} className={activeTab === 'tasks' ? "text-blue-600" : "text-gray-400"} /> To-Do List
-              </button>
-              {hasPermission('manage_settings') && (
-                <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                  <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
-                </button>
-              )}
-            </div>
+           {/* System & Settings */}
+           {(!isStaff || isAdmin || isManager) && (
+             <div className="px-4 mb-6">
+               <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">System & Settings</div>
+               {hasPermission('manage_settings') && (
+                 <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Site Menus
+                 </button>
+               )}
+               <button onClick={() => setActiveTab('crm')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'crm' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Users size={16} className={activeTab === 'crm' ? "text-blue-600" : "text-gray-400"} /> CRM System
+               </button>
+               <button onClick={() => setActiveTab('tasks')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'tasks' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <CheckCircle size={16} className={activeTab === 'tasks' ? "text-blue-600" : "text-gray-400"} /> To-Do List
+               </button>
+               {hasPermission('manage_settings') && (
+                 <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
+                 </button>
+               )}
+             </div>
+           )}
          </div>
        </aside>
 
@@ -3255,7 +3342,16 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="h-8 w-8 border-4 border-[#EF4444] border-t-transparent rounded-full animate-spin"></div></div>}>
-        {activeTab === 'dashboard' ? (
+        {isStaff && !isAdmin && !isManager && !OFFLINE_SHOP_TABS.includes(activeTab) ? (
+          <div className="bg-white rounded-lg shadow-sm border border-red-200 p-8 text-center max-w-md mx-auto mt-12">
+            <ShieldAlert size={48} className="mx-auto text-red-500 mb-3" />
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Access Restricted</h3>
+            <p className="text-sm text-gray-500 mb-4">Staff accounts are restricted to Offline Shop POS and Retail modules.</p>
+            <button onClick={() => setActiveTab('sales')} className="px-4 py-2 bg-[#081621] text-white rounded-md text-sm font-bold hover:bg-[#EF4444] transition-colors">
+              Go to Sale Screen
+            </button>
+          </div>
+        ) : activeTab === 'dashboard' ? (
           <AdminOverviewDashboard
             products={products}
             orders={orders}
@@ -3347,36 +3443,70 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
             updateOrderDiscount={updateOrderDiscount}
             updateOrderStatus={updateOrderStatus}
             generatePDF={generatePDF}
+            handleDeleteOrder={handleDeleteOrder}
           />
         ) : activeTab === 'purchase_return' ? (
           <PurchaseReturnTab />
         ) : activeTab === 'sale_return' ? (
           <SaleReturnTab />
         ) : activeTab === 'purchases' ? (
-          <PurchasesTab />
+          <PurchasesTab
+            vendors={vendors}
+            products={products}
+            transactions={transactions}
+            settings={settings}
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            fetchData={fetchData}
+          />
         ) : activeTab === 'customers' ? (
-          <CustomersTab />
+          <CustomersTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
         ) : activeTab === 'vendors' ? (
-          <VendorsTab />
+          <VendorsTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
         ) : activeTab === 'conveyance' && isAdmin ? (
           <ConveyanceTab />
-        ) : ['deposits_withdrawals', 'account_balance', 'account_statement', 'balance_sheet', 'trial_balance', 'transaction_history'].includes(activeTab) && hasPermission('manage_finances') ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-xl font-bold flex items-center gap-2 capitalize">
-                <Book className="text-[#EF4444]" /> {activeTab.replace('_', ' ')}
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-12 text-gray-400">
-                <Book size={48} className="mx-auto mb-4 opacity-50" />
-                <p className="font-bold text-lg capitalize">{activeTab.replace('_', ' ')} Module</p>
-                <p className="text-sm">This accounting feature is currently available in the standard version.</p>
-              </div>
-            </div>
-          </div>
+        ) : activeTab === 'account_statement' && hasPermission('manage_finances') ? (
+          <AccountStatementTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
+        ) : activeTab === 'transaction_history' && hasPermission('manage_finances') ? (
+          <TransactionHistoryTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
+        ) : activeTab === 'balance_sheet' && hasPermission('manage_finances') ? (
+          <BalanceSheetTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
+        ) : activeTab === 'deposits_withdrawals' && hasPermission('manage_finances') ? (
+          <DepositsWithdrawalsTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
+        ) : activeTab === 'stock_accounting' && hasPermission('manage_finances') ? (
+          <StockAccountingTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
+        ) : activeTab === 'account_balance' && hasPermission('manage_finances') ? (
+          <AccountBalanceTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
+        ) : activeTab === 'trial_balance' && hasPermission('manage_finances') ? (
+          <TrialBalanceTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
         ) : activeTab === 'all_reports' && hasPermission('manage_reports') ? (
-          <AllReportsTab />
+          <AllReportsTab setActiveTab={setActiveTab} />
         ) : activeTab === 'menus' && isAdmin ? (
           <MenusTab />
         ) : activeTab === 'activeHostingAccounts' && (hasPermission('manage_services') || isAdmin) ? (
@@ -3402,13 +3532,25 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
         ) : activeTab === 'salary' ? (
           <SalaryTab />
         ) : activeTab === 'payment_accounts' && hasPermission('manage_finances') ? (
-          <PaymentAccountsTab />
+          <PaymentAccountsTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
         ) : activeTab === 'ledger' && hasPermission('manage_finances') ? (
-          <LedgerTab />
+          <LedgerTab
+            selectedLedgerEntity={selectedLedgerEntity}
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+          />
         ) : activeTab === 'manual_income' && hasPermission('manage_finances') ? (
-          <ManualIncomeTab />
+          <ManualIncomeTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
         ) : activeTab === 'manual_expense' && hasPermission('manage_finances') ? (
-          <ManualExpenseTab />
+          <ManualExpenseTab
+            setSelectedLedgerEntity={setSelectedLedgerEntity}
+            setActiveTab={setActiveTab}
+          />
         ) : activeTab === 'tx_categories' && hasPermission('manage_finances') ? (
           <TxCategoriesTab />
         ) : activeTab === 'reports' && hasPermission('manage_reports') ? (
