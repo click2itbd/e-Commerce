@@ -103,6 +103,7 @@ export interface Customer {
   email: string;
   phone: string;
   address: string;
+  loyaltyPoints?: number;
   createdAt: string;
 }
 

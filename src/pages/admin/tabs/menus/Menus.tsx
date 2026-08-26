@@ -36,7 +36,7 @@ const MenusTab: React.FC<MenusTabProps> = ({
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-xl font-bold flex items-center gap-2">
-                <MenuIcon className="text-[#EF4444]" /> Categories & Menus
+                <MenuIcon className="text-[#EF4444]" /> Products Category
               </h2>
               <div className="flex gap-2">
                 <button

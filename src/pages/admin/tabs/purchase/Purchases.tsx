@@ -90,6 +90,10 @@ const Purchases: React.FC<PurchasesProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [productCatalogSearch, setProductCatalogSearch] = useState<string>('');
 
+  // Quick Add Product
+  const [isQuickAddingProduct, setIsQuickAddingProduct] = useState(false);
+  const [quickProductData, setQuickProductData] = useState({ name: '', category: '', costPrice: 0, price: 0, stock: 0 });
+
   const [purchaseForm, setPurchaseForm] = useState({
     vendorId: '',
     vendorName: '',
@@ -123,14 +127,23 @@ const Purchases: React.FC<PurchasesProps> = ({
         getDocs(query(collection(db, 'products'), orderBy('name'))),
         getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
         getDocs(query(collection(db, 'purchases'), orderBy('createdAt', 'desc'))).catch(() => ({ docs: [] })),
-        getDocs(query(collection(db, 'product_categories'), orderBy('name'))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'menus'))).catch(() => ({ docs: [] })),
       ]);
 
       const vens = venSnap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor));
       const prods = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
       const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       const purs = purSnap.docs.map(d => ({ id: d.id, ...d.data() } as PurchaseRecord));
-      const cats = catSnap.docs.map(d => (d.data() as any).name as string).filter(Boolean);
+      const cats: string[] = [];
+      catSnap.docs.forEach(d => {
+        const data = d.data() as any;
+        if (data.name) cats.push(data.name);
+        if (data.subCategories && Array.isArray(data.subCategories)) {
+          data.subCategories.forEach((sub: any) => {
+            if (sub.name) cats.push(sub.name);
+          });
+        }
+      });
 
       setVendors(vens);
       setProducts(prods);
@@ -175,9 +188,11 @@ const Purchases: React.FC<PurchasesProps> = ({
     }
     try {
       setSavingCategory(true);
-      await addDoc(collection(db, 'product_categories'), {
+      await addDoc(collection(db, 'menus'), {
         name: trimmed,
-        createdAt: new Date().toISOString(),
+        slug: trimmed.toLowerCase().replace(/\s+/g, '-'),
+        order: 0,
+        subCategories: []
       });
       setSavedCategories(prev => [...prev, trimmed].sort());
       setNewCategoryName('');
@@ -188,6 +203,36 @@ const Purchases: React.FC<PurchasesProps> = ({
       toast.error('Failed to add category');
     } finally {
       setSavingCategory(false);
+    }
+  };
+
+  // Quick Add Product: create product in Firestore and add to purchase list
+  const handleQuickAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = quickProductData.name.trim();
+    if (!trimmed) { toast.error('Product name is required'); return; }
+    if (!quickProductData.category) { toast.error('Please select a category'); return; }
+    try {
+      const productData = {
+        name: trimmed,
+        category: quickProductData.category,
+        costPrice: quickProductData.costPrice || 0,
+        price: quickProductData.price || 0,
+        stock: quickProductData.stock || 0,
+        description: '',
+        images: [],
+        createdAt: new Date().toISOString(),
+      };
+      const docRef = await addDoc(collection(db, 'products'), productData);
+      const newProduct = { id: docRef.id, ...productData } as Product;
+      setProducts(prev => [...prev, newProduct]);
+      addItemToPurchase(newProduct);
+      setQuickProductData({ name: '', category: '', costPrice: 0, price: 0, stock: 0 });
+      setIsQuickAddingProduct(false);
+      toast.success(`Product "${trimmed}" created & added to purchase!`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to create product');
     }
   };
 
@@ -855,6 +900,45 @@ const Purchases: React.FC<PurchasesProps> = ({
                   />
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                 </div>
+              </div>
+
+              {/* Quick Add Product Button & Form */}
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickAddingProduct(!isQuickAddingProduct)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold text-xs bg-green-600 hover:bg-green-700 text-white transition-all shadow-sm"
+                >
+                  <Plus size={14} /> Quick Add New Product
+                </button>
+
+                {isQuickAddingProduct && (
+                  <form onSubmit={handleQuickAddProduct} className="p-3 bg-green-50 border border-green-200 rounded-xl space-y-2">
+                    <input type="text" placeholder="Product Name *" autoFocus value={quickProductData.name} onChange={e => setQuickProductData({...quickProductData, name: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-green-200" />
+                    <select value={quickProductData.category} onChange={e => setQuickProductData({...quickProductData, category: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none">
+                      <option value="">-- Select Category * --</option>
+                      {productCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 mb-0.5">Cost Price</label>
+                        <input type="number" min={0} value={quickProductData.costPrice || ''} onChange={e => setQuickProductData({...quickProductData, costPrice: Number(e.target.value)})} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 mb-0.5">Sale Price</label>
+                        <input type="number" min={0} value={quickProductData.price || ''} onChange={e => setQuickProductData({...quickProductData, price: Number(e.target.value)})} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 mb-0.5">Stock</label>
+                        <input type="number" min={0} value={quickProductData.stock || ''} onChange={e => setQuickProductData({...quickProductData, stock: Number(e.target.value)})} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold outline-none" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="submit" className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1"><CheckCircle size={12} /> Create & Add</button>
+                      <button type="button" onClick={() => { setIsQuickAddingProduct(false); setQuickProductData({ name: '', category: '', costPrice: 0, price: 0, stock: 0 }); }} className="px-3 py-2 bg-white border border-gray-200 rounded-lg font-bold text-xs text-gray-500 hover:text-gray-800"><X size={12} /></button>
+                    </div>
+                  </form>
+                )}
               </div>
 
               {/* Product Catalog List */}

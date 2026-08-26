@@ -324,7 +324,7 @@ export const Profile: React.FC = () => {
       {/* Tab Navigation */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="flex gap-1">
+          <div className="flex gap-1 overflow-x-auto whitespace-nowrap hide-scrollbar">
             {[
               { id: 'profile', label: 'My Profile', icon: User },
               { id: 'orders', label: 'My Orders', icon: ShoppingBag },

@@ -1,1 +1,0 @@
-import{d as u,r as o}from"./firebase-core-DDBe8Z0u.js";import{d as n}from"./index-CuAKRqp4.js";async function d(a){const e=u(n,"counters",a);return await o(n,async t=>{const s=await t.get(e);let r=1;return s.exists()?(r=s.data().lastNumber+1,t.update(e,{lastNumber:r})):t.set(e,{lastNumber:1}),`${a}-${String(r).padStart(5,"0")}`})}export{d as g};

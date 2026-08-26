@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { db, auth, storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -63,6 +63,7 @@ const TrialBalanceTab = lazy(() => import('./admin/tabs/accounting/TrialBalance'
 const AccountBalanceTab = lazy(() => import('./admin/tabs/accounting/AccountBalance').then(m => ({ default: m.default })));
 const DepositsWithdrawalsTab = lazy(() => import('./admin/tabs/accounting/DepositsWithdrawals').then(m => ({ default: m.default })));
 const StockAccountingTab = lazy(() => import('./admin/tabs/accounting/StockAccounting').then(m => ({ default: m.default })));
+const AuditLogsTab = lazy(() => import('./admin/tabs/reports/AuditLogs').then(m => ({ default: m.AuditLogs })));
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit2, Trash2, Package, Boxes, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare, Globe, Terminal, RefreshCw, DollarSign } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
@@ -197,7 +198,7 @@ export const AdminDashboard: React.FC = () => {
   const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
   const [isAddingPaymentAccount, setIsAddingPaymentAccount] = useState(false);
   const [paymentAccountFormData, setPaymentAccountFormData] = useState({ type: '', name: '', description: '', openingBalance: 0, status: 'active' });
-const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPricing' | 'domainOffers' | 'domainRenewals' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'reviews' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'hosting_api_settings' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
+const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts' | 'domainPricing' | 'domainOffers' | 'domainRenewals' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'reviews' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'hosting_api_settings' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
   
   const [serialSelectionModal, setSerialSelectionModal] = useState<{
     isOpen: boolean;
@@ -3169,6 +3170,11 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
            {/* Accounting */}
            <div className="px-4 mb-2">
              <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Accounting</div>
+              {hasPermission('manage_settings') && (
+                <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                  <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Products Category
+                </button>
+              )}
              {hasPermission('manage_finances') && (
                <button onClick={() => setActiveTab('payment_accounts')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'payment_accounts' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <CreditCard size={16} className={activeTab === 'payment_accounts' ? "text-blue-600" : "text-gray-400"} /> Payment Account
@@ -3297,18 +3303,19 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
            {(!isStaff || isAdmin || isManager) && (
              <div className="px-4 mb-6">
                <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">System & Settings</div>
-               {hasPermission('manage_settings') && (
-                 <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                   <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Site Menus
-                 </button>
-               )}
+               
                <button onClick={() => setActiveTab('crm')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'crm' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Users size={16} className={activeTab === 'crm' ? "text-blue-600" : "text-gray-400"} /> CRM System
                </button>
                <button onClick={() => setActiveTab('tasks')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'tasks' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <CheckCircle size={16} className={activeTab === 'tasks' ? "text-blue-600" : "text-gray-400"} /> To-Do List
                </button>
-               {hasPermission('manage_settings') && (
+               {isAdmin && (
+                <button onClick={() => setActiveTab('audit_logs')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'audit_logs' ? "text-red-600 font-bold bg-red-50" : "text-gray-600 hover:bg-gray-50")}>
+                  <ShieldAlert size={16} className={activeTab === 'audit_logs' ? "text-red-600" : "text-gray-400"} /> Audit Logs
+                </button>
+              )}
+              {hasPermission('manage_settings') && (
                  <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                    <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
                  </button>
@@ -3342,7 +3349,8 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="h-8 w-8 border-4 border-[#EF4444] border-t-transparent rounded-full animate-spin"></div></div>}>
-        {isStaff && !isAdmin && !isManager && !OFFLINE_SHOP_TABS.includes(activeTab) ? (
+        {activeTab === 'audit_logs' ? <AuditLogsTab /> :
+        isStaff && !isAdmin && !isManager && !OFFLINE_SHOP_TABS.includes(activeTab) ? (
           <div className="bg-white rounded-lg shadow-sm border border-red-200 p-8 text-center max-w-md mx-auto mt-12">
             <ShieldAlert size={48} className="mx-auto text-red-500 mb-3" />
             <h3 className="text-lg font-bold text-gray-900 mb-1">Access Restricted</h3>
@@ -3508,7 +3516,7 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
         ) : activeTab === 'all_reports' && hasPermission('manage_reports') ? (
           <AllReportsTab setActiveTab={setActiveTab} />
         ) : activeTab === 'menus' && isAdmin ? (
-          <MenusTab />
+          <MenusTab menus={menus} isAddingMenu={isAddingMenu} setIsAddingMenu={setIsAddingMenu} editingMenu={editingMenu} setEditingMenu={setEditingMenu} menuFormData={menuFormData} setMenuFormData={setMenuFormData} isAddingSubCategory={isAddingSubCategory} setIsAddingSubCategory={setIsAddingSubCategory} subCategoryFormData={subCategoryFormData} setSubCategoryFormData={setSubCategoryFormData} handleSaveMenu={handleSaveMenu} handleDeleteMenu={handleDeleteMenu} handleSaveSubCategory={handleSaveSubCategory} fetchData={fetchData} />
         ) : activeTab === 'activeHostingAccounts' && (hasPermission('manage_services') || isAdmin) ? (
           <ActiveHostingAccountsTab />
         ) : activeTab === 'domainPricing' && (hasPermission('manage_settings') || isAdmin) ? (
@@ -3602,6 +3610,11 @@ const [activeTab, setActiveTab] = useState<'activeHostingAccounts' | 'domainPric
 </div>
 );
 };
+
+
+
+
+
 
 
 

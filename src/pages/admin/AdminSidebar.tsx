@@ -104,6 +104,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           <button onClick={() => setActiveTab('inventory')} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors", activeTab === 'inventory' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 font-medium hover:bg-gray-50")}>
             <Package size={18} className={activeTab === 'inventory' ? "text-blue-600" : "text-gray-400"} /> Stock
           </button>
+          {hasPermission('manage_settings') && (
+            <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 font-medium hover:bg-gray-50")}>
+              <Layers size={18} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Categories
+            </button>
+          )}
           <button onClick={() => window.open('/pos', '_blank')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors text-gray-600 font-medium hover:bg-gray-50">
             <ShoppingCart size={18} className="text-gray-400" /> CLICK POS
           </button>
@@ -277,11 +282,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         {(!isStaff || isAdmin || isManager) && (
           <div className="px-4 mb-6">
             <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Other</div>
-            {hasPermission('manage_settings') && (
-              <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Site Menus
-              </button>
-            )}
+
             <button onClick={() => setActiveTab('crm')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'crm' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
               <Users size={16} className={activeTab === 'crm' ? "text-blue-600" : "text-gray-400"} /> CRM System
             </button>

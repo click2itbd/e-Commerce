@@ -16,6 +16,7 @@ import {
   Wallet,
   Briefcase,
   ChevronRight,
+  Medal,
 } from "lucide-react";
 import { cn } from "../../../../lib/utils";
 
@@ -58,6 +59,16 @@ const AllReports: React.FC<AllReportsProps> = ({ setActiveTab }) => {
           color: "text-blue-700",
           bgColor: "bg-blue-50",
           borderColor: "border-blue-200",
+        },
+        {
+          name: "Loyalty Points Report",
+          description: "View all customers with earned loyalty points and their equivalent cash value.",
+          icon: <Medal size={20} />,
+          tab: "loyalty_points",
+          badge: "New",
+          color: "text-indigo-700",
+          bgColor: "bg-indigo-50",
+          borderColor: "border-indigo-200",
         },
         {
           name: "Customer Receive Report",

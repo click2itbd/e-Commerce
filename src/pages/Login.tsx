@@ -144,7 +144,7 @@ export const Login: React.FC = () => {
           <img src="/logo.png" alt="Logo" className="h-8 object-contain" />
         </Link>
         
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md mt-16 md:mt-0">
           <div className="mb-10">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">
               {isSignUp ? 'Create an account' : 'Welcome back'}
