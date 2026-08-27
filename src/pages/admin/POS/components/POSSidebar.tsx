@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { User, UserPlus, Trash2, ArrowRight, CheckCircle2, ShoppingCart } from 'lucide-react';
 import { cn, formatCurrency } from '../../../../lib/utils';
 import { Customer, PaymentAccount } from '../../../../types';
@@ -141,12 +141,12 @@ export const POSSidebar: React.FC<POSSidebarProps> = ({
           })}
         </div>
 
-        {selectedCustomer && (selectedCustomer.loyaltyPoints || 0) >= 100 && setIsRedeemingPoints && (
-          <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-emerald-800">Redeem Points</p>
-              <p className="text-[10px] text-emerald-600">100 Points = 40 TK Discount</p>
-            </div>
+        {settings?.isLoyaltyEnable === 'Enable' && selectedCustomer && (selectedCustomer.loyaltyPoints || 0) >= Number(settings?.minimumPointToRedeem || 0) && setIsRedeemingPoints && (
+            <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-emerald-800">Redeem Points ({selectedCustomer.loyaltyPoints})</p>
+                <p className="text-[10px] text-emerald-600">1 Point = 1 TK Discount</p>
+              </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input 
                 type="checkbox" 
@@ -194,3 +194,4 @@ export const POSSidebar: React.FC<POSSidebarProps> = ({
     </div>
   );
 };
+

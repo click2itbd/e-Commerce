@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { db } from '../../../../firebase';
 import { collection, query, orderBy, getDocs, doc, updateDoc, where, limit } from 'firebase/firestore';
 import { formatCurrency, cn } from '../../../../lib/utils';
@@ -225,6 +225,61 @@ export default function HostingOrders() {
     } catch (error) {
       console.error('Error updating service status:', error);
       toast.error('Service Error: ' + error.message);
+    }
+  };
+
+  const handleProvisionCloudLinux = async (order: HostingOrder) => {
+    const ip = prompt("Enter Server IP Address to provision CloudLinux License:");
+    if (!ip) return;
+
+    let licenseType = 1; // Default
+    const clItem = order.items?.find((i: any) => i.itemType === 'license' && i.name.toLowerCase().includes('cloudlinux'));
+    if (clItem) {
+      if (clItem.id?.includes('solo')) licenseType = 2; // Solo
+      if (clItem.id?.includes('admin')) licenseType = 41; // Admin
+      if (clItem.id?.includes('shared')) licenseType = 1; // Shared
+    }
+
+    setStatusUpdating(true);
+    const toastId = toast.loading('Provisioning CloudLinux License...');
+    try {
+      const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
+      
+      const response = await fetch(getApiUrl('/api/hosting/cloudlinux/license'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ ip, type: licenseType })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        toast.success(`CloudLinux License successfully provisioned for ${ip}`, { id: toastId });
+        await updateDoc(doc(db, 'orders', order.id), {
+          status: 'completed',
+          providerStatus: 'active',
+          updatedAt: new Date().toISOString(),
+          cloudLinuxIp: ip,
+        });
+        await updateDoc(doc(db, 'hostingOrders', order.id), {
+          status: 'active',
+          updatedAt: new Date().toISOString(),
+          cloudLinuxIp: ip,
+        });
+        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'active' as any } : o));
+        if (selectedOrder?.id === order.id) {
+          setSelectedOrder(prev => prev ? { ...prev, status: 'active' as any } : null);
+        }
+      } else {
+        throw new Error(data.error || 'Failed to provision license');
+      }
+    } catch (e: any) {
+      toast.error('CloudLinux Error: ' + e.message, { id: toastId });
+    } finally {
+      setStatusUpdating(false);
     }
   };
 
@@ -647,34 +702,39 @@ export default function HostingOrders() {
                     {/* Workflow Quick Action Buttons */}
                     <div className="pt-2">
                       {(() => {
-                        const hasDomain = selectedOrder.items?.some((i: any) => i.itemType === 'domain' || i.itemType === 'domain_renewal' || i.itemType === 'domain_transfer') || domainOrders.length > 0;
-                        const hasHosting = selectedOrder.items?.some((i: any) => i.itemType === 'hosting') || hostingAccounts.length > 0;
-                        
-                        let acceptLabel = 'Accept & Process Order';
-                        let retryLabel = 'Retry Processing';
-                        let ActionIcon = CheckCircle;
+                                                  const hasDomain = selectedOrder.items?.some((i: any) => i.itemType === 'domain' || i.itemType === 'domain_renewal' || i.itemType === 'domain_transfer') || domainOrders.length > 0;
+                          const hasHosting = selectedOrder.items?.some((i: any) => i.itemType === 'hosting') || hostingAccounts.length > 0;
+                          const hasCloudLinux = selectedOrder.items?.some((i: any) => i.itemType === 'license' && i.name.toLowerCase().includes('cloudlinux'));
+                          
+                          let acceptLabel = 'Accept & Process Order';
+                          let retryLabel = 'Retry Processing';
+                          let ActionIcon = CheckCircle;
 
-                        if (hasDomain && hasHosting) {
-                          acceptLabel = 'Accept & Provision Order (Domain + WHM)';
-                          retryLabel = 'Retry Provisioning (Domain + WHM)';
-                        } else if (hasDomain) {
-                          acceptLabel = 'Accept & Provision Domain';
-                          retryLabel = 'Retry Domain Registration';
-                          ActionIcon = Globe;
-                        } else if (hasHosting) {
-                          acceptLabel = 'Accept & Provision WHM Account';
-                          retryLabel = 'Retry WHM Provisioning';
-                          ActionIcon = Server;
-                        }
+                          if (hasCloudLinux) {
+                            acceptLabel = 'Accept & Provision CloudLinux';
+                            retryLabel = 'Retry CloudLinux Provisioning';
+                            ActionIcon = Server;
+                          } else if (hasDomain && hasHosting) {
+                            acceptLabel = 'Accept & Provision Order (Domain + WHM)';
+                            retryLabel = 'Retry Provisioning (Domain + WHM)';
+                          } else if (hasDomain) {
+                            acceptLabel = 'Accept & Provision Domain';
+                            retryLabel = 'Retry Domain Registration';
+                            ActionIcon = Globe;
+                          } else if (hasHosting) {
+                            acceptLabel = 'Accept & Provision WHM Account';
+                            retryLabel = 'Retry WHM Provisioning';
+                            ActionIcon = Server;
+                          }
 
                         return (
                           <>
                             {selectedOrder.status === 'pending' && (
-                              <button
-                                onClick={() => handleAcceptOrder(selectedOrder)}
-                                disabled={statusUpdating}
-                                className="w-full py-2.5 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
-                              >
+                                                              <button
+                                  onClick={() => hasCloudLinux ? handleProvisionCloudLinux(selectedOrder) : handleAcceptOrder(selectedOrder)}
+                                  disabled={statusUpdating}
+                                  className="w-full py-2.5 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                                >
                                 <ActionIcon className="w-4 h-4" />
                                 {acceptLabel}
                               </button>
@@ -702,11 +762,11 @@ export default function HostingOrders() {
                                   <p className="font-bold">Provisioning Status:</p>
                                   <p>{(selectedOrder as any).provisioningError || (hasDomain ? 'Domain registration pending Dynadot balance or provider approval.' : 'WHM provisioning failed or server timed out.')}</p>
                                 </div>
-                                <button
-                                  onClick={() => handleAcceptOrder(selectedOrder)}
-                                  disabled={statusUpdating}
-                                  className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
-                                >
+                                                                  <button
+                                    onClick={() => hasCloudLinux ? handleProvisionCloudLinux(selectedOrder) : handleAcceptOrder(selectedOrder)}
+                                    disabled={statusUpdating}
+                                    className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                                  >
                                   <ActionIcon className="w-4 h-4" />
                                   {retryLabel}
                                 </button>
@@ -1067,6 +1127,8 @@ export default function HostingOrders() {
     </div>
   );
 }
+
+
 
 
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   Briefcase,
   ShoppingCart,
@@ -101,7 +101,7 @@ export const Settings = () => {
     const payload: Record<string, any> = {};
     for (const [key, value] of Object.entries(apiKeys)) {
       if (secretFields.includes(key)) {
-        if (typeof value === 'string' && value.trim().length > 0 && !value.startsWith('••••••••••••••••')) {
+        if (typeof value === 'string' && value.trim().length > 0 && !value.startsWith('â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢')) {
           payload[key] = value.trim();
         }
       } else {
@@ -113,7 +113,23 @@ export const Settings = () => {
 
   const isSecretConfigured = (fieldName: string) => {
     const value = apiKeys[fieldName];
-    return typeof value === 'string' && value.startsWith('••••••••••••••••');
+    return typeof value === 'string' && value.startsWith('â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢');
+  };
+
+  const handleResetCounters = async () => {
+    if (!confirm('Are you sure you want to reset all document counters (Invoices, Challans, etc) back to 1? This cannot be undone.')) return;
+    try {
+      await setDoc(doc(db, 'counters', 'INV'), { lastNumber: 0 });
+      await setDoc(doc(db, 'counters', 'CHA'), { lastNumber: 0 });
+      await setDoc(doc(db, 'counters', 'QUO'), { lastNumber: 0 });
+      await setDoc(doc(db, 'counters', 'REC'), { lastNumber: 0 });
+      await setDoc(doc(db, 'counters', 'SR'), { lastNumber: 0 });
+      await setDoc(doc(db, 'counters', 'PR'), { lastNumber: 0 });
+      toast.success('All document counters reset to 1!');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to reset counters');
+    }
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -1568,7 +1584,7 @@ export const Settings = () => {
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-2.5 text-gray-500">
-                        ৳
+                        à§³
                       </span>
                       <input
                         type="number"
@@ -1679,14 +1695,14 @@ export const Settings = () => {
                       <p>Wholesale: $10.00 USD</p>
                       <p>Exchange Rate: {apiKeys.usdToBdtRate || 120} BDT/USD</p>
                       <p>Retail USD: ${((10 * (1 + (apiKeys.domainMarkupPercent ?? 15) / 100)).toFixed(2))}</p>
-                      <p className="font-bold">Final BDT: ৳{Math.round(10 * (apiKeys.usdToBdtRate || 120) * (1 + (apiKeys.domainMarkupPercent ?? 15) / 100)).toLocaleString()}</p>
+                      <p className="font-bold">Final BDT: à§³{Math.round(10 * (apiKeys.usdToBdtRate || 120) * (1 + (apiKeys.domainMarkupPercent ?? 15) / 100)).toLocaleString()}</p>
                     </div>
                     <div className="text-xs text-blue-800 space-y-1 font-mono mt-3 pt-3 border-t border-blue-200">
                       <p className="font-bold text-blue-700">Hosting Pricing (margin: {apiKeys.hostingMarkupPercent ?? 35}%)</p>
                       <p>License Cost: $10.00 USD</p>
                       <p>Exchange Rate: {apiKeys.usdToBdtRate || 120} BDT/USD</p>
                       <p>Retail USD: ${((10 * (1 + (apiKeys.hostingMarkupPercent ?? 35) / 100)).toFixed(2))}</p>
-                      <p className="font-bold">Final BDT: ৳{Math.round(10 * (apiKeys.usdToBdtRate || 120) * (1 + (apiKeys.hostingMarkupPercent ?? 35) / 100)).toLocaleString()}</p>
+                      <p className="font-bold">Final BDT: à§³{Math.round(10 * (apiKeys.usdToBdtRate || 120) * (1 + (apiKeys.hostingMarkupPercent ?? 35) / 100)).toLocaleString()}</p>
                     </div>
                   </div>
 
@@ -1806,3 +1822,4 @@ export const Settings = () => {
     </div>
   );
 };
+

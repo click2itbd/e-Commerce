@@ -9,100 +9,100 @@ import { db } from '../../firebase';
 
 const CANONICAL_WP_PLANS = [
   {
-    id: 'wp_starter',
-    name: 'WP Starter',
-    badge: 'Student & Blogger',
-    description: 'Perfect for fast personal blogs, portfolio sites, and student projects.',
-    pricing: { monthly: 250, annually: 2400 },
-    space: '10 GB Pure NVMe SSD',
-    cpu: '2 vCPU Cores',
-    ram: '2 GB DDR4 RAM',
-    websites: '1 Website',
-    bandwidth: 'BDIX 100 GB Traffic',
+    id: 'cl_shared_starter',
+    name: 'Starter Cloud',
+    badge: 'Beginner Friendly',
+    description: 'Perfect for personal blogs, portfolio sites, and small student projects.',
+    pricing: { monthly: 100, annually: 1000 },
+    space: '5 GB NVMe SSD',
+    cpu: '1 vCPU Core',
+    ram: '1 GB RAM',
+    websites: '1 Hosted Domain',
+    bandwidth: 'Unlimited BDIX Traffic',
     features: [
-      '10 GB Pure NVMe SSD',
-      '2 vCPU Cores & 2 GB RAM',
-      'LiteSpeed Enterprise Web Server',
-      'LSCache & Redis Acceleration',
-      'Free Unlimited SSL Certificate',
-      '1-Click WordPress Staging',
-      'Daily Automated JetBackup',
-      'Automated WP Core & Plugin Updates',
-      'Free Website Migration',
+      '5 GB NVMe SSD Storage',
+      '1 Hosted Domain',
+      '1 vCPU & 1 GB RAM',
+      'LiteSpeed Web Server',
+      'CloudLinux OS & CageFS',
+      'Free SSL Certificate',
+      'Unlimited BDIX Traffic',
+      'cPanel Control Panel',
+      'Weekly Backups',
+      '24/7 Standard Support'
+    ],
+  },
+  {
+    id: 'cl_shared_standard',
+    name: 'Standard Cloud',
+    badge: 'Most Popular',
+    popular: true,
+    description: 'Designed for growing websites, small businesses, and professional blogs.',
+    pricing: { monthly: 200, annually: 2000 },
+    space: '15 GB NVMe SSD',
+    cpu: '1.5 vCPU Cores',
+    ram: '2 GB RAM',
+    websites: '5 Hosted Domains',
+    bandwidth: 'Unlimited BDIX Traffic',
+    features: [
+      '15 GB NVMe SSD Storage',
+      '5 Hosted Domains',
+      '1.5 vCPU & 2 GB RAM',
+      'LiteSpeed Web Server',
+      'CloudLinux OS & CageFS',
+      'Free SSL Certificate',
+      'Unlimited BDIX Traffic',
+      'cPanel Control Panel',
+      'Daily Backups',
       '24/7 Priority Support'
     ],
   },
   {
-    id: 'wp_pro',
-    name: 'WP Pro Turbo',
-    badge: 'Most Popular',
-    popular: true,
-    description: 'Designed for high-traffic blogs, dynamic magazines, and growing startups.',
-    pricing: { monthly: 500, annually: 4800 },
-    space: '25 GB Pure NVMe SSD',
-    cpu: '4 vCPU Cores',
-    ram: '4 GB DDR4 RAM',
-    websites: '5 Websites',
+    id: 'cl_shared_advanced',
+    name: 'Advanced Cloud',
+    badge: 'Business Class',
+    description: 'Optimized for high-traffic websites, agencies, and medium businesses.',
+    pricing: { monthly: 350, annually: 3500 },
+    space: '30 GB NVMe SSD',
+    cpu: '2 vCPU Cores',
+    ram: '3 GB RAM',
+    websites: 'Unlimited Hosted Domains',
     bandwidth: 'Unlimited BDIX Traffic',
     features: [
-      '25 GB Pure NVMe SSD',
-      '4 vCPU Cores & 4 GB RAM',
-      'LiteSpeed Enterprise + QUIC.cloud',
-      'Dedicated Redis Object Cache',
-      'Free SSL & HTTP/3 Support',
-      '1-Click Staging & Cloning',
-      'Daily Automated Backups (30 Days)',
-      'Free Premium Elementor Tools',
-      'WP-CLI & Git Version Control',
-      '24/7 Expert WP Support'
+      '30 GB NVMe SSD Storage',
+      'Unlimited Hosted Domains',
+      '2 vCPU &৳  GB RAM',
+      'LiteSpeed + Redis Cache',
+      'CloudLinux OS & CageFS',
+      'Free SSL Certificate',
+      'Unlimited BDIX Traffic',
+      'cPanel Control Panel',
+      'Daily Automated Backups',
+      '24/7 VIP Support'
     ],
   },
   {
-    id: 'wp_ecom',
-    name: 'E-Commerce Ultra',
-    badge: 'WooCommerce Boost',
-    description: 'Optimized for WooCommerce, high-checkout sales, and database-heavy shops.',
-    pricing: { monthly: 950, annually: 9120 },
-    space: '50 GB Pure NVMe SSD',
-    cpu: '6 vCPU Cores',
-    ram: '8 GB DDR4 RAM',
-    websites: 'Unlimited Websites',
-    bandwidth: 'Unlimited BDIX Traffic',
-    features: [
-      '50 GB Pure NVMe SSD',
-      '6 vCPU Cores & 8 GB RAM',
-      'LiteSpeed Enterprise High-Concurrency',
-      'High-Speed Redis & Memcached',
-      'Dedicated IP Address Included',
-      'WooCommerce Cart & Checkout Boost',
-      'Real-time Malware Shield & WAF',
-      'Daily & On-Demand Snapshots',
-      'Free SSL & Anti-DDoS Protection',
-      'Dedicated VIP Support Manager'
-    ],
-  },
-  {
-    id: 'wp_mega',
-    name: 'Mega Portal Cloud',
-    badge: 'High Traffic Enterprise',
-    description: 'Maximum power for large news portals, high-traffic communities, and agencies.',
-    pricing: { monthly: 1800, annually: 17280 },
-    space: '100 GB Pure NVMe SSD',
-    cpu: '8 vCPU Cores',
-    ram: '16 GB DDR4 RAM',
-    websites: 'Unlimited Websites',
+    id: 'cl_shared_turbo',
+    name: 'Turbo Cloud',
+    badge: 'Enterprise Performance',
+    description: 'Maximum power for large news portals, e-commerce shops, and heavy traffic.',
+    pricing: { monthly: 600, annually: 6000 },
+    space: '60 GB NVMe SSD',
+    cpu: '3 vCPU Cores',
+    ram: '4 GB RAM',
+    websites: 'Unlimited Hosted Domains',
     bandwidth: 'Unmetered 1Gbps BDIX',
     features: [
-      '100 GB Pure NVMe SSD',
-      '8 vCPU Cores & 16 GB RAM',
-      'Extreme LiteSpeed Enterprise',
-      'Isolated CloudLinux LVE Container',
-      'Dedicated IP + Custom Nameservers',
-      'Unlimited MySQL & Subdomains',
-      'Premium CDN & Advanced Firewall',
-      'Hourly Automated Backups',
-      'Free White-glove Migration',
-      'Direct WhatsApp VIP Support'
+      '60 GB NVMe SSD Storage',
+      'Unlimited Hosted Domains',
+      '3 vCPU & 4 GB RAM',
+      'Extreme LiteSpeed Performance',
+      'CloudLinux LVE Isolation',
+      'Free SSL + Dedicated IP Option',
+      'Unmetered BDIX Traffic',
+      'cPanel Control Panel',
+      'Hourly & Daily Backups',
+      'Dedicated Account Manager'
     ],
   }
 ];
@@ -167,7 +167,7 @@ export default function WordPressCloudSection() {
     
     addToCart({
       id: `${plan.id}_${billingCycle}`,
-      name: `${plan.name} (Managed WordPress Cloud)`,
+      name: `${plan.name} (CloudLinux Shared Hosting)`,
       price: price,
       billingCycle: isAnnual ? 'yearly' : 'monthly',
       category: 'Hosting & Domains',
@@ -197,13 +197,13 @@ export default function WordPressCloudSection() {
         <div className="text-center max-w-3xl mx-auto mb-14">
           <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 text-blue-400 border border-blue-500/30 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest mb-4">
             <Rocket size={14} className="text-blue-400 animate-pulse" />
-            BDIX Turbo Powered WordPress Cloud
+            BDIX Powered CloudLinux Hosting
           </div>
           <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white mb-4">
-            Managed WordPress & E-Commerce Cloud
+            Fast & Secure CloudLinux Shared Hosting
           </h2>
           <p className="text-gray-400 text-base md:text-lg">
-            Up to 20x faster page load speed powered by LiteSpeed Enterprise, Redis Object Cache, and high-speed BDIX local network peering.
+            Enterprise-grade CloudLinux OS, CageFS isolation, NVMe SSDs, and LiteSpeed web servers for ultimate stability and blazing-fast BDIX local speed.
           </p>
 
           {/* Billing Cycle Toggle */}
@@ -267,10 +267,10 @@ export default function WordPressCloudSection() {
 
                   {/* Price Block */}
                   <div className="pb-5 mb-6 border-b border-gray-700/60">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl md:text-4xl font-black text-white">৳{price.toLocaleString()}</span>
-                      <span className="text-xs text-gray-400 font-medium">{isAnnual ? '/year' : '/month'}</span>
-                    </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl md:text-4xl font-black text-white">৳ {price.toLocaleString()}</span>
+                        <span className="text-xs text-gray-400 font-medium">{isAnnual ? '/year' : '/month'}</span>
+                      </div>
                     {isAnnual && (
                       <span className="inline-block mt-1 text-[11px] text-emerald-400 font-semibold">
                         Includes 20% annual discount

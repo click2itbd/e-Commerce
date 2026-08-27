@@ -516,23 +516,93 @@ export const RetailPOS = () => {
     if (!printWindow) return;
 
     let itemsHtml = '';
-    orderData.items.forEach((item: any, index: number) => {
-      itemsHtml += `
-        <tr>
-          <td style="text-align: center;">${index + 1}</td>
-          <td>
-            <strong>${item.name}</strong>
-            ${item.selectedSerials?.length > 0 ? `<br><span style="color: #666; font-size: 12px;">Serial Numbers: ${item.selectedSerials.join(', ')}</span>` : ''}
-            ${item.hasWarranty ? `<br><span style="color: #666; font-size: 12px;">Warranty: ${item.warrantyYears} Years</span>` : ''}
-          </td>
-          <td style="text-align: center;">${item.quantity}</td>
-          <td style="text-align: right;">${formatCurrency(item.price, settings)}</td>
-          <td style="text-align: right;">${formatCurrency(item.price * item.quantity, settings)}</td>
-        </tr>
-      `;
-    });
+    const isThermal = settings?.receiptPrinterType === 'Thermal Printer';
 
-    const html = `
+    if (isThermal) {
+      orderData.items.forEach((item: any) => {
+        itemsHtml += `
+          <tr>
+            <td style="padding: 4px 0;">
+              <div><strong>${item.name}</strong></div>
+              ${item.selectedSerials?.length > 0 ? `<div style="font-size: 10px; color: #555;">SN: ${item.selectedSerials.join(", ")}</div>` : ""}
+            </td>
+            <td style="text-align: center; padding: 4px 0;">${item.quantity}</td>
+            <td style="text-align: right; padding: 4px 0;">${formatCurrency(item.price * item.quantity, settings)}</td>
+          </tr>
+        `;
+      });
+    } else {
+      orderData.items.forEach((item: any, index: number) => {
+        itemsHtml += `
+          <tr>
+            <td style="text-align: center;">${index + 1}</td>
+            <td>
+              <strong>${item.name}</strong>
+              ${item.selectedSerials?.length > 0 ? `<br><span style="color: #666; font-size: 12px;">Serial Numbers: ${item.selectedSerials.join(", ")}</span>` : ""}
+              ${item.hasWarranty ? `<br><span style="color: #666; font-size: 12px;">Warranty: ${item.warrantyYears} Years</span>` : ""}
+            </td>
+            <td style="text-align: center;">${item.quantity}</td>
+            <td style="text-align: right;">${formatCurrency(item.price, settings)}</td>
+            <td style="text-align: right;">${formatCurrency(item.price * item.quantity, settings)}</td>
+          </tr>
+        `;
+      });
+    }
+
+    const html = isThermal ? `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Receipt - ${orderData.documentNumber}</title>
+          <style>
+            body { font-family: monospace; margin: 0; padding: 10px; color: #000; width: 80mm; font-size: 12px; }
+            .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+            .header h1 { font-size: 18px; margin: 0 0 5px 0; }
+            .header p { margin: 2px 0; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+            th { border-bottom: 1px dashed #000; padding: 4px 0; text-align: left; }
+            .totals { border-top: 1px dashed #000; padding-top: 10px; margin-top: 10px; }
+            .totals-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-weight: bold; }
+            .footer { text-align: center; font-size: 10px; margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${settings?.brandName || "Click2IT"}</h1>
+            <p>${settings?.address || ""}</p>
+            <p>Phone: ${settings?.phone || ""}</p>
+            <p><strong>Receipt: ${orderData.documentNumber}</strong></p>
+            <p>Date: ${new Date(orderData.createdAt).toLocaleString()}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th style="text-align: center;">Qty</th>
+                <th style="text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+          <div class="totals">
+            <div class="totals-row"><span>Subtotal:</span><span>${formatCurrency(orderData.subtotal, settings)}</span></div>
+            ${orderData.discountAmount > 0 ? `<div class="totals-row"><span>Discount:</span><span>-${formatCurrency(orderData.discountAmount, settings)}</span></div>` : ""}
+            <div class="totals-row" style="font-size: 14px; margin-top: 5px;"><span>Total:</span><span>${formatCurrency(orderData.total, settings)}</span></div>
+            <div class="totals-row"><span>Paid:</span><span>${formatCurrency(orderData.paidAmount, settings)}</span></div>
+          </div>
+          <div class="footer">
+            <p>Thank you for shopping with us!</p>
+            <p>Powered by Click2IT</p>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              ${settings?.posFastMode === "Yes" ? "setTimeout(() => window.close(), 500);" : ""}
+            };
+          </script>
+        </body>
+      </html>
+    ` : `
       <!DOCTYPE html>
       <html>
         <head>
@@ -542,67 +612,52 @@ export const RetailPOS = () => {
             .header { display: flex; justify-content: space-between; border-bottom: 2px solid #f0f0f0; padding-bottom: 20px; margin-bottom: 30px; }
             .brand-info h1 { font-size: 28px; font-weight: 800; color: #2563eb; margin: 0 0 5px 0; }
             .brand-info p { margin: 2px 0; font-size: 13px; color: #6b7280; }
-            .invoice-title h2 { font-size: 24px; color: #111; margin: 0 0 10px 0; text-align: right; text-transform: uppercase; letter-spacing: 1px; }
-            .meta-info { text-align: right; font-size: 13px; color: #4b5563; }
-            .meta-info p { margin: 4px 0; }
-            .meta-info strong { color: #111; }
-            
-            .billing-section { display: flex; justify-content: space-between; margin-bottom: 40px; }
-            .bill-to h3 { margin: 0 0 10px 0; font-size: 14px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; }
-            .bill-to p { margin: 4px 0; font-size: 14px; color: #111; }
-            
-            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
-            .items-table th { background: #f9fafb; border-bottom: 2px solid #e5e7eb; padding: 12px; text-align: left; font-size: 13px; color: #4b5563; text-transform: uppercase; }
-            .items-table td { border-bottom: 1px solid #e5e7eb; padding: 15px 12px; font-size: 14px; color: #1f2937; vertical-align: top; }
-            
-            .summary-section { display: flex; justify-content: flex-end; }
-            .summary-box { width: 320px; }
-            .summary-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; color: #4b5563; }
-            .summary-row.total { font-size: 18px; font-weight: 700; color: #111; border-top: 2px solid #e5e7eb; border-bottom: none; padding-top: 15px; margin-top: 5px; }
-            .summary-row.paid { font-size: 14px; font-weight: 600; color: #059669; }
-            
-            .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 12px; }
-            
-            @media print {
-              body { padding: 20px; }
-              @page { margin: 0; size: A4 portrait; }
-            }
+            .invoice-details { text-align: right; }
+            .invoice-details h2 { font-size: 24px; color: #111827; margin: 0 0 10px 0; letter-spacing: 1px; }
+            .invoice-details p { margin: 2px 0; font-size: 13px; color: #4b5563; }
+            .customer-info { margin-bottom: 30px; padding: 20px; background: #f9fafb; border-radius: 8px; }
+            .customer-info h3 { margin: 0 0 10px 0; font-size: 14px; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+            th { background: #f3f4f6; padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #374151; letter-spacing: 0.5px; }
+            td { padding: 12px; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+            .totals-container { display: flex; justify-content: flex-end; }
+            .totals { width: 300px; }
+            .totals-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+            .totals-row.final { border-bottom: none; border-top: 2px solid #111827; margin-top: 8px; padding-top: 12px; font-size: 18px; font-weight: 800; }
+            .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 12px; }
           </style>
         </head>
         <body>
           <div class="header">
             <div class="brand-info">
-              <h1>${settings?.brandName || 'CLICK POS'}</h1>
-              <p>${settings?.address || 'Shop 1072, Level 10, ECS Computer City, New Elephant Road, Dhaka, Bangladesh, 1205'}</p>
-              <p>Phone: ${settings?.phone || '+8809640887777'}</p>
-              ${settings?.email ? `<p>Email: ${settings.email}</p>` : ''}
+              <h1>${settings?.brandName || 'Click2IT'}</h1>
+              <p>${settings?.address || ''}</p>
+              <p>Phone: ${settings?.phone || ''}</p>
+              <p>Email: ${settings?.email || ''}</p>
             </div>
-            <div class="invoice-title">
+            <div class="invoice-details">
               <h2>INVOICE</h2>
-              <div class="meta-info">
-                <p>Invoice No: <strong>${orderData.documentNumber}</strong></p>
-                <p>Date: <strong>${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></p>
-              </div>
+              <p><strong>Receipt #:</strong> ${orderData.documentNumber}</p>
+              <p><strong>Date:</strong> ${new Date(orderData.createdAt).toLocaleDateString()}</p>
+              <p><strong>Status:</strong> <span style="text-transform: capitalize;">${orderData.paymentStatus}</span></p>
             </div>
           </div>
           
-          <div class="billing-section">
-            <div class="bill-to">
-              <h3>Billed To</h3>
-              <p><strong>${orderData.customerName}</strong></p>
-              ${orderData.customerPhone ? `<p>${orderData.customerPhone}</p>` : ''}
-              ${orderData.customerEmail ? `<p>${orderData.customerEmail}</p>` : ''}
-            </div>
+          <div class="customer-info">
+            <h3>Bill To:</h3>
+            <p><strong>${orderData.customerName || 'Walk-in Customer'}</strong></p>
+            ${orderData.customerPhone ? `<p>Phone: ${orderData.customerPhone}</p>` : ''}
+            ${orderData.customerEmail ? `<p>Email: ${orderData.customerEmail}</p>` : ''}
           </div>
           
-          <table class="items-table">
+          <table>
             <thead>
               <tr>
-                <th style="text-align: center; width: 5%;">#</th>
-                <th style="width: 45%;">Item Description</th>
-                <th style="text-align: center; width: 10%;">Qty</th>
-                <th style="text-align: right; width: 20%;">Price</th>
-                <th style="text-align: right; width: 20%;">Total</th>
+                <th style="width: 50px; text-align: center;">#</th>
+                <th>Description</th>
+                <th style="width: 80px; text-align: center;">Qty</th>
+                <th style="width: 120px; text-align: right;">Unit Price</th>
+                <th style="width: 120px; text-align: right;">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -610,39 +665,37 @@ export const RetailPOS = () => {
             </tbody>
           </table>
           
-          <div class="summary-section">
-            <div class="summary-box">
-              <div class="summary-row">
+          <div class="totals-container">
+            <div class="totals">
+              <div class="totals-row">
                 <span>Subtotal</span>
                 <span>${formatCurrency(orderData.subtotal, settings)}</span>
               </div>
-              <div class="summary-row">
-                <span>Discount</span>
-                <span>${formatCurrency(orderData.discountAmount || 0, settings)}</span>
-              </div>
-              ${orderData.taxAmount ? `
-              <div class="summary-row">
-                <span>VAT / Tax</span>
-                <span>${formatCurrency(orderData.taxAmount, settings)}</span>
-              </div>` : ''}
-              <div class="summary-row total">
-                <span>Total Amount</span>
+              ${orderData.discountAmount > 0 ? `<div class="totals-row" style="color: #059669;"><span>Discount</span><span>-${formatCurrency(orderData.discountAmount, settings)}</span></div>` : ''}
+              <div class="totals-row final">
+                <span>Total</span>
                 <span>${formatCurrency(orderData.total, settings)}</span>
               </div>
-              <div class="summary-row paid">
-                <span>Paid via: ${orderData.paymentMethod.toUpperCase()}</span>
+              <div class="totals-row">
+                <span>Paid</span>
                 <span>${formatCurrency(orderData.paidAmount, settings)}</span>
+              </div>
+              <div class="totals-row" style="color: #dc2626;">
+                <span>Due Balance</span>
+                <span>${formatCurrency(Math.max(0, orderData.total - orderData.paidAmount), settings)}</span>
               </div>
             </div>
           </div>
           
           <div class="footer">
             <p>Thank you for your business!</p>
-            <p>This is a computer-generated document. No signature is required.</p>
+            <p>Powered by Click2IT - Advanced Retail POS System</p>
           </div>
-          
           <script>
-            window.onload = function() { window.print(); window.close(); }
+            window.onload = function() {
+              window.print();
+              ${settings?.posFastMode === "Yes" ? "setTimeout(() => window.close(), 500);" : ""}
+            };
           </script>
         </body>
       </html>

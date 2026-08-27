@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, query, orderBy, addDoc, updateDoc, deleteDoc, doc, limit } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Audience, Lead } from '../types';
@@ -69,6 +69,11 @@ export const CRMPage: React.FC = () => {
     emailOptOut: false, address: {}, dob: '', anniversary: '', source: 'manual', status: 'new', aiSummary: '', description: '' 
   });
   
+    const socialLeadsCount = leads.filter(l => ['social', 'facebook', 'instagram', 'twitter', 'linkedin'].includes(l.source?.toLowerCase() || '')).length;
+  const whatsappLeadsCount = leads.filter(l => l.source?.toLowerCase().includes('whatsapp')).length;
+  const webLeadsCount = leads.filter(l => ['web', 'web_form', 'floating live_chat', 'web chat'].includes(l.source?.toLowerCase() || '')).length;
+  const googleAdsLeadsCount = leads.filter(l => l.source?.toLowerCase().includes('google')).length;
+
   const filteredLeads = leads.filter(l => 
       l.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
       l.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -286,7 +291,7 @@ export const CRMPage: React.FC = () => {
           <button onClick={exportLeads} className="text-gray-600 px-4 py-2 rounded font-bold text-sm flex items-center gap-2 border">
             <Download size={16} /> Export
           </button>
-          <button className="bg-indigo-600 text-white px-4 py-2 rounded font-bold text-sm flex items-center gap-2">
+          <button onClick={() => toast("Browser Scraper integration coming soon!")} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold text-sm flex items-center gap-2">
             <Bot size={16} /> Browser Scraper
           </button>
           <button onClick={() => setIsAddingLead(true)} className="bg-[#081621] text-white px-4 py-2 rounded font-bold text-sm flex items-center gap-2 hover:bg-[#EF4444] transition-all">
@@ -632,28 +637,19 @@ export const CRMPage: React.FC = () => {
             <Share2 className="text-blue-500" />
             <div>
                 <div className="text-blue-800 text-xs font-bold uppercase">Social</div>
-                <div className="text-xl font-bold">12 Active</div>
-            </div>
-        </div>
-        <div className="bg-emerald-50 p-4 rounded border border-emerald-100 flex items-center gap-3">
-            <MessageCircle className="text-emerald-500" />
-            <div>
-                <div className="text-emerald-800 text-xs font-bold uppercase">WhatsApp</div>
-                <div className="text-xl font-bold">45 msgs</div>
-            </div>
-        </div>
-        <div className="bg-amber-50 p-4 rounded border border-amber-100 flex items-center gap-3">
-            <Zap className="text-amber-500" />
-            <div>
-                <div className="text-amber-800 text-xs font-bold uppercase">Web Leads</div>
-                <div className="text-xl font-bold">8 New</div>
-            </div>
-        </div>
-        <div className="bg-purple-50 p-4 rounded border border-purple-100 flex items-center gap-3">
-            <Search className="text-purple-500" />
-            <div>
-                <div className="text-purple-800 text-xs font-bold uppercase">Google Ads</div>
-                <div className="text-xl font-bold">34 click</div>
+                <div className="text-xl font-bold">{socialLeadsCount} Active</div>
+              </div>
+          </div>
+          <div className="bg-emerald-50 p-4 rounded border border-emerald-100 flex items-center gap-3">              <MessageCircle className="text-emerald-500" />              <div>                  <div className="text-emerald-800 text-xs font-bold uppercase">WhatsApp</div>
+                  <div className="text-xl font-bold">{whatsappLeadsCount} msgs</div>
+              </div>
+          </div>
+          <div className="bg-amber-50 p-4 rounded border border-amber-100 flex items-center gap-3">              <Zap className="text-amber-500" />              <div>                  <div className="text-amber-800 text-xs font-bold uppercase">Web Leads</div>
+                  <div className="text-xl font-bold">{webLeadsCount} New</div>
+              </div>
+          </div>
+          <div className="bg-purple-50 p-4 rounded border border-purple-100 flex items-center gap-3">              <Search className="text-purple-500" />              <div>                  <div className="text-purple-800 text-xs font-bold uppercase">Google Ads</div>
+                  <div className="text-xl font-bold">{googleAdsLeadsCount} click</div>
             </div>
         </div>
          <div className="bg-rose-50 p-4 rounded border border-rose-100 flex items-center gap-3">
@@ -878,7 +874,7 @@ export const CRMPage: React.FC = () => {
                 {leads.filter(l => l.status === status).map(lead => (
                   <div key={lead.id} className="bg-white p-3 rounded shadow-sm border border-gray-200 cursor-pointer hover:border-indigo-300 transition-colors group">
                     <div className="font-bold text-sm">{lead.firstName} {lead.lastName}</div>
-                    <div className="text-xs text-gray-500 mb-2">{lead.company} • <span className="capitalize">{lead.source.replace('_', ' ')}</span></div>
+                    <div className="text-xs text-gray-500 mb-2">{lead.company} â€¢ <span className="capitalize">{lead.source.replace('_', ' ')}</span></div>
                     <div className="flex items-center gap-2">
                        <select 
                            value={lead.status} 
@@ -1238,3 +1234,8 @@ export const CRMPage: React.FC = () => {
     </div>
   );
 };
+
+
+
+
+

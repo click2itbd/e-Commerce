@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { db } from '../../../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
@@ -226,11 +226,81 @@ const CampaignsTab: React.FC = () => {
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
+                </tbody>              </table>
             </div>
+          {isAddingCampaign && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="font-bold text-lg">{editingCampaign ? 'Edit Campaign' : 'Create New Campaign'}</h3>
+              <button onClick={() => { setIsAddingCampaign(false); setEditingCampaign(null); }} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveCampaign} className="p-6 space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Campaign Title *</label>
+                  <input required type="text" value={campaignFormData.title} onChange={e => setCampaignFormData({...campaignFormData, title: e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="Summer Sale 2026" />
+                </div>
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Channel *</label>
+                  <select value={campaignFormData.channel} onChange={e => setCampaignFormData({...campaignFormData, channel: e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500">
+                    <option value="email">Email</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="sms">SMS</option>
+                    <option value="in-app">In-App Notification</option>
+                    <option value="facebook">Facebook Ads</option>
+                    <option value="google">Google Ads</option>
+                  </select>
+                </div>
+              </div>
+
+              {(campaignFormData.channel === 'email' || campaignFormData.channel === 'in-app') && (
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Subject / Headline</label>
+                  <input type="text" value={campaignFormData.subject} onChange={e => setCampaignFormData({...campaignFormData, subject: e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="Exciting news!" />
+                </div>
+              )}
+
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Message Content / Ad Copy *</label>
+                <textarea required rows={4} value={campaignFormData.content} onChange={e => setCampaignFormData({...campaignFormData, content: e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="Type your message here..." />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Target Audience</label>
+                  <input type="text" value={campaignFormData.targetAudience} onChange={e => setCampaignFormData({...campaignFormData, targetAudience: e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="e.g. Active Users" />
+                </div>
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Schedule At</label>
+                  <input type="datetime-local" value={campaignFormData.scheduledAt} onChange={e => setCampaignFormData({...campaignFormData, scheduledAt: e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Budget (Optional)</label>
+                  <input type="number" value={campaignFormData.budget} onChange={e => setCampaignFormData({...campaignFormData, budget: e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="1000" />
+                </div>
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Target URL (Optional)</label>
+                  <input type="url" value={campaignFormData.targetUrl} onChange={e => setCampaignFormData({...campaignFormData, targetUrl: e.target.value})} className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="https://" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
+                <button type="button" onClick={() => { setIsAddingCampaign(false); setEditingCampaign(null); }} className="px-4 py-2 border rounded font-bold text-gray-600 hover:bg-gray-50">Cancel</button>
+                <button type="submit" className="bg-[#EF4444] hover:bg-red-600 text-white px-4 py-2 rounded font-bold">Save Campaign</button>
+              </div>
+            </form>
           </div>
+        </div>
+      )}
+    </div>
   );
 };
 
 export default CampaignsTab;
+

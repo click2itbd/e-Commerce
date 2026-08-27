@@ -47,7 +47,7 @@ export const ChatWidget: React.FC = () => {
     {
       id: 'welcome-1',
       sender: 'bot',
-      text: `Hello! 👋 Welcome to ${settings.brandName || 'Click2IT'}.\nHow can our support team assist you today?`,
+      text: `Hello! ðŸ‘‹ Welcome to ${settings.brandName || 'Click2IT'}.\nHow can our support team assist you today?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -55,6 +55,26 @@ export const ChatWidget: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) setIsExpanded(true);
+    };
+    window.addEventListener('resize', handleResize);
+    
+    if (window.innerWidth < 768) {
+      const timer = setTimeout(() => {
+        setIsExpanded(false);
+      }, 4000);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('resize', handleResize);
+      }
+    }
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Hide widget on Admin Panel and POS routes
   if (location.pathname.startsWith('/admin') || location.pathname.startsWith('/pos')) {
@@ -140,7 +160,7 @@ export const ChatWidget: React.FC = () => {
       {
         id: Date.now().toString(),
         sender: 'bot',
-        text: `Hello! 👋 How can we help you today?`,
+        text: `Hello! ðŸ‘‹ How can we help you today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ]);
@@ -152,19 +172,24 @@ export const ChatWidget: React.FC = () => {
         /* Floating Launcher Button */
         <button
           onClick={() => setIsOpen(true)}
-          className="group flex items-center gap-3 bg-blue-600 hover:bg-blue-700 text-white pl-4 pr-5 py-3 rounded-full shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 hover:scale-105 active:scale-95 transition-all duration-200"
+          onMouseEnter={() => setIsExpanded(true)}
+          onMouseLeave={() => { if (window.innerWidth < 768) setIsExpanded(false) }}
+          className="group flex items-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 hover:scale-105 active:scale-95 transition-all duration-300"
+          style={{ padding: isExpanded ? '12px 20px 12px 16px' : '12px' }}
           aria-label="Open Live Chat"
         >
-          <div className="relative flex items-center justify-center">
+          <div className="relative flex items-center justify-center shrink-0">
             <MessageCircle size={22} />
             <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
             </span>
           </div>
-          <span className="text-sm font-semibold tracking-tight">
-            Chat with Us
-          </span>
+          <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isExpanded ? 'max-w-[120px] opacity-100 ml-3' : 'max-w-0 opacity-0 ml-0'}`}>
+            <span className="text-sm font-semibold tracking-tight whitespace-nowrap">
+              Chat with Us
+            </span>
+          </div>
         </button>
       ) : (
         /* Minimalist Modern Chat Window */
@@ -311,3 +336,4 @@ export const ChatWidget: React.FC = () => {
     </div>
   );
 };
+
