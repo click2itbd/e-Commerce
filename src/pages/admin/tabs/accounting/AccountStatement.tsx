@@ -82,11 +82,14 @@ const AccountStatement: React.FC<AccountStatementProps> = ({
   const isAccountTx = (tx: Transaction, acc: PaymentAccount) => {
     if (!acc) return false;
     if (tx.paymentAccountId && tx.paymentAccountId === acc.id) return true;
+    
     const pMethod = (tx.paymentMethod || '').toLowerCase();
+    if (!pMethod) return false; // Fixed empty string matching everything
+    
     const accType = (acc.type || '').toLowerCase();
     const accName = (acc.name || '').toLowerCase();
 
-    if (pMethod === accType || pMethod === accName || accName.includes(pMethod) || pMethod.includes(accType)) {
+    if (pMethod === accType || pMethod === accName || accName.includes(pMethod) || (accType && pMethod.includes(accType))) {
       return true;
     }
     return false;

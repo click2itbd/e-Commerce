@@ -226,7 +226,8 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
     'services', 'payment_accounts', 'ledger', 'manual_income', 'manual_expense', 
     'tx_categories', 'reports', 'customer_receive_report', 'deposits_withdrawals', 
     'account_balance', 'account_statement', 'balance_sheet', 'trial_balance', 
-    'transaction_history', 'all_reports'
+    'transaction_history', 'all_reports', 'stock_accounting',
+    'crm', 'tasks', 'conveyance', 'salary', 'employees', 'leave'
   ];
 
   useEffect(() => {
