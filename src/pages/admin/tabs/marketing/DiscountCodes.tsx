@@ -68,7 +68,10 @@ const DiscountCodesTab: React.FC = () => {
   const handleDeleteDiscountCode = async (id: string) => {
     if (!confirm('Are you sure you want to delete this discount code?')) return;
     try {
-      await deleteDoc(doc(db, 'couponCodes', id));
+      
+if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
+await deleteDoc(doc(db, 'couponCodes', id));
+
       toast.success('Discount code deleted');
       fetchDiscountCodes();
     } catch (error) {

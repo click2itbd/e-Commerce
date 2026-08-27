@@ -104,7 +104,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           <button onClick={() => setActiveTab('inventory')} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors", activeTab === 'inventory' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 font-medium hover:bg-gray-50")}>
             <Package size={18} className={activeTab === 'inventory' ? "text-blue-600" : "text-gray-400"} /> Stock
           </button>
-          {hasPermission('manage_settings') && (
+          {hasPermission('manage_inventory') && (
             <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 font-medium hover:bg-gray-50")}>
               <Layers size={18} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Categories
             </button>

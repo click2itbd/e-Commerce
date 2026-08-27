@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { db, auth, storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -222,7 +222,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
   const { isAdmin, isManager, isStaff, hasPermission } = useAuth();
   const OFFLINE_SHOP_TABS = [
     'dashboard', 'analytics', 'inventory', 'sales', 'sale_return', 'orders', 
-    'customers', 'quotations', 'purchases', 'purchase_return', 'vendors', 
+    'customers', 'quotations', 'purchases', 'purchase_return', 'vendors', 'menus',
     'services', 'payment_accounts', 'ledger', 'manual_income', 'manual_expense', 
     'tx_categories', 'reports', 'customer_receive_report', 'deposits_withdrawals', 
     'account_balance', 'account_statement', 'balance_sheet', 'trial_balance', 
@@ -675,11 +675,8 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
       const productsSnap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500)));
       const ordersSnap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(500)));
       const customersSnap = await getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(500)));
-      const vendorsSnap = await getDocs(query(collection(db, 'vendors'), orderBy('createdAt', 'desc'), limit(500)));
       const transactionsSnap = await getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(500)));
       const menusSnap = await getDocs(query(collection(db, 'menus'), orderBy('order', 'asc'), limit(100)));
-      const usersSnap = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(500)));
-      const campaignsSnap = await getDocs(query(collection(db, 'campaigns'), orderBy('createdAt', 'desc'), limit(200)));
       const discountCodesSnap = await getDocs(query(collection(db, 'couponCodes'), orderBy('createdAt', 'desc'), limit(200)));
       const hostingPlansSnap = await getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc'), limit(100)));
       const hostingServicesSnap = await getDocs(query(collection(db, 'hostingServices'), orderBy('order', 'asc'), limit(100)));
@@ -687,6 +684,22 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
       const serviceRecordsSnap = await getDocs(query(collection(db, 'service_records'), orderBy('receivedAt', 'desc'), limit(500)));
       const paymentAccountsSnap = await getDocs(query(collection(db, 'payment_accounts'), orderBy('createdAt', 'desc'), limit(100)));
       const transactionCategoriesSnap = await getDocs(query(collection(db, 'transaction_categories'), orderBy('createdAt', 'desc'), limit(100)));
+      
+      let vendorsSnap = { docs: [] };
+      let usersSnap = { docs: [] };
+      let campaignsSnap = { docs: [] };
+      
+      try {
+        vendorsSnap = await getDocs(query(collection(db, 'vendors'), orderBy('createdAt', 'desc'), limit(500)));
+      } catch (e) { console.log('Vendors collection access denied'); }
+      
+      try {
+        usersSnap = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(500)));
+      } catch (e) { console.log('Users collection access denied'); }
+      
+      try {
+        campaignsSnap = await getDocs(query(collection(db, 'campaigns'), orderBy('createdAt', 'desc'), limit(200)));
+      } catch (e) { console.log('Campaigns collection access denied'); }
       
       try {
         const employeesSnap = await getDocs(query(collection(db, 'employees'), orderBy('createdAt', 'desc'), limit(500)));
@@ -1011,6 +1024,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
   };
 
   const handleDeleteDiscountCode = async (id: string) => {
+    if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
     if (!confirm('Are you sure you want to delete this discount code?')) return;
     try {
       await deleteDoc(doc(db, 'couponCodes', id));
@@ -1070,6 +1084,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
   };
 
   const handleDeleteProduct = async (id: string) => {
+    if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
     setConfirmModal({
       isOpen: true,
       title: 'Delete Product',
@@ -1277,6 +1292,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
   };
 
   const handleBulkDeleteProducts = async () => {
+    if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
     if (selectedProductIds.length === 0) return;
     setConfirmModal({
       isOpen: true,
@@ -1296,6 +1312,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
   };
 
   const handleDeleteOrder = async (order: any) => {
+    if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
     setConfirmModal({
       isOpen: true,
       title: 'Delete Sale / Order',
@@ -1345,6 +1362,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
   };
 
   const handleBulkDeleteOrders = async () => {
+    if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
     if (selectedOrderIds.length === 0) return;
     setConfirmModal({
       isOpen: true,
@@ -1707,6 +1725,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
   };
 
   const handleDeleteCustomer = async (id: string) => {
+    if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
     setConfirmModal({
       isOpen: true,
       title: 'Delete Customer',
@@ -1750,6 +1769,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
   };
 
   const handleDeleteVendor = async (id: string) => {
+    if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
     setConfirmModal({
       isOpen: true,
       title: 'Delete Vendor',
@@ -1908,6 +1928,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
   };
 
   const handleDeleteMenu = async (id: string) => {
+    if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
     setConfirmModal({
       isOpen: true,
       title: 'Delete Category',
@@ -3170,7 +3191,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
            {/* Accounting */}
            <div className="px-4 mb-2">
              <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Accounting</div>
-              {hasPermission('manage_settings') && (
+              {hasPermission('manage_finances') && (
                 <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                   <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Products Category
                 </button>
@@ -3515,7 +3536,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
           />
         ) : activeTab === 'all_reports' && hasPermission('manage_reports') ? (
           <AllReportsTab setActiveTab={setActiveTab} />
-        ) : activeTab === 'menus' && isAdmin ? (
+        ) : activeTab === 'menus' && hasPermission('manage_finances') ? (
           <MenusTab menus={menus} isAddingMenu={isAddingMenu} setIsAddingMenu={setIsAddingMenu} editingMenu={editingMenu} setEditingMenu={setEditingMenu} menuFormData={menuFormData} setMenuFormData={setMenuFormData} isAddingSubCategory={isAddingSubCategory} setIsAddingSubCategory={setIsAddingSubCategory} subCategoryFormData={subCategoryFormData} setSubCategoryFormData={setSubCategoryFormData} handleSaveMenu={handleSaveMenu} handleDeleteMenu={handleDeleteMenu} handleSaveSubCategory={handleSaveSubCategory} fetchData={fetchData} />
         ) : activeTab === 'activeHostingAccounts' && (hasPermission('manage_services') || isAdmin) ? (
           <ActiveHostingAccountsTab />
@@ -3610,6 +3631,8 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
 </div>
 );
 };
+
+
 
 
 

@@ -40,7 +40,7 @@ const UsersTab: React.FC = () => {
       let permissions: UserPermission[] = [];
       if (newRole === 'admin') permissions = ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing'];
       else if (newRole === 'manager') permissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports'];
-      else if (newRole === 'staff') permissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_services', 'manage_finances'];
+      else if (newRole === 'staff') permissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_services', 'manage_finances', 'manage_settings'];
       
       await updateDoc(doc(db, 'users', userId), {
         role: newRole,
@@ -74,7 +74,7 @@ const UsersTab: React.FC = () => {
         } else if (userFormData.role === 'manager') {
           defaultPermissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports'];
         } else if (userFormData.role === 'staff') {
-          defaultPermissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_services', 'manage_finances'];
+          defaultPermissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_services', 'manage_finances', 'manage_settings'];
         }
       }
 

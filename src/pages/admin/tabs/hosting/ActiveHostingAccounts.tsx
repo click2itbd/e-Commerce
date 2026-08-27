@@ -181,6 +181,7 @@ export const ActiveHostingAccounts: React.FC = () => {
   };
 
   const handleTerminate = async (account: HostingAccountItem) => {
+    if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
     const domainConfirm = window.prompt(
       `⚠️ DANGER: This will PERMANENTLY delete the cPanel account, databases, and emails for ${account.domain} on the server.\n\nType the domain "${account.domain}" to confirm:`
     );

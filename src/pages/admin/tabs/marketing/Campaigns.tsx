@@ -214,7 +214,10 @@ const CampaignsTab: React.FC = () => {
                           <button
                             onClick={async () => {
                               if (confirm('Delete this campaign?')) {
-                                await deleteDoc(doc(db, 'campaigns', campaign.id));
+                                
+if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
+await deleteDoc(doc(db, 'campaigns', campaign.id));
+
                                 fetchData();
                               }
                             }}

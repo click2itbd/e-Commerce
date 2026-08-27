@@ -30,7 +30,10 @@ const ReviewsTab: React.FC = () => {
   const handleDeleteReview = async (id: string) => {
     if (!confirm('Are you sure you want to delete this review?')) return;
     try {
-      await deleteDoc(doc(db, 'reviews', id));
+      
+if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
+await deleteDoc(doc(db, 'reviews', id));
+
       toast.success('Review deleted');
       fetchReviews();
     } catch (error) {
