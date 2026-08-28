@@ -492,6 +492,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
 
   // Form State
   const [formData, setFormData] = useState({
+    model: '',
     name: '',
     price: 0,
     stock: 0,
@@ -872,6 +873,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
           setIsAddingProduct(false);
           setEditingProduct(null);
           setFormData({ 
+            model: '',
             name: '', 
             price: 0, 
             stock: 0, 

@@ -92,7 +92,7 @@ const Purchases: React.FC<PurchasesProps> = ({
 
   // Quick Add Product
   const [isQuickAddingProduct, setIsQuickAddingProduct] = useState(false);
-  const [quickProductData, setQuickProductData] = useState({ name: '', category: '', costPrice: 0, price: 0, stock: 0 });
+  const [quickProductData, setQuickProductData] = useState({ name: '', model: '', category: '', costPrice: 0, price: 0, stock: 0 });
 
   const [purchaseForm, setPurchaseForm] = useState({
     vendorId: '',
@@ -214,8 +214,9 @@ const Purchases: React.FC<PurchasesProps> = ({
     if (!quickProductData.category) { toast.error('Please select a category'); return; }
     try {
       const productData = {
-        name: trimmed,
-        category: quickProductData.category,
+          name: trimmed,
+          model: quickProductData.model || '',
+          category: quickProductData.category,
         costPrice: quickProductData.costPrice || 0,
         price: quickProductData.price || 0,
         stock: quickProductData.stock || 0,
@@ -227,7 +228,7 @@ const Purchases: React.FC<PurchasesProps> = ({
       const newProduct = { id: docRef.id, ...productData } as Product;
       setProducts(prev => [...prev, newProduct]);
       addItemToPurchase(newProduct);
-      setQuickProductData({ name: '', category: '', costPrice: 0, price: 0, stock: 0 });
+      setQuickProductData({ name: '', model: '', category: '', costPrice: 0, price: 0, stock: 0 });
       setIsQuickAddingProduct(false);
       toast.success(`Product "${trimmed}" created & added to purchase!`);
     } catch (err) {
@@ -252,7 +253,7 @@ const Purchases: React.FC<PurchasesProps> = ({
     if (selectedCategory !== 'all' && product.category !== selectedCategory) return false;
     if (productCatalogSearch.trim()) {
       const q = productCatalogSearch.toLowerCase();
-      const matchesName = product.name.toLowerCase().includes(q);
+      const matchesName = product.name.toLowerCase().includes(q) || (product.model || '').toLowerCase().includes(q);
       const matchesCat = (product.category || '').toLowerCase().includes(q);
       const matchesBrand = (product.brand || '').toLowerCase().includes(q);
       if (!matchesName && !matchesCat && !matchesBrand) return false;
@@ -935,7 +936,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                     </div>
                     <div className="flex gap-2">
                       <button type="submit" className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1"><CheckCircle size={12} /> Create & Add</button>
-                      <button type="button" onClick={() => { setIsQuickAddingProduct(false); setQuickProductData({ name: '', category: '', costPrice: 0, price: 0, stock: 0 }); }} className="px-3 py-2 bg-white border border-gray-200 rounded-lg font-bold text-xs text-gray-500 hover:text-gray-800"><X size={12} /></button>
+                      <button type="button" onClick={() => { setIsQuickAddingProduct(false); setQuickProductData({ name: '', model: '', category: '', costPrice: 0, price: 0, stock: 0 }); }} className="px-3 py-2 bg-white border border-gray-200 rounded-lg font-bold text-xs text-gray-500 hover:text-gray-800"><X size={12} /></button>
                     </div>
                   </form>
                 )}

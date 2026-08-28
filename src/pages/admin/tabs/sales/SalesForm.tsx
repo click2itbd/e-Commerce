@@ -566,6 +566,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const matchesCategory = (product.category || '').toLowerCase().includes(q);
       const matchesBrand = (product.brand || '').toLowerCase().includes(q);
       const matchesModel = (product.model || '').toLowerCase().includes(q);
+      const matchesModel = (product.model || '').toLowerCase().includes(q);
       if (!matchesName && !matchesCategory && !matchesBrand) return false;
     }
     return true;
