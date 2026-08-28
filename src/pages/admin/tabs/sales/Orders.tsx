@@ -360,7 +360,14 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                             className="rounded border-gray-300 text-[#EF4444] focus:ring-[#EF4444]"
                           />
                         </td>
-                        <td className="px-6 py-4 text-xs font-mono text-gray-500">#{order.documentNumber || order.id.slice(0, 8)}</td>
+                        <td className="px-6 py-4 text-xs font-mono text-gray-500">
+                            #{order.documentNumber || order.id.slice(0, 8)}
+                            {order.saleSource === 'online' && (
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700">
+                                ONLINE
+                              </span>
+                            )}
+                          </td>
                         <td className="px-6 py-4">
                           {cat === 'domain' && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">

@@ -44,6 +44,7 @@ export const RetailPOS = () => {
 
   const [payments, setPayments] = useState<{accountId: string, amount: number}[]>([]);
   const [receivedAmount, setReceivedAmount] = useState<number | ''>('');
+  const [saleSource, setSaleSource] = useState<'in_store'|'online'>('in_store');
 
   useEffect(() => {
     const stored = localStorage.getItem('pos_held_carts');
@@ -182,7 +183,7 @@ export const RetailPOS = () => {
 
   const addToCart = (product: Product) => {
     if (product.stock <= 0) {
-      toast.error('Item is out of stock', { icon: '🚫' });
+      toast.error('Item is out of stock', { icon: '⚠️' });
       return;
     }
     
@@ -359,6 +360,7 @@ export const RetailPOS = () => {
       const orderData = {
         documentNumber: docNumber,
         type: 'pos_sale',
+        saleSource,
         customerId: selectedCustomer?.id || 'general',
         customerName: selectedCustomer ? selectedCustomer.name : 'General Customer',
         customerPhone: selectedCustomer?.phone || '',

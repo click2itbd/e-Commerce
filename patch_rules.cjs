@@ -3,18 +3,9 @@ const path = require('path');
 const file = path.join(__dirname, 'firestore.rules');
 let content = fs.readFileSync(file, 'utf8');
 
-const oldMenus = `    match /menus/{menuId} {
-      allow read: if true;
-      allow create, update: if hasPermission('manage_settings') && isValidMenu(request.resource.data);
-      allow delete: if hasPermission('manage_settings');
-    }`;
+const target = `    match /tasks/{taskId} {`;
+const replacement = `    match /internal_notes/{noteId} {\n      allow read, write: if hasStaffAccess();\n    }\n\n    match /tasks/{taskId} {`;
 
-const newMenus = `    match /menus/{menuId} {
-      allow read: if true;
-      allow create, update: if hasStaffAccess() && isValidMenu(request.resource.data);
-      allow delete: if hasPermission('manage_settings');
-    }`;
-
-content = content.replace(oldMenus, newMenus);
+content = content.replace(target, replacement);
 fs.writeFileSync(file, content, 'utf8');
-console.log('Fixed menus rules');
+console.log('Updated firestore.rules');

@@ -67,6 +67,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     shippingAddress: '',
     items: [] as any[],
     type: 'invoice' as 'invoice' | 'challan' | 'quotation',
+    saleSource: 'in_store' as 'in_store' | 'online',
     paymentMethod: 'cash',
     paymentAccountId: '',
     paidAmount: 0,
@@ -370,6 +371,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const orderData = {
         documentNumber: docNumber,
         type: saleData.type,
+        saleSource: saleData.saleSource,
         customerId: saleData.customerId,
         customerName: saleData.customerName,
         customerPhone: saleData.customerPhone || '',
@@ -459,7 +461,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
       const typeStr = saleData.type === 'quotation' ? 'Quotation' : (saleData.type === 'challan' ? 'Challan' : 'Invoice');
       
-      // Send email invoice (non-blocking â€” never prevents sale from saving)
+      // Send email invoice (non-blocking - never prevents sale from saving)
       if (saleData.customerEmail) {
         try {
           const emailHtml = `
@@ -538,6 +540,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         type: 'invoice',
         paymentMethod: paymentAccounts[0]?.type || 'cash',
         paymentAccountId: paymentAccounts[0]?.id || '',
+        saleSource: 'in_store',
         paidAmount: 0,
         discountAmount: 0,
         appliedDiscountPercentage: 0,
@@ -562,6 +565,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const matchesName = product.name.toLowerCase().includes(q);
       const matchesCategory = (product.category || '').toLowerCase().includes(q);
       const matchesBrand = (product.brand || '').toLowerCase().includes(q);
+      const matchesModel = (product.model || '').toLowerCase().includes(q);
       if (!matchesName && !matchesCategory && !matchesBrand) return false;
     }
     return true;
@@ -571,7 +575,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* â”€â”€ LEFT: SALES ORDER INVOICE FORM (7 COLS) â”€â”€ */}
+      {/* --- LEFT: SALES ORDER INVOICE FORM (7 COLS) --- */}
       <div className="lg:col-span-7 space-y-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
           <div className="flex items-center justify-between border-b border-gray-100 pb-4">
@@ -737,7 +741,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
                           {/* Editable Sale Price */}
                           <div className="flex flex-col items-center">
-                            <label className="text-[9px] font-bold text-blue-500 uppercase">Sale Price (à§³)</label>
+                            <label className="text-[9px] font-bold text-blue-500 uppercase">Sale Price</label>
                             <input
                               type="number"
                               min={0}
@@ -878,7 +882,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   </div>
                 )}
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Manual Discount (à§³)</label>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Manual Discount</label>
                   <input
                     type="number"
                     min={0}
@@ -931,7 +935,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
                   <div>
                     <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
-                      Paid Amount (à§³) â€” Total: {formatCurrency(netTotal, settings)}
+                      Paid Amount - Total: {formatCurrency(netTotal, settings)}
                     </label>
                     <input
                       type="number"
@@ -984,7 +988,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         </div>
       </div>
 
-      {/* â”€â”€ RIGHT: PRODUCT CATALOG & QUICK SELECT (5 COLS) â”€â”€ */}
+      {/* --- RIGHT: PRODUCT CATALOG & QUICK SELECT (5 COLS) --- */}
       <div className="lg:col-span-5 space-y-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 space-y-4">
           <div className="flex items-center justify-between">

@@ -41,6 +41,7 @@ const ServicesTab = lazy(() => import('./admin/tabs/services/Services').then(m =
 const HostingOrdersTab = lazy(() => import('./admin/tabs/hosting/HostingOrders').then(m => ({ default: m.default })));
 const ActiveHostingAccountsTab = lazy(() => import('./admin/tabs/hosting/ActiveHostingAccounts').then(m => ({ default: m.default })));
 const SupportTicketsTab = lazy(() => import('./admin/tabs/hosting/SupportTickets').then(m => ({ default: m.default })));
+const InternalNotesTab = lazy(() => import('./admin/tabs/notes/InternalNotes').then(m => ({ default: m.default })));
 const AllReportsTab = lazy(() => import('./admin/tabs/accounting/AllReports').then(m => ({ default: m.default })));
 const LedgerTab = lazy(() => import('./admin/tabs/accounting/Ledger').then(m => ({ default: m.default })));
 const ManualExpenseTab = lazy(() => import('./admin/tabs/accounting/ManualExpense').then(m => ({ default: m.default })));
@@ -198,7 +199,7 @@ export const AdminDashboard: React.FC = () => {
   const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
   const [isAddingPaymentAccount, setIsAddingPaymentAccount] = useState(false);
   const [paymentAccountFormData, setPaymentAccountFormData] = useState({ type: '', name: '', description: '', openingBalance: 0, status: 'active' });
-const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts' | 'domainPricing' | 'domainOffers' | 'domainRenewals' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'reviews' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'hosting_api_settings' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets'>('dashboard');
+const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts' | 'domainPricing' | 'domainOffers' | 'domainRenewals' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'reviews' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'hosting_api_settings' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets' | 'hosting_support_tickets' | 'internal_notes'>('dashboard');
   
   const [serialSelectionModal, setSerialSelectionModal] = useState<{
     isOpen: boolean;
@@ -227,7 +228,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
     'tx_categories', 'reports', 'customer_receive_report', 'deposits_withdrawals', 
     'account_balance', 'account_statement', 'balance_sheet', 'trial_balance', 
     'transaction_history', 'all_reports', 'stock_accounting',
-    'crm', 'tasks', 'conveyance', 'salary', 'employees', 'leave'
+    'crm', 'tasks', 'conveyance', 'salary', 'employees', 'leave', 'internal_notes'
   ];
 
   useEffect(() => {
@@ -3140,12 +3141,12 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
             {/* Section 3: Sale & Customer */}
             <div className="px-4 mb-2">
               <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Sale & Customer</div>
-             {hasPermission('manage_orders') && (
+             {hasPermission('sales') && (
               <button onClick={() => setActiveTab('sales')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'sales' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <ShoppingCart size={16} className={activeTab === 'sales' ? "text-blue-600" : "text-gray-400"} /> Sale
                </button>
              )}
-             {hasPermission('manage_orders') && (
+             {hasPermission('sale_return') && (
               <button onClick={() => setActiveTab('sale_return')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'sale_return' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <ArrowLeftRight size={16} className={activeTab === 'sale_return' ? "text-blue-600" : "text-gray-400"} /> Sale Return
                </button>
@@ -3164,13 +3165,13 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
            {/* Section 3: Purchase & Supplier */}
            <div className="px-4 mb-2">
              <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Purchase & Supplier</div>
-             {hasPermission('manage_inventory') && (
-               <button onClick={() => setActiveTab('purchases')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'purchases' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('purchases') && (
+              <button onClick={() => setActiveTab('purchases')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'purchases' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <ShoppingBag size={16} className={activeTab === 'purchases' ? "text-blue-600" : "text-gray-400"} /> Purchase
                </button>
              )}
-             {hasPermission('manage_inventory') && (
-               <button onClick={() => setActiveTab('purchase_return')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'purchase_return' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('purchase_return') && (
+              <button onClick={() => setActiveTab('purchase_return')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'purchase_return' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <ArrowLeftRight size={16} className={activeTab === 'purchase_return' ? "text-blue-600" : "text-gray-400"} /> Purchase Return
                </button>
              )}
@@ -3192,73 +3193,78 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
            {/* Accounting */}
            <div className="px-4 mb-2">
              <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Accounting</div>
-              {hasPermission('manage_finances') && (
-                <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+              {hasPermission('internal_notes') && (
+              <button onClick={() => setActiveTab('internal_notes')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'internal_notes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <MessageSquare size={16} className={activeTab === 'internal_notes' ? "text-blue-600" : "text-gray-400"} /> Staff Notes
+              </button>
+              )}
+              {hasPermission('menus') && (
+              <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                   <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Products Category
                 </button>
               )}
-             {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('payment_accounts')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'payment_accounts' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('payment_accounts') && (
+              <button onClick={() => setActiveTab('payment_accounts')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'payment_accounts' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <CreditCard size={16} className={activeTab === 'payment_accounts' ? "text-blue-600" : "text-gray-400"} /> Payment Account
                </button>
              )}
-             {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('ledger')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'ledger' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('ledger') && (
+              <button onClick={() => setActiveTab('ledger')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'ledger' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Book size={16} className={activeTab === 'ledger' ? "text-blue-600" : "text-gray-400"} /> Ledger
                </button>
              )}
-             {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('manual_income')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'manual_income' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('manual_income') && (
+              <button onClick={() => setActiveTab('manual_income')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'manual_income' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Download size={16} className={activeTab === 'manual_income' ? "text-blue-600" : "text-gray-400"} /> Income
                </button>
              )}
-             {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('manual_expense')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'manual_expense' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('manual_expense') && (
+              <button onClick={() => setActiveTab('manual_expense')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'manual_expense' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Upload size={16} className={activeTab === 'manual_expense' ? "text-blue-600" : "text-gray-400"} /> Expense
                </button>
              )}
-             {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('tx_categories')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'tx_categories' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('tx_categories') && (
+              <button onClick={() => setActiveTab('tx_categories')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'tx_categories' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <List size={16} className={activeTab === 'tx_categories' ? "text-blue-600" : "text-gray-400"} /> Categories
                </button>
              )}
-             {hasPermission('manage_reports') && (
-               <button onClick={() => setActiveTab('reports')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'reports' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('reports') && (
+              <button onClick={() => setActiveTab('reports')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'reports' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <FileText size={16} className={activeTab === 'reports' ? "text-blue-600" : "text-gray-400"} /> Sales Accounting
                </button>
              )}
-             {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('stock_accounting')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'stock_accounting' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('stock_accounting') && (
+              <button onClick={() => setActiveTab('stock_accounting')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'stock_accounting' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Boxes size={16} className={activeTab === 'stock_accounting' ? "text-blue-600" : "text-gray-400"} /> Stock Accounting
                </button>
              )}
-             {hasPermission('manage_reports') && (
-               <button onClick={() => setActiveTab('customer_receive_report')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'customer_receive_report' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('customer_receive_report') && (
+              <button onClick={() => setActiveTab('customer_receive_report')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'customer_receive_report' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Receipt size={16} className={activeTab === 'customer_receive_report' ? "text-blue-600" : "text-gray-400"} /> Receive Report
                </button>
              )}
-             {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('deposits_withdrawals')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'deposits_withdrawals' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('deposits_withdrawals') && (
+              <button onClick={() => setActiveTab('deposits_withdrawals')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'deposits_withdrawals' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <ArrowLeftRight size={16} className={activeTab === 'deposits_withdrawals' ? "text-blue-600" : "text-gray-400"} /> Deposit/Withdraw
                </button>
              )}
-             {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('account_balance')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'account_balance' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('account_balance') && (
+              <button onClick={() => setActiveTab('account_balance')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'account_balance' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <CreditCard size={16} className={activeTab === 'account_balance' ? "text-blue-600" : "text-gray-400"} /> Account Balance
                </button>
              )}
-             {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('account_statement')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'account_statement' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('account_statement') && (
+              <button onClick={() => setActiveTab('account_statement')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'account_statement' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <FileText size={16} className={activeTab === 'account_statement' ? "text-blue-600" : "text-gray-400"} /> Account Statement
                </button>
              )}
-             {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('balance_sheet')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'balance_sheet' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('balance_sheet') && (
+              <button onClick={() => setActiveTab('balance_sheet')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'balance_sheet' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Book size={16} className={activeTab === 'balance_sheet' ? "text-blue-600" : "text-gray-400"} /> Balance Sheet
                </button>
              )}
-             {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('trial_balance')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'trial_balance' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('trial_balance') && (
+              <button onClick={() => setActiveTab('trial_balance')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'trial_balance' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <Book size={16} className={activeTab === 'trial_balance' ? "text-blue-600" : "text-gray-400"} /> Trial Balance
                </button>
              )}
@@ -3267,8 +3273,8 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
                  <List size={16} className={activeTab === 'transaction_history' ? "text-blue-600" : "text-gray-400"} /> Transaction History
                </button>
              )}
-             {hasPermission('manage_reports') && (
-               <button onClick={() => setActiveTab('all_reports')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'all_reports' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+             {hasPermission('all_reports') && (
+              <button onClick={() => setActiveTab('all_reports')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'all_reports' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                  <FileText size={16} className={activeTab === 'all_reports' ? "text-blue-600" : "text-gray-400"} /> All Reports
                </button>
              )}
@@ -3278,18 +3284,18 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
            {(!isStaff || isAdmin || isManager) && (
              <div className="px-4 mb-2">
                <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Marketing & Feedback</div>
-               {hasPermission('manage_marketing') && (
-                 <button onClick={() => setActiveTab('campaigns')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'campaigns' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               {hasPermission('campaigns') && (
+              <button onClick={() => setActiveTab('campaigns')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'campaigns' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                    <Tag size={16} className={activeTab === 'campaigns' ? "text-blue-600" : "text-gray-400"} /> Marketing
                  </button>
                )}
-               {hasPermission('manage_marketing') && (
-                 <button onClick={() => setActiveTab('discountCodes')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'discountCodes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               {hasPermission('discountCodes') && (
+              <button onClick={() => setActiveTab('discountCodes')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'discountCodes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                    <Percent size={16} className={activeTab === 'discountCodes' ? "text-blue-600" : "text-gray-400"} /> Discounts
                  </button>
                )}
-               {hasPermission('manage_marketing') && (
-                 <button onClick={() => setActiveTab('reviews')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'reviews' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               {hasPermission('reviews') && (
+              <button onClick={() => setActiveTab('reviews')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'reviews' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                    <Star size={16} className={activeTab === 'reviews' ? "text-blue-600" : "text-gray-400"} /> Reviews
                  </button>
                )}
@@ -3300,8 +3306,8 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
            {(!isStaff || isAdmin || isManager) && (
              <div className="px-4 mb-2">
                <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Human Resource</div>
-               {hasPermission('manage_users') && (
-                 <button onClick={() => setActiveTab('users')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'users' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               {hasPermission('users') && (
+              <button onClick={() => setActiveTab('users')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'users' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                    <Users size={16} className={activeTab === 'users' ? "text-blue-600" : "text-gray-400"} /> App Access
                  </button>
                )}
@@ -3337,8 +3343,8 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
                   <ShieldAlert size={16} className={activeTab === 'audit_logs' ? "text-red-600" : "text-gray-400"} /> Audit Logs
                 </button>
               )}
-              {hasPermission('manage_settings') && (
-                 <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+              {hasPermission('settings') && (
+              <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                    <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
                  </button>
                )}
@@ -3398,6 +3404,8 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
           />
         ) : activeTab === 'crm' ? (
           <CRMPage />
+        ) : activeTab === 'internal_notes' ? (
+          <InternalNotesTab />
         ) : activeTab === 'tasks' ? (
           <TaskManager />
         ) : activeTab === 'support_tickets' ? (
@@ -3500,44 +3508,44 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
           />
         ) : activeTab === 'conveyance' && isAdmin ? (
           <ConveyanceTab />
-        ) : activeTab === 'account_statement' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'account_statement' && hasPermission('account_statement') ? (
           <AccountStatementTab
             setSelectedLedgerEntity={setSelectedLedgerEntity}
             setActiveTab={setActiveTab}
           />
-        ) : activeTab === 'transaction_history' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'transaction_history' && hasPermission('transactions') ? (
           <TransactionHistoryTab
             setSelectedLedgerEntity={setSelectedLedgerEntity}
             setActiveTab={setActiveTab}
           />
-        ) : activeTab === 'balance_sheet' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'balance_sheet' && hasPermission('balance_sheet') ? (
           <BalanceSheetTab
             setSelectedLedgerEntity={setSelectedLedgerEntity}
             setActiveTab={setActiveTab}
           />
-        ) : activeTab === 'deposits_withdrawals' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'deposits_withdrawals' && hasPermission('deposits_withdrawals') ? (
           <DepositsWithdrawalsTab
             setSelectedLedgerEntity={setSelectedLedgerEntity}
             setActiveTab={setActiveTab}
           />
-        ) : activeTab === 'stock_accounting' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'stock_accounting' && hasPermission('stock_accounting') ? (
           <StockAccountingTab
             setSelectedLedgerEntity={setSelectedLedgerEntity}
             setActiveTab={setActiveTab}
           />
-        ) : activeTab === 'account_balance' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'account_balance' && hasPermission('account_balance') ? (
           <AccountBalanceTab
             setSelectedLedgerEntity={setSelectedLedgerEntity}
             setActiveTab={setActiveTab}
           />
-        ) : activeTab === 'trial_balance' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'trial_balance' && hasPermission('trial_balance') ? (
           <TrialBalanceTab
             setSelectedLedgerEntity={setSelectedLedgerEntity}
             setActiveTab={setActiveTab}
           />
-        ) : activeTab === 'all_reports' && hasPermission('manage_reports') ? (
+        ) : activeTab === 'all_reports' && hasPermission('all_reports') ? (
           <AllReportsTab setActiveTab={setActiveTab} />
-        ) : activeTab === 'menus' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'menus' && hasPermission('menus') ? (
           <MenusTab menus={menus} isAddingMenu={isAddingMenu} setIsAddingMenu={setIsAddingMenu} editingMenu={editingMenu} setEditingMenu={setEditingMenu} menuFormData={menuFormData} setMenuFormData={setMenuFormData} isAddingSubCategory={isAddingSubCategory} setIsAddingSubCategory={setIsAddingSubCategory} subCategoryFormData={subCategoryFormData} setSubCategoryFormData={setSubCategoryFormData} handleSaveMenu={handleSaveMenu} handleDeleteMenu={handleDeleteMenu} handleSaveSubCategory={handleSaveSubCategory} fetchData={fetchData} />
         ) : activeTab === 'activeHostingAccounts' && (hasPermission('manage_services') || isAdmin) ? (
           <ActiveHostingAccountsTab />
@@ -3549,7 +3557,7 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
           <DomainRenewalsTab />
         ) : activeTab === 'hostingServices' && isAdmin ? (
           <HostingServicesTab />
-        ) : activeTab === 'settings' && hasPermission('manage_settings') ? (
+        ) : activeTab === 'settings' && hasPermission('settings') ? (
           <SettingsTab />
         ) : activeTab === 'hosting_api_settings' && hasPermission('manage_settings') ? (
           <HostingApiSettings />
@@ -3561,45 +3569,43 @@ const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts
           <LeaveTab />
         ) : activeTab === 'salary' ? (
           <SalaryTab />
-        ) : activeTab === 'payment_accounts' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'payment_accounts' && hasPermission('payment_accounts') ? (
           <PaymentAccountsTab
             setSelectedLedgerEntity={setSelectedLedgerEntity}
             setActiveTab={setActiveTab}
           />
-        ) : activeTab === 'ledger' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'ledger' && hasPermission('ledger') ? (
           <LedgerTab
             selectedLedgerEntity={selectedLedgerEntity}
             setSelectedLedgerEntity={setSelectedLedgerEntity}
           />
-        ) : activeTab === 'manual_income' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'manual_income' && hasPermission('manual_income') ? (
           <ManualIncomeTab
             setSelectedLedgerEntity={setSelectedLedgerEntity}
             setActiveTab={setActiveTab}
           />
-        ) : activeTab === 'manual_expense' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'manual_expense' && hasPermission('manual_expense') ? (
           <ManualExpenseTab
             setSelectedLedgerEntity={setSelectedLedgerEntity}
             setActiveTab={setActiveTab}
           />
-        ) : activeTab === 'tx_categories' && hasPermission('manage_finances') ? (
+        ) : activeTab === 'tx_categories' && hasPermission('tx_categories') ? (
           <TxCategoriesTab />
-        ) : activeTab === 'reports' && hasPermission('manage_reports') ? (
+        ) : activeTab === 'reports' && hasPermission('reports') ? (
           <SalesReportTab />
         ) : activeTab === 'hostingOrders' && isAdmin ? (
           <HostingOrdersTab />
-        ) : activeTab === 'support_tickets' && isAdmin ? (
-          <SupportTicketsTab />
         ) : activeTab === 'hostingPlans' && isAdmin ? (
           <HostingPlansTab />
-        ) : activeTab === 'campaigns' && hasPermission('manage_marketing') ? (
+        ) : activeTab === 'campaigns' && hasPermission('campaigns') ? (
           <CampaignsTab />
-        ) : activeTab === 'discountCodes' && hasPermission('manage_marketing') ? (
+        ) : activeTab === 'discountCodes' && hasPermission('discountCodes') ? (
           <DiscountCodesTab />
-        ) : activeTab === 'reviews' && hasPermission('manage_marketing') ? (
+        ) : activeTab === 'reviews' && hasPermission('reviews') ? (
           <ReviewsTab />
         ) : activeTab === 'users' && isAdmin ? (
           <UsersTab />
-        ) : activeTab === 'customer_receive_report' && hasPermission('manage_reports') ? (
+        ) : activeTab === 'customer_receive_report' && hasPermission('customer_receive_report') ? (
           <CustomerReceiveReportTab
             orders={orders}
             transactions={transactions}

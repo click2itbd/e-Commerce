@@ -451,6 +451,10 @@ service cloud.firestore {
       allow read: if hasStaffAccess();
       allow write: if hasManagerAccess();
     }
+    match /internal_notes/{noteId} {
+      allow read, write: if hasStaffAccess();
+    }
+
     match /tasks/{taskId} {
       allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
     }

@@ -1,6 +1,6 @@
 export type UserRole = 'admin' | 'manager' | 'staff' | 'user';
 
-export type UserPermission = 'view_dashboard' | 'manage_users' | 'manage_settings' | 'manage_inventory' | 'manage_orders' | 'manage_finances' | 'manage_reports' | 'manage_hr' | 'manage_services' | 'manage_marketing';
+export type UserPermission = string; // Changed to string to support granular tab-level permissions while preserving legacy categories
 
 export interface UserProfile {
   uid: string;
@@ -20,6 +20,7 @@ export interface ProductVariant {
 }
 
 export interface Product {
+  model?: string;
   id: string;
   name: string;
   description: string;
@@ -108,6 +109,7 @@ export interface Customer {
 }
 
 export interface Order {
+  saleSource?: 'in_store' | 'online';
   id: string;
   userId: string;
   items: CartItem[];
@@ -489,4 +491,14 @@ export interface HostingOrder {
   company: string;
   paymentMethod: string;
   createdAt: string;
+}
+
+
+export interface InternalNote {
+  id: string;
+  content: string;
+  createdBy: string;
+  authorName: string;
+  createdAt: string;
+  status: 'pending' | 'resolved';
 }
