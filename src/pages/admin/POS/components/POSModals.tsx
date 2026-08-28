@@ -103,8 +103,8 @@ export const POSModals: React.FC<POSModalsProps> = ({
                 <input required type="text" className="w-full rounded-lg border-gray-300 text-sm" value={customerFormData.name} onChange={e => setCustomerFormData({...customerFormData, name: e.target.value})} />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone *</label>
-                <input required type="text" className="w-full rounded-lg border-gray-300 text-sm" value={customerFormData.phone} onChange={e => setCustomerFormData({...customerFormData, phone: e.target.value})} />
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone</label>
+                <input type="text" className="w-full rounded-lg border-gray-300 text-sm" value={customerFormData.phone} onChange={e => setCustomerFormData({...customerFormData, phone: e.target.value})} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email</label>

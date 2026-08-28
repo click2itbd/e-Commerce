@@ -130,7 +130,6 @@ const Vendors: React.FC<VendorsProps> = ({
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email</label>
               <input
                 type="email"
-                required
                 value={vendorFormData.email}
                 onChange={e => setVendorFormData({ ...vendorFormData, email: e.target.value })}
                 className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
@@ -140,7 +139,6 @@ const Vendors: React.FC<VendorsProps> = ({
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone</label>
               <input
                 type="tel"
-                required
                 value={vendorFormData.phone}
                 onChange={e => setVendorFormData({ ...vendorFormData, phone: e.target.value })}
                 className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
