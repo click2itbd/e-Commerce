@@ -142,6 +142,17 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                             placeholder="e.g. iPhone 15 Pro Max"
                           />
                         </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Model Number</label>
+                            <input
+                              type="text"
+                              value={formData.model || ''}
+                              onChange={e => setFormData({ ...formData, model: e.target.value })}
+                              className="w-full font-medium text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="e.g. A2849"
+                            />
+                          </div>
                         
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
@@ -303,13 +314,13 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                           {(formData.warrantyMonths || 0) > 0 && (
                             <div className="flex items-center gap-2 px-1">
                               <input
-                                type="number"
-                                min="1"
-                                value={Math.max(1, Math.round((formData.warrantyMonths || 0) / 12))}
-                                onChange={e => setFormData({ ...formData, warrantyMonths: Math.max(1, Number(e.target.value)) * 12 })}
-                                className="w-20 font-black text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-center"
-                              />
-                              <span className="text-xs font-bold text-slate-500 uppercase">Years</span>
+                                  type="number"
+                                  min="1"
+                                  value={formData.warrantyMonths || 0}
+                                  onChange={e => setFormData({ ...formData, warrantyMonths: Math.max(1, Number(e.target.value)) })}
+                                  className="w-20 font-black text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-center"
+                                />
+                                <span className="text-xs font-bold text-slate-500 uppercase">Months</span>
                             </div>
                           )}
                         </div>
