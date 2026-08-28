@@ -339,7 +339,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             costPrice: 0,
             quantity: Number(item.quantity),
             hasWarranty: false,
-            warrantyYears: 0,
             warrantyMonths: 0,
             selectedSerials: [],
             itemType: 'service',
@@ -347,7 +346,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         }
         
         const currentProduct = products.find(p => p.id === item.id);
-        const wMonths = item.hasWarranty ? (item.warrantyYears || 0) * 12 : (currentProduct?.warrantyMonths || 0);
+        const wMonths = item.hasWarranty ? (item.warrantyMonths || currentProduct?.warrantyMonths || 0) : (currentProduct?.warrantyMonths || 0);
         return {
           productId: item.id,
           name: item.name,
@@ -355,8 +354,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           costPrice: Number(currentProduct?.costPrice) || 0,
           quantity: Number(item.quantity),
           hasWarranty: Boolean(item.hasWarranty),
-          warrantyYears: Number(item.warrantyYears) || 0,
-          warrantyMonths: wMonths,
+            warrantyMonths: wMonths,
           selectedSerials: item.selectedSerials || [],
         };
       });
@@ -415,7 +413,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               updates.availableSerials = remainingSerials;
 
               const warrantyEndDate = new Date();
-              const wMonths = item.hasWarranty ? (item.warrantyYears || 0) * 12 : (currentProduct.warrantyMonths || 0);
+              const wMonths = item.hasWarranty ? (item.warrantyMonths || currentProduct.warrantyMonths || 0) : (currentProduct.warrantyMonths || 0);
               warrantyEndDate.setMonth(warrantyEndDate.getMonth() + wMonths);
 
               for (const serial of item.selectedSerials) {

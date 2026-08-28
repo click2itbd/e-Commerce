@@ -22,7 +22,7 @@ export const RetailPOS = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   
-  const [cart, setCart] = useState<{cartItemId: string, product: Product, quantity: number, hasWarranty?: boolean, warrantyYears?: number, selectedSerials?: string[], selectedVariant?: any}[]>([]);
+  const [cart, setCart] = useState<{cartItemId: string, product: Product, quantity: number, hasWarranty?: boolean, warrantyMonths?: number, selectedSerials?: string[], selectedVariant?: any}[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -345,7 +345,7 @@ export const RetailPOS = () => {
           hasSerialTracking: c.product.hasSerialTracking || false,
           selectedSerials: c.selectedSerials || [],
           hasWarranty: c.hasWarranty || false,
-          warrantyYears: c.warrantyYears || 0
+          warrantyMonths: c.warrantyMonths || (c.product.warrantyMonths || 0)
         };
       });
 
@@ -416,7 +416,7 @@ export const RetailPOS = () => {
           updates.availableSerials = remainingSerials;
           
           const warrantyEndDate = new Date();
-          const wMonths = item.hasWarranty ? (item.warrantyYears || 0) * 12 : (item.product.warrantyMonths || 0);
+          const wMonths = item.hasWarranty ? (item.warrantyMonths || item.product.warrantyMonths || 0) : (item.product.warrantyMonths || 0);
           warrantyEndDate.setMonth(warrantyEndDate.getMonth() + wMonths);
 
           for (const serial of serialsToUse) {
@@ -541,7 +541,7 @@ export const RetailPOS = () => {
             <td>
               <strong>${item.name}</strong>
               ${item.selectedSerials?.length > 0 ? `<br><span style="color: #666; font-size: 12px;">Serial Numbers: ${item.selectedSerials.join(", ")}</span>` : ""}
-              ${item.hasWarranty ? `<br><span style="color: #666; font-size: 12px;">Warranty: ${item.warrantyYears} Years</span>` : ""}
+              ${item.hasWarranty ? `<br><span style="color: #666; font-size: 12px;">Warranty: ${item.warrantyMonths || item.product.warrantyMonths || 0} Months</span>` : ""}
             </td>
             <td style="text-align: center;">${item.quantity}</td>
             <td style="text-align: right;">${formatCurrency(item.price, settings)}</td>
