@@ -53,7 +53,7 @@ const CANONICAL_VPS_PLANS = [
     cores: '2 vCPU Cores',
     ram: '4 GB DDR4 RAM',
     storage: '60 GB NVMe SSD',
-    bandwidth: '2 TB BDIX & Global',
+    bandwidth: '2 TB Premium Bandwidth',
     ipv4: '1 Dedicated IPv4',
     monthlyPrice: 1800,
     popular: false,
@@ -61,7 +61,7 @@ const CANONICAL_VPS_PLANS = [
     features: [
       'Pure NVMe Storage in RAID 10',
       '1 Dedicated Public IPv4',
-      'BDIX 1Gbps Peering Included',
+      '1Gbps Network Port',
       'KVM Hardware Virtualization',
       'Automated Weekly Backups',
       '24/7 Server Monitoring'
@@ -73,7 +73,7 @@ const CANONICAL_VPS_PLANS = [
     cores: '4 vCPU Cores',
     ram: '8 GB DDR4 RAM',
     storage: '120 GB NVMe SSD',
-    bandwidth: '5 TB BDIX & Global',
+    bandwidth: '5 TB Premium Bandwidth',
     ipv4: '1 Dedicated IPv4',
     monthlyPrice: 3500,
     popular: true,
@@ -81,7 +81,7 @@ const CANONICAL_VPS_PLANS = [
     features: [
       'Pure NVMe Storage in RAID 10',
       '1 Dedicated Public IPv4',
-      'BDIX 1Gbps Peering Included',
+      '1Gbps Network Port',
       'KVM Hardware Virtualization',
       'Automated Daily Snapshots',
       'Free OS Reinstall Anytime',
@@ -94,7 +94,7 @@ const CANONICAL_VPS_PLANS = [
     cores: '8 vCPU Cores',
     ram: '16 GB DDR4 RAM',
     storage: '240 GB NVMe SSD',
-    bandwidth: '10 TB BDIX & Global',
+    bandwidth: '10 TB Premium Bandwidth',
     ipv4: '2 Dedicated IPv4',
     monthlyPrice: 6800,
     popular: false,
@@ -102,7 +102,7 @@ const CANONICAL_VPS_PLANS = [
     features: [
       'Pure NVMe Storage in RAID 10',
       '2 Dedicated Public IPv4 Included',
-      'BDIX 10Gbps Peering Included',
+      '10Gbps Network Port',
       'KVM Hardware Virtualization',
       'Automated Daily Snapshots',
       'DDoS Protection up to 500Gbps',
@@ -123,7 +123,7 @@ const CANONICAL_VPS_PLANS = [
     features: [
       'Enterprise NVMe in RAID 10',
       '2 Dedicated Public IPv4 Included',
-      'BDIX 10Gbps Peering Included',
+      '10Gbps Network Port',
       'Zero Resource Contention',
       'Automated Daily Snapshots',
       'Enterprise DDoS Mitigation',
@@ -161,7 +161,7 @@ export default function CloudVpsSection() {
               cores: docItem.cloudLinuxLimits?.cpu ? `${docItem.cloudLinuxLimits.cpu} Cores` : (canonical.cores || '4 vCPU Cores'),
               ram: docItem.cloudLinuxLimits?.pmem ? `${docItem.cloudLinuxLimits.pmem} MB RAM` : (canonical.ram || '8 GB RAM'),
               storage: docItem.comparisonValues?.disk_space || canonical.storage || '120 GB NVMe SSD',
-              bandwidth: docItem.comparisonValues?.bandwidth || canonical.bandwidth || '5 TB BDIX',
+              bandwidth: docItem.comparisonValues?.bandwidth || canonical.bandwidth || '5 TB Premium Bandwidth',
               ipv4: canonical.ipv4 || '1 Dedicated IPv4',
               monthlyPrice: monthlyPrice,
               popular: docItem.popular ?? canonical.popular ?? false,
@@ -169,7 +169,7 @@ export default function CloudVpsSection() {
               features: docItem.features || canonical.features || [
                 'Pure NVMe Storage in RAID 10',
                 '1 Dedicated Public IPv4',
-                'BDIX 1Gbps Peering Included',
+                '1Gbps Network Port',
                 'KVM Hardware Virtualization',
                 'Automated Snapshots'
               ]
@@ -222,7 +222,7 @@ export default function CloudVpsSection() {
             High Performance Cloud VPS Servers
           </h2>
           <p className="text-gray-600 text-base md:text-lg leading-relaxed">
-            Deploy ultra-fast KVM Cloud VPS with NVMe storage, BDIX local network peering, dedicated IPv4, and pre-configured OS templates.
+            Deploy ultra-fast KVM Cloud VPS with NVMe storage, dedicated IPv4, and pre-configured OS templates.
           </p>
 
           {/* Working OS Selector Bar - Guaranteed Single Row */}

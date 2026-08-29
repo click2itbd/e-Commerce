@@ -49,8 +49,8 @@ export default function PricingPage() {
       answer: "Absolutely! Our team provides 100% free, zero-downtime website migration from your previous host within the first 30 days of signing up."
     },
     {
-      question: "What is BDIX Peering?",
-      answer: "BDIX (Bangladesh Internet Exchange) allows visitors from Bangladesh to load your website at blazing fast 1Gbps to 10Gbps local speeds."
+      question: "Do you offer free SSL?",
+      answer: "Yes, all our hosting plans come with a free SSL certificate installed automatically."
     }
   ];
 

@@ -78,7 +78,7 @@ export default function Hosting() {
     <Layout fullWidth>
       <SEO 
         title="Premium Web Hosting, WordPress Cloud & VPS Servers"
-        description="Fast, secure, and reliable web hosting, managed WordPress cloud, and KVM VPS servers with BDIX connectivity."
+        description="Fast, secure, and reliable web hosting, managed WordPress cloud, and KVM VPS servers with premium connectivity."
         keywords="web hosting, cloud server, VPS, shared hosting, wordpress cloud bd, cheap hosting bd"
       />
       {/* 1. Hero — dark blue bg, domain search, 3D server graphic */}
@@ -97,7 +97,7 @@ export default function Hosting() {
         onNavigate={navigate}
       />
 
-      {/* 5. BDIX Turbo / Managed WordPress & WooCommerce Cloud Hosting */}
+      {/* 5. Turbo / Managed WordPress & WooCommerce Cloud Hosting */}
       <WordPressCloudSection />
 
       {/* 6. High Performance KVM Cloud VPS & Dedicated Servers (Hidden temporarily) */}

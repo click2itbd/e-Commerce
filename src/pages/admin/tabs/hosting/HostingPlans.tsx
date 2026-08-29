@@ -222,7 +222,7 @@ export const DEFAULT_HOSTING_PACKAGES = [
     cloudLinuxLimits: { cpu: '200', pmem: '2048', vmem: '4096', io: '30', iops: '2048', ep: '40', nproc: '150', inodes: '350000' },
     comparisonValues: {
       disk_space: '10 GB Pure NVMe SSD',
-      bandwidth: '100 GB BDIX',
+      bandwidth: '100 GB Premium Bandwidth',
       addon_domains: '1 Website',
       subdomains: '5',
       emails: '10',
@@ -260,7 +260,7 @@ export const DEFAULT_HOSTING_PACKAGES = [
     cloudLinuxLimits: { cpu: '400', pmem: '4096', vmem: '8192', io: '50', iops: '4096', ep: '60', nproc: '250', inodes: '600000' },
     comparisonValues: {
       disk_space: '25 GB Pure NVMe SSD',
-      bandwidth: 'Unlimited BDIX',
+      bandwidth: 'Unlimited Bandwidth',
       addon_domains: '5 Websites',
       subdomains: 'Unlimited',
       emails: 'Unlimited',
@@ -297,7 +297,7 @@ export const DEFAULT_HOSTING_PACKAGES = [
     cloudLinuxLimits: { cpu: '600', pmem: '8192', vmem: '16384', io: '80', iops: '8192', ep: '100', nproc: '400', inodes: '1000000' },
     comparisonValues: {
       disk_space: '50 GB Pure NVMe SSD',
-      bandwidth: 'Unlimited BDIX',
+      bandwidth: 'Unlimited Bandwidth',
       addon_domains: '10 Websites',
       subdomains: 'Unlimited',
       emails: 'Unlimited',
@@ -334,7 +334,7 @@ export const DEFAULT_HOSTING_PACKAGES = [
     cloudLinuxLimits: { cpu: '800', pmem: '16384', vmem: '32768', io: '100', iops: '10240', ep: '150', nproc: '600', inodes: '2000000' },
     comparisonValues: {
       disk_space: '100 GB Enterprise NVMe',
-      bandwidth: 'Unlimited BDIX',
+      bandwidth: 'Unlimited Bandwidth',
       addon_domains: 'Unlimited Websites',
       subdomains: 'Unlimited',
       emails: 'Unlimited',
@@ -373,7 +373,7 @@ export const DEFAULT_HOSTING_PACKAGES = [
     cloudLinuxLimits: { cpu: '2 Cores', pmem: '4096', vmem: '4096', io: '50', iops: '5000', ep: '50', nproc: '200', inodes: '1000000' },
     comparisonValues: {
       disk_space: '60 GB NVMe SSD',
-      bandwidth: '2 TB BDIX & Global',
+      bandwidth: '2 TB Premium Bandwidth',
       addon_domains: 'Unlimited',
       subdomains: 'Unlimited',
       emails: 'Unlimited',
@@ -387,7 +387,7 @@ export const DEFAULT_HOSTING_PACKAGES = [
     features: [
       'Pure NVMe Storage in RAID 10',
       '1 Dedicated Public IPv4',
-      'BDIX 1Gbps Peering Included',
+      '1Gbps Network Port',
       'KVM Hardware Virtualization',
       'Automated Weekly Backups',
       '24/7 Server Monitoring'
@@ -409,7 +409,7 @@ export const DEFAULT_HOSTING_PACKAGES = [
     cloudLinuxLimits: { cpu: '4 Cores', pmem: '8192', vmem: '8192', io: '80', iops: '8000', ep: '80', nproc: '400', inodes: '2000000' },
     comparisonValues: {
       disk_space: '120 GB NVMe SSD',
-      bandwidth: '5 TB BDIX & Global',
+      bandwidth: '5 TB Premium Bandwidth',
       addon_domains: 'Unlimited',
       subdomains: 'Unlimited',
       emails: 'Unlimited',
@@ -423,7 +423,7 @@ export const DEFAULT_HOSTING_PACKAGES = [
     features: [
       'Pure NVMe Storage in RAID 10',
       '1 Dedicated Public IPv4',
-      'BDIX 1Gbps Peering Included',
+      '1Gbps Network Port',
       'KVM Hardware Virtualization',
       'Automated Daily Snapshots',
       'Free OS Reinstall Anytime',
@@ -446,7 +446,7 @@ export const DEFAULT_HOSTING_PACKAGES = [
     cloudLinuxLimits: { cpu: '8 Cores', pmem: '16384', vmem: '16384', io: '100', iops: '12000', ep: '120', nproc: '800', inodes: '4000000' },
     comparisonValues: {
       disk_space: '240 GB NVMe SSD',
-      bandwidth: '10 TB BDIX & Global',
+      bandwidth: '10 TB Premium Bandwidth',
       addon_domains: 'Unlimited',
       subdomains: 'Unlimited',
       emails: 'Unlimited',
@@ -460,7 +460,7 @@ export const DEFAULT_HOSTING_PACKAGES = [
     features: [
       'Pure NVMe Storage in RAID 10',
       '2 Dedicated Public IPv4 Included',
-      'BDIX 10Gbps Peering Included',
+      '10Gbps Network Port',
       'KVM Hardware Virtualization',
       'Automated Daily Snapshots',
       'DDoS Protection up to 500Gbps',
@@ -497,7 +497,7 @@ export const DEFAULT_HOSTING_PACKAGES = [
     features: [
       'Enterprise NVMe in RAID 10',
       '2 Dedicated Public IPv4 Included',
-      'BDIX 10Gbps Peering Included',
+      '10Gbps Network Port',
       'Zero Resource Contention',
       'Automated Daily Snapshots',
       'Enterprise DDoS Mitigation',

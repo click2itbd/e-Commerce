@@ -18,7 +18,7 @@ const CANONICAL_WP_PLANS = [
     cpu: '1 vCPU Core',
     ram: '1 GB RAM',
     websites: '1 Hosted Domain',
-    bandwidth: 'Unlimited BDIX Traffic',
+    bandwidth: 'Unlimited Bandwidth',
     features: [
       '5 GB NVMe SSD Storage',
       '1 Hosted Domain',
@@ -26,7 +26,7 @@ const CANONICAL_WP_PLANS = [
       'LiteSpeed Web Server',
       'CloudLinux OS & CageFS',
       'Free SSL Certificate',
-      'Unlimited BDIX Traffic',
+      'Unlimited Bandwidth',
       'cPanel Control Panel',
       'Weekly Backups',
       '24/7 Standard Support'
@@ -43,7 +43,7 @@ const CANONICAL_WP_PLANS = [
     cpu: '1.5 vCPU Cores',
     ram: '2 GB RAM',
     websites: '5 Hosted Domains',
-    bandwidth: 'Unlimited BDIX Traffic',
+    bandwidth: 'Unlimited Bandwidth',
     features: [
       '15 GB NVMe SSD Storage',
       '5 Hosted Domains',
@@ -51,7 +51,7 @@ const CANONICAL_WP_PLANS = [
       'LiteSpeed Web Server',
       'CloudLinux OS & CageFS',
       'Free SSL Certificate',
-      'Unlimited BDIX Traffic',
+      'Unlimited Bandwidth',
       'cPanel Control Panel',
       'Daily Backups',
       '24/7 Priority Support'
@@ -67,7 +67,7 @@ const CANONICAL_WP_PLANS = [
     cpu: '2 vCPU Cores',
     ram: '3 GB RAM',
     websites: 'Unlimited Hosted Domains',
-    bandwidth: 'Unlimited BDIX Traffic',
+    bandwidth: 'Unlimited Bandwidth',
     features: [
       '30 GB NVMe SSD Storage',
       'Unlimited Hosted Domains',
@@ -75,7 +75,7 @@ const CANONICAL_WP_PLANS = [
       'LiteSpeed + Redis Cache',
       'CloudLinux OS & CageFS',
       'Free SSL Certificate',
-      'Unlimited BDIX Traffic',
+      'Unlimited Bandwidth',
       'cPanel Control Panel',
       'Daily Automated Backups',
       '24/7 VIP Support'
@@ -91,7 +91,7 @@ const CANONICAL_WP_PLANS = [
     cpu: '3 vCPU Cores',
     ram: '4 GB RAM',
     websites: 'Unlimited Hosted Domains',
-    bandwidth: 'Unmetered 1Gbps BDIX',
+    bandwidth: 'Unmetered 1Gbps Port',
     features: [
       '60 GB NVMe SSD Storage',
       'Unlimited Hosted Domains',
@@ -99,7 +99,7 @@ const CANONICAL_WP_PLANS = [
       'Extreme LiteSpeed Performance',
       'CloudLinux LVE Isolation',
       'Free SSL + Dedicated IP Option',
-      'Unmetered BDIX Traffic',
+      'Unmetered Bandwidth',
       'cPanel Control Panel',
       'Hourly & Daily Backups',
       'Dedicated Account Manager'
@@ -136,7 +136,7 @@ export default function WordPressCloudSection() {
               name: docItem.name || canonical.name || 'WordPress Cloud',
               badge: docItem.badge || canonical.badge,
               popular: docItem.popular ?? canonical.popular ?? false,
-              description: docItem.description || canonical.description || 'Optimized BDIX Turbo WordPress hosting with NVMe SSD.',
+              description: docItem.description || canonical.description || 'Optimized Turbo WordPress hosting with NVMe SSD.',
               pricing: {
                 monthly: monthlyPrice,
                 annually: annualPrice
@@ -197,13 +197,13 @@ export default function WordPressCloudSection() {
         <div className="text-center max-w-3xl mx-auto mb-14">
           <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 text-blue-400 border border-blue-500/30 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest mb-4">
             <Rocket size={14} className="text-blue-400 animate-pulse" />
-            BDIX Powered CloudLinux Hosting
+            Premium CloudLinux Hosting
           </div>
           <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white mb-4">
             Fast & Secure CloudLinux Shared Hosting
           </h2>
           <p className="text-gray-400 text-base md:text-lg">
-            Affordable, fast, and secure shared hosting with NVMe SSDs and BDIX support for optimal speed.
+            Affordable, fast, and secure shared hosting with NVMe SSDs for optimal speed and reliability.
           </p>
 
           {/* Billing Cycle Toggle */}
