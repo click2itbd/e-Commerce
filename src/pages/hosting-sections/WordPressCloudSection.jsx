@@ -203,7 +203,7 @@ export default function WordPressCloudSection() {
             Fast & Secure CloudLinux Shared Hosting
           </h2>
           <p className="text-gray-400 text-base md:text-lg">
-            Enterprise-grade CloudLinux OS, CageFS isolation, NVMe SSDs, and LiteSpeed web servers for ultimate stability and blazing-fast BDIX local speed.
+            Affordable, fast, and secure shared hosting with NVMe SSDs and BDIX support for optimal speed.
           </p>
 
           {/* Billing Cycle Toggle */}

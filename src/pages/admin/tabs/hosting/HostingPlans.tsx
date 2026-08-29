@@ -235,16 +235,13 @@ export const DEFAULT_HOSTING_PACKAGES = [
     },
     popular: false,
     features: [
-      '10 GB Pure NVMe SSD',
-      '2 vCPU Cores & 2 GB RAM',
-      'LiteSpeed Enterprise Web Server',
-      'LSCache & Redis Acceleration',
-      'Free Unlimited SSL Certificate',
-      '1-Click WordPress Staging',
-      'Daily Automated JetBackup',
-      'Automated WP Core & Plugin Updates',
-      'Free Website Migration',
-      '24/7 Priority Support'
+      '10 GB NVMe SSD',
+      '2 vCPU & 2 GB RAM',
+      'LiteSpeed Web Server',
+      'Free SSL Certificate',
+      'Daily Automated Backups',
+      '1-Click WordPress',
+      '24/7 Support'
     ]
   },
   {
@@ -275,16 +272,13 @@ export const DEFAULT_HOSTING_PACKAGES = [
       softaculous: true
     },
     features: [
-      '25 GB Pure NVMe SSD',
-      '4 vCPU Cores & 4 GB RAM',
-      'LiteSpeed Enterprise + QUIC.cloud',
-      'Dedicated Redis Object Cache',
-      'Free SSL & HTTP/3 Support',
-      'Multi-Site Staging Environment',
-      'Daily Automated JetBackup (30 Days)',
-      'Malware Scanner & Auto-Clean',
-      'Free VIP Migration by Experts',
-      'Dedicated DevOps WhatsApp Support'
+      '25 GB NVMe SSD',
+      '4 vCPU & 4 GB RAM',
+      'LiteSpeed Web Server',
+      'Free SSL Certificate',
+      'Daily Automated Backups',
+      'Malware Scanner',
+      'Priority Support'
     ]
   },
   {
@@ -315,16 +309,13 @@ export const DEFAULT_HOSTING_PACKAGES = [
       softaculous: true
     },
     features: [
-      '50 GB Pure NVMe SSD in RAID 10',
-      '6 vCPU Cores & 8 GB RAM',
-      'WooCommerce High-Concurrency Engine',
-      'Dedicated Redis Cache Instance',
-      'Free Wildcard SSL Certificate',
-      'Real-time Cart Abandonment Protection',
-      'Automated Hourly Database Backup',
-      'Enterprise DDoS Mitigation (Cloudflare)',
-      'Zero Downtime Traffic Spike Shield',
-      'Dedicated Account Manager'
+      '50 GB NVMe SSD',
+      '6 vCPU & 8 GB RAM',
+      'WooCommerce Optimized',
+      'Free SSL Certificate',
+      'Automated Backups',
+      'DDoS Protection',
+      'VIP Support'
     ]
   },
   {
@@ -355,16 +346,13 @@ export const DEFAULT_HOSTING_PACKAGES = [
       softaculous: true
     },
     features: [
-      '100 GB Enterprise NVMe SSD',
-      '8 vCPU Cores & 16 GB RAM',
-      'Isolated Containerized Environment',
-      'Custom Redis & Memcached Pools',
-      'Dedicated Public IPv4 Address',
-      'Enterprise SLA 99.99% Guaranteed',
-      'Real-time Continuous Backups',
-      'Custom PHP Extension Configuration',
-      '24/7/365 On-Call Senior Engineer',
-      'White-Glove Architecture Consultation'
+      '100 GB NVMe SSD',
+      '8 vCPU & 16 GB RAM',
+      'Dedicated IP Address',
+      'Free SSL Certificate',
+      'Real-time Backups',
+      'DDoS Protection',
+      '24/7 Priority Support'
     ]
   },
 
