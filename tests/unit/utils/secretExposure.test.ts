@@ -235,7 +235,7 @@ describe('Phase 2 Critical Code Repair', () => {
   it('providerFactory must be able to import DynadotDomainProvider', () => {
     const factoryPath = path.join(projectRoot, 'backend/src/providers/providerFactory.ts');
     const content = fs.readFileSync(factoryPath, 'utf-8');
-    expect(content).toMatch(/import\s+\{?\s*DynadotDomainProvider\s*\}?\s*from\s*['"]\.\/domain\/DynadotDomainProvider['"]/);
+    expect(content).toMatch(/import\s+\{?\s*DynadotDomainProvider\s*\}?\s*from\s*['"]\.\/domain\/DynadotDomainProvider(?:\.js)?['"]/);
     expect(content).toMatch(/new\s+DynadotDomainProvider\(/);
   });
 });

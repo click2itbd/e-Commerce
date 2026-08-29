@@ -270,4 +270,4 @@ export const HostingCart: React.FC = () => {
   );
 };
 
-export default HostingCart;
+

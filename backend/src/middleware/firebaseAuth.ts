@@ -89,7 +89,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 
-  const isAdmin = await isUserAdmin(uid).catch(() => false);
+  const isAdmin = await isUserAdmin(uid).catch(() => false); // checking role in db
   if (isAdmin) {
     return next();
   }
