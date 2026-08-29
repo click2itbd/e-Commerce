@@ -87,21 +87,21 @@ export const submitManualPayment = async (
   }
 };
 
-export const initiateBkashPayment = async (): Promise<PaymentInitiationResult> => {
+export const initiateBkashPayment = async (...args: any[]): Promise<PaymentInitiationResult> => {
   return {
     success: false,
     errorMessage: 'Automatic bKash payment is not configured. Please use manual payment.',
   };
 };
 
-export const initiateSSLCommerzPayment = async (): Promise<PaymentInitiationResult> => {
+export const initiateSSLCommerzPayment = async (...args: any[]): Promise<PaymentInitiationResult> => {
   return {
     success: false,
     errorMessage: 'SSLCommerz payment is not configured. Please use manual payment.',
   };
 };
 
-export const initiateNagadPayment = async (): Promise<PaymentInitiationResult> => {
+export const initiateNagadPayment = async (...args: any[]): Promise<PaymentInitiationResult> => {
   return {
     success: false,
     errorMessage: 'Nagad payment is not configured. Please use manual payment.',
