@@ -8,7 +8,7 @@ import {
   Plus,
   Minus,
   Trash2,
-  ShoppingBag,
+  ShoppingBag, Barcode, ScanLine,
   Cpu,
   X,
   Search,
@@ -999,12 +999,12 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search products by name, SKU..."
+                placeholder="Scan Barcode or Search (SKU/Name)..."
                 value={productSearch}
                 onChange={e => setProductSearch(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-red-100"
               />
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <ScanLine className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
             </div>
 
             <select

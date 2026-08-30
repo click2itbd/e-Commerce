@@ -5,7 +5,7 @@ import { Product, Vendor, Transaction, SiteSettings, PaymentAccount } from '../.
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import {
-  ShoppingBag,
+  ShoppingBag, Barcode, ScanLine,
   Plus,
   Trash2,
   Search,
@@ -34,6 +34,7 @@ interface PurchaseItem {
   warrantyYears?: number;
   hasSerialTracking?: boolean;
   newSerials?: string | string[];
+  sku?: string;
 }
 
 interface PurchaseRecord {
@@ -92,7 +93,7 @@ const Purchases: React.FC<PurchasesProps> = ({
 
   // Quick Add Product
   const [isQuickAddingProduct, setIsQuickAddingProduct] = useState(false);
-  const [quickProductData, setQuickProductData] = useState({ name: '', model: '', category: '', costPrice: 0, price: 0, stock: 0, hasWarranty: false, warrantyMonths: 0 });
+  const [quickProductData, setQuickProductData] = useState({ name: '', sku: '', model: '', category: '', costPrice: 0, price: 0, stock: 0, hasWarranty: false, warrantyMonths: 0 });
 
   const [purchaseForm, setPurchaseForm] = useState({
     vendorId: '',
@@ -216,6 +217,7 @@ const Purchases: React.FC<PurchasesProps> = ({
       const productData = {
           name: trimmed,
           model: quickProductData.model || '',
+          sku: quickProductData.sku || '',
           category: quickProductData.category,
         costPrice: quickProductData.costPrice || 0,
         price: quickProductData.price || 0,
@@ -229,7 +231,7 @@ const Purchases: React.FC<PurchasesProps> = ({
       const newProduct = { id: docRef.id, ...productData } as Product;
       setProducts(prev => [...prev, newProduct]);
       addItemToPurchase(newProduct);
-      setQuickProductData({ name: '', model: '', category: '', costPrice: 0, price: 0, stock: 0, hasWarranty: false, warrantyMonths: 0 });
+      setQuickProductData({ name: '', sku: '', model: '', category: '', costPrice: 0, price: 0, stock: 0, hasWarranty: false, warrantyMonths: 0 });
       setIsQuickAddingProduct(false);
       toast.success(`Product "${trimmed}" created & added to purchase!`);
     } catch (err) {
@@ -286,6 +288,7 @@ const Purchases: React.FC<PurchasesProps> = ({
             hasWarranty: Boolean(product.warrantyMonths && product.warrantyMonths > 0),
             warrantyYears: product.warrantyMonths ? Math.round(product.warrantyMonths / 12) : 1,
             hasSerialTracking: Boolean(product.hasSerialTracking),
+              sku: product.sku || '',
             newSerials: '',
           },
         ],
@@ -895,12 +898,12 @@ const Purchases: React.FC<PurchasesProps> = ({
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Search product name, SKU..."
+                    placeholder="Scan Barcode or Search (SKU/Name)..."
                     value={productCatalogSearch}
                     onChange={e => setProductCatalogSearch(e.target.value)}
                     className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-red-100"
                   />
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                  <ScanLine className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                 </div>
               </div>
 
@@ -918,6 +921,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                   <form onSubmit={handleQuickAddProduct} className="p-3 bg-green-50 border border-green-200 rounded-xl space-y-2">
                     <input type="text" placeholder="Product Name *" autoFocus value={quickProductData.name} onChange={e => setQuickProductData({...quickProductData, name: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-green-200" />
                       <input type="text" placeholder="Model Number (Optional)" value={quickProductData.model || ''} onChange={e => setQuickProductData({...quickProductData, model: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-green-200" />
+                      <input type="text" placeholder="Scan Global Barcode / SKU (Optional)" value={quickProductData.sku || ''} onChange={e => setQuickProductData({...quickProductData, sku: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-green-200" />
                     <select value={quickProductData.category} onChange={e => setQuickProductData({...quickProductData, category: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none">
                       <option value="">-- Select Category * --</option>
                       {productCategories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -950,7 +954,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                       </div>
                       <div className="flex gap-2">
                         <button type="submit" className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1"><CheckCircle size={12} /> Create & Add</button>
-                      <button type="button" onClick={() => { setIsQuickAddingProduct(false); setQuickProductData({ name: '', model: '', category: '', costPrice: 0, price: 0, stock: 0, hasWarranty: false, warrantyMonths: 0 }); }} className="px-3 py-2 bg-white border border-gray-200 rounded-lg font-bold text-xs text-gray-500 hover:text-gray-800"><X size={12} /></button>
+                      <button type="button" onClick={() => { setIsQuickAddingProduct(false); setQuickProductData({ name: '', sku: '', model: '', category: '', costPrice: 0, price: 0, stock: 0, hasWarranty: false, warrantyMonths: 0 }); }} className="px-3 py-2 bg-white border border-gray-200 rounded-lg font-bold text-xs text-gray-500 hover:text-gray-800"><X size={12} /></button>
                     </div>
                   </form>
                 )}
