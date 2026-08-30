@@ -131,6 +131,15 @@ const SalesReportTab: React.FC = () => {
       return 0;
     });
 
+    if (reportSearch.trim()) {
+      const q = reportSearch.toLowerCase();
+      data = data.filter(r => 
+        (r.customerName || '').toLowerCase().includes(q) ||
+        (r.customerPhone || '').toLowerCase().includes(q) ||
+        (r.productName || '').toLowerCase().includes(q) ||
+        (r.documentNumber || '').toLowerCase().includes(q)
+      );
+    }
     return data;
   };
 

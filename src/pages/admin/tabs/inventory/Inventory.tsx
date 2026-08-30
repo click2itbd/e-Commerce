@@ -20,6 +20,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [inventorySearchQuery, setInventorySearchQuery] = useState("");
 
 
   return (
@@ -72,7 +73,20 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
               </div>
             </div>
 
-            <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex flex-wrap gap-2 items-center">
+            
+            <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex flex-col gap-4">
+              <div className="relative max-w-md w-full">
+                <input
+                  type="text"
+                  placeholder="Search products by name, SKU, model..."
+                  value={inventorySearchQuery}
+                  onChange={(e) => { setInventorySearchQuery(e.target.value); setCurrentPage(1); }}
+                  className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#EF4444]"
+                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+
               <span className="text-xs font-bold text-gray-400 uppercase mr-2">Filter by Category:</span>
               <button
                 onClick={() => setInventoryCategoryFilter('all')}
@@ -101,6 +115,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
               ))}
             </div>
 
+            </div>
             {isAddingProduct || editingProduct ? (
               <form onSubmit={handleSaveProduct} className="p-6 bg-slate-50 border-b border-gray-200">
                 <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200">
@@ -630,6 +645,13 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                   {(() => {
                     const filtered = [...products]
                       .filter(p => inventoryCategoryFilter === 'all' || p.category === inventoryCategoryFilter)
+                      .filter(p => {
+                        if (!inventorySearchQuery.trim()) return true;
+                        const q = inventorySearchQuery.toLowerCase();
+                        return (p.name || '').toLowerCase().includes(q) ||
+                               (p.sku || p.id || '').toLowerCase().includes(q) ||
+                               (p.model || '').toLowerCase().includes(q);
+                      })
                       .sort((a, b) => a.name.localeCompare(b.name));
                     return filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((product, index) => (
                     <tr key={product.id} className={cn(
@@ -748,7 +770,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
 
             <Pagination
               currentPage={currentPage}
-              totalItems={products.filter(p => inventoryCategoryFilter === 'all' || p.category === inventoryCategoryFilter).length}
+              totalItems={products.filter(p => inventoryCategoryFilter === 'all' || p.category === inventoryCategoryFilter).filter(p => !inventorySearchQuery.trim() || (p.name || "").toLowerCase().includes(inventorySearchQuery.toLowerCase()) || (p.sku || p.id || "").toLowerCase().includes(inventorySearchQuery.toLowerCase()) || (p.model || "").toLowerCase().includes(inventorySearchQuery.toLowerCase())).length}
               itemsPerPage={itemsPerPage}
               onPageChange={setCurrentPage}
               onItemsPerPageChange={setItemsPerPage}

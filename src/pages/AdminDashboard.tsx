@@ -199,7 +199,8 @@ export const AdminDashboard: React.FC = () => {
   const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
   const [isAddingPaymentAccount, setIsAddingPaymentAccount] = useState(false);
   const [paymentAccountFormData, setPaymentAccountFormData] = useState({ type: '', name: '', description: '', openingBalance: 0, status: 'active' });
-const [activeTab, setActiveTab] = useState<'audit_logs' | 'activeHostingAccounts' | 'domainPricing' | 'domainOffers' | 'domainRenewals' | 'dashboard' | 'analytics' | 'inventory' | 'orders' | 'sales' | 'quotations' | 'purchases' | 'purchase_return' | 'sale_return' | 'customers' | 'vendors' | 'transactions' | 'menus' | 'reports' | 'all_reports' | 'customer_receive_report' | 'ledger' | 'manual_income' | 'manual_expense' | 'tx_categories' | 'users' | 'campaigns' | 'discountCodes' | 'reviews' | 'hostingPlans' | 'hostingServices' | 'hostingOrders' | 'hosting_api_settings' | 'settings' | 'services' | 'employees' | 'leave' | 'salary' | 'conveyance' | 'deposits_withdrawals' | 'account_balance' | 'account_statement' | 'balance_sheet' | 'trial_balance' | 'transaction_history' | 'payment_accounts' | 'crm' | 'tasks' | 'support_tickets' | 'hosting_support_tickets' | 'internal_notes'>('dashboard');
+const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('adminActiveTab') || 'dashboard');
+  useEffect(() => { sessionStorage.setItem('adminActiveTab', activeTab); }, [activeTab]);
   
   const [serialSelectionModal, setSerialSelectionModal] = useState<{
     isOpen: boolean;

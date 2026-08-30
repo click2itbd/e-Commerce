@@ -97,7 +97,8 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
                 const searchLower = searchQuery.trim().toLowerCase();
                 const exactMatches = products.filter(p => 
                   p.id === searchQuery.trim() || 
-                  (p as any).barcode === searchQuery.trim() || 
+                  (p as any).barcode === searchQuery.trim() ||
+                    (p.model && p.model.toLowerCase() === searchLower) || 
                   p.name.toLowerCase() === searchLower
                 );
                 

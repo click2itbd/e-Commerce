@@ -366,7 +366,7 @@ export const HostingBillingDashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex-1 min-h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={250} minWidth={0}>
                       <AreaChart
                         data={areaData}
                         margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
