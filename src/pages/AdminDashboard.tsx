@@ -87,6 +87,16 @@ export const AdminDashboard: React.FC = () => {
   const [newTransactionCategory, setNewTransactionCategory] = useState<Partial<TransactionCategory>>({ name: '', type: 'expense', description: '' });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const [isAddingManualTransaction, setIsAddingManualTransaction] = useState(false);
   const [manualTransactionType, setManualTransactionType] = useState<'income' | 'expense'>('expense');
   const [newManualTransaction, setNewManualTransaction] = useState<Partial<Transaction>>({
@@ -2998,7 +3008,11 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
       )}
       
       {/* Sidebar */}
-      <aside className={cn("w-[260px] bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0 overflow-y-auto shrink-0 shadow-sm z-50", "hidden lg:flex", isMobileMenuOpen ? "fixed inset-y-0 left-0 flex" : "")}>
+      <aside className={cn(
+        "w-[260px] bg-white border-r border-gray-200 flex-col h-screen overflow-y-auto shrink-0 shadow-sm z-50",
+        "fixed inset-y-0 left-0 lg:sticky lg:top-0 lg:flex",
+        isMobileMenuOpen ? "flex" : "hidden"
+      )}>
         <div className="h-[60px] flex items-center px-6 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-2 font-bold text-xl tracking-tight text-[#0f172a]">
              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
@@ -3550,7 +3564,23 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
         ) : activeTab === 'all_reports' && hasPermission('all_reports') ? (
           <AllReportsTab setActiveTab={setActiveTab} />
         ) : activeTab === 'menus' && hasPermission('menus') ? (
-          <MenusTab menus={menus} isAddingMenu={isAddingMenu} setIsAddingMenu={setIsAddingMenu} editingMenu={editingMenu} setEditingMenu={setEditingMenu} menuFormData={menuFormData} setMenuFormData={setMenuFormData} isAddingSubCategory={isAddingSubCategory} setIsAddingSubCategory={setIsAddingSubCategory} subCategoryFormData={subCategoryFormData} setSubCategoryFormData={setSubCategoryFormData} handleSaveMenu={handleSaveMenu} handleDeleteMenu={handleDeleteMenu} handleSaveSubCategory={handleSaveSubCategory} fetchData={fetchData} />
+          <MenusTab 
+            menus={menus}
+            isAddingMenu={isAddingMenu}
+            setIsAddingMenu={setIsAddingMenu}
+            editingMenu={editingMenu}
+            setEditingMenu={setEditingMenu}
+            menuFormData={menuFormData}
+            setMenuFormData={setMenuFormData}
+            isAddingSubCategory={isAddingSubCategory}
+            setIsAddingSubCategory={setIsAddingSubCategory}
+            subCategoryFormData={subCategoryFormData}
+            setSubCategoryFormData={setSubCategoryFormData}
+            handleSaveMenu={handleSaveMenu}
+            handleDeleteMenu={handleDeleteMenu}
+            handleSaveSubCategory={handleSaveSubCategory}
+            fetchData={fetchData}
+          />
         ) : activeTab === 'activeHostingAccounts' && (hasPermission('manage_services') || isAdmin) ? (
           <ActiveHostingAccountsTab />
         ) : activeTab === 'domainPricing' && (hasPermission('manage_settings') || isAdmin) ? (

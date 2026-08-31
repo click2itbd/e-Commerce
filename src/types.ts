@@ -26,6 +26,8 @@ export interface Product {
   description: string;
   price: number;
   category: string;
+  subCategory?: string;
+  brand?: string;
   stock: number;
   images: string[];
   variants?: ProductVariant[];
@@ -133,6 +135,7 @@ export interface SubCategory {
   id: string;
   name: string;
   slug: string;
+  brands?: string[];
 }
 
 export interface NavigationMenu {

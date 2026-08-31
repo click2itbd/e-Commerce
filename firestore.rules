@@ -105,7 +105,10 @@ service cloud.firestore {
              data.slug is string && data.slug.size() > 0 &&
              data.order is int &&
              (!('subCategories' in data) || data.subCategories is list) &&
-             (!('createdAt' in data) || data.createdAt is string);
+             (!('status' in data) || data.status is string) &&
+             (!('icon' in data) || data.icon is string) &&
+             (!('updatedAt' in data) || data.updatedAt is string || data.updatedAt is timestamp) &&
+             (!('createdAt' in data) || data.createdAt is string || data.createdAt is timestamp);
     }
 
     function isValidSettings(data) {
@@ -344,6 +347,21 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if hasStaffAccess() && isValidMenu(request.resource.data);
       allow delete: if hasPermission('manage_settings');
+    }
+
+    match /brands/{brandId} {
+      allow read: if true;
+      allow write: if hasStaffAccess();
+    }
+
+    match /models/{modelId} {
+      allow read: if true;
+      allow write: if hasStaffAccess();
+    }
+
+    match /variants/{variantId} {
+      allow read: if true;
+      allow write: if hasStaffAccess();
     }
 
     match /settings/api_keys {

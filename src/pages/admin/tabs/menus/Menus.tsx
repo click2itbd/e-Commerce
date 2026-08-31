@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db, storage } from '../../../../firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, getDocs } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
 import { formatCurrency, cn } from '../../../../lib/utils';
@@ -31,7 +31,59 @@ const MenusTab: React.FC<MenusTabProps> = ({
   const { isAdmin, hasPermission } = useAuth();
   const { settings } = useSettings();
 
+  const [isAddingBrand, setIsAddingBrand] = useState(false);
+  const [globalBrands, setGlobalBrands] = useState<any[]>([]);
+  const [brandFormData, setBrandFormData] = useState({ menuId: '', subCategoryId: '', brandName: '' });
 
+  useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'brands'));
+        setGlobalBrands(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch(e){}
+    };
+    fetchBrands();
+  }, []);
+
+  const handleSaveBrand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!brandFormData.menuId || !brandFormData.subCategoryId || !brandFormData.brandName.trim()) {
+      toast.error('Please fill all fields');
+      return;
+    }
+    try {
+      let brandId = '';
+      const existingBrand = globalBrands.find(b => b.name.toLowerCase() === brandFormData.brandName.trim().toLowerCase());
+      if (existingBrand) {
+        brandId = existingBrand.id;
+      } else {
+        const docRef = await addDoc(collection(db, 'brands'), { name: brandFormData.brandName.trim() });
+        brandId = docRef.id;
+      }
+
+      const parentMenu = menus.find(m => m.id === brandFormData.menuId);
+      if (parentMenu) {
+        const updatedSubs = parentMenu.subCategories.map((sub: any) => {
+          if (sub.id === brandFormData.subCategoryId) {
+            const currentBrands = sub.brands || [];
+            if (!currentBrands.includes(brandId)) {
+              return { ...sub, brands: [...currentBrands, brandId] };
+            }
+          }
+          return sub;
+        });
+        await updateDoc(doc(db, 'menus', parentMenu.id), { subCategories: updatedSubs });
+        toast.success('Brand added to sub-category');
+        setIsAddingBrand(false);
+        setBrandFormData({ menuId: '', subCategoryId: '', brandName: '' });
+        fetchData();
+        const snap = await getDocs(collection(db, 'brands'));
+        setGlobalBrands(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+    } catch(err) {
+      toast.error('Failed to add brand');
+    }
+  };
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
@@ -100,6 +152,12 @@ const MenusTab: React.FC<MenusTabProps> = ({
                   <Cpu size={18} /> Seed Builder Categories
                 </button>
                 <button
+                  onClick={() => setIsAddingBrand(true)}
+                  className="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-md flex items-center gap-2 hover:bg-indigo-200 transition-all font-bold text-sm"
+                >
+                  <Tag size={18} /> Add Brand
+                </button>
+                <button
                   onClick={() => setIsAddingSubCategory(true)}
                   className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md flex items-center gap-2 hover:bg-gray-200 transition-all font-bold text-sm"
                 >
@@ -113,6 +171,66 @@ const MenusTab: React.FC<MenusTabProps> = ({
                 </button>
               </div>
             </div>
+
+            {isAddingBrand && (
+              <div className="p-6 bg-indigo-50/50 border-b border-indigo-100">
+                <form onSubmit={handleSaveBrand} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Parent Category</label>
+                      <select
+                        required
+                        value={brandFormData.menuId}
+                        onChange={e => setBrandFormData({ ...brandFormData, menuId: e.target.value, subCategoryId: '' })}
+                        className="w-full border-gray-200 rounded-md focus:ring-indigo-500"
+                      >
+                        <option value="">Select Category</option>
+                        {menus.map(menu => (
+                          <option key={menu.id} value={menu.id}>{menu.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sub Category</label>
+                      <select
+                        required
+                        value={brandFormData.subCategoryId}
+                        onChange={e => setBrandFormData({ ...brandFormData, subCategoryId: e.target.value })}
+                        className="w-full border-gray-200 rounded-md focus:ring-indigo-500"
+                      >
+                        <option value="">Select Sub Category</option>
+                        {(menus.find(m => m.id === brandFormData.menuId)?.subCategories || []).map((sub: any) => (
+                          <option key={sub.id} value={sub.id}>{sub.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Brand Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={brandFormData.brandName}
+                        onChange={e => setBrandFormData({ ...brandFormData, brandName: e.target.value })}
+                        className="w-full border-gray-200 rounded-md focus:ring-indigo-500"
+                        placeholder="e.g. ASUS, MSI..."
+                        list="global-brands"
+                      />
+                      <datalist id="global-brands">
+                        {globalBrands.map(b => <option key={b.id} value={b.name} />)}
+                      </datalist>
+                    </div>
+                  </div>
+                  <div className="flex gap-4">
+                    <button type="submit" className="bg-indigo-600 text-white px-8 py-2 rounded-md font-bold hover:bg-indigo-700 transition-all">
+                      Add Brand
+                    </button>
+                    <button type="button" onClick={() => setIsAddingBrand(false)} className="bg-gray-200 text-gray-700 px-8 py-2 rounded-md font-bold hover:bg-gray-300 transition-all">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
 
             {isAddingSubCategory && (
               <div className="p-6 bg-gray-50 border-b border-gray-100">
@@ -315,6 +433,9 @@ const MenusTab: React.FC<MenusTabProps> = ({
                       {menu.subCategories.map(sub => (
                         <span key={sub.id} className="bg-gray-50 text-gray-600 px-3 py-1 rounded-full text-xs border border-gray-100 flex items-center gap-1">
                           {sub.name} <ChevronRight size={10} />
+                          {sub.brands && sub.brands.length > 0 && (
+                             <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-md text-[9px] font-bold ml-1">{sub.brands.length} Brands</span>
+                          )}
                         </span>
                       ))}
                     </div>

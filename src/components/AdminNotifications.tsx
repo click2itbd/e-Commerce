@@ -248,8 +248,9 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
 
     const rebuildList = () => {
       const arr = Array.from(itemsMap.values()).sort((a, b) => {
-        const timeA = new Date(a.time).getTime() || 0;
-        const timeB = new Date(b.time).getTime() || 0;
+        const parseTime = (t: any) => t?.toDate?.()?.getTime() || (t?.seconds ? t.seconds * 1000 : 0) || new Date(t).getTime() || 0;
+        const timeA = parseTime(a.time);
+        const timeB = parseTime(b.time);
         return timeB - timeA;
       });
 
@@ -510,7 +511,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
                       <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-gray-100/80 text-[10px]">
                         <span className="text-gray-400 font-medium flex items-center gap-1">
                           <Clock size={11} />
-                          {notif.time ? formatDistanceToNow(new Date(notif.time), { addSuffix: true }) : 'Just now'}
+                          {notif.time ? formatDistanceToNow(notif.time?.toDate?.() || (notif.time?.seconds ? new Date(notif.time.seconds * 1000) : new Date(notif.time)), { addSuffix: true }) : 'Just now'}
                         </span>
 
                         <span className="font-bold text-blue-600 group-hover:text-blue-700 flex items-center gap-0.5">

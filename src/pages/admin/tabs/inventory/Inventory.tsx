@@ -21,7 +21,15 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [inventorySearchQuery, setInventorySearchQuery] = useState("");
+  const [brands, setBrands] = useState<any[]>([]);
 
+  React.useEffect(() => {
+    import('firebase/firestore').then(({ collection, getDocs }) => {
+      getDocs(collection(db, 'brands')).then(snap => {
+        setBrands(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+    });
+  }, []);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -158,8 +166,67 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                           />
                         </div>
 
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                           <div>
-                            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Model Number</label>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="block text-[11px] font-bold text-slate-500 uppercase">Category</label>
+                              {setIsAddingMenu && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setActiveTab('menus'); setIsAddingMenu(true); }}
+                                  className="text-blue-600 text-[10px] font-bold hover:underline flex items-center gap-1"
+                                >
+                                  <Plus size={10} /> Add
+                                </button>
+                              )}
+                            </div>
+                            <select
+                              value={formData.category || ''}
+                              onChange={e => setFormData({ ...formData, category: e.target.value, subCategory: '' })}
+                              className="w-full font-medium text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="">Select Category</option>
+                              {menus.map(menu => (
+                                <option key={menu.id} value={menu.name}>{menu.name}</option>
+                              ))}
+                              <option value="Other">Other</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Sub-Category</label>
+                            <select
+                              value={formData.subCategory || ''}
+                              onChange={e => setFormData({ ...formData, subCategory: e.target.value })}
+                              className="w-full font-medium text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                              disabled={!formData.category}
+                            >
+                              <option value="">Select Sub-category</option>
+                              {menus.find(m => m.name === formData.category)?.subCategories?.map((sub: any) => (
+                                <option key={sub.id} value={sub.name}>{sub.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="block text-[11px] font-bold text-slate-500 uppercase">Brand</label>
+                            </div>
+                            <select
+                              value={formData.brand || ''}
+                              onChange={e => setFormData({ ...formData, brand: e.target.value })}
+                              className="w-full font-medium text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="">Select Brand</option>
+                              {brands.map(brand => (
+                                <option key={brand.id} value={brand.name}>{brand.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Model</label>
                             <input
                               type="text"
                               value={formData.model || ''}
@@ -168,36 +235,6 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                               placeholder="e.g. A2849"
                             />
                           </div>
-                        
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="block text-[11px] font-bold text-slate-500 uppercase">Category</label>
-                            {setIsAddingMenu && (
-                              <button
-                                type="button"
-                                onClick={() => { setActiveTab('menus'); setIsAddingMenu(true); }}
-                                className="text-blue-600 text-[10px] font-bold hover:underline flex items-center gap-1"
-                              >
-                                <Plus size={10} /> Add New
-                              </button>
-                            )}
-                          </div>
-                          <select
-                            value={formData.category}
-                            onChange={e => setFormData({ ...formData, category: e.target.value })}
-                            className="w-full font-medium text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                          >
-                            <option value="">Select Category</option>
-                            {menus.map(menu => (
-                              <optgroup key={menu.id} label={menu.name}>
-                                <option value={menu.name}>{menu.name} (Main)</option>
-                                {menu.subCategories?.map((sub: any) => (
-                                  <option key={sub.id} value={sub.name}>{sub.name}</option>
-                                ))}
-                              </optgroup>
-                            ))}
-                            <option value="Other">Other</option>
-                          </select>
                         </div>
 
                         <div>

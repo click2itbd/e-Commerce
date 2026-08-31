@@ -78,6 +78,19 @@ const Purchases: React.FC<PurchasesProps> = ({
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [purchaseHistory, setPurchaseHistory] = useState<PurchaseRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rawMenus, setRawMenus] = useState<any[]>([]);
+  const [globalBrands, setGlobalBrands] = useState<any[]>([]);
+  const [pickForm, setPickForm] = useState({
+    category: '',
+    subCategory: '',
+    brand: '',
+    name: '',
+    model: '',
+    variant: '',
+    costPrice: '',
+    salesPrice: '',
+    barcode: ''
+  });
 
   // Categories state
   const [savedCategories, setSavedCategories] = useState<string[]>([]);
@@ -123,18 +136,48 @@ const Purchases: React.FC<PurchasesProps> = ({
   const loadData = async () => {
     try {
       setLoading(true);
-      const [venSnap, prodSnap, accSnap, purSnap, catSnap] = await Promise.all([
+      const [venSnap, prodSnap, accSnap, purSnap, catSnap, brandSnap] = await Promise.all([
         getDocs(query(collection(db, 'vendors'), orderBy('name'))),
         getDocs(query(collection(db, 'products'), orderBy('name'))),
         getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
         getDocs(query(collection(db, 'purchases'), orderBy('createdAt', 'desc'))).catch(() => ({ docs: [] })),
         getDocs(query(collection(db, 'menus'))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'brands'))).catch(() => ({ docs: [] })),
       ]);
 
       const vens = venSnap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor));
       const prods = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
       const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       const purs = purSnap.docs.map(d => ({ id: d.id, ...d.data() } as PurchaseRecord));
+      const namesToDelete = ['Rem mollit deserunt', 'Hii', 'km'];
+      const badBrandIds: string[] = [];
+      for (const doc of brandSnap.docs) {
+         if (namesToDelete.includes(doc.data().name)) {
+            badBrandIds.push(doc.id);
+            await deleteDoc(doc.ref);
+         }
+      }
+
+      for (const mDoc of catSnap.docs) {
+         const mData = mDoc.data() as any;
+         let updated = false;
+         if (mData.subCategories && Array.isArray(mData.subCategories)) {
+            mData.subCategories.forEach((sub: any) => {
+               if (sub.brands && Array.isArray(sub.brands)) {
+                  const origLen = sub.brands.length;
+                  sub.brands = sub.brands.filter((bId: string) => !badBrandIds.includes(bId));
+                  if (sub.brands.length !== origLen) updated = true;
+               }
+            });
+         }
+         if (updated) await updateDoc(mDoc.ref, { subCategories: mData.subCategories });
+      }
+
+      const rawMenusData = catSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setRawMenus(rawMenusData);
+      
+      const filteredBrands = brandSnap.docs.filter(d => !namesToDelete.includes(d.data().name));
+      setGlobalBrands(filteredBrands.map(d => ({ id: d.id, ...d.data() })));
       const cats: string[] = [];
       catSnap.docs.forEach(d => {
         const data = d.data() as any;
@@ -208,6 +251,79 @@ const Purchases: React.FC<PurchasesProps> = ({
   };
 
   // Quick Add Product: create product in Firestore and add to purchase list
+  const handleBarcodeScan = async () => {
+    const { category, subCategory, brand, name, model, variant, barcode, costPrice, salesPrice } = pickForm;
+    const scannedCode = barcode.trim();
+    if (!scannedCode) return;
+    if (!category) { toast.error('Please select a category first'); return; }
+
+    const existingItemIndex = purchaseForm.items.findIndex((i: any) => i.sku === scannedCode || (Array.isArray(i.newSerials) && i.newSerials.includes(scannedCode)));
+    if (existingItemIndex > -1) {
+      setPurchaseForm(prev => {
+        const newItems = [...prev.items];
+        const item = newItems[existingItemIndex];
+        let updatedSerials = Array.isArray(item.newSerials) ? [...item.newSerials] : [];
+        if (!updatedSerials.includes(scannedCode) && scannedCode !== item.sku) updatedSerials.push(scannedCode);
+        newItems[existingItemIndex] = {
+          ...item,
+          quantity: item.quantity + 1,
+          newSerials: updatedSerials.length > 0 ? updatedSerials : item.newSerials
+        };
+        return { ...prev, items: newItems };
+      });
+      setPickForm(prev => ({ ...prev, barcode: '' }));
+      toast.success('Quantity increased by 1');
+      return;
+    }
+
+    const existingProduct = products.find(p => p.sku === scannedCode || p.availableSerials?.includes(scannedCode));
+    if (existingProduct) {
+       setPurchaseForm(prev => ({
+          ...prev, 
+          items: [...prev.items, {
+            id: existingProduct.id,
+            name: existingProduct.name,
+            category: existingProduct.category,
+            purchasePrice: existingProduct.costPrice || Number(costPrice) || 0,
+            salesPrice: existingProduct.price || Number(salesPrice) || 0,
+            quantity: 1,
+            discount: 0,
+            tax: 0,
+            total: existingProduct.costPrice || Number(costPrice) || 0,
+            warrantyYears: existingProduct.warrantyMonths ? existingProduct.warrantyMonths / 12 : 0,
+            hasSerialTracking: Boolean(existingProduct.hasSerialTracking),
+            sku: existingProduct.sku || scannedCode,
+            newSerials: scannedCode !== existingProduct.sku ? [scannedCode] : [],
+          }]
+       }));
+       setPickForm(prev => ({ ...prev, barcode: '' }));
+       toast.success('Product added to purchase');
+       return;
+    }
+
+    if (!name) { toast.error('Product Name is required for new items'); return; }
+    setPurchaseForm(prev => ({
+      ...prev, 
+      items: [...prev.items, {
+        id: 'NEW_' + Math.random().toString(36).substring(2, 9),
+        name: name + (model ? ' ' + model : '') + (variant ? ' ' + variant : ''),
+        category: category,
+        purchasePrice: Number(costPrice) || 0,
+        salesPrice: Number(salesPrice) || 0,
+        quantity: 1,
+        discount: 0,
+        tax: 0,
+        total: Number(costPrice) || 0,
+        warrantyYears: 0,
+        hasSerialTracking: true,
+        sku: scannedCode,
+        newSerials: [scannedCode],
+      }]
+    }));
+    setPickForm(prev => ({ ...prev, barcode: '' }));
+    toast.success('New item drafted to purchase');
+  };
+
   const handleQuickAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = quickProductData.name.trim();
@@ -253,9 +369,9 @@ const Purchases: React.FC<PurchasesProps> = ({
 
   // Filter products for the catalog
   const filteredCatalogProducts = products.filter(product => {
-    if (selectedCategory !== 'all' && product.category !== selectedCategory) return false;
-    if (productCatalogSearch.trim()) {
-      const q = productCatalogSearch.toLowerCase();
+    if (pickForm.category && product.category !== pickForm.category) return false;
+    if (pickForm.name.trim()) {
+      const q = pickForm.name.toLowerCase();
       const matchesName = product.name.toLowerCase().includes(q) || (product.model || '').toLowerCase().includes(q);
       const matchesCat = (product.category || '').toLowerCase().includes(q);
       const matchesBrand = (product.brand || '').toLowerCase().includes(q);
@@ -722,17 +838,78 @@ const Purchases: React.FC<PurchasesProps> = ({
 
                           {/* Serial Numbers Input if serial tracking enabled */}
                           {item.hasSerialTracking && (
-                            <div className="border-t border-gray-200 pt-2">
-                              <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
-                                Enter Serial Numbers ({item.quantity} required — comma or newline separated)
+                            <div className="border-t border-gray-200 pt-3 mt-3">
+                              <label className="block text-xs font-bold text-gray-700 uppercase mb-2 flex justify-between items-center">
+                                <span>Barcode / Serial Scanning</span>
+                                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Scanned: {Array.isArray(item.newSerials) ? item.newSerials.length : 0}</span>
                               </label>
-                              <textarea
-                                rows={2}
-                                placeholder="SN1001, SN1002, SN1003..."
-                                value={typeof item.newSerials === 'string' ? item.newSerials : (item.newSerials || []).join(', ')}
-                                onChange={e => updateItem(item.id, 'newSerials', e.target.value)}
-                                className="w-full border border-gray-200 rounded-lg p-2 font-mono text-[11px]"
-                              />
+                              
+                              <div className="flex gap-2 mb-2">
+                                <div className="relative flex-1">
+                                  <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                  <input
+                                    type="text"
+                                    placeholder="Scan barcode and press Enter..."
+                                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        const val = e.currentTarget.value.trim();
+                                        if (val) {
+                                          const currentSerials = Array.isArray(item.newSerials) ? item.newSerials : [];
+                                          if (!currentSerials.includes(val)) {
+                                            const updatedSerials = [...currentSerials, val];
+                                            setPurchaseForm(prev => ({
+                                              ...prev,
+                                              items: prev.items.map(i => 
+                                                i.id === item.id 
+                                                  ? { ...i, newSerials: updatedSerials, quantity: updatedSerials.length } 
+                                                  : i
+                                              )
+                                            }));
+                                            e.currentTarget.value = ''; // clear input
+                                          } else {
+                                            toast.error('Barcode already scanned!');
+                                            e.currentTarget.value = '';
+                                          }
+                                        }
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                              
+                              {/* Scanned Badges */}
+                              {Array.isArray(item.newSerials) && item.newSerials.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-2 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                  {item.newSerials.map((serial, sIdx) => (
+                                    <span key={sIdx} className="inline-flex items-center gap-1 bg-white border border-gray-200 text-gray-700 text-[10px] font-mono px-2 py-1 rounded-md shadow-sm">
+                                      {serial}
+                                      <button 
+                                        type="button" 
+                                        className="text-gray-400 hover:text-red-500"
+                                        onClick={() => {
+                                          const updatedSerials = (item.newSerials as string[]).filter((_, idx) => idx !== sIdx);
+                                          setPurchaseForm(prev => ({
+                                            ...prev,
+                                            items: prev.items.map(i => 
+                                              i.id === item.id 
+                                                ? { ...i, newSerials: updatedSerials, quantity: Math.max(1, updatedSerials.length) } 
+                                                : i
+                                            )
+                                          }));
+                                        }}
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              <p className="text-[10px] text-gray-500 mt-1">
+                                Scanning a barcode will automatically increase the quantity.
+                              </p>
                             </div>
                           )}
                         </div>
@@ -879,85 +1056,77 @@ const Purchases: React.FC<PurchasesProps> = ({
                   )}
 
                   <select
-                    value={selectedCategory}
-                    onChange={e => setSelectedCategory(e.target.value)}
+                    value={pickForm.category}
+                    onChange={e => setPickForm({ ...pickForm, category: e.target.value, subCategory: '', brand: '' })}
                     className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none font-bold text-gray-900 bg-white"
                   >
-                    <option value="all">-- All Categories ({products.length} Products) --</option>
-                    {productCategories.map(c => {
-                      const count = products.filter(p => p.category === c).length;
-                      return (
-                        <option key={c} value={c}>
-                          {c} ({count} items)
-                        </option>
-                      );
-                    })}
+                    <option value="">-- Select Category * --</option>
+                    {rawMenus.map((c: any) => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
                   </select>
+
+                  <select
+                    value={pickForm.subCategory}
+                    onChange={e => setPickForm({ ...pickForm, subCategory: e.target.value, brand: '' })}
+                    className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none font-bold text-gray-900 bg-white mt-2"
+                  >
+                    <option value="">-- Select Sub Category --</option>
+                    {(rawMenus.find(m => m.name === pickForm.category)?.subCategories || []).map((sub: any) => (
+                      <option key={sub.id} value={sub.name}>{sub.name}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={pickForm.brand}
+                    onChange={e => setPickForm({ ...pickForm, brand: e.target.value })}
+                    className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none font-bold text-gray-900 bg-white mt-2"
+                  >
+                    <option value="">-- Select Brand --</option>
+                    {globalBrands.map((b: any) => (
+                      <option key={b.id} value={b.name}>{b.name}</option>
+                    ))}
+                  </select>
+
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <input type="text" placeholder="Product Name" value={pickForm.name} onChange={e => setPickForm({...pickForm, name: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" />
+                    <input type="text" placeholder="Model (Optional)" value={pickForm.model} onChange={e => setPickForm({...pickForm, model: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" />
+                  </div>
+                  
+                  <input type="text" placeholder="Variant (Optional)" value={pickForm.variant} onChange={e => setPickForm({...pickForm, variant: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold mt-2" />
+                  
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <input type="number" min={0} placeholder="Cost Price (Optional)" value={pickForm.costPrice} onChange={e => setPickForm({...pickForm, costPrice: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" />
+                    <input type="number" min={0} placeholder="Sales Price (Optional)" value={pickForm.salesPrice} onChange={e => setPickForm({...pickForm, salesPrice: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold text-blue-600" />
+                  </div>
                 </div>
 
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Scan Barcode or Search (SKU/Name)..."
-                    value={productCatalogSearch}
-                    onChange={e => setProductCatalogSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-red-100"
-                  />
-                  <ScanLine className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <div className="flex gap-2 mt-4">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Scan Barcode / Enter SKU..."
+                      value={pickForm.barcode}
+                      onChange={e => setPickForm({...pickForm, barcode: e.target.value})}
+                      onKeyDown={(e) => {
+                         if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleBarcodeScan();
+                         }
+                      }}
+                      className="w-full pl-10 pr-3 py-3 border-2 border-green-500 rounded-lg outline-none focus:ring-4 focus:ring-green-100 font-bold"
+                      autoFocus
+                    />
+                    <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600" size={18} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleBarcodeScan}
+                    className="bg-green-600 hover:bg-green-700 text-white px-5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
+                  >
+                    <Plus size={18} /> Add
+                  </button>
                 </div>
-              </div>
-
-              {/* Quick Add Product Button & Form */}
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setIsQuickAddingProduct(!isQuickAddingProduct)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold text-xs bg-green-600 hover:bg-green-700 text-white transition-all shadow-sm"
-                >
-                  <Plus size={14} /> Quick Add New Product
-                </button>
-
-                {isQuickAddingProduct && (
-                  <form onSubmit={handleQuickAddProduct} className="p-3 bg-green-50 border border-green-200 rounded-xl space-y-2">
-                    <input type="text" placeholder="Product Name *" autoFocus value={quickProductData.name} onChange={e => setQuickProductData({...quickProductData, name: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-green-200" />
-                      <input type="text" placeholder="Model Number (Optional)" value={quickProductData.model || ''} onChange={e => setQuickProductData({...quickProductData, model: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-green-200" />
-                      <input type="text" placeholder="Scan Global Barcode / SKU (Optional)" value={quickProductData.sku || ''} onChange={e => setQuickProductData({...quickProductData, sku: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-green-200" />
-                    <select value={quickProductData.category} onChange={e => setQuickProductData({...quickProductData, category: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold outline-none">
-                      <option value="">-- Select Category * --</option>
-                      {productCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 mb-0.5">Cost Price</label>
-                        <input type="number" min={0} value={quickProductData.costPrice || ''} onChange={e => setQuickProductData({...quickProductData, costPrice: Number(e.target.value)})} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 mb-0.5">Sale Price</label>
-                        <input type="number" min={0} value={quickProductData.price || ''} onChange={e => setQuickProductData({...quickProductData, price: Number(e.target.value)})} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 mb-0.5">Stock</label>
-                        <input type="number" min={0} value={quickProductData.stock || ''} onChange={e => setQuickProductData({...quickProductData, stock: Number(e.target.value)})} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold outline-none" />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between bg-white p-2 border border-gray-200 rounded-lg">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={quickProductData.hasWarranty || false} onChange={e => setQuickProductData({...quickProductData, hasWarranty: e.target.checked})} className="rounded text-green-600 focus:ring-green-500 w-3 h-3" />
-                          <span className="text-[11px] font-bold text-gray-700">Warranty Included</span>
-                        </label>
-                        {quickProductData.hasWarranty && (
-                          <div className="flex items-center gap-1">
-                            <input type="number" min="1" value={quickProductData.warrantyMonths || ''} onChange={e => setQuickProductData({...quickProductData, warrantyMonths: Number(e.target.value)})} className="w-12 border border-gray-200 rounded px-1 py-0.5 text-[10px] font-bold text-center outline-none" placeholder="12" />
-                            <span className="text-[10px] font-bold text-gray-500 uppercase">Mos</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <button type="submit" className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1"><CheckCircle size={12} /> Create & Add</button>
-                      <button type="button" onClick={() => { setIsQuickAddingProduct(false); setQuickProductData({ name: '', sku: '', model: '', category: '', costPrice: 0, price: 0, stock: 0, hasWarranty: false, warrantyMonths: 0 }); }} className="px-3 py-2 bg-white border border-gray-200 rounded-lg font-bold text-xs text-gray-500 hover:text-gray-800"><X size={12} /></button>
-                    </div>
-                  </form>
-                )}
               </div>
 
               {/* Product Catalog List */}
