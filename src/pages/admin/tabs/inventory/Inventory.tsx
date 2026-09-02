@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { db, storage } from '../../../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -7,7 +7,7 @@ import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { BulkEditForm } from '../../../../components/BulkEditForm';
-import { Package, Plus, Upload, Download, Search, Edit, Trash2, X, AlertTriangle, Play, Loader2, Image as ImageIcon, FileText, XCircle, Edit2, ArrowRight } from 'lucide-react';
+import { Package, Plus, Upload, Download, Search, Edit, Trash2, X, AlertTriangle, Play, Loader2, Image as ImageIcon, FileText, XCircle, Edit2, ArrowRight, Eye } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
 interface InventoryTabProps { products: any[]; vendors: any[]; menus: any[]; isAddingProduct: boolean; setIsAddingProduct: (v: boolean) => void; editingProduct: any; setEditingProduct: (v: any) => void; formData: any; setFormData: (v: any) => void; inventoryCategoryFilter: string; setInventoryCategoryFilter: (v: string) => void; selectedProductIds: string[]; setSelectedProductIds: (v: string[]) => void; isBulkEditing: boolean; setIsBulkEditing: (v: boolean) => void; bulkEditData: any; setBulkEditData: (v: any) => void; isUploading: boolean; dragOver: boolean; setDragOver: (v: boolean) => void; loading: boolean; handleSaveProduct: (e: any) => void; handleDeleteProduct: (id: string) => void; handleImportProductsCSV: (e: any) => void; handleDownloadCSVTemplate: () => void; handleExportAllProducts: () => void; handleBulkExportProducts: () => void; handleBulkDeleteProducts: () => void; handleBulkUpdate: (e: any) => void; handleImageUpload: (f: any) => void; removeImage: (i: number) => void; addVariant: () => void; updateVariant: (i: number, f: string, v: any) => void; removeVariant: (i: number) => void; addSpec: () => void; updateSpec: (i: number, f: string, v: any) => void; removeSpec: (i: number) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; fileInputRef?: any; setIsAddingMenu?: (v: boolean) => void; }
@@ -22,6 +22,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [inventorySearchQuery, setInventorySearchQuery] = useState("");
   const [brands, setBrands] = useState<any[]>([]);
+  const [viewingProduct, setViewingProduct] = useState<any>(null);
 
   React.useEffect(() => {
     import('firebase/firestore').then(({ collection, getDocs }) => {
@@ -32,6 +33,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
   }, []);
 
   return (
+    <>
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between flex-wrap gap-4">
               <h2 className="text-xl font-bold flex items-center gap-2">
@@ -782,6 +784,15 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                           )}
                           {hasPermission('manage_inventory') && (
                             <button
+                              onClick={() => setViewingProduct(product)}
+                              className="p-2 text-gray-500 hover:bg-gray-50 rounded-md transition-all"
+                              title="View Details"
+                            >
+                              <Eye size={18} />
+                            </button>
+                          )}
+                          {hasPermission('manage_inventory') && (
+                            <button
                               onClick={() => { setEditingProduct(product); setFormData({ ...product, variants: product.variants || [], specs: product.specs || {} }); setIsAddingProduct(true); }}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-all"
                             >
@@ -813,7 +824,92 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
               onItemsPerPageChange={setItemsPerPage}
             />
           </div>
+
+          {/* Product Detail Modal */}
+          {viewingProduct && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setViewingProduct(null)}>
+              <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-5 border-b border-gray-100">
+                  <h3 className="font-bold text-lg text-[#081621]">Product Details</h3>
+                  <button onClick={() => setViewingProduct(null)} className="p-1 hover:bg-gray-100 rounded-lg transition-all">
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="p-5 space-y-3">
+                  {viewingProduct.images?.[0] && (
+                    <div className="flex justify-center mb-3">
+                      <img src={viewingProduct.images[0]} alt="" className="h-28 w-28 object-contain rounded-lg border border-gray-200" referrerPolicy="no-referrer" />
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Product Name</span>
+                      <span className="font-bold text-gray-900">{viewingProduct.name || '-'}</span>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Model</span>
+                      <span className="font-bold text-gray-900">{viewingProduct.model || '-'}</span>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Category</span>
+                      <span className="font-bold text-gray-900">{viewingProduct.category || '-'}</span>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Sub Category</span>
+                      <span className="font-bold text-gray-900">{viewingProduct.subCategory || '-'}</span>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Brand</span>
+                      <span className="font-bold text-gray-900">{viewingProduct.brand || '-'}</span>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">SKU / Barcode</span>
+                      <span className="font-bold text-gray-900">{viewingProduct.sku || '-'}</span>
+                    </div>
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <span className="block text-[10px] font-bold text-blue-500 uppercase mb-0.5">Cost Price</span>
+                      <span className="font-bold text-blue-900">{formatCurrency(viewingProduct.costPrice || 0, settings)}</span>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <span className="block text-[10px] font-bold text-green-500 uppercase mb-0.5">Sales Price</span>
+                      <span className="font-bold text-green-900">{formatCurrency(viewingProduct.price || 0, settings)}</span>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Stock</span>
+                      <span className={cn("font-bold", viewingProduct.stock > 0 ? 'text-green-700' : 'text-red-600')}>{viewingProduct.stock || 0}</span>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Warranty</span>
+                      <span className="font-bold text-gray-900">{viewingProduct.warrantyMonths ? viewingProduct.warrantyMonths + ' months' : 'No'}</span>
+                    </div>
+                  </div>
+                  {viewingProduct.variants && viewingProduct.variants.length > 0 && (
+                    <div className="mt-3">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Variants</span>
+                      <div className="flex flex-wrap gap-1">
+                        {viewingProduct.variants.map((v: any, i: number) => (
+                          <span key={i} className="bg-purple-50 text-purple-700 text-xs font-bold px-2 py-1 rounded">{v.name} - {formatCurrency(v.price, settings)}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {viewingProduct.availableSerials && viewingProduct.availableSerials.length > 0 && (
+                    <div className="mt-3">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Serial Numbers ({viewingProduct.availableSerials.length})</span>
+                      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                        {viewingProduct.availableSerials.map((s: string, i: number) => (
+                          <span key={i} className="bg-gray-100 text-gray-700 text-[10px] font-bold px-2 py-1 rounded">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+    </>
   );
 };
 
 export default InventoryTab;
+

@@ -99,6 +99,12 @@ const Purchases: React.FC<PurchasesProps> = ({
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [savingCategory, setSavingCategory] = useState(false);
+  const [isAddingSubCategory, setIsAddingSubCategory] = useState(false);
+  const [newSubCategoryName, setNewSubCategoryName] = useState('');
+  const [savingSubCategory, setSavingSubCategory] = useState(false);
+  const [isAddingBrand, setIsAddingBrand] = useState(false);
+  const [newBrandName, setNewBrandName] = useState('');
+  const [savingBrand, setSavingBrand] = useState(false);
 
   // Purchase Form State
   const [isCreatingPurchase, setIsCreatingPurchase] = useState(false);
@@ -159,11 +165,33 @@ const Purchases: React.FC<PurchasesProps> = ({
          for (let i = 0; i < pur.items.length; i++) {
             const item = pur.items[i];
             if (item.id && item.id.startsWith('NEW_')) {
-               // Check if it already magically exists by SKU?
+               // Check if it already exists by SKU
                let matched = item.sku ? prodSnap.docs.find(d => d.data().sku === item.sku) : undefined;
+               
+               // Also check by name+category+subCategory+brand
+               if (!matched) {
+                  matched = prodSnap.docs.find(d => {
+                     const pd = d.data();
+                     return pd.name?.toLowerCase() === item.name?.toLowerCase() &&
+                        (pd.category || '').toLowerCase() === (item.category || '').toLowerCase() &&
+                        (pd.subCategory || '').toLowerCase() === (item.subCategory || '').toLowerCase() &&
+                        (pd.brand || '').toLowerCase() === (item.brand || '').toLowerCase();
+                  });
+               }
+               
                let realId = matched ? matched.id : null;
                
-               if (!matched) {
+               if (matched) {
+                  // Merge stock into existing
+                  const existingData = matched.data();
+                  const updates: any = {
+                     stock: (existingData.stock || 0) + Number(item.quantity || 0),
+                  };
+                  if (item.purchasePrice) updates.costPrice = Number(item.purchasePrice);
+                  if (item.salesPrice) updates.price = Number(item.salesPrice);
+                  await updateDoc(matched.ref, updates);
+                  recoveredAny = true;
+               } else {
                   const addedSerials = Array.isArray(item.newSerials) ? item.newSerials.filter((s: string) => s.trim()) : [];
                   const newProductData = {
                      name: item.name,
@@ -305,6 +333,92 @@ const Purchases: React.FC<PurchasesProps> = ({
       toast.error('Failed to add category');
     } finally {
       setSavingCategory(false);
+    }
+  };
+
+  const handleAddSubCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newSubCategoryName.trim();
+    if (!trimmed) {
+      toast.error('Sub-category name cannot be empty');
+      return;
+    }
+    if (!pickForm.category) {
+      toast.error('Please select a category first');
+      return;
+    }
+    
+    const categoryMenu = rawMenus.find(m => m.name === pickForm.category);
+    if (!categoryMenu) {
+      toast.error('Selected category not found in menus');
+      return;
+    }
+    
+    const existingSubs = categoryMenu.subCategories || [];
+    if (existingSubs.some((s: any) => s.name.toLowerCase() === trimmed.toLowerCase())) {
+      toast.error(`Sub-category "${trimmed}" already exists`);
+      return;
+    }
+    
+    try {
+      setSavingSubCategory(true);
+      const newSub = {
+        id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: trimmed,
+        slug: trimmed.toLowerCase().replace(/\s+/g, '-'),
+        order: existingSubs.length
+      };
+      
+      const updatedSubs = [...existingSubs, newSub];
+      await updateDoc(doc(db, 'menus', categoryMenu.id), {
+        subCategories: updatedSubs
+      });
+      
+      // Update local state so UI reflects immediately
+      setRawMenus(prev => prev.map(m => m.id === categoryMenu.id ? { ...m, subCategories: updatedSubs } : m));
+      
+      setNewSubCategoryName('');
+      setIsAddingSubCategory(false);
+      setPickForm(prev => ({ ...prev, subCategory: trimmed }));
+      toast.success(`Sub-category "${trimmed}" added!`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to add sub-category');
+    } finally {
+      setSavingSubCategory(false);
+    }
+  };
+
+  const handleAddBrand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newBrandName.trim();
+    if (!trimmed) {
+      toast.error('Brand name cannot be empty');
+      return;
+    }
+    if (globalBrands.some((b: any) => b.name.toLowerCase() === trimmed.toLowerCase())) {
+      toast.error(`Brand "${trimmed}" already exists`);
+      return;
+    }
+    try {
+      setSavingBrand(true);
+      const docRef = await addDoc(collection(db, 'brands'), {
+        name: trimmed
+      });
+      const newBrandObj = { id: docRef.id, name: trimmed };
+      
+      // Update local state
+      setGlobalBrands(prev => [...prev, newBrandObj].sort((a, b) => a.name.localeCompare(b.name)));
+      
+      setNewBrandName('');
+      setIsAddingBrand(false);
+      setPickForm(prev => ({ ...prev, brand: trimmed }));
+      toast.success(`Brand "${trimmed}" added!`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to add brand');
+    } finally {
+      setSavingBrand(false);
     }
   };
 
@@ -543,34 +657,63 @@ const Purchases: React.FC<PurchasesProps> = ({
 
           await updateDoc(productRef, updates);
         } else {
-           // Completely new product
-           const addedSerials = Array.isArray(item.newSerials)
-              ? item.newSerials.filter((s: string) => s.trim())
-              : String(item.newSerials)
-                  .split(/[\n,]/)
-                  .map((s: string) => s.trim())
-                  .filter((s: string) => s);
-                  
-           const newProductData = {
-              name: item.name,
-              category: item.category || 'General',
-              subCategory: item.subCategory || '',
-              brand: item.brand || '',
-              description: item.name,
-              images: [],
-              sku: item.sku || '',
-              costPrice: Number(item.purchasePrice) || 0,
-              price: Number(item.salesPrice) || 0,
-              stock: Number(item.quantity) || 0,
-              hasWarranty: Boolean(item.hasWarranty),
-              warrantyMonths: item.hasWarranty && item.warrantyYears ? Number(item.warrantyYears) * 12 : 0,
-              hasSerialTracking: Boolean(item.hasSerialTracking),
-              availableSerials: addedSerials,
-              createdAt: createdAt
-           };
+           // Check if a product with same name+category+subCategory+brand already exists
+           const matchByDetails = products.find(p => 
+              p.name.toLowerCase() === item.name.toLowerCase() &&
+              (p.category || '').toLowerCase() === (item.category || '').toLowerCase() &&
+              (p.subCategory || '').toLowerCase() === (item.subCategory || '').toLowerCase() &&
+              (p.brand || '').toLowerCase() === (item.brand || '').toLowerCase()
+           );
            
-           const docRef = await addDoc(collection(db, 'products'), newProductData);
-           updatedItems[i].id = docRef.id; // Update item with actual DB id
+           if (matchByDetails) {
+              // Merge into existing product instead of creating duplicate
+              const productRef = doc(db, 'products', matchByDetails.id);
+              const updates: any = {
+                 stock: (matchByDetails.stock || 0) + Number(item.quantity),
+                 costPrice: Number(item.purchasePrice) || matchByDetails.costPrice || 0,
+              };
+              if (item.salesPrice) updates.price = Number(item.salesPrice);
+              if (item.sku && !matchByDetails.sku) updates.sku = item.sku;
+              
+              const addedSerials = Array.isArray(item.newSerials)
+                 ? item.newSerials.filter((s: string) => s.trim())
+                 : String(item.newSerials || '').split(/[\n,]/).map((s: string) => s.trim()).filter((s: string) => s);
+              if (addedSerials.length > 0) {
+                 updates.availableSerials = [...(matchByDetails.availableSerials || []), ...addedSerials];
+              }
+              
+              await updateDoc(productRef, updates);
+              updatedItems[i].id = matchByDetails.id;
+           } else {
+              // Completely new product
+              const addedSerials = Array.isArray(item.newSerials)
+                 ? item.newSerials.filter((s: string) => s.trim())
+                 : String(item.newSerials || '')
+                     .split(/[\n,]/)
+                     .map((s: string) => s.trim())
+                     .filter((s: string) => s);
+                     
+              const newProductData = {
+                 name: item.name,
+                 category: item.category || 'General',
+                 subCategory: item.subCategory || '',
+                 brand: item.brand || '',
+                 description: item.name,
+                 images: [],
+                 sku: item.sku || '',
+                 costPrice: Number(item.purchasePrice) || 0,
+                 price: Number(item.salesPrice) || 0,
+                 stock: Number(item.quantity) || 0,
+                 hasWarranty: Boolean(item.hasWarranty),
+                 warrantyMonths: item.hasWarranty && item.warrantyYears ? Number(item.warrantyYears) * 12 : 0,
+                 hasSerialTracking: Boolean(item.hasSerialTracking),
+                 availableSerials: addedSerials,
+                 createdAt: createdAt
+              };
+              
+              const docRef = await addDoc(collection(db, 'products'), newProductData);
+              updatedItems[i].id = docRef.id;
+           }
         }
       }
 
@@ -1150,7 +1293,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                   <select
                     value={pickForm.category}
                     onChange={e => setPickForm({ ...pickForm, category: e.target.value, subCategory: '', brand: '' })}
-                    className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none font-bold text-gray-900 bg-white"
+                    className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none font-bold text-gray-900 bg-white mb-2"
                   >
                     <option value="">-- Select Category * --</option>
                     {rawMenus.map((c: any) => (
@@ -1158,10 +1301,31 @@ const Purchases: React.FC<PurchasesProps> = ({
                     ))}
                   </select>
 
+                  <div className="flex items-center justify-between mt-2 mb-1">
+                    <label className="font-bold text-gray-700 uppercase">Select Sub Category</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingSubCategory(true)}
+                      className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-all border border-blue-200"
+                    >
+                      <Plus size={11} /> Add Sub Category
+                    </button>
+                  </div>
+                  {isAddingSubCategory && (
+                    <form onSubmit={handleAddSubCategory} className="mb-2 flex gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+                      <input type="text" autoFocus placeholder="e.g. Gaming, Office..." value={newSubCategoryName} onChange={e => setNewSubCategoryName(e.target.value)} className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-200" />
+                      <button type="submit" disabled={savingSubCategory || !newSubCategoryName.trim()} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all">
+                        <CheckCircle size={12} /> Save
+                      </button>
+                      <button type="button" onClick={() => { setIsAddingSubCategory(false); setNewSubCategoryName(''); }} className="text-gray-500 hover:text-gray-800 px-2 py-1.5 rounded-lg bg-white border border-gray-200 font-bold text-xs">
+                        <X size={12} />
+                      </button>
+                    </form>
+                  )}
                   <select
                     value={pickForm.subCategory}
                     onChange={e => setPickForm({ ...pickForm, subCategory: e.target.value, brand: '' })}
-                    className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none font-bold text-gray-900 bg-white mt-2"
+                    className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none font-bold text-gray-900 bg-white mb-2"
                   >
                     <option value="">-- Select Sub Category --</option>
                     {(rawMenus.find(m => m.name === pickForm.category)?.subCategories || []).map((sub: any) => (
@@ -1169,10 +1333,31 @@ const Purchases: React.FC<PurchasesProps> = ({
                     ))}
                   </select>
 
+                  <div className="flex items-center justify-between mt-2 mb-1">
+                    <label className="font-bold text-gray-700 uppercase">Select Brand</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingBrand(true)}
+                      className="flex items-center gap-1 text-[10px] font-bold text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-2 py-1 rounded-lg transition-all border border-purple-200"
+                    >
+                      <Plus size={11} /> Add Brand
+                    </button>
+                  </div>
+                  {isAddingBrand && (
+                    <form onSubmit={handleAddBrand} className="mb-2 flex gap-2 p-2.5 bg-purple-50 border border-purple-200 rounded-lg">
+                      <input type="text" autoFocus placeholder="e.g. Asus, Dell..." value={newBrandName} onChange={e => setNewBrandName(e.target.value)} className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-purple-200" />
+                      <button type="submit" disabled={savingBrand || !newBrandName.trim()} className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all">
+                        <CheckCircle size={12} /> Save
+                      </button>
+                      <button type="button" onClick={() => { setIsAddingBrand(false); setNewBrandName(''); }} className="text-gray-500 hover:text-gray-800 px-2 py-1.5 rounded-lg bg-white border border-gray-200 font-bold text-xs">
+                        <X size={12} />
+                      </button>
+                    </form>
+                  )}
                   <select
                     value={pickForm.brand}
                     onChange={e => setPickForm({ ...pickForm, brand: e.target.value })}
-                    className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none font-bold text-gray-900 bg-white mt-2"
+                    className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none font-bold text-gray-900 bg-white"
                   >
                     <option value="">-- Select Brand --</option>
                     {globalBrands.map((b: any) => (
@@ -1181,11 +1366,21 @@ const Purchases: React.FC<PurchasesProps> = ({
                   </select>
 
                   <div className="grid grid-cols-2 gap-2 mt-2">
-                    <input type="text" placeholder="Product Name" value={pickForm.name} onChange={e => setPickForm({...pickForm, name: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" />
-                    <input type="text" placeholder="Model (Optional)" value={pickForm.model} onChange={e => setPickForm({...pickForm, model: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" />
+                    <input type="text" list="product-names-list" placeholder="Product Name" value={pickForm.name} onChange={e => setPickForm({...pickForm, name: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" />
+                    <datalist id="product-names-list">
+                      {Array.from(new Set(products.map(p => p.name).filter(Boolean))).map((n, i) => <option key={i} value={n} />)}
+                    </datalist>
+                    
+                    <input type="text" list="product-models-list" placeholder="Model (Optional)" value={pickForm.model} onChange={e => setPickForm({...pickForm, model: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" />
+                    <datalist id="product-models-list">
+                      {Array.from(new Set(products.map(p => p.model).filter(Boolean))).map((m, i) => <option key={i} value={m} />)}
+                    </datalist>
                   </div>
                   
-                  <input type="text" placeholder="Variant (Optional)" value={pickForm.variant} onChange={e => setPickForm({...pickForm, variant: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold mt-2" />
+                  <input type="text" list="product-variants-list" placeholder="Variant (Optional)" value={pickForm.variant} onChange={e => setPickForm({...pickForm, variant: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold mt-2" />
+                  <datalist id="product-variants-list">
+                      {Array.from(new Set(products.flatMap(p => p.variants?.map(v => v.name) || []).filter(Boolean))).map((v, i) => <option key={i} value={v} />)}
+                  </datalist>
                   
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     <input type="number" min={0} placeholder="Cost Price (Optional)" value={pickForm.costPrice} onChange={e => setPickForm({...pickForm, costPrice: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" />
