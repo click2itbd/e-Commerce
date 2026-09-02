@@ -35,6 +35,8 @@ interface PurchaseItem {
   hasSerialTracking?: boolean;
   newSerials?: string | string[];
   sku?: string;
+  brand?: string;
+  subCategory?: string;
 }
 
 interface PurchaseRecord {
@@ -149,6 +151,62 @@ const Purchases: React.FC<PurchasesProps> = ({
       const prods = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
       const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       const purs = purSnap.docs.map(d => ({ id: d.id, ...d.data() } as PurchaseRecord));
+      
+      // Auto-recover any NEW_ products that were left out due to the bug
+      let recoveredAny = false;
+      for (const pur of purs) {
+         let needsUpdate = false;
+         for (let i = 0; i < pur.items.length; i++) {
+            const item = pur.items[i];
+            if (item.id && item.id.startsWith('NEW_')) {
+               // Check if it already magically exists by SKU?
+               let matched = item.sku ? prodSnap.docs.find(d => d.data().sku === item.sku) : undefined;
+               let realId = matched ? matched.id : null;
+               
+               if (!matched) {
+                  const addedSerials = Array.isArray(item.newSerials) ? item.newSerials.filter((s: string) => s.trim()) : [];
+                  const newProductData = {
+                     name: item.name,
+                     category: item.category || 'General',
+                     subCategory: item.subCategory || '',
+                     brand: item.brand || '',
+                     description: item.name,
+                     images: [],
+                     sku: item.sku || '',
+                     costPrice: Number(item.purchasePrice) || 0,
+                     price: Number(item.salesPrice) || 0,
+                     stock: Number(item.quantity) || 0,
+                     hasWarranty: Boolean(item.hasWarranty),
+                     warrantyMonths: item.hasWarranty && item.warrantyYears ? Number(item.warrantyYears) * 12 : 0,
+                     hasSerialTracking: Boolean(item.hasSerialTracking),
+                     availableSerials: addedSerials,
+                     createdAt: new Date().toISOString()
+                  };
+                  const docRef = await addDoc(collection(db, 'products'), newProductData);
+                  realId = docRef.id;
+                  recoveredAny = true;
+               }
+               
+               if (realId) {
+                  pur.items[i].id = realId;
+                  needsUpdate = true;
+               }
+            }
+         }
+         if (needsUpdate) {
+            await updateDoc(doc(db, 'purchases', pur.id), { items: pur.items });
+         }
+      }
+      
+      if (recoveredAny) {
+         const newProdSnap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc')));
+         setProducts(newProdSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product)));
+      } else {
+         setProducts(prods);
+      }
+      
+      setPurchaseHistory(purs);
+
       const namesToDelete = ['Rem mollit deserunt', 'Hii', 'km'];
       const badBrandIds: string[] = [];
       for (const doc of brandSnap.docs) {
@@ -190,7 +248,7 @@ const Purchases: React.FC<PurchasesProps> = ({
       });
 
       setVendors(vens);
-      setProducts(prods);
+      if (!recoveredAny) setProducts(prods);
       setPaymentAccounts(accs);
       setPurchaseHistory(purs);
       setSavedCategories(cats);
@@ -308,6 +366,8 @@ const Purchases: React.FC<PurchasesProps> = ({
         id: 'NEW_' + Math.random().toString(36).substring(2, 9),
         name: name + (model ? ' ' + model : '') + (variant ? ' ' + variant : ''),
         category: category,
+        subCategory: subCategory,
+        brand: brand,
         purchasePrice: Number(costPrice) || 0,
         salesPrice: Number(salesPrice) || 0,
         quantity: 1,
@@ -449,11 +509,14 @@ const Purchases: React.FC<PurchasesProps> = ({
         paid >= billTotal ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
 
       // 1. Update Product Inventory & Stock & Cost Price
-      for (const item of purchaseForm.items) {
-        const productRef = doc(db, 'products', item.id);
+      const updatedItems = [...purchaseForm.items];
+      
+      for (let i = 0; i < updatedItems.length; i++) {
+        const item = updatedItems[i];
         const currentProduct = products.find(p => p.id === item.id);
 
         if (currentProduct) {
+          const productRef = doc(db, 'products', item.id);
           const updates: any = {
             stock: (currentProduct.stock || 0) + Number(item.quantity),
             costPrice: Number(item.purchasePrice),
@@ -479,6 +542,35 @@ const Purchases: React.FC<PurchasesProps> = ({
           }
 
           await updateDoc(productRef, updates);
+        } else {
+           // Completely new product
+           const addedSerials = Array.isArray(item.newSerials)
+              ? item.newSerials.filter((s: string) => s.trim())
+              : String(item.newSerials)
+                  .split(/[\n,]/)
+                  .map((s: string) => s.trim())
+                  .filter((s: string) => s);
+                  
+           const newProductData = {
+              name: item.name,
+              category: item.category || 'General',
+              subCategory: item.subCategory || '',
+              brand: item.brand || '',
+              description: item.name,
+              images: [],
+              sku: item.sku || '',
+              costPrice: Number(item.purchasePrice) || 0,
+              price: Number(item.salesPrice) || 0,
+              stock: Number(item.quantity) || 0,
+              hasWarranty: Boolean(item.hasWarranty),
+              warrantyMonths: item.hasWarranty && item.warrantyYears ? Number(item.warrantyYears) * 12 : 0,
+              hasSerialTracking: Boolean(item.hasSerialTracking),
+              availableSerials: addedSerials,
+              createdAt: createdAt
+           };
+           
+           const docRef = await addDoc(collection(db, 'products'), newProductData);
+           updatedItems[i].id = docRef.id; // Update item with actual DB id
         }
       }
 
@@ -489,7 +581,7 @@ const Purchases: React.FC<PurchasesProps> = ({
         vendorId: purchaseForm.vendorId,
         vendorName: purchaseForm.vendorName,
         date: new Date(purchaseForm.date).toISOString(),
-        items: purchaseForm.items,
+        items: updatedItems,
         subtotal: billTotal,
         total: billTotal,
         paidAmount: paid,
