@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import Papa from 'papaparse';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { db, auth, storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -1520,25 +1521,29 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
   const handleExportAllProducts = () => {
     if (products.length === 0) return;
     
-    const headers = ['Name', 'Category', 'Price', 'Stock', 'Description', 'SocketType', 'RamType', 'Images'];
-    const csvContent = [
-      headers.join(','),
-      ...products.map(p => [
-        `"${p.name}"`,
-        `"${p.category}"`,
-        p.price,
-        p.stock,
-        `"${p.description.replace(/"/g, '""')}"`,
-        `"${p.socketType || ''}"`,
-        `"${p.ramType || ''}"`,
-        `"${(p.images || []).join('|')}"`
-      ].join(','))
-    ].join('\n');
+    const exportData = products.map(p => ({
+      ID: p.id,
+      SKU: p.sku || '',
+      Name: p.name,
+      Category: p.category || '',
+      SubCategory: p.subCategory || '',
+      Brand: p.brand || '',
+      Model: p.model || '',
+      CostPrice: p.costPrice || 0,
+      Price: p.price || 0,
+      Stock: p.stock || 0,
+      Description: p.description || '',
+      SocketType: p.socketType || '',
+      RamType: p.ramType || '',
+      Chipset: p.chipset || '',
+      Images: (p.images || []).join('|')
+    }));
 
+    const csvContent = Papa.unparse(exportData);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', `all_products_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `products_export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1547,9 +1552,25 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDownloadCSVTemplate = () => {
-    const headers = ['Name', 'Category', 'Price', 'Stock', 'Description', 'SocketType', 'RamType', 'Chipset', 'Images'];
-    const sampleData = ['Sample Product', 'Laptop', '50000', '10', 'A great laptop', 'AM4', 'DDR4', 'B450', 'https://example.com/image.jpg'];
-    const csvContent = [headers.join(','), sampleData.join(',')].join('\n');
+    const templateData = [{
+      ID: '',
+      SKU: '10001',
+      Name: 'Sample Product',
+      Category: 'Laptop',
+      SubCategory: 'Gaming',
+      Brand: 'Asus',
+      Model: 'ROG',
+      CostPrice: '45000',
+      Price: '50000',
+      Stock: '10',
+      Description: 'A great laptop',
+      SocketType: '',
+      RamType: '',
+      Chipset: '',
+      Images: 'https://example.com/image.jpg'
+    }];
+    
+    const csvContent = Papa.unparse(templateData);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -1563,88 +1584,91 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const text = event.target?.result as string;
-      const lines = text.split('\n');
-      if (lines.length < 2) {
-        toast.error('CSV file is empty or missing data');
-        return;
-      }
-
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-      
-      const newProducts = [];
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        
-        const values = [];
-        let current = '';
-        let inQuotes = false;
-        for (let char of lines[i]) {
-          if (char === '"') inQuotes = !inQuotes;
-          else if (char === ',' && !inQuotes) {
-            values.push(current.trim());
-            current = '';
-          } else {
-            current += char;
-          }
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        if (!results.data || results.data.length === 0) {
+          toast.error('CSV file is empty or missing data');
+          return;
         }
-        values.push(current.trim());
 
-        const productData: any = {
-          name: '',
-          category: 'Other',
-          price: 0,
-          stock: 0,
-          description: '',
-          images: [],
-          socketType: '',
-          ramType: '',
-          chipset: '',
-        };
-
-        headers.forEach((header, index) => {
-          const value = values[index];
-          if (value === undefined) return;
-          
-          if (header === 'name') productData.name = value;
-          else if (header === 'category') productData.category = value || 'Other';
-          else if (header === 'price') productData.price = Number(value) || 0;
-          else if (header === 'stock') productData.stock = Number(value) || 0;
-          else if (header === 'description') productData.description = value;
-          else if (header === 'sockettype') productData.socketType = value;
-          else if (header === 'ramtype') productData.ramType = value;
-          else if (header === 'chipset') productData.chipset = value;
-          else if (header === 'images') productData.images = value ? value.split('|') : [];
-        });
-
-        if (productData.name) {
-          newProducts.push(productData);
-        }
-      }
-
-      if (newProducts.length > 0) {
         setLoading(true);
+        let updatedCount = 0;
+        let addedCount = 0;
+
         try {
-          const promises = newProducts.map(p => addDoc(collection(db, 'products'), {
-            ...p,
-            createdAt: new Date().toISOString()
-          }));
+          const promises = results.data.map(async (row: any) => {
+            const rowId = row['ID']?.trim();
+            const rowSku = row['SKU']?.trim();
+            const name = row['Name']?.trim();
+            
+            if (!name) return; // Skip if no name
+
+            const productData: any = {
+              name,
+              sku: rowSku || '',
+              category: row['Category']?.trim() || 'Other',
+              subCategory: row['SubCategory']?.trim() || '',
+              brand: row['Brand']?.trim() || '',
+              model: row['Model']?.trim() || '',
+              costPrice: Number(row['CostPrice']) || 0,
+              price: Number(row['Price']) || 0,
+              stock: Number(row['Stock']) || 0,
+              description: row['Description']?.trim() || '',
+              socketType: row['SocketType']?.trim() || '',
+              ramType: row['RamType']?.trim() || '',
+              chipset: row['Chipset']?.trim() || '',
+            };
+
+            if (row['Images']) {
+              productData.images = row['Images'].split('|').map((img: string) => img.trim()).filter(Boolean);
+            }
+
+            // Check if we can UPSERT based on ID first, then SKU, then Name+Category
+            let existingProduct = null;
+            
+            if (rowId) {
+              existingProduct = products.find(p => p.id === rowId);
+            } 
+            if (!existingProduct && rowSku) {
+              existingProduct = products.find(p => p.sku === rowSku);
+            }
+            if (!existingProduct) {
+              existingProduct = products.find(p => 
+                p.name.toLowerCase() === name.toLowerCase() && 
+                (p.category || '').toLowerCase() === productData.category.toLowerCase()
+              );
+            }
+
+            if (existingProduct) {
+              // Update existing
+              await updateDoc(doc(db, 'products', existingProduct.id), productData);
+              updatedCount++;
+            } else {
+              // Create new
+              productData.createdAt = new Date().toISOString();
+              await addDoc(collection(db, 'products'), productData);
+              addedCount++;
+            }
+          });
+
           await Promise.all(promises);
-          toast.success(`Successfully imported ${newProducts.length} products`);
+          toast.success(`Import complete: ${addedCount} added, ${updatedCount} updated.`);
           debouncedFetchData();
         } catch (error) {
-          toast.error('Failed to import products. Check if all required fields (Name, Category, Price, Stock) are present.');
+          toast.error('Failed to process CSV file.');
           console.error(error);
         } finally {
           setLoading(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
         }
+      },
+      error: (error: any) => {
+        toast.error('Failed to parse CSV file: ' + error.message);
+        console.error(error);
       }
-      
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-    reader.readAsText(file);
+    });
   };
 
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, query, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { Product, Customer, DiscountCode, SiteSettings, PaymentAccount } from '../../../../types';
@@ -564,7 +564,9 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const matchesCategory = (product.category || '').toLowerCase().includes(q);
       const matchesBrand = (product.brand || '').toLowerCase().includes(q);
       const matchesModel = (product.model || '').toLowerCase().includes(q);
-      if (!matchesName && !matchesCategory && !matchesBrand && !matchesModel) return false;
+      const matchesSku = (product.sku || '').toLowerCase().includes(q) || (product.id || '').toLowerCase().includes(q);
+      const matchesSerial = (product.availableSerials || []).some((s: string) => s.toLowerCase().includes(q));
+      if (!matchesName && !matchesCategory && !matchesBrand && !matchesModel && !matchesSku && !matchesSerial) return false;
     }
     return true;
   });

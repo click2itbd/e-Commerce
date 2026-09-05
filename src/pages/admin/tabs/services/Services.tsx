@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../../firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, where, limit } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
-import { ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2 } from 'lucide-react';
+import { ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck } from 'lucide-react';
 
 interface ServiceRecord {
   id: string;
@@ -21,6 +21,12 @@ interface ServiceRecord {
   equipmentType?: string;
   paymentMethod?: string;
   paymentStatus?: string;
+  
+  // RMA Fields
+  serviceType?: 'in_house' | 'rma';
+  vendorId?: string;
+  rmaStatus?: 'Pending Vendor' | 'Sent to Vendor' | 'Received from Vendor' | 'Delivered';
+  newSerialNumber?: string;
 }
 
 interface SoldSerial {
@@ -40,10 +46,12 @@ const Services: React.FC = () => {
 
   const [soldSerials, setSoldSerials] = useState<SoldSerial[]>([]);
   const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
+  const [vendors, setVendors] = useState<{id: string; name: string}[]>([]);
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [isAddingService, setIsAddingService] = useState(false);
   const [editingService, setEditingService] = useState<ServiceRecord | null>(null);
-  const [serviceFormData, setServiceFormData] = useState({
+  
+  const defaultFormData = {
     serialNumber: '',
     customerName: '',
     customerPhone: '',
@@ -55,7 +63,13 @@ const Services: React.FC = () => {
     equipmentType: 'Laptop',
     paymentMethod: 'cash',
     paymentStatus: 'pending',
-  });
+    serviceType: 'in_house' as 'in_house' | 'rma',
+    vendorId: '',
+    rmaStatus: 'Pending Vendor' as any,
+    newSerialNumber: '',
+  };
+  
+  const [serviceFormData, setServiceFormData] = useState(defaultFormData);
   const [ledgerView, setLedgerView] = useState<'ledger' | 'products'>('products');
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
 
@@ -106,19 +120,33 @@ const Services: React.FC = () => {
         }
       });
 
-      setSoldSerials(serials);
+        setSoldSerials(serials);
+  
+        // 3. Fetch Service Records
+        const servicesSnap = await getDocs(query(collection(db, 'services'), orderBy('receivedAt', 'desc')));
+        setServiceRecords(servicesSnap.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            ...data,
+            serviceType: data.serviceType || 'in_house',
+            vendorId: data.vendorId || '',
+            rmaStatus: data.rmaStatus || 'Pending Vendor',
+            newSerialNumber: data.newSerialNumber || '',
+          } as ServiceRecord;
+        }));
+        
+        // 4. Fetch Vendors
+        const vendorsSnap = await getDocs(query(collection(db, 'vendors'), orderBy('name')));
+        setVendors(vendorsSnap.docs.map(v => ({ id: v.id, name: v.data().name })));
 
-      // 3. Fetch Service Records
-      const servicesSnap = await getDocs(query(collection(db, 'services'), orderBy('receivedAt', 'desc')));
-      const records: ServiceRecord[] = servicesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ServiceRecord));
-      setServiceRecords(records);
-    } catch (error) {
-      console.error('Error fetching services data:', error);
-      toast.error('Failed to load service data');
-    }
-  };
-
-  useEffect(() => {
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to load service data');
+      }
+    };
+  
+    useEffect(() => {
     fetchData();
   }, []);
 
@@ -168,6 +196,24 @@ const Services: React.FC = () => {
     }
   };
 
+  const updateRmaStatus = async (record: ServiceRecord, newStatus: string, newSerial?: string) => {
+    try {
+      const updates: any = { rmaStatus: newStatus };
+      if (newSerial) {
+        updates.newSerialNumber = newSerial;
+      }
+      if (newStatus === 'Delivered') {
+        updates.status = 'delivered'; // Also update the generic status
+      }
+      await updateDoc(doc(db, 'services', record.id), updates);
+      toast.success(`RMA Status updated to ${newStatus}`);
+      fetchData();
+    } catch (error) {
+      console.error('Error updating RMA status:', error);
+      toast.error('Failed to update status');
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -196,19 +242,7 @@ const Services: React.FC = () => {
         </div>
         <button
           onClick={() => {
-            setServiceFormData({
-              serialNumber: '',
-              customerName: '',
-              customerPhone: '',
-              productName: '',
-              issueDescription: '',
-              isWarranty: false,
-              serviceCharge: 0,
-              status: 'received',
-              equipmentType: 'Laptop',
-              paymentMethod: 'cash',
-              paymentStatus: 'pending',
-            });
+            setServiceFormData(defaultFormData);
             setEditingService(null);
             setIsAddingService(true);
             if (ledgerView !== 'products') setLedgerView('products');
@@ -225,8 +259,39 @@ const Services: React.FC = () => {
             <div className="p-6 border-b border-gray-100 font-bold text-lg">
               {editingService ? 'Edit Service Record' : 'Add New Service Record'}
             </div>
-            <form onSubmit={handleSaveService} className="p-6 bg-gray-50 border-b border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
+            <form onSubmit={handleSaveService} className="p-6 bg-gray-50 border-b border-gray-100 flex flex-col gap-6 max-h-[80vh] overflow-y-auto">
+              {/* Service Type Selection */}
+              <div className="flex items-center gap-6 p-4 bg-white rounded-lg border border-gray-200">
+                <div className="font-bold text-gray-700">Service Type:</div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="serviceType" value="in_house" checked={serviceFormData.serviceType === 'in_house'} onChange={() => setServiceFormData({...serviceFormData, serviceType: 'in_house'})} className="text-[#EF4444] focus:ring-[#EF4444]" />
+                  <span>In-House Repair</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="serviceType" value="rma" checked={serviceFormData.serviceType === 'rma'} onChange={() => setServiceFormData({...serviceFormData, serviceType: 'rma'})} className="text-[#EF4444] focus:ring-[#EF4444]" />
+                  <span>Warranty / RMA (Vendor)</span>
+                </label>
+              </div>
+
+              {serviceFormData.serviceType === 'rma' && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                  <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Select Supplier / Vendor</label>
+                  <select
+                    value={serviceFormData.vendorId}
+                    onChange={e => setServiceFormData({ ...serviceFormData, vendorId: e.target.value })}
+                    className="w-full border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    required={serviceFormData.serviceType === 'rma'}
+                  >
+                    <option value="">-- Select Vendor --</option>
+                    {vendors.map(v => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Serial Number</label>
                   <input
@@ -303,6 +368,7 @@ const Services: React.FC = () => {
                     Cancel
                   </button>
                 </div>
+              </div>
               </div>
             </form>
           </div>
@@ -444,26 +510,52 @@ const Services: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="font-bold line-clamp-1">{record.productName}</div>
-                      <div className="text-xs font-mono text-gray-500">{record.serialNumber}</div>
+                      <div className="text-xs font-mono text-gray-500">
+                        {record.serialNumber}
+                        {record.newSerialNumber && (
+                          <span className="text-green-600 block mt-0.5">
+                            ↳ Replaced: {record.newSerialNumber}
+                          </span>
+                        )}
+                      </div>
                       {record.equipmentType && <div className="text-[10px] bg-gray-100 px-2 py-0.5 rounded inline-block mt-1">{record.equipmentType}</div>}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
-                        <span className={cn(
-                          "px-2 py-1 rounded text-[10px] font-bold w-fit",
-                          record.status === 'received' ? "bg-amber-100 text-amber-800" :
-                          record.status === 'in_progress' ? "bg-blue-100 text-blue-800" :
-                          record.status === 'ready' ? "bg-green-100 text-green-800" :
-                          "bg-gray-100 text-gray-800"
-                        )}>
-                          {record.status.replace('_', ' ').toUpperCase()}
-                        </span>
-                        <span className={cn(
-                          "px-2 py-1 rounded text-[10px] font-bold w-fit",
-                          record.isWarranty ? "bg-purple-100 text-purple-800" : "bg-orange-100 text-orange-800"
-                        )}>
-                          {record.isWarranty ? "WARRANTY" : `PAID SERVICE`}
-                        </span>
+                        {record.serviceType === 'rma' ? (
+                          <>
+                            <span className="px-2 py-1 rounded text-[10px] font-bold w-fit bg-indigo-100 text-indigo-800 flex items-center gap-1 border border-indigo-200">
+                              <ShieldCheck size={12} /> VENDOR RMA
+                            </span>
+                            <span className={cn(
+                              "px-2 py-1 rounded text-[10px] font-bold w-fit",
+                              record.rmaStatus === 'Pending Vendor' ? "bg-amber-100 text-amber-800" :
+                              record.rmaStatus === 'Sent to Vendor' ? "bg-blue-100 text-blue-800" :
+                              record.rmaStatus === 'Received from Vendor' ? "bg-green-100 text-green-800" :
+                              "bg-gray-100 text-gray-800"
+                            )}>
+                              {record.rmaStatus?.toUpperCase()}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className={cn(
+                              "px-2 py-1 rounded text-[10px] font-bold w-fit",
+                              record.status === 'received' ? "bg-amber-100 text-amber-800" :
+                              record.status === 'in_progress' ? "bg-blue-100 text-blue-800" :
+                              record.status === 'ready' ? "bg-green-100 text-green-800" :
+                              "bg-gray-100 text-gray-800"
+                            )}>
+                              {record.status.replace('_', ' ').toUpperCase()}
+                            </span>
+                            <span className={cn(
+                              "px-2 py-1 rounded text-[10px] font-bold w-fit",
+                              record.isWarranty ? "bg-purple-100 text-purple-800" : "bg-orange-100 text-orange-800"
+                            )}>
+                              {record.isWarranty ? "WARRANTY" : `PAID SERVICE`}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -487,6 +579,30 @@ const Services: React.FC = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right flex items-center justify-end">
+                       {record.serviceType === 'rma' && (
+                         <>
+                           {record.rmaStatus === 'Pending Vendor' && (
+                             <button onClick={() => updateRmaStatus(record, 'Sent to Vendor')} className="text-orange-500 hover:text-orange-700 mx-1 bg-orange-50 p-1.5 rounded" title="Send to Vendor">
+                               <Truck size={16} />
+                             </button>
+                           )}
+                           {record.rmaStatus === 'Sent to Vendor' && (
+                             <button onClick={() => {
+                               const newSerial = prompt('Enter new Serial Number if replaced (or leave blank if same):');
+                               if (newSerial !== null) {
+                                 updateRmaStatus(record, 'Received from Vendor', newSerial);
+                               }
+                             }} className="text-blue-500 hover:text-blue-700 mx-1 bg-blue-50 p-1.5 rounded" title="Receive from Vendor">
+                               <RefreshCw size={16} />
+                             </button>
+                           )}
+                           {record.rmaStatus === 'Received from Vendor' && (
+                             <button onClick={() => updateRmaStatus(record, 'Delivered')} className="text-green-600 hover:text-green-800 mx-1 bg-green-50 p-1.5 rounded" title="Deliver to Customer">
+                               <ShieldCheck size={16} />
+                             </button>
+                           )}
+                         </>
+                       )}
                        <button onClick={() => printServiceReceipt(record)} className="text-gray-500 hover:text-gray-900 mx-1" title="Print Receipt">
                          <FileText size={16} />
                        </button>
@@ -495,7 +611,7 @@ const Services: React.FC = () => {
                            <Download size={16} />
                          </button>
                        )}
-                       <button onClick={() => { setEditingService(record); setServiceFormData({...record, equipmentType: record.equipmentType || 'Laptop', paymentMethod: record.paymentMethod || 'cash', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || ''}); setIsAddingService(true); }} className="text-blue-500 hover:text-blue-700 mx-1" title="Edit Service/Payment">
+                       <button onClick={() => { setEditingService(record); setServiceFormData({...record, serviceType: record.serviceType || 'in_house', vendorId: record.vendorId || '', rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || 'Laptop', paymentMethod: record.paymentMethod || 'cash', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || ''}); setIsAddingService(true); }} className="text-blue-500 hover:text-blue-700 mx-1" title="Edit Service/Payment">
                          <Edit2 size={16} />
                        </button>
                     </td>

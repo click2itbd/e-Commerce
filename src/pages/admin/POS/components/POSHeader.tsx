@@ -96,10 +96,11 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
               if (e.key === 'Enter' && searchQuery.trim() !== '') {
                 const searchLower = searchQuery.trim().toLowerCase();
                 const exactMatches = products.filter(p => 
-                  p.id === searchQuery.trim() || 
-                  (p as any).barcode === searchQuery.trim() ||
-                    (p.model && p.model.toLowerCase() === searchLower) || 
-                  p.name.toLowerCase() === searchLower
+                  p.id.toLowerCase() === searchLower || 
+                  (p as any).sku?.toLowerCase() === searchLower ||
+                  (p.model && p.model.toLowerCase() === searchLower) || 
+                  p.name.toLowerCase() === searchLower ||
+                  (p.availableSerials || []).some((s: string) => s.toLowerCase() === searchLower)
                 );
                 
                 const partialMatches = products.filter(p => p.name.toLowerCase().includes(searchLower));
