@@ -73,7 +73,7 @@ export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers
         ...saleData,
         appliedDiscountPercentage: foundCode.discountPercentage,
         appliedDiscountCode: foundCode.code,
-        discountAmount: 0 // Reset manual
+        discountAmount: 0 
       });
       toast.success(`Discount code applied: ${foundCode.discountPercentage}% off`);
     } else {
