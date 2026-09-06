@@ -1011,9 +1011,12 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 value={productSearch}
                 onChange={e => setProductSearch(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && productSearch.trim() !== '') {
+                  if (e.key === 'Enter') {
                     e.preventDefault();
-                    const searchLower = productSearch.trim().toLowerCase();
+                    const currentValue = e.currentTarget.value.trim();
+                    if (!currentValue) return;
+                    
+                    const searchLower = currentValue.toLowerCase();
                     
                     let matchedSerial: string | undefined = undefined;
                     const exactMatches = products.filter(p => {
@@ -1040,7 +1043,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     } else if (exactMatches.length > 1 || filteredProducts.length > 1) {
                       toast.success('Found multiple items. Please select manually.');
                     } else {
-                      toast.error('No matching product found');
+                      toast.error('No matching product found for scan');
                     }
                   }
                 }}

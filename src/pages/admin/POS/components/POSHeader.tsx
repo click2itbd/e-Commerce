@@ -93,8 +93,11 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter' && searchQuery.trim() !== '') {
-                const searchLower = searchQuery.trim().toLowerCase();
+              if (e.key === 'Enter') {
+                const currentValue = e.currentTarget.value.trim();
+                if (!currentValue) return;
+
+                const searchLower = currentValue.toLowerCase();
                 
                 let matchedSerial: string | undefined = undefined;
                 const exactMatches = products.filter(p => {
