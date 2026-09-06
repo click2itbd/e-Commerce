@@ -14,7 +14,7 @@ interface POSHeaderProps {
   setSearchQuery: (v: string) => void;
   products: Product[];
   filteredProducts: Product[];
-  addToCart: (p: Product) => void;
+  addToCart: (p: Product, scannedSerial?: string) => void;
   settings: any;
 }
 
@@ -95,20 +95,29 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
             onKeyDown={e => {
               if (e.key === 'Enter' && searchQuery.trim() !== '') {
                 const searchLower = searchQuery.trim().toLowerCase();
-                const exactMatches = products.filter(p => 
-                  p.id.toLowerCase() === searchLower || 
-                  (p as any).sku?.toLowerCase() === searchLower ||
-                  (p.model && p.model.toLowerCase() === searchLower) || 
-                  p.name.toLowerCase() === searchLower ||
-                  (p.availableSerials || []).some((s: string) => s.toLowerCase() === searchLower)
-                );
+                
+                let matchedSerial: string | undefined = undefined;
+                const exactMatches = products.filter(p => {
+                  if (p.id.toLowerCase() === searchLower || 
+                      (p as any).sku?.toLowerCase() === searchLower ||
+                      (p.model && p.model.toLowerCase() === searchLower) || 
+                      p.name.toLowerCase() === searchLower) {
+                    return true;
+                  }
+                  const foundSerial = (p.availableSerials || []).find((s: string) => s.toLowerCase() === searchLower);
+                  if (foundSerial) {
+                    matchedSerial = foundSerial;
+                    return true;
+                  }
+                  return false;
+                });
                 
                 const partialMatches = products.filter(p => p.name.toLowerCase().includes(searchLower));
                 
                 const bestMatch = exactMatches.length === 1 ? exactMatches[0] : (partialMatches.length === 1 ? partialMatches[0] : null);
 
                 if (bestMatch) {
-                  addToCart(bestMatch);
+                  addToCart(bestMatch, matchedSerial);
                   setSearchQuery('');
                   toast.success(`Scanned: ${bestMatch.name}`);
                 } else if (exactMatches.length > 1 || partialMatches.length > 1) {

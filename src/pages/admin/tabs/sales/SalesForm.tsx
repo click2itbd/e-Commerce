@@ -211,7 +211,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     }
   };
 
-  const addItemToSale = (product: Product) => {
+  const addItemToSale = (product: Product, scannedSerial?: string) => {
     if (product.stock <= 0) {
       toast.error(`${product.name} is out of stock`);
       return;
@@ -226,12 +226,18 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         }
         return {
           ...prev,
-          items: prev.items.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i),
+          items: prev.items.map(i => i.id === product.id ? { 
+            ...i, 
+            quantity: i.quantity + 1,
+            selectedSerials: scannedSerial && !i.selectedSerials?.includes(scannedSerial) 
+              ? [...(i.selectedSerials || []), scannedSerial] 
+              : (i.selectedSerials || [])
+          } : i),
         };
       }
       return {
         ...prev,
-        items: [...prev.items, { ...product, quantity: 1, selectedSerials: [] }],
+        items: [...prev.items, { ...product, quantity: 1, selectedSerials: scannedSerial ? [scannedSerial] : [] }],
       };
     });
     toast.success(`Added ${product.name}`);
@@ -1004,6 +1010,40 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 placeholder="Scan Barcode or Search (SKU/Name)..."
                 value={productSearch}
                 onChange={e => setProductSearch(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && productSearch.trim() !== '') {
+                    e.preventDefault();
+                    const searchLower = productSearch.trim().toLowerCase();
+                    
+                    let matchedSerial: string | undefined = undefined;
+                    const exactMatches = products.filter(p => {
+                      if (p.id.toLowerCase() === searchLower || 
+                          (p.sku || '').toLowerCase() === searchLower ||
+                          (p.model || '').toLowerCase() === searchLower || 
+                          p.name.toLowerCase() === searchLower) {
+                        return true;
+                      }
+                      const foundSerial = (p.availableSerials || []).find((s: string) => s.toLowerCase() === searchLower);
+                      if (foundSerial) {
+                        matchedSerial = foundSerial;
+                        return true;
+                      }
+                      return false;
+                    });
+                    
+                    const bestMatch = exactMatches.length === 1 ? exactMatches[0] : 
+                                      (filteredProducts.length === 1 ? filteredProducts[0] : null);
+
+                    if (bestMatch) {
+                      addItemToSale(bestMatch, matchedSerial);
+                      setProductSearch('');
+                    } else if (exactMatches.length > 1 || filteredProducts.length > 1) {
+                      toast.success('Found multiple items. Please select manually.');
+                    } else {
+                      toast.error('No matching product found');
+                    }
+                  }
+                }}
                 className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-red-100"
               />
               <ScanLine className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />

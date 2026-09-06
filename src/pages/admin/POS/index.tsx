@@ -181,9 +181,9 @@ export const RetailPOS = () => {
     localStorage.setItem('pos_held_carts', JSON.stringify(updated));
   };
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, scannedSerial?: string) => {
     if (product.stock <= 0) {
-      toast.error('Item is out of stock', { icon: '⚠️' });
+      toast.error('Item is out of stock');
       return;
     }
     
@@ -198,6 +198,9 @@ export const RetailPOS = () => {
         const newCart = [...prev];
         if (newCart[existingIdx].quantity < product.stock) {
           newCart[existingIdx].quantity += 1;
+          if (scannedSerial && !newCart[existingIdx].selectedSerials?.includes(scannedSerial)) {
+            newCart[existingIdx].selectedSerials = [...(newCart[existingIdx].selectedSerials || []), scannedSerial];
+          }
         } else {
           toast.error('Cannot exceed available stock');
         }
@@ -208,7 +211,7 @@ export const RetailPOS = () => {
         cartItemId: Date.now().toString() + Math.random().toString(),
         product: product, 
         quantity: 1, 
-        selectedSerials: [],
+        selectedSerials: scannedSerial ? [scannedSerial] : [],
         selectedVariant: null
       }];
     });
