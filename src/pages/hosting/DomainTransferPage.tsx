@@ -44,6 +44,11 @@ const DomainTransferPage = () => {
       return;
     }
 
+    if (normalized.endsWith('.bd')) {
+      setValidationError('.bd and .com.bd domains are currently not supported for transfer.');
+      return;
+    }
+
     if (!authCode.trim()) {
       setValidationError('Please enter your Auth/EPP Code');
       return;

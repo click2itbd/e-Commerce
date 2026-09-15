@@ -30,12 +30,18 @@ const DomainPage = () => {
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!searchQuery.trim()) {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
       toast.error('Please enter a domain name');
       return;
     }
     
-    navigate(`/domain/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    if (query.endsWith('.bd')) {
+      toast.error('.bd and .com.bd domains are currently not supported via automated registration.');
+      return;
+    }
+    
+    navigate(`/domain/search?q=${encodeURIComponent(query)}`);
   };
 
   return (

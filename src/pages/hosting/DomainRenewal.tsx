@@ -33,12 +33,17 @@ const DomainRenewal = () => {
   const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
 
   const validateDomain = (value: string) => {
-    if (!value.trim()) {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) {
       setDomainError('Please enter a domain name');
       return false;
     }
-    if (!domainRegex.test(value.trim())) {
+    if (!domainRegex.test(trimmed)) {
       setDomainError('Please enter a valid domain (e.g., example.com)');
+      return false;
+    }
+    if (trimmed.endsWith('.bd')) {
+      setDomainError('.bd and .com.bd domains are currently not supported for renewal via this system.');
       return false;
     }
     setDomainError('');

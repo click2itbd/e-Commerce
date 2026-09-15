@@ -46,6 +46,12 @@ export default function DomainSearchResults() {
     if (query) {
       setSearchInput(query);
       
+      const lowerQuery = query.toLowerCase();
+      if (lowerQuery.endsWith('.bd')) {
+        toast.error('.bd and .com.bd domains are currently not supported via automated registration.');
+        return;
+      }
+      
       // Determine base name without extension
       let baseName = query;
       let searchedTld = '';
@@ -68,8 +74,13 @@ export default function DomainSearchResults() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchInput.trim()) {
-      navigate(`/domain/search?q=${encodeURIComponent(searchInput.trim())}`);
+    const q = searchInput.trim().toLowerCase();
+    if (q) {
+      if (q.endsWith('.bd')) {
+        toast.error('.bd and .com.bd domains are currently not supported via automated registration.');
+        return;
+      }
+      navigate(`/domain/search?q=${encodeURIComponent(q)}`);
     }
   };
 
