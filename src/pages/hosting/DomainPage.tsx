@@ -36,11 +36,6 @@ const DomainPage = () => {
       return;
     }
     
-    if (query.endsWith('.bd')) {
-      toast.error('.bd and .com.bd domains are currently not supported via automated registration.');
-      return;
-    }
-    
     navigate(`/domain/search?q=${encodeURIComponent(query)}`);
   };
 

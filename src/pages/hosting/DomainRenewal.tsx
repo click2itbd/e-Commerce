@@ -8,6 +8,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { Search, RefreshCw, CheckCircle, XCircle, Loader2, Shield, Clock, ArrowRight, Mail, Phone, User, CreditCard, Landmark, Wallet, HelpCircle } from 'lucide-react';
 import { getDomainRenewalPrice, DomainRenewalPriceResponse } from '../../services/dynadotApi';
+import { getDomainPricing } from '../../services/hostingApi';
 
 const DomainRenewal = () => {
   const navigate = useNavigate();
@@ -20,6 +21,15 @@ const DomainRenewal = () => {
   const [renewalPeriod, setRenewalPeriod] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedOrder, setSubmittedOrder] = useState<any>(null);
+  const [supportedTlds, setSupportedTlds] = useState<string[]>([]);
+
+  useEffect(() => {
+    getDomainPricing().then(pricing => {
+      if (pricing && pricing.length > 0) {
+        setSupportedTlds(pricing.map(p => p.tld.toLowerCase()));
+      }
+    });
+  }, []);
 
   const [formData, setFormData] = useState({
     customerName: user?.displayName || '',
@@ -42,9 +52,12 @@ const DomainRenewal = () => {
       setDomainError('Please enter a valid domain (e.g., example.com)');
       return false;
     }
-    if (trimmed.endsWith('.bd')) {
-      setDomainError('.bd and .com.bd domains are currently not supported for renewal via this system.');
-      return false;
+    if (supportedTlds.length > 0) {
+      const isSupported = supportedTlds.some(tld => trimmed.endsWith(tld));
+      if (!isSupported) {
+        setDomainError(`This domain extension is currently not supported for renewal.`);
+        return false;
+      }
     }
     setDomainError('');
     return true;

@@ -7,6 +7,7 @@ import { SEO } from '../../components/SEO';
 import { ArrowRight, Lock, Unlock, Key, RefreshCw, Shield, HelpCircle, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { checkTransferEligibility, getTldPricing } from '../../services/dynadotApi';
+import { getDomainPricing } from '../../services/hostingApi';
 
 const DomainTransferPage = () => {
   const navigate = useNavigate();
@@ -18,6 +19,15 @@ const DomainTransferPage = () => {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [validationError, setValidationError] = useState('');
   const [eligibilityError, setEligibilityError] = useState('');
+  const [supportedTlds, setSupportedTlds] = useState<string[]>([]);
+
+  React.useEffect(() => {
+    getDomainPricing().then(pricing => {
+      if (pricing && pricing.length > 0) {
+        setSupportedTlds(pricing.map(p => p.tld.toLowerCase()));
+      }
+    });
+  }, []);
 
   const normalizeDomain = (input: string): string => {
     return input.toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/^www\./, '');
@@ -44,9 +54,12 @@ const DomainTransferPage = () => {
       return;
     }
 
-    if (normalized.endsWith('.bd')) {
-      setValidationError('.bd and .com.bd domains are currently not supported for transfer.');
-      return;
+    if (supportedTlds.length > 0) {
+      const isSupported = supportedTlds.some(tld => normalized.endsWith(tld));
+      if (!isSupported) {
+        setValidationError(`This domain extension is currently not supported for transfer.`);
+        return;
+      }
     }
 
     if (!authCode.trim()) {

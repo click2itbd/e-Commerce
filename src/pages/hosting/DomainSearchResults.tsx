@@ -45,40 +45,49 @@ export default function DomainSearchResults() {
   useEffect(() => {
     if (query) {
       setSearchInput(query);
-      
       const lowerQuery = query.toLowerCase();
-      if (lowerQuery.endsWith('.bd')) {
-        toast.error('.bd and .com.bd domains are currently not supported via automated registration.');
-        return;
-      }
       
       // Determine base name without extension
-      let baseName = query;
+      let baseName = lowerQuery;
       let searchedTld = '';
-      if (query.includes('.')) {
-        baseName = query.substring(0, query.indexOf('.'));
-        searchedTld = query.substring(query.indexOf('.'));
+      if (lowerQuery.includes('.')) {
+        baseName = lowerQuery.substring(0, lowerQuery.indexOf('.'));
+        searchedTld = lowerQuery.substring(lowerQuery.indexOf('.'));
+      }
+
+      if (pricing.length > 0 && searchedTld) {
+        const isSupported = pricing.some(p => searchedTld === p.tld.toLowerCase());
+        if (!isSupported) {
+          toast.error(`The ${searchedTld} extension is currently not supported for registration.`);
+          return;
+        }
       }
       
       // We will search for the exact query (if it has a TLD), or append .com if none
-      const exactDomain = searchedTld ? query : `${query}.com`;
+      const exactDomain = searchedTld ? lowerQuery : `${lowerQuery}.com`;
       
-      // Generate alternate domains
-      const alternates = popularTlds
+      // Generate alternate domains from available pricing or fallback to popular
+      const availableTlds = pricing.length > 0 ? pricing.map(p => p.tld) : popularTlds;
+      const alternates = availableTlds
         .filter(tld => tld !== (searchedTld || '.com'))
+        .slice(0, 10)
         .map(tld => `${baseName}${tld}`);
         
       search([exactDomain, ...alternates]);
     }
-  }, [query, search]);
+  }, [query, search, pricing]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const q = searchInput.trim().toLowerCase();
     if (q) {
-      if (q.endsWith('.bd')) {
-        toast.error('.bd and .com.bd domains are currently not supported via automated registration.');
-        return;
+      if (pricing.length > 0 && q.includes('.')) {
+        const searchedTld = q.substring(q.indexOf('.'));
+        const isSupported = pricing.some(p => searchedTld === p.tld.toLowerCase());
+        if (!isSupported) {
+          toast.error(`The ${searchedTld} extension is currently not supported for registration.`);
+          return;
+        }
       }
       navigate(`/domain/search?q=${encodeURIComponent(q)}`);
     }
