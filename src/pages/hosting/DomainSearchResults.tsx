@@ -28,6 +28,8 @@ export default function DomainSearchResults() {
   // A base list of popular TLDs to check
   const popularTlds = ['.com', '.net', '.org', '.co', '.io', '.online', '.dev', '.tech', '.store', '.me'];
 
+  const lastSearchRef = React.useRef<string>('');
+
   useEffect(() => {
     const fetchPricing = async () => {
       try {
@@ -73,7 +75,12 @@ export default function DomainSearchResults() {
         .slice(0, 10)
         .map(tld => `${baseName}${tld}`);
         
-      search([exactDomain, ...alternates]);
+      const domainsToSearch = [exactDomain, ...alternates];
+      const searchKey = domainsToSearch.join(',');
+      if (lastSearchRef.current !== searchKey) {
+        lastSearchRef.current = searchKey;
+        search(domainsToSearch);
+      }
     }
   }, [query, search, pricing]);
 
@@ -232,16 +239,20 @@ export default function DomainSearchResults() {
               </div>
             ) : exactMatch ? (
               <>
-                <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-                  <span className="text-xl md:text-2xl text-gray-700">{exactMatch.domain}</span>
-                  {!exactMatch.available && (
-                    <span className="bg-[#a4a9ad] text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
-                      Registered
-                    </span>
-                  )}
-                  <Info size={14} className="text-gray-400 cursor-pointer" />
-                  <Star size={14} className="text-gray-400 cursor-pointer hover:text-yellow-400" />
-                </div>
+                  <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+                    <span className="text-xl md:text-2xl text-gray-700">{exactMatch.domain}</span>
+                    {exactMatch.available ? (
+                      <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                        Available
+                      </span>
+                    ) : (
+                      <span className="bg-[#a4a9ad] text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                        Registered
+                      </span>
+                    )}
+                    <Info size={14} className="text-gray-400 cursor-pointer" />
+                    <Star size={14} className="text-gray-400 cursor-pointer hover:text-yellow-400" />
+                  </div>
                 <div>
                   {exactMatch.available ? (
                     <div className="flex items-center gap-3 md:gap-4">
@@ -287,7 +298,11 @@ export default function DomainSearchResults() {
                   <div className="flex items-center gap-2 md:gap-3">
                     <span className={alt.available ? "text-gray-800 text-base md:text-lg" : "text-gray-400 text-base md:text-lg"}>{alt.domain}</span>
                     
-                    {!alt.available && (
+                    {alt.available ? (
+                      <span className="bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        Available
+                      </span>
+                    ) : (
                       <span className="bg-[#a4a9ad] text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                         Registered
                       </span>
