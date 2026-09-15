@@ -26,7 +26,10 @@ const DomainRenewal = () => {
   useEffect(() => {
     getDomainPricing().then(pricing => {
       if (pricing && pricing.length > 0) {
-        setSupportedTlds(pricing.map(p => p.tld.toLowerCase()));
+        setSupportedTlds(pricing.map(p => {
+          const ptld = p.tld.toLowerCase();
+          return ptld.startsWith('.') ? ptld : `.${ptld}`;
+        }));
       }
     });
   }, []);

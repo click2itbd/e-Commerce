@@ -58,7 +58,11 @@ export default function DomainSearchResults() {
       }
 
       if (pricing.length > 0 && searchedTld) {
-        const isSupported = pricing.some(p => searchedTld === p.tld.toLowerCase());
+        const isSupported = pricing.some(p => {
+          const ptld = p.tld.toLowerCase();
+          const normalizedPtld = ptld.startsWith('.') ? ptld : `.${ptld}`;
+          return searchedTld === normalizedPtld;
+        });
         if (!isSupported) {
           toast.error(`The ${searchedTld} extension is currently not supported for registration.`);
           return;
@@ -69,7 +73,9 @@ export default function DomainSearchResults() {
       const exactDomain = searchedTld ? lowerQuery : `${lowerQuery}.com`;
       
       // Generate alternate domains from available pricing or fallback to popular
-      const availableTlds = pricing.length > 0 ? pricing.map(p => p.tld) : popularTlds;
+      const availableTlds = pricing.length > 0 
+        ? pricing.map(p => p.tld.startsWith('.') ? p.tld.toLowerCase() : `.${p.tld.toLowerCase()}`) 
+        : popularTlds;
       const alternates = availableTlds
         .filter(tld => tld !== (searchedTld || '.com'))
         .slice(0, 10)
@@ -90,7 +96,11 @@ export default function DomainSearchResults() {
     if (q) {
       if (pricing.length > 0 && q.includes('.')) {
         const searchedTld = q.substring(q.indexOf('.'));
-        const isSupported = pricing.some(p => searchedTld === p.tld.toLowerCase());
+        const isSupported = pricing.some(p => {
+          const ptld = p.tld.toLowerCase();
+          const normalizedPtld = ptld.startsWith('.') ? ptld : `.${ptld}`;
+          return searchedTld === normalizedPtld;
+        });
         if (!isSupported) {
           toast.error(`The ${searchedTld} extension is currently not supported for registration.`);
           return;
