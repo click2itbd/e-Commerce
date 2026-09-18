@@ -6,7 +6,7 @@ deployment:
     # FRONTEND
     # ==============================
 
-    - export PUBLIC_HTML=/home/$USER/public_html
+    - export PUBLIC_HTML=/home/click2itbd/public_html
 
     # Clean old frontend files
     - /bin/rm -rf $PUBLIC_HTML/assets
@@ -30,7 +30,7 @@ deployment:
     # BACKEND
     # ==============================
 
-    - export BACKEND_DIR=/home/$USER/backend_app
+    - export BACKEND_DIR=/home/click2itbd/backend_app
 
     - /bin/mkdir -p $BACKEND_DIR
 
