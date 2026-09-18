@@ -6,40 +6,36 @@ deployment:
     # FRONTEND
     # ==============================
 
-    - export PUBLIC_HTML=/home/click2itbd/public_html
-
     # Clean old frontend files
-    - /bin/rm -rf $PUBLIC_HTML/assets
-    - /bin/rm -f $PUBLIC_HTML/index.html
-    - /bin/rm -f $PUBLIC_HTML/_redirects
-    - /bin/rm -f $PUBLIC_HTML/.htaccess
-    - /bin/rm -f $PUBLIC_HTML/robots.txt
-    - /bin/rm -f $PUBLIC_HTML/sitemap.xml
+    - /bin/rm -rf /home/click2itbd/public_html/assets
+    - /bin/rm -f /home/click2itbd/public_html/index.html
+    - /bin/rm -f /home/click2itbd/public_html/_redirects
+    - /bin/rm -f /home/click2itbd/public_html/.htaccess
+    - /bin/rm -f /home/click2itbd/public_html/robots.txt
+    - /bin/rm -f /home/click2itbd/public_html/sitemap.xml
 
     # Deploy frontend build
-    - /bin/cp -R dist/assets $PUBLIC_HTML/
-    - /bin/cp dist/index.html $PUBLIC_HTML/
-    - /bin/cp dist/.htaccess $PUBLIC_HTML/
-    - /bin/cp dist/_redirects $PUBLIC_HTML/
-    - /bin/cp dist/robots.txt $PUBLIC_HTML/
-    - /bin/cp dist/sitemap.xml $PUBLIC_HTML/
-    - /bin/cp dist/logo.png $PUBLIC_HTML/
+    - /bin/cp -R dist/assets /home/click2itbd/public_html/
+    - /bin/cp dist/index.html /home/click2itbd/public_html/
+    - /bin/cp dist/.htaccess /home/click2itbd/public_html/
+    - /bin/cp dist/_redirects /home/click2itbd/public_html/
+    - /bin/cp dist/robots.txt /home/click2itbd/public_html/
+    - /bin/cp dist/sitemap.xml /home/click2itbd/public_html/
+    - /bin/cp dist/logo.png /home/click2itbd/public_html/
 
 
     # ==============================
     # BACKEND
     # ==============================
 
-    - export BACKEND_DIR=/home/click2itbd/backend_app
-
-    - /bin/mkdir -p $BACKEND_DIR
-
-    # Backend compiled files
-    - /bin/cp -R backend/dist $BACKEND_DIR/
+    - /bin/mkdir -p /home/click2itbd/backend_app
 
     # Backend package files
-    - /bin/cp backend/package.json $BACKEND_DIR/
-    - /bin/cp backend/package-lock.json $BACKEND_DIR/
+    - /bin/cp backend/package.json /home/click2itbd/backend_app/
+    - /bin/cp backend/package-lock.json /home/click2itbd/backend_app/
+    
+    # We skip copying backend/dist because it's in .gitignore and crashes the pipeline if missing.
+    # - /bin/cp -R backend/dist /home/click2itbd/backend_app/
 
     # Install production dependencies
-    - /usr/local/bin/npm install --prefix $BACKEND_DIR --omit=dev --no-audit --no-fund
+    - /usr/local/bin/npm install --prefix /home/click2itbd/backend_app --omit=dev --no-audit --no-fund
