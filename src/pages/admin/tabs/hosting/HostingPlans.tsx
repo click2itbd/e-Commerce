@@ -662,18 +662,31 @@ const HostingPlansTab: React.FC = () => {
   const { settings } = useSettings();
 
   const [activeSubTab, setActiveSubTab] = useState<'packages' | 'features' | 'pricing'>('packages');
-  const [packageCategoryFilter, setPackageCategoryFilter] = useState<'all' | 'shared' | 'wordpress' | 'vps' | 'cloudlinux_license'>('all');
+  const [packageCategoryFilter, setPackageCategoryFilter] = useState<string>('all');
 
   // State for Features
   const [features, setFeatures] = useState<any[]>(DEFAULT_HOSTING_FEATURES);
-  const [isAddingFeature, setIsAddingFeature] = useState(false);
+  const [showFeatureModal, setShowFeatureModal] = useState(false);
   const [editingFeature, setEditingFeature] = useState<any>(null);
-  const [featureForm, setFeatureForm] = useState({ id: '', name: '', category: 'Standard Features', type: 'text', order: 0 });
 
   // State for Packages
-  const [packages, setPackages] = useState<any[]>(DEFAULT_HOSTING_PACKAGES);
-  const [isAddingPackage, setIsAddingPackage] = useState(false);
+  const [packages, setPackages] = useState<any[]>([]);
+  const [filteredPackages, setFilteredPackages] = useState<any[]>([]);
+  const [showPackageModal, setShowPackageModal] = useState(false);
   const [editingPackage, setEditingPackage] = useState<any>(null);
+
+  // Data fetching and filtering is handled here
+  useEffect(() => {
+    let filtered = packages;
+    if (packageCategoryFilter !== 'all') {
+      filtered = packages.filter(p => (p.category || 'shared') === packageCategoryFilter);
+    }
+    setFilteredPackages(filtered);
+  }, [packages, packageCategoryFilter]);
+
+  // Extract unique categories for dynamic filtering
+  const uniqueCategories = Array.from(new Set(packages.map(p => p.category || 'shared')));
+
   const [packageForm, setPackageForm] = useState({
     name: '',
     slug: '',
@@ -881,10 +894,7 @@ const HostingPlansTab: React.FC = () => {
     return packages.filter(p => (p.category || 'shared') === packageCategoryFilter);
   }, [packages, packageCategoryFilter]);
 
-  const sharedCount = packages.filter(p => (p.category || 'shared') === 'shared').length;
-  const wpCount = packages.filter(p => p.category === 'wordpress').length;
-  const vpsCount = packages.filter(p => p.category === 'vps').length;
-  const licenseCount = packages.filter(p => p.category === 'cloudlinux_license').length;
+  const uniqueCategories = Array.from(new Set(packages.map(p => p.category || 'shared')));
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -995,53 +1005,20 @@ const HostingPlansTab: React.FC = () => {
                 All Packages ({packages.length})
               </button>
 
-              <button
-                onClick={() => setPackageCategoryFilter('shared')}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
-                  packageCategoryFilter === 'shared'
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
-                )}
-              >
-                <Server size={13} /> Shared cPanel ({sharedCount})
-              </button>
-
-              <button
-                onClick={() => setPackageCategoryFilter('wordpress')}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
-                  packageCategoryFilter === 'wordpress'
-                    ? "bg-purple-600 text-white shadow-sm"
-                    : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
-                )}
-              >
-                <Zap size={13} /> WordPress Cloud ({wpCount})
-              </button>
-
-              <button
-                onClick={() => setPackageCategoryFilter('vps')}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
-                  packageCategoryFilter === 'vps'
-                    ? "bg-indigo-600 text-white shadow-sm"
-                    : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
-                )}
-              >
-                <Cpu size={13} /> Cloud VPS ({vpsCount})
-              </button>
-
-              <button
-                onClick={() => setPackageCategoryFilter('cloudlinux_license')}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
-                  packageCategoryFilter === 'cloudlinux_license'
-                    ? "bg-emerald-600 text-white shadow-sm"
-                    : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
-                )}
-              >
-                <Shield size={13} /> CloudLinux OS License ({licenseCount})
-              </button>
+              {uniqueCategories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setPackageCategoryFilter(cat)}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 capitalize",
+                    packageCategoryFilter === cat
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                  )}
+                >
+                  {cat} ({packages.filter(p => (p.category || 'shared') === cat).length})
+                </button>
+              ))}
             </div>
 
             <div className="text-xs text-gray-500 font-medium">
@@ -1440,12 +1417,20 @@ const HostingPlansTab: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Package Tier / Category</label>
-                      <select value={packageForm.category || 'shared'} onChange={(e) => setPackageForm({...packageForm, category: e.target.value})} className="w-full border p-2.5 rounded-xl text-xs font-bold">
-                        <option value="shared">Shared cPanel Hosting</option>
-                        <option value="wordpress">Managed WordPress Cloud</option>
-                        <option value="vps">High-Performance Cloud VPS</option>
-                        <option value="cloudlinux_license">CloudLinux OS License</option>
-                      </select>
+                      <input
+                        list="hosting-categories"
+                        placeholder="e.g. Shared cPanel Hosting"
+                        value={packageForm.category || ''} 
+                        onChange={(e) => setPackageForm({...packageForm, category: e.target.value})} 
+                        className="w-full border border-gray-300 p-2.5 rounded-xl text-xs font-bold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      />
+                      <datalist id="hosting-categories">
+                        <option value="Shared cPanel Hosting" />
+                        <option value="Managed WordPress Cloud" />
+                        <option value="High-Performance Cloud VPS" />
+                        <option value="Dedicated Server" />
+                        <option value="Node.js Cloud Hosting" />
+                      </datalist>
                     </div>
                   </div>
 

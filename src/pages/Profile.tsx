@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
-import { MyDomainsTab } from '../components/MyDomainsTab';
+import { MyServicesTab } from '../components/MyServicesTab';
 import { CustomerTicketsTab } from '../components/CustomerTicketsTab';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, auth } from '../firebase';
@@ -14,6 +14,7 @@ import { SEO } from '../components/SEO';
 import { formatCurrency } from '../lib/utils';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
+import { getSiteContext } from '../hooks/useSiteContext';
 
 interface UserProfileData {
   name: string;
@@ -325,25 +326,39 @@ export const Profile: React.FC = () => {
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto whitespace-nowrap hide-scrollbar">
-            {[
-              { id: 'profile', label: 'My Profile', icon: User },
-              { id: 'orders', label: 'My Orders', icon: ShoppingBag },
-                { id: 'my_domains', label: 'My Domains', icon: Globe },
+            {(() => {
+              const ctx = getSiteContext();
+              const isHosting = ctx === 'hosting';
+
+              // Base tabs — always shown
+              const baseTabs = [
+                { id: 'profile', label: 'My Profile', icon: User },
+                { id: 'orders', label: 'My Orders', icon: ShoppingBag },
+              ];
+
+              // Hosting-only tabs
+              const hostingTabs = [
+                { id: 'my_domains', label: 'My Services', icon: Globe },
                 { id: 'tickets', label: 'Support Tickets', icon: MessageSquare },
                 { id: 'offers', label: 'My Offers', icon: Tag },
-            ].map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-2 px-5 py-4 text-sm font-semibold border-b-2 transition-all ${
-                  activeTab === id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Icon size={16} /> {label}
-              </button>
-            ))}
+              ];
+
+              const tabs = isHosting ? [...baseTabs, ...hostingTabs] : baseTabs;
+
+              return tabs.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={`flex items-center gap-2 px-5 py-4 text-sm font-semibold border-b-2 transition-all ${
+                    activeTab === id
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Icon size={16} /> {label}
+                </button>
+              ));
+            })()}
           </div>
         </div>
       </div>
@@ -488,7 +503,7 @@ export const Profile: React.FC = () => {
 
           
           {activeTab === 'my_domains' && (
-            <MyDomainsTab currentUser={user} />
+            <MyServicesTab />
           )}
 
           {activeTab === 'tickets' && (

@@ -67,14 +67,22 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                     <label className="block text-sm font-bold text-gray-700 mb-1">NID Number</label>
                     <input type="text" required className="w-full border-gray-300 rounded-md" value={employeeFormData.nidNumber || ''} onChange={e => setEmployeeFormData({...employeeFormData, nidNumber: e.target.value})} />
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Role</label>
-                    <select className="w-full border-gray-300 rounded-md" value={employeeFormData.role || 'Staff'} onChange={e => setEmployeeFormData({...employeeFormData, role: e.target.value})}>
-                      <option value="Staff">Staff</option>
-                      <option value="Manager">Manager</option>
-                      <option value="Technician">Technician</option>
-                    </select>
-                  </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Role</label>
+                      <input 
+                        list="employee-roles"
+                        className="w-full border-gray-300 rounded-md" 
+                        value={employeeFormData.role || ''} 
+                        onChange={e => setEmployeeFormData({...employeeFormData, role: e.target.value})}
+                        placeholder="e.g. Staff, Manager, Content Writer"
+                        required 
+                      />
+                      <datalist id="employee-roles">
+                        <option value="Staff" />
+                        <option value="Manager" />
+                        <option value="Technician" />
+                      </datalist>
+                    </div>
                 </div>
               </div>
 

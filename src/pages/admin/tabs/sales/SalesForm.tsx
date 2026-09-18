@@ -111,6 +111,68 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     loadData();
   }, []);
 
+  // Global Barcode Scanner Logic for SalesForm
+  useEffect(() => {
+    let barcode = '';
+    let timeout: NodeJS.Timeout;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input or textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      if (e.key === 'Enter') {
+        if (barcode.trim().length > 0) {
+          const scanValue = barcode.trim();
+          const searchLower = scanValue.toLowerCase();
+          
+          let matchedSerial: string | undefined = undefined;
+
+          const exactMatches = products.filter(p => {
+            if (
+              p.id.toLowerCase() === searchLower || 
+              (p.sku || '').toLowerCase() === searchLower || 
+              (p.model || '').toLowerCase() === searchLower || 
+              p.name.toLowerCase() === searchLower
+            ) {
+              return true;
+            }
+            const foundSerial = (p.availableSerials || []).find((s: string) => s.toLowerCase() === searchLower);
+            if (foundSerial) {
+              matchedSerial = foundSerial;
+              return true;
+            }
+            return false;
+          });
+          
+          const partialMatches = products.filter(p => p.name.toLowerCase().includes(searchLower) || (p.sku || '').toLowerCase().includes(searchLower));
+          
+          const bestMatch = exactMatches.length === 1 ? exactMatches[0] : (partialMatches.length === 1 ? partialMatches[0] : null);
+
+          if (bestMatch) {
+            addItemToSale(bestMatch, matchedSerial);
+            setProductSearch('');
+          } else if (exactMatches.length > 1 || partialMatches.length > 1) {
+            toast.success(`Found multiple items. Please select manually.`);
+          } else {
+            toast.error('No matching product found for scan');
+          }
+        }
+        barcode = '';
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        barcode += e.key;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          barcode = '';
+        }, 200);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [products]);
+
   // Subtotal & Total Calculations
   const subtotal = saleData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const effectiveDiscount = saleData.appliedDiscountPercentage > 0

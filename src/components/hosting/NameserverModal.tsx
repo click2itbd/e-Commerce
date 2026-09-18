@@ -8,6 +8,7 @@ interface DomainOrder {
   id: string;
   domain: string;
   nameservers?: string[];
+  nameServers?: string[];
 }
 
 interface NameserverModalProps {
@@ -16,13 +17,16 @@ interface NameserverModalProps {
   onUpdate: () => void;
 }
 
+import { apiPost } from '../../services/apiClient';
+
 export const NameserverModal: React.FC<NameserverModalProps> = ({ domain, onClose, onUpdate }) => {
   const [ns, setNs] = useState<string[]>(['', '', '', '']);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (domain.nameservers && domain.nameservers.length > 0) {
-      const initialNs = [...domain.nameservers];
+    const currentNs = domain.nameServers || domain.nameservers;
+    if (currentNs && currentNs.length > 0) {
+      const initialNs = [...currentNs];
       while (initialNs.length < 4) initialNs.push('');
       setNs(initialNs.slice(0, 4));
     } else {
@@ -41,16 +45,29 @@ export const NameserverModal: React.FC<NameserverModalProps> = ({ domain, onClos
 
     setSaving(true);
     try {
-      await updateDoc(doc(db, 'domainOrders', domain.id), {
-        nameservers: activeNs,
-        updatedAt: new Date().toISOString()
+      // 1. Call Backend to update Dynadot
+      const res = await apiPost('/api/domains/manage', {
+        command: 'set_ns',
+        domain: domain.domain,
+        extraParams: {
+          ns0: activeNs[0],
+          ns1: activeNs[1]
+        }
       });
-      toast.success('Nameservers updated successfully');
-      onUpdate(); // To trigger a refresh if needed, though onSnapshot might handle it
+
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to update nameservers at registrar');
+      }
+
+      // 2. The backend already updates Firestore on success, but we can do a local sync just in case
+      // (The onSnapshot listener in MyServices should pick it up automatically from backend update)
+      
+      toast.success('Nameservers updated successfully!');
+      onUpdate(); 
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating nameservers:', error);
-      toast.error('Failed to update nameservers');
+      toast.error(error.message || 'Failed to update nameservers');
     } finally {
       setSaving(false);
     }

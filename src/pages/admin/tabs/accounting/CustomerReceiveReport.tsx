@@ -13,6 +13,7 @@ interface CustomerReceiveReportProps {
   orders: Order[];
   transactions: Transaction[];
   customers: Customer[];
+  paymentAccounts: any[];
   settings: SiteSettings;
   hasPermission: (permission: string) => boolean;
   formatCurrency: (amount: number, settings: SiteSettings) => string;
@@ -37,6 +38,10 @@ const CustomerReceiveReport: React.FC<CustomerReceiveReportProps> = ({
   const [crReportSearch, setCrReportSearch] = useState('');
   const [crReportMethod, setCrReportMethod] = useState('all');
   const [crReportCustomer, setCrReportCustomer] = useState('all');
+
+  const mfsMethods = React.useMemo(() => {
+    return paymentAccounts.filter(p => p.type === 'mfs' || p.type === 'mobile_banking').map(p => p.name.toLowerCase());
+  }, [paymentAccounts]);
 
   const getCustomerReceiveReportData = () => {
     const reportData: Array<{
@@ -200,10 +205,9 @@ const CustomerReceiveReport: React.FC<CustomerReceiveReportProps> = ({
           >
             <option value="all">All Payment Methods</option>
             <option value="cash">Cash (Direct/COD)</option>
-            <option value="bkash">bKash</option>
-            <option value="nagad">Nagad</option>
-            <option value="rocket">Rocket</option>
-            <option value="cellfin">Cellfin</option>
+              {paymentAccounts.filter(p => p.status !== "inactive").map((p: any) => (
+                <option key={p.id || p.name} value={p.name.toLowerCase()}>{p.name}</option>
+              ))}
             <option value="card">Visa/Mastercard</option>
             <option value="bank">Bank Transfer</option>
             <option value="other">Other Gateways</option>
@@ -230,7 +234,7 @@ const CustomerReceiveReport: React.FC<CustomerReceiveReportProps> = ({
           const reportRows = getCustomerReceiveReportData();
           const totalAmount = reportRows.reduce((sum, r) => sum + r.amount, 0);
           const cashTotal = reportRows.filter(r => r.paymentMethod === 'cash' || r.paymentMethod === 'cod').reduce((sum, r) => sum + r.amount, 0);
-          const mfsTotal = reportRows.filter(r => ['bkash', 'nagad', 'rocket', 'cellfin'].includes(r.paymentMethod)).reduce((sum, r) => sum + r.amount, 0);
+          const mfsTotal = reportRows.filter(r => mfsMethods.includes((r.paymentMethod || '').toLowerCase())).reduce((sum, r) => sum + r.amount, 0);
           const bankCardTotal = totalAmount - cashTotal - mfsTotal;
 
           return (
@@ -276,7 +280,7 @@ const CustomerReceiveReport: React.FC<CustomerReceiveReportProps> = ({
           <tbody className="divide-y divide-gray-100">
             {getCustomerReceiveReportData().slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((row) => {
               const isCash = row.paymentMethod === 'cash' || row.paymentMethod === 'cod';
-              const isMfs = ['bkash', 'nagad', 'rocket', 'cellfin'].includes(row.paymentMethod);
+              const isMfs = mfsMethods.includes((row.paymentMethod || '').toLowerCase());
               const badgeClass = isCash
                 ? "bg-green-100 text-green-700" 
                 : isMfs 

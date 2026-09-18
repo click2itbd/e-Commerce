@@ -16,6 +16,7 @@ export const OrderSuccess: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [transactionId, setTransactionId] = useState('');
   const { settings } = useSettings();
 
   useEffect(() => {
@@ -132,7 +133,7 @@ export const OrderSuccess: React.FC = () => {
             </div>
 
             {/* Manual bKash Payment Section */}
-            {isManualBkash && !order.transactionId && !submitted && (
+            {isManualBkash && !(order as any).transactionId && !submitted && (
               <div className="bg-pink-50 border-l-4 border-pink-500 p-6 mx-8 mt-8 rounded-r-lg">
                 <h3 className="text-lg font-bold text-pink-900 mb-2">Manual bKash Payment</h3>
                 <p className="text-pink-800 mb-4 text-sm">
@@ -191,7 +192,7 @@ export const OrderSuccess: React.FC = () => {
             )}
 
             {/* Payment Submitted / Verified Status */}
-            {isManualBkash && (submitted || order.transactionId) && (
+            {isManualBkash && (submitted || (order as any).transactionId) && (
               <div className="bg-blue-50 border-l-4 border-blue-400 p-6 mx-8 mt-8 rounded-r-lg">
                 <h3 className="text-lg font-bold text-blue-900 mb-2">Payment Status</h3>
                 <p className="text-blue-800 text-sm">
@@ -199,9 +200,9 @@ export const OrderSuccess: React.FC = () => {
                     ? 'Your payment has been verified. Your order is now being processed.'
                     : 'Your order has been received. Our team will verify your bKash payment manually. You will receive a confirmation email after verification.'}
                 </p>
-                {order.transactionId && (
+                {(order as any).transactionId && (
                   <p className="text-sm text-blue-700 mt-2">
-                    Transaction ID: <span className="font-mono font-bold">{order.transactionId}</span>
+                    Transaction ID: <span className="font-mono font-bold">{(order as any).transactionId}</span>
                   </p>
                 )}
                 <p className="text-sm text-blue-700 mt-1">
@@ -232,7 +233,7 @@ export const OrderSuccess: React.FC = () => {
                     <p className="font-medium">{order.customerName}</p>
                     <p>{order.customerEmail}</p>
                     <p>{order.customerPhone}</p>
-                    {order.company && <p>{order.company}</p>}
+                    {(order as any).company && <p>{(order as any).company}</p>}
                   </div>
                 </div>
                 <div>
@@ -270,10 +271,10 @@ export const OrderSuccess: React.FC = () => {
                         <th scope="row" colSpan={2} className="px-6 py-3 text-right text-sm font-normal text-gray-500">Subtotal</th>
                         <td className="px-6 py-3 text-right text-sm text-gray-900">{formatCurrency(order.items.reduce((s, i) => s + (i.price * i.quantity), 0), settings)}</td>
                       </tr>
-                      {order.shippingCost > 0 && (
+                      {(order as any).shippingCost > 0 && (
                         <tr>
                           <th scope="row" colSpan={2} className="px-6 py-3 text-right text-sm font-normal text-gray-500">Shipping</th>
-                          <td className="px-6 py-3 text-right text-sm text-gray-900">{formatCurrency(order.shippingCost, settings)}</td>
+                          <td className="px-6 py-3 text-right text-sm text-gray-900">{formatCurrency((order as any).shippingCost, settings)}</td>
                         </tr>
                       )}
                       <tr>

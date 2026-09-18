@@ -20,6 +20,7 @@ import { useCart } from "../../context/CartContext";
 import { useSettings } from "../../context/SettingsContext";
 import { auth } from "../../firebase";
 import { signOut } from "firebase/auth";
+import { setSiteContext } from "../../hooks/useSiteContext";
 
 export const HostingNavbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -36,6 +37,8 @@ export const HostingNavbar: React.FC = () => {
   const location = useLocation();
 
   useEffect(() => {
+    // Mark that the user is in the hosting context
+    setSiteContext('hosting');
     const handleScroll = () => {
       if (window.scrollY > 20) {
         setIsScrolled(true);
@@ -187,15 +190,17 @@ export const HostingNavbar: React.FC = () => {
                   className="h-8 md:h-10 object-contain"
                 />
               ) : (
-                <img
-                  src="/logo.png"
-                  alt="Click2IT Logo"
-                  className="h-8 md:h-10 object-contain"
-                />
+                <>
+                  <img
+                    src="/logo.png"
+                    alt="Click2IT Logo"
+                    className="h-8 md:h-10 object-contain"
+                  />
+                  <span className="text-white font-bold text-base sm:text-lg tracking-tight group-hover:text-blue-400 transition-colors">
+                    CLICK2IT
+                  </span>
+                </>
               )}
-              <span className="text-white font-bold text-base sm:text-lg tracking-tight group-hover:text-blue-400 transition-colors">
-                CLICK2IT
-              </span>
             </Link>
 
             {/* Desktop Nav Links */}

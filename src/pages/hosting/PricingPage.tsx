@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { PageHeader } from '../../components/hosting/PageHeader';
+import { HostingPromoBanner } from '../../components/hosting/HostingPromoBanner';
 import { SEO } from '../../components/SEO';
 import HostingPlansSection from '../hosting-sections/HostingPlansSection';
 import WordPressCloudSection from '../hosting-sections/WordPressCloudSection';
@@ -56,6 +57,7 @@ export default function PricingPage() {
 
   return (
     <Layout fullWidth>
+      <HostingPromoBanner />
       <SEO 
         title="Hosting & Server Pricing Plans"
         description="Transparent pricing for Shared cPanel Hosting, Managed WordPress Cloud, and KVM Cloud VPS."

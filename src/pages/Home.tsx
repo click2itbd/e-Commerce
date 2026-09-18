@@ -73,6 +73,7 @@ export const Home: React.FC = () => {
             alt="Mac"
             className="w-full md:w-1/2 object-contain max-h-64 md:max-h-none"
             referrerPolicy="no-referrer"
+            loading="lazy"
           />
         </div>
       </section>

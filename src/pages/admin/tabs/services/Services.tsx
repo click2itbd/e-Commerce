@@ -150,6 +150,39 @@ const Services: React.FC = () => {
     fetchData();
   }, []);
 
+  // Global Barcode Scanner for Warranty Check
+  useEffect(() => {
+    let barcode = "";
+    let timeout: NodeJS.Timeout;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is already typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      if (e.key === "Enter") {
+        if (barcode.trim().length > 0) {
+          setLedgerSearchQuery(barcode.trim());
+          setLedgerView("ledger");
+        }
+        barcode = "";
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        barcode += e.key;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          barcode = "";
+        }, 200);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      clearTimeout(timeout);
+    };
+  }, []);
+
   const printServiceReceipt = (record: ServiceRecord) => {
     toast.success('Print receipt triggered');
   };
@@ -393,80 +426,94 @@ const Services: React.FC = () => {
               </div>
             </div>
 
-            {ledgerSearchQuery && (
-              <div className="space-y-4">
-                {soldSerials
-                  .filter(s => s.serial.toLowerCase().includes(ledgerSearchQuery.toLowerCase()))
-                  .map(record => {
-                    const wEndDate = new Date(record.warrantyEndDate);
-                    const isExpired = wEndDate < new Date();
-                    return (
-                      <div key={record.id} className="bg-white border rounded-lg p-5 shadow-sm">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h4 className="font-bold text-lg">{record.productName}</h4>
-                            <p className="font-mono text-sm text-gray-500">SN: {record.serial}</p>
-                          </div>
-                          <span className={cn(
-                            "px-3 py-1 rounded-full text-xs font-bold",
-                            isExpired ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
-                          )}>
-                            {isExpired ? 'Warranty Expired' : 'In Warranty'}
-                          </span>
+            <div className="space-y-4">
+              {(ledgerSearchQuery ? soldSerials.filter(s => s.serial.toLowerCase().includes(ledgerSearchQuery.toLowerCase())) : soldSerials.slice(0, 10))
+                .map(record => {
+                  const wEndDate = new Date(record.warrantyEndDate);
+                  const isExpired = wEndDate < new Date();
+                  return (
+                    <div key={record.id} className="bg-white border rounded-lg p-5 shadow-sm hover:border-[#EF4444] transition-all">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h4 className="font-bold text-lg">{record.productName}</h4>
+                          <p className="font-mono text-sm text-gray-500">SN: {record.serial}</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm mt-4 border-t pt-4">
-                          <div>
-                            <span className="text-gray-500 block mb-1">Customer</span>
-                            <span className="font-medium">{record.customerName}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 block mb-1">Sold Date</span>
-                            <span className="font-medium">{new Date(record.soldAt).toLocaleDateString()}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 block mb-1">Warranty Ends</span>
-                            <span className="font-medium">{wEndDate.toLocaleDateString()}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 block mb-1">Order Ref</span>
-                            <span className="font-medium">{record.orderId}</span>
-                          </div>
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-xs font-bold",
+                          isExpired ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                        )}>
+                          {isExpired ? 'Warranty Expired' : 'In Warranty'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm mt-4 border-t border-gray-100 pt-4">
+                        <div>
+                          <span className="text-gray-500 block mb-1">Customer</span>
+                          <span className="font-medium">{record.customerName}</span>
                         </div>
-                        <div className="mt-4 pt-4 border-t flex justify-end">
-                          <button
-                            onClick={() => {
-                              setServiceFormData({
-                                serialNumber: record.serial,
-                                customerName: record.customerName,
-                                customerPhone: record.customerPhone,
-                                productName: record.productName,
-                                issueDescription: '',
-                                isWarranty: !isExpired,
-                                serviceCharge: isExpired ? 500 : 0,
-                                status: 'received',
-                                equipmentType: 'Laptop',
-                                paymentMethod: 'cash',
-                                paymentStatus: 'pending',
-                              });
-                              setEditingService(null);
-                              setIsAddingService(true);
-                              setLedgerView('products');
-                            }}
-                            className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded transition-all"
-                          >
-                            Receive Product for Service
-                          </button>
+                        <div>
+                          <span className="text-gray-500 block mb-1">Sold Date</span>
+                          <span className="font-medium">{new Date(record.soldAt).toLocaleDateString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block mb-1">Warranty Ends</span>
+                          <span className="font-medium">{wEndDate.toLocaleDateString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block mb-1">Order Ref</span>
+                          <span className="font-medium">{record.orderId}</span>
                         </div>
                       </div>
-                    );
-                  })}
-                {soldSerials.filter(s => s.serial.toLowerCase().includes(ledgerSearchQuery.toLowerCase())).length === 0 && (
-                  <div className="text-center p-8 text-gray-500 bg-gray-50 rounded-lg">
-                    No warranty records found for this serial number.
-                  </div>
-                )}
-              </div>
-            )}
+                      <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
+                        <button
+                          onClick={() => {
+                            setServiceFormData({
+                              serialNumber: record.serial,
+                              customerName: record.customerName,
+                              customerPhone: record.customerPhone,
+                              productName: record.productName,
+                              issueDescription: '',
+                              isWarranty: !isExpired,
+                              serviceCharge: isExpired ? 500 : 0,
+                              status: 'received',
+                              equipmentType: 'Laptop',
+                              paymentMethod: 'cash',
+                              paymentStatus: 'pending',
+                              serviceType: 'in_house',
+                              vendorId: '',
+                              rmaStatus: 'Pending Vendor',
+                              newSerialNumber: '',
+                            });
+                            setEditingService(null);
+                            setIsAddingService(true);
+                            setLedgerView('products');
+                          }}
+                          className="text-sm bg-[#EF4444] hover:bg-red-600 text-white font-bold py-2 px-6 rounded-md transition-all shadow-sm"
+                        >
+                          Receive Product for Service
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              {ledgerSearchQuery && soldSerials.filter(s => s.serial.toLowerCase().includes(ledgerSearchQuery.toLowerCase())).length === 0 && (
+                <div className="text-center p-12 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                  <ShieldCheck size={48} className="mx-auto text-gray-300 mb-4" />
+                  <p className="font-bold text-gray-700 text-lg">No warranty records found</p>
+                  <p className="text-sm mt-1">The serial number doesn't match any sold product.</p>
+                </div>
+              )}
+              {!ledgerSearchQuery && soldSerials.length > 0 && (
+                <div className="text-center text-xs text-gray-400 mt-6 font-medium">
+                  Showing {Math.min(10, soldSerials.length)} most recent sales. Type or scan a barcode to search.
+                </div>
+              )}
+              {!ledgerSearchQuery && soldSerials.length === 0 && (
+                <div className="text-center p-8 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 mt-4">
+                  <p className="font-bold text-gray-700">No sold items with serial numbers found.</p>
+                  <p className="text-sm mt-1">Make sure you scan serial numbers during POS checkout to enable warranty tracking.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

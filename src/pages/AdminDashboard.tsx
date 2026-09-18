@@ -7,18 +7,18 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { Product, Order, OrderStatus, Customer, Vendor, Transaction, TransactionCategory, NavigationMenu, SubCategory, UserProfile, SiteSettings, Campaign, ProductVariant, DiscountCode, HostingPlan, HostingService, SoldSerial, ServiceRecord, DocumentDesignSettings, UserPermission, Lead } from '../types';
-import { CRMPage } from './CRMPage';
-import { TaskManager } from '../components/TaskManager';
-import { SupportTicketManager } from '../components/SupportTicketManager';
-import { AdminOverviewDashboard } from '../components/AdminOverviewDashboard';
-import { ApiLogsTab } from '../components/ApiLogsTab';
+const CRMPage = lazy(() => import('./CRMPage').then(m => ({ default: m.CRMPage })));
+const TaskManager = lazy(() => import('../components/TaskManager').then(m => ({ default: m.TaskManager })));
+const SupportTicketManager = lazy(() => import('../components/SupportTicketManager').then(m => ({ default: m.SupportTicketManager })));
+const AdminOverviewDashboard = lazy(() => import('../components/AdminOverviewDashboard').then(m => ({ default: m.AdminOverviewDashboard })));
+const ApiLogsTab = lazy(() => import('../components/ApiLogsTab').then(m => ({ default: m.ApiLogsTab })));
 import { AdminNotifications } from '../components/AdminNotifications';
-import { AnalyticsDashboard } from '../components/AnalyticsDashboard';
-import { CRMIntegrationsSetting } from '../components/CRMIntegrationsSetting';
+const AnalyticsDashboard = lazy(() => import('../components/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
+const CRMIntegrationsSetting = lazy(() => import('../components/CRMIntegrationsSetting').then(m => ({ default: m.CRMIntegrationsSetting })));
 import { Layout } from '../components/Layout';
-import { BulkEditForm } from '../components/BulkEditForm';
-import { QuotationManager } from '../components/QuotationManager';
-import { HostingApiSettings } from '../components/admin/hosting/HostingApiSettings';
+const BulkEditForm = lazy(() => import('../components/BulkEditForm').then(m => ({ default: m.BulkEditForm })));
+const QuotationManager = lazy(() => import('../components/QuotationManager').then(m => ({ default: m.QuotationManager })));
+const HostingApiSettings = lazy(() => import('../components/admin/hosting/HostingApiSettings').then(m => ({ default: m.HostingApiSettings })));
 import { apiPost } from '../services/apiClient';
 
 const InventoryTab = lazy(() => import('./admin/tabs/inventory/Inventory').then(m => ({ default: m.default })));
@@ -647,6 +647,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
   });
 
   const ConfirmModal = () => {
+    const [isConfirming, setIsConfirming] = useState(false);
     if (!confirmModal.isOpen) return null;
     const confirmText = confirmModal.confirmText || 'Confirm Delete';
     const confirmColor = confirmModal.confirmColor || 'bg-red-600 hover:bg-red-700 shadow-red-200';
@@ -663,21 +664,29 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
           <div className="p-6 bg-gray-50 flex justify-end gap-3">
             <button
               onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-all font-medium"
+              disabled={isConfirming}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-all font-medium disabled:opacity-50"
             >
               Cancel
             </button>
             <button
-              onClick={() => {
-                confirmModal.onConfirm();
-                setConfirmModal({ ...confirmModal, isOpen: false });
+              onClick={async () => {
+                if (isConfirming) return;
+                setIsConfirming(true);
+                try {
+                  await confirmModal.onConfirm();
+                } finally {
+                  setIsConfirming(false);
+                  setConfirmModal({ ...confirmModal, isOpen: false });
+                }
               }}
+              disabled={isConfirming}
               className={cn(
-                "px-6 py-2 text-white rounded-lg transition-all font-bold shadow-lg",
+                "px-6 py-2 text-white rounded-lg transition-all font-bold shadow-lg disabled:opacity-50 flex items-center gap-2",
                 confirmColor
               )}
             >
-              {confirmText}
+              {isConfirming ? 'Processing...' : confirmText}
             </button>
           </div>
         </div>
@@ -688,18 +697,24 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
   const fetchData = async () => {
     setLoading(true);
     try {
-      const productsSnap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500)));
-      const ordersSnap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(500)));
-      const customersSnap = await getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(500)));
-      const transactionsSnap = await getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(500)));
-      const menusSnap = await getDocs(query(collection(db, 'menus'), orderBy('order', 'asc'), limit(100)));
-      const discountCodesSnap = await getDocs(query(collection(db, 'couponCodes'), orderBy('createdAt', 'desc'), limit(200)));
-      const hostingPlansSnap = await getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc'), limit(100)));
-      const hostingServicesSnap = await getDocs(query(collection(db, 'hostingServices'), orderBy('order', 'asc'), limit(100)));
-      const soldSerialsSnap = await getDocs(query(collection(db, 'sold_serials'), orderBy('soldAt', 'desc'), limit(500)));
-      const serviceRecordsSnap = await getDocs(query(collection(db, 'service_records'), orderBy('receivedAt', 'desc'), limit(500)));
-      const paymentAccountsSnap = await getDocs(query(collection(db, 'payment_accounts'), orderBy('createdAt', 'desc'), limit(100)));
-      const transactionCategoriesSnap = await getDocs(query(collection(db, 'transaction_categories'), orderBy('createdAt', 'desc'), limit(100)));
+      const [
+        productsSnap, ordersSnap, customersSnap, transactionsSnap, menusSnap, 
+        discountCodesSnap, hostingPlansSnap, hostingServicesSnap, soldSerialsSnap, 
+        serviceRecordsSnap, paymentAccountsSnap, transactionCategoriesSnap
+      ] = await Promise.all([
+        getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'menus'), orderBy('order', 'asc'), limit(100))),
+        getDocs(query(collection(db, 'couponCodes'), orderBy('createdAt', 'desc'), limit(200))),
+        getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc'), limit(100))),
+        getDocs(query(collection(db, 'hostingServices'), orderBy('order', 'asc'), limit(100))),
+        getDocs(query(collection(db, 'sold_serials'), orderBy('soldAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'service_records'), orderBy('receivedAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'payment_accounts'), orderBy('createdAt', 'desc'), limit(100))),
+        getDocs(query(collection(db, 'transaction_categories'), orderBy('createdAt', 'desc'), limit(100)))
+      ]);
       
       let vendorsSnap = { docs: [] };
       let usersSnap = { docs: [] };
@@ -1494,21 +1509,25 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     if (selectedProductIds.length === 0) return;
     const selectedProducts = products.filter(p => selectedProductIds.includes(p.id));
     
-    const headers = ['Name', 'Category', 'Price', 'Stock', 'Description', 'SocketType', 'RamType', 'Images'];
-    const csvContent = [
-      headers.join(','),
-      ...selectedProducts.map(p => [
-        `"${p.name}"`,
-        `"${p.category}"`,
-        p.price,
-        p.stock,
-        `"${p.description.replace(/"/g, '""')}"`,
-        `"${p.socketType || ''}"`,
-        `"${p.ramType || ''}"`,
-        `"${(p.images || []).join('|')}"`
-      ].join(','))
-    ].join('\n');
+    const exportData = selectedProducts.map(p => ({
+      ID: p.id,
+      SKU: p.sku || '',
+      Name: p.name,
+      Category: p.category || '',
+      SubCategory: p.subCategory || '',
+      Brand: p.brand || '',
+      Model: p.model || '',
+      CostPrice: p.costPrice || 0,
+      Price: p.price || 0,
+      Stock: p.stock || 0,
+      Description: p.description || '',
+      SocketType: p.socketType || '',
+      RamType: p.ramType || '',
+      Chipset: p.chipset || '',
+      Images: (p.images || []).join('|')
+    }));
 
+    const csvContent = Papa.unparse(exportData);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -1598,7 +1617,19 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
         let addedCount = 0;
 
         try {
-          const promises = results.data.map(async (row: any) => {
+          const promises = results.data.map(async (rawRow: any) => {
+            const row = Object.keys(rawRow).reduce((acc: any, key) => {
+              const cleanKey = key.replace(/^\uFEFF/, '').trim();
+              acc[cleanKey] = rawRow[key];
+              return acc;
+            }, {});
+            
+            const cleanNumber = (val: any) => {
+              if (typeof val === 'number') return val;
+              if (!val) return 0;
+              return Number(String(val).replace(/,/g, '').trim()) || 0;
+            };
+
             const rowId = row['ID']?.trim();
             const rowSku = row['SKU']?.trim();
             const name = row['Name']?.trim();
@@ -1612,9 +1643,9 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
               subCategory: row['SubCategory']?.trim() || '',
               brand: row['Brand']?.trim() || '',
               model: row['Model']?.trim() || '',
-              costPrice: Number(row['CostPrice']) || 0,
-              price: Number(row['Price']) || 0,
-              stock: Number(row['Stock']) || 0,
+              costPrice: cleanNumber(row['CostPrice']),
+              price: cleanNumber(row['Price']),
+              stock: cleanNumber(row['Stock']),
               description: row['Description']?.trim() || '',
               socketType: row['SocketType']?.trim() || '',
               ramType: row['RamType']?.trim() || '',

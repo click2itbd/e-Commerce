@@ -9,6 +9,7 @@ import { signOut } from 'firebase/auth';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { cn } from '../../lib/utils';
 import { NavigationMenu } from '../../types';
+import { setSiteContext } from '../../hooks/useSiteContext';
 
 export const EcommerceNavbar: React.FC = () => {
   const { items } = useCart();
@@ -19,6 +20,8 @@ export const EcommerceNavbar: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Mark that the user is in the e-commerce context
+    setSiteContext('ecommerce');
     const fetchMenus = async () => {
       try {
         const q = query(collection(db, 'menus'), orderBy('order', 'asc'));
@@ -57,7 +60,7 @@ export const EcommerceNavbar: React.FC = () => {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full text-white shadow-md" style={{ backgroundColor: settings.primaryColor }}>
+    <header className="sticky top-0 z-50 w-full text-white shadow-md bg-[#0E2A47]">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between gap-4">
           {/* Logo */}
@@ -65,11 +68,8 @@ export const EcommerceNavbar: React.FC = () => {
             {settings.logoUrl ? (
               <img src={settings.logoUrl} alt={settings.brandName} className="h-10 w-auto" referrerPolicy="no-referrer" />
             ) : (
-              <div className="h-10 w-10 rounded-lg flex items-center justify-center font-bold text-xl italic" style={{ backgroundColor: settings.accentColor }}>
-                {settings.brandShortName}
-              </div>
+              <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-10 md:h-12 w-auto object-contain" />
             )}
-            <span className="hidden sm:block text-xl font-bold tracking-tight uppercase">{settings.brandName}</span>
           </Link>
 
           {/* Search Bar */}
@@ -77,8 +77,7 @@ export const EcommerceNavbar: React.FC = () => {
             <input
               type="text"
               placeholder="Search products..."
-              className="w-full border-none rounded-md py-2 px-4 focus:ring-2 transition-all"
-              style={{ backgroundColor: settings.secondaryColor, color: 'white' }}
+              className="w-full border-none rounded-md py-2 px-4 focus:ring-2 transition-all bg-[#1a3a5f] text-white placeholder-gray-400"
             />
             <button className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
               <Search size={20} />
@@ -98,16 +97,10 @@ export const EcommerceNavbar: React.FC = () => {
 
             {user ? (
               <div className="flex items-center gap-4">
-                <Link to="/account/services" className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
-                  <Server size={20} />
-                  <span className="text-sm font-medium">My Services</span>
+                <Link to="/profile" className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
+                  <User size={20} />
+                  <span className="text-sm font-medium">My Profile</span>
                 </Link>
-                {canAccessAdmin && (
-                  <Link to="/admin" className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
-                    <LayoutDashboard size={20} />
-                    <span className="text-sm font-medium">Admin</span>
-                  </Link>
-                )}
                 <button onClick={handleLogout} className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
                   <LogOut size={20} />
                   <span className="text-sm font-medium">Logout</span>
@@ -190,14 +183,13 @@ export const EcommerceNavbar: React.FC = () => {
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="md:hidden border-t border-gray-700 p-4" style={{ backgroundColor: settings.secondaryColor }}>
+        <div className="md:hidden border-t border-gray-700 p-4 bg-[#081621]">
           <div className="flex flex-col gap-4">
             <div className="relative">
               <input
                 type="text"
                 placeholder="Search..."
-                className="w-full border-none rounded-md py-2 px-4"
-                style={{ backgroundColor: settings.primaryColor }}
+                className="w-full border-none rounded-md py-2 px-4 bg-[#0E2A47] text-white"
               />
               <Search className="absolute right-3 top-2.5 text-gray-400" size={18} />
             </div>
@@ -248,14 +240,9 @@ export const EcommerceNavbar: React.FC = () => {
 
             {user ? (
               <div className="flex flex-col gap-2">
-                <Link to="/account/services" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
-                  <Server size={20} /> My Services
+                <Link to="/profile" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
+                  <User size={20} /> My Profile
                 </Link>
-                {canAccessAdmin && (
-                  <Link to="/admin" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
-                    <LayoutDashboard size={20} /> Admin Dashboard
-                  </Link>
-                )}
                 <button onClick={handleLogout} className="flex items-center gap-2 py-2 text-left">
                   <LogOut size={20} /> Logout
                 </button>

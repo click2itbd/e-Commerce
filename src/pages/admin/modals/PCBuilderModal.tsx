@@ -30,28 +30,10 @@ export const PCBuilderModal: React.FC<PCBuilderModalProps> = ({
             <div className="flex-grow overflow-y-auto p-6">
               <p className="text-sm text-gray-500 mb-6">Select components to build a PC and add them to the sale.</p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[
-                  { id: 'cpu', name: 'CPU', Icon: Cpu },
-                  { id: 'cooler', name: 'CPU Cooler', Icon: Fan },
-                  { id: 'motherboard', name: 'Motherboard', Icon: Server },
-                  { id: 'ram', name: 'RAM', Icon: Database },
-                  { id: 'storage', name: 'Storage', Icon: HardDrive },
-                  { id: 'gpu', name: 'Graphics Card', Icon: Monitor },
-                  { id: 'psu', name: 'Power Supply', Icon: Plug },
-                  { id: 'casing', name: 'Casing', Icon: Server },
-                  { id: 'monitor', name: 'Monitor', Icon: Monitor },
-                  { id: 'casing_cooler', name: 'Casing Cooler', Icon: Fan },
-                  { id: 'keyboard', name: 'Keyboard', Icon: Keyboard },
-                  { id: 'mouse', name: 'Mouse', Icon: Mouse },
-                  { id: 'speaker', name: 'Speaker & Home Theater', Icon: Speaker },
-                  { id: 'headphone', name: 'Headphone', Icon: Headphones },
-                  { id: 'wifi', name: 'Wifi Adapter / LAN Card', Icon: Wifi },
-                  { id: 'antivirus', name: 'Anti Virus', Icon: ShieldCheck },
-                  { id: 'ups', name: 'UPS', Icon: BatteryCharging }
-                ].map(cat => (
-                  <div key={cat.id} className="border border-gray-100 rounded-lg p-4 hover:border-[#EF4444] transition-all">
+                {(settings?.pcBuilderCategories || ["CPU", "CPU Cooler", "Motherboard", "RAM", "Storage", "Graphics Card", "Power Supply", "Casing", "Monitor", "Keyboard", "Mouse", "Speaker", "UPS"]).map(catName => (
+                  <div key={catName} className="border border-gray-100 rounded-lg p-4 hover:border-[#EF4444] transition-all">
                     <h3 className="font-bold mb-3 flex items-center gap-2">
-                      <cat.Icon size={16} className="text-[#EF4444]" /> {cat.name}
+                      <Cpu size={16} className="text-[#EF4444]" /> {catName}
                     </h3>
                     <select 
                       className="w-full border-gray-200 rounded-md text-sm focus:ring-[#EF4444] focus:border-[#EF4444]"
@@ -60,11 +42,11 @@ export const PCBuilderModal: React.FC<PCBuilderModalProps> = ({
                         if (p) addItemToSale(p);
                       }}
                     >
-                      <option value="">Select {cat.name}</option>
+                      <option value="">Select {catName}</option>
                       {products.filter(p => 
-                        p.category.toLowerCase().includes(cat.id.toLowerCase()) || 
-                        p.name.toLowerCase().includes(cat.name.toLowerCase()) ||
-                        p.category.toLowerCase().includes(cat.name.toLowerCase())
+                        (p.category || "").toLowerCase().includes(catName.toLowerCase()) || 
+                        (p.name || "").toLowerCase().includes(catName.toLowerCase()) ||
+                        catName.toLowerCase().includes((p.category || "").toLowerCase())
                       ).map(p => (
                         <option key={p.id} value={p.id}>{p.name} - {formatCurrency(p.price, settings)}</option>
                       ))}

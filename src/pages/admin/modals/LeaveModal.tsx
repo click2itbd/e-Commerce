@@ -59,14 +59,22 @@ export const LeaveModal: React.FC<LeaveModalProps> = ({
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Type</label>
-                  <select className="w-full border-gray-300 rounded-md" value={leaveFormData.type || 'casual'} onChange={e => setLeaveFormData({...leaveFormData, type: e.target.value})}>
-                    <option value="casual">Casual</option>
-                    <option value="sick">Sick</option>
-                    <option value="annual">Annual</option>
-                  </select>
-                </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Type</label>
+                    <input 
+                      list="leave-types"
+                      className="w-full border-gray-300 rounded-md" 
+                      value={leaveFormData.type || ''} 
+                      onChange={e => setLeaveFormData({...leaveFormData, type: e.target.value.toLowerCase()})}
+                      placeholder="e.g. casual, sick, maternity"
+                      required
+                    />
+                    <datalist id="leave-types">
+                      <option value="casual" />
+                      <option value="sick" />
+                      <option value="annual" />
+                    </datalist>
+                  </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Status</label>
                   <select className="w-full border-gray-300 rounded-md" value={leaveFormData.status || 'pending'} onChange={e => setLeaveFormData({...leaveFormData, status: e.target.value})}>

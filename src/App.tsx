@@ -8,6 +8,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { WebsitePopup } from './components/WebsitePopup';
 import { ReviewRewardPopup } from './components/ReviewRewardPopup';
 import { ChatWidget } from './components/ChatWidget';
+import { TrackingScripts } from './components/TrackingScripts';
 import { CompareProvider } from './context/CompareContext';
 
 import Hosting from './pages/Hosting';
@@ -67,6 +68,7 @@ export default function App() {
           <CompareProvider>
             <CartProvider>
               <Router>
+                <TrackingScripts />
                 <WebsitePopup />
                 <ReviewRewardPopup />
                 <ChatWidget />
@@ -99,8 +101,8 @@ export default function App() {
                   <Route path="/category/:categorySlug/:subCategorySlug" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
 
                   {/* PC BUILD */}
-                  <Route path="/pc-build" element={<LazyWrapper><PCBuilder /></LazyWrapper>} />
-                  <Route path="/pc-builder" element={<Navigate to="/pc-build" replace />} />
+                  <Route path="/pc-build/*" element={<LazyWrapper><PCBuilder /></LazyWrapper>} />
+                  <Route path="/pc-builder/*" element={<Navigate to="/pc-build" replace />} />
                   <Route path="/compare" element={<LazyWrapper><ComparePage /></LazyWrapper>} />
 
                   {/* AUTH */}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
+import { HostingPromoBanner } from '../../components/hosting/HostingPromoBanner';
 import { Search, X, Info, Star, ShoppingCart, Loader2, DollarSign } from 'lucide-react';
 import { useDomainSearch } from '../../hooks/useDomainSearch';
 import { getDomainPricing, DomainPricing } from '../../services/hostingApi';
@@ -194,6 +195,7 @@ export default function DomainSearchResults() {
 
   return (
     <Layout fullWidth>
+      <HostingPromoBanner />
       <div className="bg-[#f5f7f9] min-h-screen py-6 md:py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           

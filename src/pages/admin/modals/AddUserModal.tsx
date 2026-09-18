@@ -40,14 +40,22 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Role</label>
-                <select className="w-full border-gray-300 rounded-md" value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value})}>
-                  <option value="user">User</option>
-                  <option value="staff">Staff</option>
-                  <option value="manager">Manager</option>
-                  <option value="admin">Admin</option>
-                </select>
+                <input 
+                  list="user-roles"
+                  className="w-full border-gray-300 rounded-md" 
+                  value={userFormData.role} 
+                  onChange={e => setUserFormData({...userFormData, role: e.target.value.toLowerCase()})} 
+                  placeholder="e.g. staff, manager, editor"
+                  required
+                />
+                <datalist id="user-roles">
+                  <option value="user" />
+                  <option value="staff" />
+                  <option value="manager" />
+                  <option value="admin" />
+                </datalist>
               </div>
-              {(userFormData.role === 'manager' || userFormData.role === 'staff') && (
+              {userFormData.role !== 'admin' && userFormData.role !== 'user' && (
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Permissions</label>
                   <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-gray-200 rounded-md">

@@ -84,25 +84,38 @@ export const ActiveHostingAccounts: React.FC = () => {
     domain: '',
     customerEmail: '',
     customerName: '',
-    planId: 'starter',
+    planId: '',
     billingCycle: 'monthly',
     username: '',
     serverIp: '103.145.118.50',
     controlPanelUrl: 'https://cpanel.click2itbd.com',
   });
 
+  const [hostingPlans, setHostingPlans] = useState<any[]>([]);
+
   const fetchAccounts = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, 'hostingAccounts'), orderBy('createdAt', 'desc')));
+      const [snap, plansSnap] = await Promise.all([
+        getDocs(query(collection(db, 'hostingAccounts'), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'hostingPlans'), orderBy('order')))
+      ]);
       const items: HostingAccountItem[] = snap.docs.map(d => ({
         id: d.id,
         ...d.data(),
       } as HostingAccountItem));
       setAccounts(items);
+
+      const plans = plansSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setHostingPlans(plans);
+      
+      if (plans.length > 0) {
+        setNewPlanCode(plans[0].whmPackageName || plans[0].id);
+        setNewAccountData(prev => ({ ...prev, planId: plans[0].id }));
+      }
     } catch (error: any) {
-      console.error('Error fetching hosting accounts:', error);
-      toast.error('Failed to load hosting accounts');
+      console.error('Error fetching hosting data:', error);
+      toast.error('Failed to load hosting data');
     } finally {
       setLoading(false);
     }
@@ -449,10 +462,9 @@ export const ActiveHostingAccounts: React.FC = () => {
             className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 outline-none focus:border-blue-500"
           >
             <option value="all">All Packages</option>
-            <option value="starter">Starter (5 GB)</option>
-            <option value="standard">Standard (10 GB)</option>
-            <option value="professional">Professional (20 GB)</option>
-            <option value="premium">Premium (50 GB)</option>
+            {hostingPlans.map(plan => (
+              <option key={plan.id} value={plan.id}>{plan.name} ({plan.pricing?.monthly} BDT/mo)</option>
+            ))}
           </select>
         </div>
       </div>
@@ -694,26 +706,21 @@ export const ActiveHostingAccounts: React.FC = () => {
                   Select New Tier:
                 </label>
                 <div className="grid grid-cols-2 gap-2.5">
-                  {[
-                    { id: 'starter', name: 'Starter', space: '5 GB NVMe', price: '৳150/mo' },
-                    { id: 'standard', name: 'Standard', space: '10 GB NVMe', price: '৳350/mo' },
-                    { id: 'professional', name: 'Professional', space: '20 GB NVMe', price: '৳650/mo' },
-                    { id: 'premium', name: 'Premium', space: '50 GB NVMe', price: '৳1,200/mo' },
-                  ].map(pkg => (
+                  {hostingPlans.map(pkg => (
                     <button
                       key={pkg.id}
                       type="button"
-                      onClick={() => setNewPlanCode(pkg.id)}
+                      onClick={() => setNewPlanCode(pkg.whmPackageName || pkg.id)}
                       className={cn(
                         "p-3 rounded-xl border text-left transition-all",
-                        newPlanCode === pkg.id 
+                        newPlanCode === (pkg.whmPackageName || pkg.id) 
                           ? "border-blue-600 bg-blue-50/70 shadow-sm" 
                           : "border-gray-200 hover:border-gray-300"
                       )}
                     >
                       <p className="font-bold text-sm text-gray-900">{pkg.name}</p>
-                      <p className="text-xs text-gray-500">{pkg.space}</p>
-                      <p className="text-xs font-semibold text-blue-600 mt-1">{pkg.price}</p>
+                      <p className="text-xs text-gray-500">{pkg.whmPackageName || pkg.id}</p>
+                      <p className="text-xs font-semibold text-blue-600 mt-1">৳ {pkg.pricing?.monthly || 0}/mo</p>
                     </button>
                   ))}
                 </div>
@@ -818,10 +825,9 @@ export const ActiveHostingAccounts: React.FC = () => {
                     onChange={(e) => setNewAccountData({ ...newAccountData, planId: e.target.value })}
                     className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500"
                   >
-                    <option value="starter">Starter (5 GB NVMe - ৳150/mo)</option>
-                    <option value="standard">Standard (10 GB NVMe - ৳350/mo)</option>
-                    <option value="professional">Professional (20 GB NVMe - ৳650/mo)</option>
-                    <option value="premium">Premium (50 GB NVMe - ৳1,200/mo)</option>
+                    {hostingPlans.map(plan => (
+                      <option key={plan.id} value={plan.id}>{plan.name} (৳ {plan.pricing?.monthly || 0}/mo)</option>
+                    ))}
                   </select>
                 </div>
 

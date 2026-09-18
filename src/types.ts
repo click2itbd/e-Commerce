@@ -260,6 +260,11 @@ export interface SiteSettings {
   externalStoreUrl?: string;
   externalStoreKey?: string;
 
+  // Analytics & Tracking
+  googleAnalyticsId?: string;
+  facebookPixelId?: string;
+  googleTagManagerId?: string;
+
   // Item Setting
   isLoyaltyEnable?: string;
   minimumPointToRedeem?: number;

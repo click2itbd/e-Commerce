@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, addDoc, query, where, onSnapshot, orderBy, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, query, where, onSnapshot, orderBy, getDocs, limit } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Product, Review, DiscountCode } from '../types';
 import { Layout } from '../components/Layout';
 import { useCart } from '../context/CartContext';
-import { ReviewWidget } from '../components/ReviewWidget';
+import { lazy, Suspense } from 'react';
+const ReviewWidget = lazy(() => import('../components/ReviewWidget').then(m => ({ default: m.ReviewWidget })));
 import { formatCurrency, cn } from '../lib/utils';
 import { ShoppingCart, ShieldCheck, Truck, RotateCcw, Star, MessageSquare, User, Ticket, GitCompare } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -173,6 +174,7 @@ export const ProductDetails: React.FC = () => {
                 alt={product.name}
                 className="w-full h-full object-contain"
                 referrerPolicy="no-referrer"
+                loading="lazy"
               />
             </div>
           </div>
@@ -449,7 +451,9 @@ export const ProductDetails: React.FC = () => {
           </div>
         </div>
 
-        <ReviewWidget />
+        <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading reviews...</div>}>
+          <ReviewWidget />
+        </Suspense>
       </div>
     </Layout>
   );

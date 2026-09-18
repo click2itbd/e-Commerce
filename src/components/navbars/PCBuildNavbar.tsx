@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Cpu, ShoppingCart, User, Menu, X, LayoutDashboard, LogOut, ChevronDown } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, Cpu, Server } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
+import { useSettings } from '../../context/SettingsContext';
 import { auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
-import { useSettings } from '../../context/SettingsContext';
+import { setSiteContext } from '../../hooks/useSiteContext';
 
 const CATEGORIES = [
   { name: 'CPU', slug: 'cpu' },
@@ -24,178 +25,217 @@ const CATEGORIES = [
 ];
 
 export const PCBuildNavbar: React.FC = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isComponentsOpen, setIsComponentsOpen] = useState(false);
   const { items } = useCart();
-  const { user, isAdmin } = useAuth();
-  const navigate = useNavigate();
+  const { user, canAccessAdmin } = useAuth();
   const { settings } = useSettings();
-  
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsComponentsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    setSiteContext('pc-build');
   }, []);
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigate('/');
-    } catch (error) {
-      console.error('Logout error', error);
-    }
+    await signOut(auth);
+    navigate('/');
   };
 
   const cartItemCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
-    <nav className="sticky top-0 z-50 bg-[#111827] text-white shadow-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Left: Logo */}
-          <div className="flex-shrink-0 flex items-center">
-            <Link to="/" className="flex items-center space-x-2">
-              <Cpu className="h-8 w-8 text-blue-500" />
-              <span className="text-xl font-bold text-white tracking-wider">Click2IT</span>
-            </Link>
+    <header className="sticky top-0 z-50 w-full text-white shadow-md bg-[#0E2A47]">
+      <div className="container mx-auto px-4">
+        <div className="flex h-16 items-center justify-between gap-4">
+          {/* Logo */}
+          <Link to="/pc-build" className="flex items-center gap-2 shrink-0">
+            {settings.logoUrl ? (
+              <img src={settings.logoUrl} alt={settings.brandName} className="h-10 w-auto" referrerPolicy="no-referrer" />
+            ) : (
+              <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-10 md:h-12 w-auto object-contain" />
+            )}
+          </Link>
+
+          {/* Search Bar */}
+          <div className="hidden md:flex flex-1 max-w-xl relative">
+            <input
+              type="text"
+              placeholder="Search components..."
+              className="w-full border-none rounded-md py-2 px-4 focus:ring-2 transition-all bg-[#1a3a5f] text-white placeholder-gray-400"
+            />
+            <button className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+              <Search size={20} />
+            </button>
           </div>
 
-          {/* Center: Nav Links */}
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-8">
-              <Link to="/shop" className="hover:text-blue-500 transition-colors px-3 py-2 rounded-md text-sm font-medium">
-                Home
-              </Link>
-              <Link to="/pc-build" className="hover:text-blue-500 transition-colors px-3 py-2 rounded-md text-sm font-medium">
-                PC Builder
-              </Link>
-              <Link to="/compare" className="hover:text-blue-500 transition-colors px-3 py-2 rounded-md text-sm font-medium">
-                Compare
-              </Link>
-              
-              {/* Components Dropdown */}
-              <div className="relative" ref={dropdownRef}>
-                <button 
-                  onClick={() => setIsComponentsOpen(!isComponentsOpen)}
-                  className="flex items-center hover:text-blue-500 transition-colors px-3 py-2 rounded-md text-sm font-medium focus:outline-none"
-                >
-                  Components <ChevronDown className={`ml-1 h-4 w-4 transition-transform duration-200 ${isComponentsOpen ? 'rotate-180' : ''}`} />
-                </button>
-                
-                {isComponentsOpen && (
-                  <div className="absolute left-0 mt-2 w-96 rounded-md shadow-lg bg-[#1f2937] ring-1 ring-black ring-opacity-5 focus:outline-none">
-                    <div className="py-2 grid grid-cols-2 gap-x-2 gap-y-1 px-4" role="menu" aria-orientation="vertical">
-                      {CATEGORIES.map((cat) => (
-                        <Link
-                          key={cat.slug}
-                          to={`/category/${cat.slug}`}
-                          className="block px-2 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-blue-400 rounded-md transition-colors"
-                          role="menuitem"
-                          onClick={() => setIsComponentsOpen(false)}
-                        >
-                          {cat.name}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Cart, Account */}
-          <div className="hidden md:flex items-center space-x-6">
-            <Link to="/cart" className="relative p-2 text-gray-300 hover:text-blue-500 transition-colors">
-              <ShoppingCart className="h-6 w-6" />
+          {/* Actions */}
+          <div className="flex items-center gap-6">
+            <Link to="/cart" className="relative group">
+              <ShoppingCart className="transition-colors" style={{ color: 'white' }} />
               {cartItemCount > 0 && (
-                <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-blue-600 rounded-full">
+                <span className="absolute -top-2 -right-2 text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2" style={{ backgroundColor: settings.accentColor, borderColor: settings.primaryColor }}>
                   {cartItemCount}
                 </span>
               )}
             </Link>
 
             {user ? (
-              <div className="flex items-center space-x-4">
-                {isAdmin && (
-                  <Link to="/admin" className="text-gray-300 hover:text-blue-500 transition-colors" title="Admin Dashboard">
-                    <LayoutDashboard className="h-5 w-5" />
-                  </Link>
-                )}
-                <Link to="/profile" className="flex items-center space-x-2 text-gray-300 hover:text-blue-500 transition-colors">
-                  <User className="h-5 w-5" />
-                  <span className="text-sm font-medium">Account</span>
+              <div className="flex items-center gap-4">
+                <Link to="/profile" className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
+                  <User size={20} />
+                  <span className="text-sm font-medium">My Profile</span>
                 </Link>
-                <button onClick={handleLogout} className="text-gray-300 hover:text-red-500 transition-colors" title="Logout">
-                  <LogOut className="h-5 w-5" />
+                <button onClick={handleLogout} className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
+                  <LogOut size={20} />
+                  <span className="text-sm font-medium">Logout</span>
                 </button>
               </div>
             ) : (
-              <Link to="/login" className="flex items-center space-x-2 text-gray-300 hover:text-blue-500 transition-colors">
-                <User className="h-5 w-5" />
-                <span className="text-sm font-medium">Login</span>
+              <Link to="/login" className="flex items-center gap-1 hover:text-[#EF4444] transition-colors">
+                <User size={20} />
+                <span className="hidden sm:block text-sm font-medium">Login</span>
               </Link>
             )}
-          </div>
 
-          {/* Mobile menu button */}
-          <div className="flex md:hidden items-center space-x-4">
-            <Link to="/cart" className="relative p-2 text-gray-300 hover:text-blue-500">
-              <ShoppingCart className="h-6 w-6" />
-              {cartItemCount > 0 && (
-                <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-blue-600 rounded-full">
-                  {cartItemCount}
-                </span>
-              )}
-            </Link>
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none"
-            >
-              {isMenuOpen ? <X className="block h-6 w-6" /> : <Menu className="block h-6 w-6" />}
+            <button className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+              {isMenuOpen ? <X /> : <Menu />}
             </button>
           </div>
         </div>
       </div>
 
+      {/* Desktop Navigation */}
+      <nav className="hidden md:block bg-white text-[#081621] border-b border-gray-200">
+        <div className="container mx-auto px-4">
+          <ul className="flex items-center gap-8 h-12">
+            <li className="h-full">
+              <Link 
+                to="/shop" 
+                className="flex items-center gap-1 h-full text-sm font-bold transition-colors"
+                style={{ color: 'inherit' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = settings.accentColor}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
+              >
+                Home
+              </Link>
+            </li>
+            
+            <li className="h-full">
+              <Link 
+                to="/pc-build" 
+                className="flex items-center gap-2 h-full text-sm font-bold hover:underline" 
+                style={{ color: settings.accentColor }}
+              >
+                <Cpu size={16} /> PC Builder
+              </Link>
+            </li>
+
+            <li className="relative group h-full">
+              <div 
+                className="flex items-center gap-1 h-full text-sm font-bold transition-colors cursor-pointer"
+                style={{ color: 'inherit' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = settings.accentColor}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
+              >
+                Components
+                <ChevronDown size={14} />
+              </div>
+              <div className="absolute top-full left-0 w-96 bg-white shadow-xl border border-gray-100 rounded-b-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                <ul className="py-2 grid grid-cols-2">
+                  {CATEGORIES.map(sub => (
+                    <li key={sub.slug}>
+                      <Link 
+                        to={/category/}
+                        className="block px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
+                        style={{ color: 'inherit' }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = settings.accentColor}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
+                      >
+                        {sub.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </li>
+
+            <li className="h-full">
+              <Link 
+                to="/compare" 
+                className="flex items-center gap-1 h-full text-sm font-bold transition-colors"
+                style={{ color: 'inherit' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = settings.accentColor}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
+              >
+                Compare
+              </Link>
+            </li>
+            <li className="h-full">
+              <Link to="/" className="flex items-center gap-1 h-full text-sm font-bold transition-colors text-gray-500 hover:text-gray-900">
+                 Hosting
+              </Link>
+            </li>
+          </ul>
+        </div>
+      </nav>
+
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="md:hidden bg-[#1f2937] border-t border-gray-700">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <Link to="/shop" className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-700">Home</Link>
-            <Link to="/pc-build" className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-700">PC Builder</Link>
-            <Link to="/compare" className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-700">Compare</Link>
+        <div className="md:hidden border-t border-gray-700 p-4 bg-[#081621]">
+          <div className="flex flex-col gap-4">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search..."
+                className="w-full border-none rounded-md py-2 px-4 bg-[#0E2A47] text-white"
+              />
+              <Search className="absolute right-3 top-2.5 text-gray-400" size={18} />
+            </div>
+            {canAccessAdmin && (
+              <Link to="/admin" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
+                <LayoutDashboard size={20} /> Admin Dashboard
+              </Link>
+            )}
             
-            <div className="px-3 py-2">
-              <div className="text-base font-medium text-white mb-2">Components</div>
-              <div className="grid grid-cols-2 gap-2 pl-4">
-                {CATEGORIES.map(cat => (
-                  <Link key={cat.slug} to={`/category/${cat.slug}`} className="block py-1 text-sm text-gray-400 hover:text-blue-400">
-                    {cat.name}
-                  </Link>
-                ))}
+            {/* Dynamic Menus in Mobile */}
+            <div className="border-t border-gray-700 pt-4">
+              <Link to="/shop" className="block py-2 text-sm font-bold" onClick={() => setIsMenuOpen(false)}>Home</Link>
+              <Link to="/pc-build" className="block py-2 text-sm font-bold" onClick={() => setIsMenuOpen(false)}>PC Builder</Link>
+              <Link to="/compare" className="block py-2 text-sm font-bold" onClick={() => setIsMenuOpen(false)}>Compare</Link>
+              
+              <div className="flex flex-col mt-2">
+                <span className="py-2 text-sm font-bold">Components</span>
+                <div className="pl-4 flex flex-col border-l border-gray-700">
+                  {CATEGORIES.map(sub => (
+                    <Link 
+                      key={sub.slug}
+                      to={/category/}
+                      className="py-1.5 text-xs text-gray-400 hover:text-[#EF4444]"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      {sub.name}
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
-            
+
             {user ? (
-              <div className="border-t border-gray-700 pt-4 pb-1">
-                <Link to="/profile" className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-700">Account</Link>
-                {isAdmin && <Link to="/admin" className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-700">Dashboard</Link>}
-                <button onClick={handleLogout} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-700 text-red-400">Logout</button>
+              <div className="flex flex-col gap-2">
+                <Link to="/profile" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
+                  <User size={20} /> My Profile
+                </Link>
+                <button onClick={handleLogout} className="flex items-center gap-2 py-2 text-left">
+                  <LogOut size={20} /> Logout
+                </button>
               </div>
             ) : (
-              <div className="border-t border-gray-700 pt-4 pb-1">
-                <Link to="/login" className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-700">Login</Link>
-              </div>
+              <Link to="/login" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
+                <User size={20} /> Login / Register
+              </Link>
             )}
           </div>
         </div>
       )}
-    </nav>
+    </header>
   );
 };

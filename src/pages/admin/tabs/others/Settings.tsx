@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Briefcase,
   ShoppingCart,
@@ -12,6 +12,10 @@ import {
   CheckSquare,
   Eye,
   EyeOff,
+  BarChart2,
+  Activity,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn, formatCurrency } from "../../../../lib/utils";
@@ -219,6 +223,11 @@ export const Settings = () => {
                 id: "domain_reseller",
                 icon: SettingsIcon,
                 label: "Domain Reseller API",
+              },
+              {
+                id: "analytics",
+                icon: BarChart2,
+                label: "Analytics & Tracking",
               },
             ].map((tab) => (
               <button
@@ -1781,6 +1790,120 @@ export const Settings = () => {
                   </p>
                 </div>
                 </div>
+              </div>
+            </div>
+          ) : settingsTab === "analytics" ? (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <Activity size={24} className="text-blue-100" />
+                  <h3 className="text-xl font-bold">Analytics & Tracking</h3>
+                </div>
+                <p className="text-blue-100 text-sm max-w-2xl">
+                  Connect your store to powerful analytics platforms to track visitors, sales, and ad performance. Scripts are injected dynamically without slowing down your site.
+                </p>
+              </div>
+
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50/50">
+                {/* GA4 Card */}
+                <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow relative">
+                  <div className="absolute top-4 right-4 flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-gray-100 text-gray-500">
+                    {settingsFormData.googleAnalyticsId ? <><CheckCircle size={12} className="text-green-500" /> Active</> : <><AlertCircle size={12} /> Disabled</>}
+                  </div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+                      <BarChart2 className="text-orange-600" size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-800 text-sm">Google Analytics 4</h4>
+                      <p className="text-[11px] text-gray-500">Track user behavior and traffic</p>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-[11px] font-bold text-gray-500 mb-1 uppercase tracking-wider">
+                      Measurement ID
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsFormData.googleAnalyticsId || ""}
+                      onChange={(e) =>
+                        setSettingsFormData({
+                          ...settingsFormData,
+                          googleAnalyticsId: e.target.value,
+                        })
+                      }
+                      className="w-full text-sm border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 transition-all font-mono"
+                      placeholder="G-XXXXXXXXXX"
+                    />
+                  </div>
+                </div>
+
+                {/* FB Pixel Card */}
+                <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow relative">
+                  <div className="absolute top-4 right-4 flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-gray-100 text-gray-500">
+                    {settingsFormData.facebookPixelId ? <><CheckCircle size={12} className="text-green-500" /> Active</> : <><AlertCircle size={12} /> Disabled</>}
+                  </div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <Activity className="text-blue-600" size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-800 text-sm">Meta (Facebook) Pixel</h4>
+                      <p className="text-[11px] text-gray-500">Track ad conversions and events</p>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-[11px] font-bold text-gray-500 mb-1 uppercase tracking-wider">
+                      Pixel ID
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsFormData.facebookPixelId || ""}
+                      onChange={(e) =>
+                        setSettingsFormData({
+                          ...settingsFormData,
+                          facebookPixelId: e.target.value,
+                        })
+                      }
+                      className="w-full text-sm border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 transition-all font-mono"
+                      placeholder="123456789012345"
+                    />
+                  </div>
+                </div>
+
+                {/* GTM Card */}
+                <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow relative md:col-span-2">
+                  <div className="absolute top-4 right-4 flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-gray-100 text-gray-500">
+                    {settingsFormData.googleTagManagerId ? <><CheckCircle size={12} className="text-green-500" /> Active</> : <><AlertCircle size={12} /> Disabled</>}
+                  </div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                      <SettingsIcon className="text-indigo-600" size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-800 text-sm">Google Tag Manager</h4>
+                      <p className="text-[11px] text-gray-500">Advanced tag management container</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 max-w-md">
+                    <label className="block text-[11px] font-bold text-gray-500 mb-1 uppercase tracking-wider">
+                      Container ID
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsFormData.googleTagManagerId || ""}
+                      onChange={(e) =>
+                        setSettingsFormData({
+                          ...settingsFormData,
+                          googleTagManagerId: e.target.value,
+                        })
+                      }
+                      className="w-full text-sm border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 transition-all font-mono"
+                      placeholder="GTM-XXXXXXX"
+                    />
+                  </div>
+                </div>
+
               </div>
             </div>
           ) : (

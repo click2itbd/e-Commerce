@@ -929,6 +929,22 @@ domainRouter.post('/manage', requireFirebaseAuth, async (req: any, res: Response
     
     if (command === 'set_ns') {
       const result = await (provider as any).setNameservers(domain, extraParams?.ns0, extraParams?.ns1);
+      if (result.success) {
+        // Update Firestore
+        try {
+          const db = getAdminDb();
+          const domainsRef = db.collection('domainOrders');
+          const snap = await domainsRef.where('domain', '==', domain).where('status', '==', 'active').get();
+          
+          if (!snap.empty) {
+            const doc = snap.docs[0];
+            const newNs = [extraParams?.ns0, extraParams?.ns1].filter(Boolean);
+            await doc.ref.update({ nameServers: newNs, updatedAt: new Date() });
+          }
+        } catch (dbErr) {
+          console.error('Failed to update Firestore after set_ns:', dbErr);
+        }
+      }
       return res.json({ success: result.success, data: result, error: result.error });
     }
     

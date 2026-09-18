@@ -86,38 +86,51 @@ export const RetailPOS = () => {
       }
       
       if (e.key === 'Enter') {
-        if (barcode.trim().length > 0) {
-          const scanValue = barcode.trim();
-          const searchLower = scanValue.toLowerCase();
-          
-          const exactMatches = products.filter(p => 
-            p.id === scanValue || 
-            (p as any).barcode === scanValue || 
-            p.name.toLowerCase() === searchLower
-          );
-          
-          const partialMatches = products.filter(p => p.name.toLowerCase().includes(searchLower));
-          
-          const bestMatch = exactMatches.length === 1 ? exactMatches[0] : (partialMatches.length === 1 ? partialMatches[0] : null);
+          if (barcode.trim().length > 0) {
+            const scanValue = barcode.trim();
+            const searchLower = scanValue.toLowerCase();
+            
+            let matchedSerial: string | undefined = undefined;
 
-          if (bestMatch) {
-            addToCart(bestMatch);
-            setSearchQuery('');
-            toast.success(`Scanned: ${bestMatch.name}`);
-          } else if (exactMatches.length > 1 || partialMatches.length > 1) {
-            toast.success(`Found multiple items. Please select manually.`);
-          } else {
-            toast.error('No matching product found for scan');
+            const exactMatches = products.filter(p => {
+              if (
+                p.id.toLowerCase() === searchLower || 
+                (p.sku || '').toLowerCase() === searchLower || 
+                (p.model || '').toLowerCase() === searchLower || 
+                p.name.toLowerCase() === searchLower
+              ) {
+                return true;
+              }
+              const foundSerial = (p.availableSerials || []).find((s: string) => s.toLowerCase() === searchLower);
+              if (foundSerial) {
+                matchedSerial = foundSerial;
+                return true;
+              }
+              return false;
+            });
+            
+            const partialMatches = products.filter(p => p.name.toLowerCase().includes(searchLower) || (p.sku || '').toLowerCase().includes(searchLower));
+            
+            const bestMatch = exactMatches.length === 1 ? exactMatches[0] : (partialMatches.length === 1 ? partialMatches[0] : null);
+
+            if (bestMatch) {
+              addToCart(bestMatch, matchedSerial);
+              setSearchQuery('');
+              toast.success(`Scanned: ${bestMatch.name}`);
+            } else if (exactMatches.length > 1 || partialMatches.length > 1) {
+              toast.success(`Found multiple items. Please select manually.`);
+            } else {
+              toast.error('No matching product found for scan');
+            }
           }
-        }
-        barcode = '';
-      } else if (e.key.length === 1) {
-        barcode += e.key;
-        clearTimeout(timeout);
-        timeout = setTimeout(() => {
           barcode = '';
-        }, 50);
-      }
+        } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+          barcode += e.key;
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            barcode = '';
+          }, 200);
+        }
     };
 
     window.addEventListener('keydown', handleKeyDown);

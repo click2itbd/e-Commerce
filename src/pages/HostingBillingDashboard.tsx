@@ -194,15 +194,19 @@ export const HostingBillingDashboard: React.FC = () => {
                <User size={16} className="text-gray-500" />
             </div>
             <span className="text-sm font-medium text-gray-700 hidden sm:block">InHostbilling Team</span>
-            <LogOut 
-              size={16} 
-              className="text-gray-400 ml-2 cursor-pointer hover:text-gray-600" 
+            <button
               onClick={() => {
                 import('firebase/auth').then(({ signOut }) => signOut(auth));
                 navigate('/');
               }}
               title="Logout"
-            />
+              className="ml-2"
+            >
+              <LogOut 
+                size={16} 
+                className="text-gray-400 cursor-pointer hover:text-gray-600" 
+              />
+            </button>
           </div>
         </div>
       </header>
@@ -600,7 +604,7 @@ export const HostingBillingDashboard: React.FC = () => {
                           <td className="py-4 px-4 text-sm font-bold text-gray-900">{formatCurrency(order.total)}</td>
                           <td className="py-4 px-4">
                             <span className={`px-2 py-1 rounded text-xs font-bold ${
-                              order.status === 'delivered' || order.status === 'shipped' || order.status === 'completed' ? 'bg-green-100 text-green-700' :
+                              order.status === 'delivered' || order.status === 'shipped' || (order as any).status === 'completed' ? 'bg-green-100 text-green-700' :
                               order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
                               'bg-amber-100 text-amber-700'
                             }`}>
@@ -608,7 +612,7 @@ export const HostingBillingDashboard: React.FC = () => {
                             </span>
                           </td>
                           <td className="py-4 px-4 text-right">
-                            {(order.status === 'delivered' || order.status === 'shipped' || order.status === 'completed' || order.paymentStatus === 'paid') && (
+                            {(order.status === 'delivered' || order.status === 'shipped' || (order as any).status === 'completed' || (order as any).paymentStatus === 'paid') && (
                               <button
                                 onClick={() => generatePDF(order, 'invoice', settings)}
                                 className="inline-flex items-center gap-1 bg-white hover:bg-gray-50 text-blue-600 border border-gray-200 px-3 py-1.5 rounded text-xs font-medium shadow-sm transition-colors"

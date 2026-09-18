@@ -5,7 +5,8 @@ import { toast } from 'react-hot-toast';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
-export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
+export type OrderStatus = string;
+export const DEFAULT_ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
 import { Receipt, Search, Download, Filter, Eye, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, Globe, Server, Cpu, ShoppingBag, Layers } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
@@ -46,6 +47,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [orderCategoryFilter, setOrderCategoryFilter] = useState<OrderCategory>('all');
   const { settings } = useSettings();
+  const activeStatuses = (settings as any)?.customOrderStatuses || DEFAULT_ORDER_STATUSES;
 
   const categoryCounts = {
     all: orders.length,
@@ -190,12 +192,9 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
               className="text-sm border-gray-200 rounded-lg focus:ring-[#EF4444] focus:border-[#EF4444]"
             >
               <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="processing">Processing</option>
-              <option value="shipped">Shipped</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="returned">Returned</option>
+              {activeStatuses.map((s: string) => (
+                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+              ))}
             </select>
           </div>
           <div className="flex items-center gap-2">
@@ -253,12 +252,9 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                       defaultValue=""
                     >
                       <option value="" disabled>Select Status</option>
-                      <option value="pending">Pending</option>
-                      <option value="processing">Processing</option>
-                      <option value="shipped">Shipped</option>
-                      <option value="delivered">Delivered</option>
-                      <option value="cancelled">Cancelled</option>
-                      <option value="returned">Returned</option>
+                        {activeStatuses.map((s: string) => (
+                          <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                        ))}
                     </select>
                   </div>
                   <div className="h-4 w-[1px] bg-gray-700" />
@@ -461,12 +457,9 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                             disabled={!hasPermission('manage_orders')}
                             className="text-xs border-gray-200 rounded-md focus:ring-[#EF4444] disabled:bg-gray-50 disabled:text-gray-500 font-semibold"
                           >
-                            <option value="pending">Pending</option>
-                            <option value="processing">Processing</option>
-                            <option value="shipped">Shipped</option>
-                            <option value="delivered">Delivered</option>
-                            <option value="returned">Returned</option>
-                            <option value="cancelled">Cancelled</option>
+                            {activeStatuses.map((s: string) => (
+                              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                            ))}
                           </select>
                         </td>
                         <td className="px-6 py-4 text-right">

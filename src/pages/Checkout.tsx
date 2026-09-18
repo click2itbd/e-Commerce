@@ -231,29 +231,29 @@ export const Checkout: React.FC = () => {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto px-4 py-8 mb-20">
-        <div className="flex justify-between items-center mb-6">
+      <div className="max-w-5xl mx-auto px-4 py-12 mb-20 bg-slate-50 min-h-screen">
+        <div className="flex justify-between items-end mb-10">
           <div>
-            <h1 className="text-3xl font-light text-[#1a2b3c]">Checkout</h1>
-            <p className="text-gray-500 text-sm mt-1">Please enter your personal details and billing information to checkout.</p>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Checkout</h1>
+            <p className="text-slate-500 text-base mt-2">Please enter your personal details and billing information to complete your order.</p>
           </div>
           {!user && (
             <button 
               onClick={() => navigate('/login')}
-              className="bg-[#17a2b8] hover:bg-[#138496] px-4 py-2 text-white rounded text-sm transition-colors"
+              className="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-6 py-2.5 text-slate-700 font-semibold rounded-xl text-sm transition-all shadow-sm"
             >
-              Already Registered?
+              Already Registered? Login
             </button>
           )}
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="bg-white p-8 md:p-10 rounded-3xl shadow-sm border border-slate-100">
           {!user && (
-            <div className="mb-8 relative border-t border-gray-200 pt-6">
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#f8f9fa] px-4 text-[#1a2b3c] text-xl font-light">Sign Up</span>
-              <p className="text-center text-sm text-gray-400 mb-4">Save time by signing up using an existing account with any of the services below.</p>
+            <div className="mb-12 relative border-t border-slate-200 pt-8 mt-4">
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">Sign Up</span>
+              <p className="text-center text-slate-500 mb-6">Save time by signing up using an existing account.</p>
               <div className="flex justify-center">
-                <button type="button" onClick={handleGoogleSignIn} className="flex flex-row items-center justify-center gap-2 border border-gray-300 rounded px-6 py-2 hover:bg-gray-50 bg-white shadow-sm transition-colors text-sm">
+                <button type="button" onClick={handleGoogleSignIn} className="flex flex-row items-center justify-center gap-3 border border-slate-200 rounded-xl px-8 py-3 hover:bg-slate-50 bg-white shadow-sm transition-all text-sm font-bold text-slate-700 hover:-translate-y-0.5">
                   <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
                   Sign in with Google
                 </button>
@@ -261,137 +261,156 @@ export const Checkout: React.FC = () => {
             </div>
           )}
 
-          <div className="mb-8 relative border-t border-gray-200 pt-6">
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#f8f9fa] px-4 text-[#1a2b3c] text-sm">Personal Information</span>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} placeholder="First Name" required className="border border-gray-300 p-2 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8] focus:ring-1 focus:ring-[#17a2b8]" />
-              <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} placeholder="Last Name" required className="border border-gray-300 p-2 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8]" />
-              <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Email Address" required className="border border-gray-300 p-2 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8]" />
+          <div className="mb-12 relative border-t border-slate-200 pt-8">
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">Personal Information</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} placeholder="First Name *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
+              <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} placeholder="Last Name *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
+              <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Email Address *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
               <div className="flex">
-                <span className="inline-flex items-center px-3 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-l">
-                  <img src="https://flagcdn.com/w20/bd.png" alt="BD" className="w-4 h-3 mr-1" /> +880
+                <span className="inline-flex items-center px-4 border border-r-0 border-slate-200 bg-slate-100 text-slate-600 font-medium text-sm rounded-l-xl">
+                  <img src="https://flagcdn.com/w20/bd.png" alt="BD" className="w-5 h-auto mr-2 rounded-sm shadow-sm" /> +880
                 </span>
-                <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="Phone Number" required className="border border-gray-300 p-2 rounded-r text-sm w-full focus:outline-none focus:border-[#17a2b8] flex-1" />
+                <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="Phone Number *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-r-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all flex-1" />
               </div>
             </div>
           </div>
 
-          <div className="mb-8 relative border-t border-gray-200 pt-6">
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#f8f9fa] px-4 text-[#1a2b3c] text-sm">Billing Address</span>
-            <div className="space-y-4">
-              <input type="text" name="company" value={formData.company} onChange={handleChange} placeholder="Company Name (Optional)" className="border border-gray-300 p-2 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8]" />
-              <input type="text" name="address1" value={formData.address1} onChange={handleChange} placeholder="Street Address" required className="border border-gray-300 p-2 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8]" />
-              <input type="text" name="address2" value={formData.address2} onChange={handleChange} placeholder="Street Address 2" className="border border-gray-300 p-2 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8]" />
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <input type="text" name="city" value={formData.city} onChange={handleChange} placeholder="City" required className="border border-gray-300 p-2 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8]" />
-                <input type="text" name="state" value={formData.state} onChange={handleChange} placeholder="State" required className="border border-gray-300 p-2 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8]" />
-                <input type="text" name="postcode" value={formData.postcode} onChange={handleChange} placeholder="Postcode" required className="border border-gray-300 p-2 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8]" />
+          <div className="mb-12 relative border-t border-slate-200 pt-8">
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">Billing Address</span>
+            <div className="space-y-5">
+              <input type="text" name="company" value={formData.company} onChange={handleChange} placeholder="Company Name (Optional)" className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
+              <input type="text" name="address1" value={formData.address1} onChange={handleChange} placeholder="Street Address *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
+              <input type="text" name="address2" value={formData.address2} onChange={handleChange} placeholder="Apartment, suite, etc. (Optional)" className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <input type="text" name="city" value={formData.city} onChange={handleChange} placeholder="City *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
+                <input type="text" name="state" value={formData.state} onChange={handleChange} placeholder="State/Division *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
+                <input type="text" name="postcode" value={formData.postcode} onChange={handleChange} placeholder="Postcode *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
               </div>
-              <select name="country" value={formData.country} onChange={handleChange} className="border border-gray-300 p-2 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8]">
+              <select name="country" value={formData.country} onChange={handleChange} className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all">
                 <option value="Bangladesh">Bangladesh</option>
               </select>
             </div>
           </div>
 
-          <div className="mb-8 relative border-t border-gray-200 pt-6">
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#f8f9fa] px-4 text-[#17a2b8] text-sm">Additional Information</span>
-            <p className="text-center text-xs text-gray-400 mb-4 italic">(required fields are marked with *)</p>
-            <div>
-              <label className="block text-sm text-gray-500 mb-1">How did you find us?</label>
-              <select name="source" value={formData.source} onChange={handleChange} className="border border-gray-300 p-2 text-sm max-w-xs w-full focus:outline-none focus:border-[#17a2b8]">
-                <option value="None">None</option>
-                <option value="Google">Google</option>
+          <div className="mb-12 relative border-t border-slate-200 pt-8">
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">Additional Information</span>
+            <div className="max-w-xs mx-auto text-center">
+              <label className="block text-sm font-medium text-slate-700 mb-3">How did you find us?</label>
+              <select name="source" value={formData.source} onChange={handleChange} className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-center">
+                <option value="None">Please Select...</option>
+                <option value="Google">Google Search</option>
                 <option value="Social Media">Social Media</option>
-                <option value="Friend">Friend</option>
+                <option value="Friend">Friend / Recommendation</option>
               </select>
             </div>
           </div>
 
-          <div className="mb-8 relative border-t border-gray-200 pt-6">
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#f8f9fa] px-4 text-[#17a2b8] text-sm">Domain Registrant Information</span>
-            <p className="text-xs text-gray-400 mb-4 text-center px-4">You may specify alternative registered contact details for the domain registration(s) in your order when placing an order on behalf of another person or entity. If you do not require this, you can skip this section.</p>
-            <div className="flex justify-center">
-              <select name="domainContact" value={formData.domainContact} onChange={handleChange} className="border border-gray-300 p-2 text-sm min-w-[300px] focus:outline-none focus:border-[#17a2b8]">
-                <option value="default">Use Default Contact (Details Above)</option>
-                <option value="custom">Add New Contact</option>
-              </select>
-            </div>
-          </div>
-
-          {!user && (
-            <div className="mb-8 relative border-t border-gray-200 pt-6">
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#f8f9fa] px-4 text-[#17a2b8] text-sm">Account Security</span>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
-                <div className="relative">
-                  <Lock className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password" required className="border border-gray-300 p-2 pl-8 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8]" />
-                </div>
-                <div className="relative">
-                  <Lock className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm Password" required className="border border-gray-300 p-2 pl-8 rounded text-sm w-full focus:outline-none focus:border-[#17a2b8]" />
-                </div>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <button type="button" onClick={generatePassword} className="border border-gray-300 bg-gray-50 text-gray-700 px-3 py-1 rounded">Generate Password</button>
-                <span className="text-gray-400">Password Strength: {formData.password.length > 8 ? 'Strong' : formData.password.length > 0 ? 'Weak' : 'Enter a Password'}</span>
+          {items.some(item => item.itemType === 'domain') && (
+            <div className="mb-10 relative border-t border-slate-200 pt-8">
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-50 px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">Domain Registrant Information</span>
+              <p className="text-sm text-slate-500 mb-6 text-center max-w-2xl mx-auto">You may specify alternative registered contact details for the domain registration(s) in your order when placing an order on behalf of another person or entity.</p>
+              <div className="flex justify-center">
+                <select name="domainContact" value={formData.domainContact} onChange={handleChange} className="border border-slate-200 p-3 rounded-xl text-sm min-w-[300px] bg-white focus:outline-none focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all">
+                  <option value="default">Use Default Contact (Details Above)</option>
+                  <option value="custom">Add New Contact</option>
+                </select>
               </div>
             </div>
           )}
 
-          <div className="mb-8 relative border-t border-gray-200 pt-6">
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#f8f9fa] px-4 text-[#17a2b8] text-sm">Payment Details</span>
-            <div className="bg-[#d4edda] text-[#155724] border border-[#c3e6cb] p-4 text-center rounded m-4 space-y-1">
-              <div className="text-sm">Subtotal: <span className="font-bold">Tk. {total.toFixed(2)} BDT</span></div>
-              <div className="text-sm">Shipping: <span className="font-bold">Tk. {shippingCost.toFixed(2)} BDT</span></div>
-              <div className="text-base font-bold">Total Due Today: <span>Tk. {grandTotal.toFixed(2)} BDT</span></div>
+          {!user && (
+            <div className="mb-12 relative border-t border-slate-200 pt-8">
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">Account Security</span>
+              <p className="text-center text-sm text-slate-500 mb-6">Create a password to easily access your orders and track status.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-3">
+                <div className="relative group">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-[#0E2A47] transition-colors" />
+                  <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password *" required className="border border-slate-200 bg-slate-50/50 p-3.5 pl-11 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
+                </div>
+                <div className="relative group">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-[#0E2A47] transition-colors" />
+                  <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm Password *" required className="border border-slate-200 bg-slate-50/50 p-3.5 pl-11 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row justify-between items-center text-sm gap-3">
+                <button type="button" onClick={generatePassword} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors">Generate Password</button>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">Password Strength:</span>
+                  <span className={`font-semibold ${formData.password.length > 8 ? 'text-emerald-500' : formData.password.length > 0 ? 'text-amber-500' : 'text-slate-400'}`}>
+                    {formData.password.length > 8 ? 'Strong' : formData.password.length > 0 ? 'Weak' : 'Enter Password'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mb-12 relative border-t border-slate-200 pt-8">
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">Payment Details</span>
+            
+            <div className="bg-slate-50 border border-slate-100 p-6 rounded-2xl mb-8">
+              <div className="space-y-3 max-w-sm mx-auto">
+                <div className="flex justify-between text-slate-600">
+                  <span>Subtotal:</span>
+                  <span className="font-semibold">৳ {total.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600 pb-3 border-b border-slate-200">
+                  <span>Shipping:</span>
+                  <span className="font-semibold">৳ {shippingCost.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-slate-900 pt-1">
+                  <span className="font-bold text-lg">Total Due:</span>
+                  <span className="font-black text-xl text-[#6EC72A]">৳ {grandTotal.toFixed(2)}</span>
+                </div>
+              </div>
             </div>
             
-            <p className="text-xs text-gray-500 mb-2">Please choose your preferred method of payment.</p>
-            <div className="flex flex-wrap gap-4 items-center">
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600">
-                <input type="radio" name="paymentMethod" value="bkash" checked={formData.paymentMethod === 'bkash'} onChange={handleChange} className="text-[#17a2b8] focus:ring-[#17a2b8]" />
-                bKash
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600">
-                <input type="radio" name="paymentMethod" value="nagad" checked={formData.paymentMethod === 'nagad'} onChange={handleChange} className="text-[#17a2b8] focus:ring-[#17a2b8]" />
-                Nagad
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-400 hover:text-gray-600">
-                <input type="radio" name="paymentMethod" value="card" checked={formData.paymentMethod === 'card'} onChange={handleChange} className="text-[#17a2b8] focus:ring-[#17a2b8]" />
-                Master Card & Visa Card
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-400 hover:text-gray-600">
-                <input type="radio" name="paymentMethod" value="bank" checked={formData.paymentMethod === 'bank'} onChange={handleChange} className="text-[#17a2b8] focus:ring-[#17a2b8]" />
-                Bank Transfer (BD)
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-400 hover:text-gray-600">
-                <input type="radio" name="paymentMethod" value="other" checked={formData.paymentMethod === 'other'} onChange={handleChange} className="text-[#17a2b8] focus:ring-[#17a2b8]" />
-                Others Gateway (Open Ticket)
-              </label>
+            <p className="text-center text-slate-600 font-medium mb-6">Select Payment Method</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
+              {[
+                { id: 'bkash', label: 'bKash', img: 'https://freelogopng.com/images/all_img/1656234745bkash-app-logo-png.png' },
+                { id: 'nagad', label: 'Nagad', img: 'https://download.logo.wine/logo/Nagad/Nagad-Logo.wine.png' },
+                { id: 'card', label: 'Cards (Visa/Master)', img: 'https://cdn-icons-png.flaticon.com/512/196/196578.png' },
+                { id: 'bank', label: 'Bank Transfer', img: 'https://cdn-icons-png.flaticon.com/512/2830/2830284.png' }
+              ].map(method => (
+                <label key={method.id} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-3 transition-all ${formData.paymentMethod === method.id ? 'border-[#6EC72A] bg-[#6EC72A]/5' : 'border-slate-100 hover:border-slate-300'}`}>
+                  <input type="radio" name="paymentMethod" value={method.id} checked={formData.paymentMethod === method.id} onChange={handleChange} className="hidden" />
+                  <div className="h-10 flex items-center justify-center">
+                    <img src={method.img} alt={method.label} className="max-h-full object-contain mix-blend-multiply opacity-90" />
+                  </div>
+                  <span className={`text-xs font-semibold text-center ${formData.paymentMethod === method.id ? 'text-[#6EC72A]' : 'text-slate-500'}`}>{method.label}</span>
+                </label>
+              ))}
             </div>
           </div>
 
-          <div className="mb-8 relative border-t border-gray-200 pt-6">
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#f8f9fa] px-4 text-[#17a2b8] text-sm">Additional Notes</span>
+          <div className="mb-12 relative border-t border-slate-200 pt-8">
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">Additional Notes</span>
             <textarea 
               name="notes"
               value={formData.notes}
               onChange={handleChange}
-              placeholder="You can enter any additional notes or information you want included with your order here..."
+              placeholder="Enter any additional notes, delivery instructions, or special requests..."
               rows={4}
-              className="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-[#17a2b8]"
+              className="w-full border border-slate-200 bg-slate-50/50 rounded-xl p-4 text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all resize-y"
             ></textarea>
           </div>
 
-          <div className="flex flex-col items-center justify-center gap-4">
-            <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
-              <input type="checkbox" name="termsAccepted" checked={formData.termsAccepted} onChange={handleChange} className="focus:ring-[#17a2b8]" />
-              I have read and agree to the Terms of Service
+          <div className="flex flex-col items-center justify-center gap-6 pt-4 border-t border-slate-100">
+            <label className="flex items-center gap-3 text-sm text-slate-600 cursor-pointer group">
+              <div className="relative flex items-center">
+                <input type="checkbox" name="termsAccepted" checked={formData.termsAccepted} onChange={handleChange} className="w-5 h-5 border-2 border-slate-300 rounded text-[#0E2A47] focus:ring-[#0E2A47] cursor-pointer transition-colors" />
+              </div>
+              <span>I have read and agree to the <a href="/terms" className="text-[#0E2A47] font-semibold hover:underline" target="_blank">Terms of Service</a> & Privacy Policy</span>
             </label>
 
-            <button type="submit" disabled={isProcessing} className="bg-[#337ab7] hover:bg-[#286090] text-white font-bold py-2 px-6 rounded text-lg flex items-center gap-2 disabled:opacity-50 transition-colors">
-              {isProcessing ? 'Processing...' : 'Complete Order'}
-              <ArrowRight className="w-5 h-5 bg-white text-[#337ab7] rounded-full p-0.5" />
+            <button type="submit" disabled={isProcessing} className="bg-gradient-to-r from-[#0E2A47] to-[#1a426e] hover:shadow-xl hover:shadow-[#0E2A47]/20 hover:-translate-y-0.5 text-white font-bold py-4 px-10 rounded-xl text-lg flex items-center gap-3 disabled:opacity-50 disabled:hover:translate-y-0 transition-all min-w-[300px] justify-center group">
+              {isProcessing ? 'Processing Order...' : 'Complete Order'}
+              {!isProcessing && (
+                <span className="bg-white/20 p-1.5 rounded-full group-hover:bg-white/30 transition-colors">
+                  <ArrowRight size={20} />
+                </span>
+              )}
             </button>
           </div>
         </form>
