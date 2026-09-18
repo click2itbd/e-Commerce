@@ -888,13 +888,6 @@ const HostingPlansTab: React.FC = () => {
     }
   };
 
-  // Filtered packages
-  const filteredPackages = useMemo(() => {
-    if (packageCategoryFilter === 'all') return packages;
-    return packages.filter(p => (p.category || 'shared') === packageCategoryFilter);
-  }, [packages, packageCategoryFilter]);
-
-  const uniqueCategories = Array.from(new Set(packages.map(p => p.category || 'shared')));
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
