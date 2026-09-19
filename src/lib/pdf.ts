@@ -279,6 +279,37 @@ export const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quota
           }
         }
       }
+
+      // Notes & Terms
+      let currentBottomY = currTotalY + 15;
+      if (o.notes || o.termsAndConditions) {
+        if (o.notes) {
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(30, 58, 138);
+          doc.text('Notes:', 20, currentBottomY);
+          currentBottomY += 5;
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(80, 80, 80);
+          const splitNotes = doc.splitTextToSize(o.notes, 120);
+          doc.text(splitNotes, 20, currentBottomY);
+          currentBottomY += (splitNotes.length * 4) + 5;
+        }
+
+        if (o.termsAndConditions) {
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(30, 58, 138);
+          doc.text('Terms & Conditions:', 20, currentBottomY);
+          currentBottomY += 5;
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(80, 80, 80);
+          const splitTerms = doc.splitTextToSize(o.termsAndConditions, 120);
+          doc.text(splitTerms, 20, currentBottomY);
+        }
+      }
     }
   }
 

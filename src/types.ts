@@ -128,6 +128,8 @@ export interface Order {
   invoiceNumber?: string;
   discountAmount?: number;
   discountCode?: string;
+  notes?: string;
+  termsAndConditions?: string;
   createdAt: string;
 }
 

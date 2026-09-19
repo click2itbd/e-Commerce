@@ -3095,6 +3095,40 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
       } else {
          currentY = (doc as any).lastAutoTable.finalY + 30;
       }
+
+      // Notes & Terms
+      if (type !== 'receipt') {
+        const o = order as Order;
+        if (o.notes || o.termsAndConditions) {
+          if (o.notes) {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(30, 58, 138);
+            doc.text('Notes:', 20, currentY);
+            currentY += 5;
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(80, 80, 80);
+            const splitNotes = doc.splitTextToSize(o.notes, 120);
+            doc.text(splitNotes, 20, currentY);
+            currentY += (splitNotes.length * 4) + 5;
+          }
+  
+          if (o.termsAndConditions) {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(30, 58, 138);
+            doc.text('Terms & Conditions:', 20, currentY);
+            currentY += 5;
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(80, 80, 80);
+            const splitTerms = doc.splitTextToSize(o.termsAndConditions, 120);
+            doc.text(splitTerms, 20, currentY);
+            currentY += (splitTerms.length * 4) + 5;
+          }
+        }
+      }
     }
     
     // ----- FOOTER -----

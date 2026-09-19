@@ -23,6 +23,7 @@ export const QuotationManager: React.FC = () => {
     shippingAddress: '',
     items: [] as CartItem[],
     discountAmount: 0,
+    termsAndConditions: '',
   });
   const [productSearch, setProductSearch] = useState('');
 
@@ -75,6 +76,7 @@ export const QuotationManager: React.FC = () => {
         items: formData.items,
         total: Math.max(0, subtotal - formData.discountAmount),
         discountAmount: formData.discountAmount,
+        termsAndConditions: formData.termsAndConditions,
         createdAt: new Date().toISOString(),
       };
 
@@ -83,7 +85,7 @@ export const QuotationManager: React.FC = () => {
       toast.success('Quotation created successfully!');
       setIsCreating(false);
       setFormData({
-        customerName: '', customerPhone: '', customerEmail: '', shippingAddress: '', items: [], discountAmount: 0
+        customerName: '', customerPhone: '', customerEmail: '', shippingAddress: '', items: [], discountAmount: 0, termsAndConditions: ''
       });
     } catch (err) {
       console.error(err);
@@ -315,8 +317,25 @@ export const QuotationManager: React.FC = () => {
               )}
             </div>
 
-            <div className="flex justify-end gap-4 mt-4">
-               <div className="text-right space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+               <div>
+                  <h4 className="font-bold text-sm mb-2 text-gray-700">Terms & Conditions</h4>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <button type="button" onClick={() => setFormData(prev => ({...prev, termsAndConditions: prev.termsAndConditions + (prev.termsAndConditions ? '\n' : '') + '- 100% Advance Payment'}))} className="text-[10px] bg-gray-100 hover:bg-gray-200 border px-2 py-1 rounded">100% Advance</button>
+                    <button type="button" onClick={() => setFormData(prev => ({...prev, termsAndConditions: prev.termsAndConditions + (prev.termsAndConditions ? '\n' : '') + '- 50% Advance, Rest after delivery'}))} className="text-[10px] bg-gray-100 hover:bg-gray-200 border px-2 py-1 rounded">50% Advance</button>
+                    <button type="button" onClick={() => setFormData(prev => ({...prev, termsAndConditions: prev.termsAndConditions + (prev.termsAndConditions ? '\n' : '') + '- Warranty: 1 Year Replacement'}))} className="text-[10px] bg-gray-100 hover:bg-gray-200 border px-2 py-1 rounded">1Yr Warranty</button>
+                    <button type="button" onClick={() => setFormData(prev => ({...prev, termsAndConditions: prev.termsAndConditions + (prev.termsAndConditions ? '\n' : '') + '- Validity: 7 Days from issue date'}))} className="text-[10px] bg-gray-100 hover:bg-gray-200 border px-2 py-1 rounded">7 Days Validity</button>
+                  </div>
+                  <textarea
+                    rows={4}
+                    placeholder="Enter manual terms and conditions here..."
+                    className="w-full border p-2 text-sm rounded-lg"
+                    value={formData.termsAndConditions}
+                    onChange={e => setFormData({ ...formData, termsAndConditions: e.target.value })}
+                  />
+               </div>
+               
+               <div className="text-right space-y-2 flex flex-col justify-end">
                    <div className="flex justify-end items-center gap-4 text-sm">
                        <span className="text-gray-500">Subtotal:</span>
                        <span className="font-mono font-bold">{formatCurrency(formData.items.reduce((s, i) => s + (i.price * i.quantity), 0), {})}</span>
