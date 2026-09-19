@@ -6,13 +6,13 @@ const emailRouter = Router();
 
 emailRouter.post('/send-email', requireFirebaseAuth, async (req: any, res: Response) => {
   try {
-    const { to, subject, html } = req.body;
+    const { to, subject, html, attachments } = req.body;
 
     if (!to || !subject || !html) {
       return res.status(400).json({ error: 'Missing required fields: to, subject, html' });
     }
 
-    const result = await sendEmail({ to, subject, html });
+    const result = await sendEmail({ to, subject, html, attachments });
 
     if (!result.success) {
       return res.status(400).json({ error: result.error || 'Failed to send email' });

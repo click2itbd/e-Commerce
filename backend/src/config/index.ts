@@ -23,7 +23,7 @@ export const config = {
     authMax: process.env.NODE_ENV === 'production' ? 20 : 100,
     sensitiveMax: process.env.NODE_ENV === 'production' ? 50 : 200,
   },
-  bodyLimit: '10kb',
+  bodyLimit: '10mb',
   requestTimeout: 15000,
   secrets: {
     expressApiKey: process.env.EXPRESS_API_KEY,

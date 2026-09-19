@@ -65,7 +65,7 @@ export const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quota
   // ----- HEADER -----
   if (!useLetterhead) {
     try {
-      doc.addImage(logoBase64, 'PNG', 20, currentY, 45, 12);
+      doc.addImage(logoBase64, 'PNG', 20, currentY, 25, 20);
     } catch(e) {
       doc.setFontSize(26);
       doc.setFont('helvetica', 'bold');
@@ -76,9 +76,9 @@ export const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quota
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
-    doc.text('Shop No. 1072, Level-10, Multiplan Center', 20, currentY + 18);
-    doc.text('69-71, New Elephant Road, Dhaka-1205, Bangladesh.', 20, currentY + 22);
-    doc.text('Phone: 01686800755 | Web: click2itbd.com', 20, currentY + 26);
+    doc.text('Shop No. 1072, Level-10, Multiplan Center', 20, currentY + 25);
+    doc.text('69-71, New Elephant Road, Dhaka-1205, Bangladesh.', 20, currentY + 29);
+    doc.text('Phone: 01916618866, 01712258259 | Web: click2itbd.com', 20, currentY + 33);
   } else {
     currentY += 30; // Extra shift for letterhead
   }
@@ -91,7 +91,7 @@ export const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quota
   doc.setTextColor(255, 255, 255);
   doc.text(type.toUpperCase(), pageWidth - 45, currentY + 4, { align: 'center' });
 
-  currentY += 35;
+  currentY += 45;
 
   // ----- CUSTOMER & DOC INFO -----
   doc.setDrawColor(220, 220, 220);

@@ -49,15 +49,17 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
   const { settings } = useSettings();
   const activeStatuses = (settings as any)?.customOrderStatuses || DEFAULT_ORDER_STATUSES;
 
+  const actualOrders = orders.filter(o => o.type !== 'quotation');
+  
   const categoryCounts = {
-    all: orders.length,
-    ecommerce: orders.filter(o => getOrderCategory(o) === 'ecommerce').length,
-    pc_build: orders.filter(o => getOrderCategory(o) === 'pc_build').length,
-    domain: orders.filter(o => getOrderCategory(o) === 'domain').length,
-    hosting: orders.filter(o => getOrderCategory(o) === 'hosting').length,
+    all: actualOrders.length,
+    ecommerce: actualOrders.filter(o => getOrderCategory(o) === 'ecommerce').length,
+    pc_build: actualOrders.filter(o => getOrderCategory(o) === 'pc_build').length,
+    domain: actualOrders.filter(o => getOrderCategory(o) === 'domain').length,
+    hosting: actualOrders.filter(o => getOrderCategory(o) === 'hosting').length,
   };
 
-  const processedOrders = orders.filter(order => {
+  const processedOrders = actualOrders.filter(order => {
     const matchesCategory = orderCategoryFilter === 'all' || getOrderCategory(order) === orderCategoryFilter;
     const matchesStatus = orderStatusFilter === 'all' || order.status === orderStatusFilter;
     const matchesSearch = (order.documentNumber || order.id || '').toLowerCase().includes(orderSearchQuery.toLowerCase()) || 
@@ -80,9 +82,9 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
   const currentOrders = processedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden space-y-4">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-[calc(100vh-8rem)]">
       {/* Category Tabs Header */}
-      <div className="p-6 pb-0">
+      <div className="p-6 pb-0 flex-shrink-0">
         <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <FileText className="text-[#EF4444]" /> Order Management
@@ -172,7 +174,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
       </div>
 
       {/* Filter & Search Toolbar */}
-      <div className="px-6 flex items-center justify-between flex-wrap gap-4">
+      <div className="px-6 mt-4 flex items-center justify-between flex-wrap gap-4 flex-shrink-0">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
           <input
@@ -228,17 +230,16 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
               <option value="total_asc">Total (Low-High)</option>
             </select>
           </div>
+          <button
+            onClick={handleExportFilteredOrders}
+            className="bg-[#081621] text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-[#EF4444] transition-all font-bold text-sm shadow-sm"
+          >
+            <Download size={16} /> Export
+          </button>
         </div>
       </div>
 
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={handleExportFilteredOrders}
-                className="bg-[#081621] text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-[#EF4444] transition-all font-bold text-sm"
-              >
-                <Download size={18} /> Export Filtered CSV
-              </button>
-            </div>
+
             {selectedOrderIds.length > 0 && (
               <div className="bg-[#081621] text-white p-4 flex items-center justify-between animate-in slide-in-from-top duration-300">
                 <div className="flex items-center gap-4">
@@ -287,9 +288,9 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
               </div>
             )}
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 text-xs font-bold text-gray-500 uppercase">
+            <div className="overflow-x-auto rounded-xl border border-gray-200 mx-6 mb-6 mt-4 shadow-sm flex-1">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-[#081621] text-xs font-bold text-white uppercase tracking-wider">
                   <tr>
                     <th className="px-6 py-4 w-10">
                       <input
@@ -303,9 +304,9 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                           const matchesStartDate = !orderStartDate || orderDate >= orderStartDate;
                           const matchesEndDate = !orderEndDate || orderDate <= orderEndDate;
                           return matchesStatus && matchesSearch && matchesStartDate && matchesEndDate;
-                        }).length && orders.length > 0}
+                        }).length && actualOrders.length > 0}
                         onChange={(e) => {
-                          const filteredOrders = orders.filter(o => {
+                          const filteredOrders = actualOrders.filter(o => {
                             const matchesStatus = orderStatusFilter === 'all' || o.status === orderStatusFilter;
                             const matchesSearch = o.id.toLowerCase().includes(orderSearchQuery.toLowerCase()) || 
                                                 o.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
@@ -471,7 +472,6 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                                 </button>
                                 <div className="absolute right-0 top-full mt-1 w-28 bg-white rounded-lg shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 flex flex-col overflow-hidden py-1">
                                   <button onClick={() => generatePDF(order, 'invoice')} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-red-50 hover:text-[#EF4444] transition-colors">Invoice</button>
-                                  <button onClick={() => generatePDF(order, 'quotation')} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors">Quotation</button>
                                   <button onClick={() => generatePDF(order, 'challan')} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-green-50 hover:text-green-600 transition-colors">Challan</button>
                                 </div>
                               </div>
@@ -501,13 +501,15 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
               </table>
         </div>
 
-        <Pagination
-          currentPage={currentPage}
-          totalItems={processedOrders.length}
-          itemsPerPage={itemsPerPage}
-          onPageChange={setCurrentPage}
-          onItemsPerPageChange={setItemsPerPage}
-        />
+        <div className="mt-auto border-t border-gray-100 flex-shrink-0">
+          <Pagination
+            currentPage={currentPage}
+            totalItems={processedOrders.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
+        </div>
       </div>
   );
 };

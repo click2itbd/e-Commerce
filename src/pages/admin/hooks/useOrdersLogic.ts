@@ -255,11 +255,11 @@ export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     to: order.customerEmail,
-                    subject: `Order Status Update: ${status.toUpperCase()} - Star Tech`,
+                    subject: `Order Status Update: ${status.toUpperCase()} - Click2IT`,
                     html: `
                       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
                         <div style="text-align: center; margin-bottom: 30px;">
-                          <h1 style="color: #EF4444; margin: 0;">Star Tech</h1>
+                          <h1 style="color: #EF4444; margin: 0;">Click2IT</h1>
                           <p style="color: #666; margin: 5px 0 0 0;">Order Status Update</p>
                         </div>
                         

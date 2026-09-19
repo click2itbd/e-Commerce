@@ -90,6 +90,7 @@ export interface TransactionCategory {
 
 export interface CartItem extends Product {
   quantity: number;
+  discount?: number;
   selectedSerials?: string[];
   itemType?: 'product' | 'domain' | 'hosting' | 'domain_transfer' | 'domain_renewal';
   domainTld?: string;
@@ -116,7 +117,7 @@ export interface Order {
   userId: string;
   items: CartItem[];
   total: number;
-  status: OrderStatus;
+  status: OrderStatus | 'converted';
   type: OrderType;
   customerName: string;
   customerEmail: string;
@@ -131,6 +132,8 @@ export interface Order {
   notes?: string;
   termsAndConditions?: string;
   createdAt: string;
+  validUntil?: string;
+  convertedToInvoiceId?: string;
 }
 
 export interface SubCategory {

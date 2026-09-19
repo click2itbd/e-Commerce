@@ -1,3 +1,4 @@
+import { logoBase64 } from '../lib/logoBase64';
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import Papa from 'papaparse';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit, writeBatch, where } from 'firebase/firestore';
@@ -1230,7 +1231,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
           const emailHtml = `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
               <div style="text-align: center; margin-bottom: 30px;">
-                <h1 style="color: #EF4444; margin: 0;">Star Tech</h1>
+                <h1 style="color: #EF4444; margin: 0;">Click2IT</h1>
                 <p style="color: #666; margin: 5px 0 0 0;">Order Status Update</p>
               </div>
               
@@ -1249,7 +1250,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
 
           await apiPost('/api/send-email', {
             to: order.customerEmail,
-            subject: `Order Status Update: ${status.toUpperCase()} - Star Tech`,
+            subject: `Order Status Update: ${status.toUpperCase()} - Click2IT`,
             html: emailHtml,
           });
         }
@@ -1490,7 +1491,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
               const emailHtml = `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
                   <div style="text-align: center; margin-bottom: 30px;">
-                    <h1 style="color: #EF4444; margin: 0;">Star Tech</h1>
+                    <h1 style="color: #EF4444; margin: 0;">Click2IT</h1>
                     <p style="color: #666; margin: 5px 0 0 0;">Order Status Update</p>
                   </div>
                   
@@ -1509,7 +1510,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
                 try {
                   await apiPost('/api/send-email', {
                     to: order.customerEmail,
-                    subject: `Order Status Update: ${status.toUpperCase()} - Star Tech`,
+                    subject: `Order Status Update: ${status.toUpperCase()} - Click2IT`,
                     html: emailHtml,
                   });
                 } catch (e) { console.error(e); }
@@ -2561,8 +2562,8 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
 
     // Header
     doc.setFontSize(20);
-    doc.setTextColor(239, 68, 68); // #EF4444
-    doc.text('Star Tech', 105, 20, { align: 'center' });
+    doc.setTextColor(30, 58, 138); // Deep Blue
+    doc.text('CLICK2IT BD', 105, 20, { align: 'center' });
     
     doc.setFontSize(14);
     doc.setTextColor(8, 22, 33); // #081621
@@ -2675,16 +2676,22 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     const useLetterhead = settings?.documentDesign?.printOnLetterhead;
 
     if (!useLetterhead) {
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(8, 22, 33);
-      doc.text(settings?.brandName || 'STAR TECH', 20, currentY);
+      try {
+        doc.addImage(logoBase64, 'PNG', 20, currentY, 25, 20);
+        currentY += 25;
+      } catch(e) {
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(8, 22, 33);
+        doc.text(settings?.brandName || 'CLICK2IT BD', 20, currentY);
+      }
       
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100);
-      doc.text(settings?.contactPhone || '16793 | startech.com.bd', 20, currentY + 7);
-      doc.text(settings?.contactAddress || '123 Main Street, City, Country', 20, currentY + 12);
+      doc.text('Shop No. 1072, Level-10, Multiplan Center', 20, currentY + 2);
+      doc.text('69-71, New Elephant Road, Dhaka-1205, Bangladesh.', 20, currentY + 6);
+      doc.text('Phone: 01916618866, 01712258259 | Web: click2itbd.com', 20, currentY + 10);
     } else {
       currentY += 20;
     }
@@ -2748,16 +2755,22 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     const useLetterhead = settings?.documentDesign?.printOnLetterhead;
 
     if (!useLetterhead) {
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(8, 22, 33);
-      doc.text(settings?.brandName || 'STAR TECH', 20, currentY);
+      try {
+        doc.addImage(logoBase64, 'PNG', 20, currentY, 25, 20);
+        currentY += 25;
+      } catch(e) {
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(8, 22, 33);
+        doc.text(settings?.brandName || 'CLICK2IT BD', 20, currentY);
+      }
       
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100);
-      doc.text(settings?.contactPhone || '16793 | startech.com.bd', 20, currentY + 7);
-      doc.text(settings?.contactAddress || '123 Main Street, City, Country', 20, currentY + 12);
+      doc.text('Shop No. 1072, Level-10, Multiplan Center', 20, currentY + 2);
+      doc.text('69-71, New Elephant Road, Dhaka-1205, Bangladesh.', 20, currentY + 6);
+      doc.text('Phone: 01916618866, 01712258259 | Web: click2itbd.com', 20, currentY + 10);
     } else {
       currentY += 20;
     }
@@ -2832,31 +2845,21 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
 
     // ----- HEADER -----
     if (!useLetterhead) {
-      // Company brand and contacts
-      let textX = 20;
-      
-      if (settings?.logoUrl) {
-        try {
-          const img = await loadImage(settings.logoUrl);
-          const h = 15;
-          const w = h * (img.width / img.height);
-          doc.addImage(img, 'PNG', 20, currentY - 5, w, h);
-          textX = 20 + w + 5;
-        } catch (e) {
-          console.error('Failed to load logo for PDF', e);
-        }
+      try {
+        doc.addImage(logoBase64, 'PNG', 20, currentY, 25, 20);
+      } catch(e) {
+        doc.setFontSize(26);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 58, 138); // Deep Blue
+        doc.text(settings?.brandName || 'CLICK2IT BD', 20, currentY + 10);
       }
-
-      doc.setFontSize(26);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(30, 58, 138); // Deep Blue
-      doc.text(settings?.brandName || 'STAR TECH', textX, currentY + 10);
       
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 100, 100);
-      doc.text(settings?.contactPhone || '16793 | startech.com.bd', 20, currentY + 17);
-      doc.text(settings?.contactAddress || '123 Main Street, City, Country', 20, currentY + 22);
+      doc.text('Shop No. 1072, Level-10, Multiplan Center', 20, currentY + 25);
+      doc.text('69-71, New Elephant Road, Dhaka-1205, Bangladesh.', 20, currentY + 29);
+      doc.text('Phone: 01916618866, 01712258259 | Web: click2itbd.com', 20, currentY + 33);
     } else {
       currentY += 30; // Extra shift for letterhead
     }
@@ -2869,7 +2872,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     doc.setTextColor(255, 255, 255);
     doc.text(type.toUpperCase(), pageWidth - 45, currentY + 4, { align: 'center' });
 
-    currentY += 35;
+    currentY += 45;
 
     // ----- CUSTOMER & DOC INFO -----
     doc.setDrawColor(220, 220, 220);

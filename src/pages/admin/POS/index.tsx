@@ -702,7 +702,7 @@ export const RetailPOS = () => {
               <img src="${logoBase64}" alt="Logo" style="max-height: 40px; margin-bottom: 10px;" />
               <p style="font-weight: bold; color: #111;">Shop No. 1072, Level-10, Multiplan Center</p>
               <p>69-71, New Elephant Road, Dhaka-1205, Bangladesh.</p>
-              <p>Phone: 01686800755 | Web: click2itbd.com</p>
+              <p>Phone: 01916618866, 01712258259 | Web: click2itbd.com</p>
             </div>
             <div class="invoice-details">
               <h2>INVOICE</h2>

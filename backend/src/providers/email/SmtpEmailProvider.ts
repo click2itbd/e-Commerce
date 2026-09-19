@@ -43,7 +43,7 @@ export class SmtpEmailProvider {
     return this.transporter;
   }
 
-  async sendEmail(to: string, subject: string, html: string): Promise<{ success: boolean; messageId?: string; error?: string; code?: string }> {
+  async sendEmail(to: string, subject: string, html: string, attachments?: any[]): Promise<{ success: boolean; messageId?: string; error?: string; code?: string }> {
     if (!this.config.host || !this.config.user || !this.config.password) {
       const error = 'SMTP configuration is incomplete';
       console.warn(`${error}: host=${this.config.host}, user=${this.config.user}`);
@@ -52,22 +52,30 @@ export class SmtpEmailProvider {
 
     try {
       const transporter = this.getTransporter();
-      const result = await transporter.sendMail({
-        from: `${this.config.fromName} <${this.config.fromEmail}>`,
+      
+      const mailOptions = {
+        from: `"${this.config.fromName}" <${this.config.fromEmail}>`,
         to,
         subject,
         html,
-      });
-
-      return {
-        success: true,
-        messageId: result.messageId,
+        attachments,
       };
+
+      const info = await transporter.sendMail(mailOptions);
+      return { success: true, messageId: info.messageId };
     } catch (error: any) {
-      const code = this.classifyError(error);
-      const message = error?.message || 'Failed to send email via SMTP';
-      console.error('SMTP send error:', { code, message, to, subject });
-      return { success: false, error: message, code };
+      console.error('SMTP Email Error details:', {
+        code: error.code,
+        message: error.message,
+        response: error.response,
+        responseCode: error.responseCode,
+        command: error.command
+      });
+      return { 
+        success: false, 
+        error: error.message || 'Unknown SMTP error',
+        code: error.code || 'SMTP_SEND_ERROR'
+      };
     }
   }
 

@@ -123,12 +123,14 @@ export const sendEmail = async ({
   to,
   subject,
   html,
+  attachments,
   category,
   orderId,
 }: {
   to: string;
   subject: string;
   html: string;
+  attachments?: any[];
   category?: string;
   orderId?: string;
 }) => {
@@ -139,6 +141,7 @@ export const sendEmail = async ({
         to,
         subject,
         html,
+        attachments,
         category,
         orderId,
       }),

@@ -5,6 +5,7 @@ export interface EmailOptions {
   to: string;
   subject: string;
   html: string;
+  attachments?: any[];
   orderId?: string;
   customerEmail?: string;
   category?: 'order' | 'provisioning' | 'payment' | 'domain' | 'hosting' | 'system';
@@ -80,7 +81,7 @@ export async function isEmailDuplicate(options: EmailOptions): Promise<boolean> 
 }
 
 export async function sendEmail(options: EmailOptions, retries: number = 2): Promise<{ success: boolean; error?: string }> {
-  const { to, subject, html } = options;
+  const { to, subject, html, attachments } = options;
 
   if (await isEmailDuplicate(options)) {
     console.log(`Duplicate email prevented: ${subject} to ${to}`);
@@ -96,7 +97,7 @@ export async function sendEmail(options: EmailOptions, retries: number = 2): Pro
       await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
     }
 
-    const result = await provider.sendEmail(to, subject, html);
+    const result = await provider.sendEmail(to, subject, html, attachments);
 
     if (result.success) {
       await logEmailToFirestore(options, 'sent');
