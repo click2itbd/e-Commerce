@@ -117,6 +117,29 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     let barcode = '';
     let timeout: NodeJS.Timeout;
 
+    const playBeep = (type: 'success' | 'error') => {
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        if (type === 'success') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, ctx.currentTime);
+          gain.gain.setValueAtTime(0.1, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.15);
+        } else {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(250, ctx.currentTime);
+          gain.gain.setValueAtTime(0.2, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.3);
+        }
+      } catch (e) {}
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in an input or textarea
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -152,11 +175,20 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           const bestMatch = exactMatches.length === 1 ? exactMatches[0] : (partialMatches.length === 1 ? partialMatches[0] : null);
 
           if (bestMatch) {
-            addItemToSale(bestMatch, matchedSerial);
-            setProductSearch('');
+            if (bestMatch.hasSerialTracking && !matchedSerial) {
+              playBeep('error');
+              toast.error('This product requires a Serial Number! Please scan the S/N instead.', { duration: 4000 });
+            } else {
+              addItemToSale(bestMatch, matchedSerial);
+              setProductSearch('');
+              playBeep('success');
+              toast.success(`Scanned: ${bestMatch.name}`);
+            }
           } else if (exactMatches.length > 1 || partialMatches.length > 1) {
+            playBeep('error');
             toast.success(`Found multiple items. Please select manually.`);
           } else {
+            playBeep('error');
             toast.error('No matching product found for scan');
           }
         }

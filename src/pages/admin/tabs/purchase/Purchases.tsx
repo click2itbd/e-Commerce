@@ -1101,16 +1101,43 @@ const Purchases: React.FC<PurchasesProps> = ({
                                   <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                                   <input
                                     type="text"
-                                    placeholder="Scan barcode and press Enter..."
+                                    placeholder="Scan or paste multiple barcodes here..."
                                     className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    onPaste={(e) => {
+                                      e.preventDefault();
+                                      const pasteData = e.clipboardData.getData('text');
+                                      if (!pasteData) return;
+                                      
+                                      const newSers = pasteData.split(/[\s,]+/).filter(s => s.trim() !== '');
+                                      const currentSerials = Array.isArray(item.newSerials) ? item.newSerials : [];
+                                      const uniqueNew = newSers.filter(s => !currentSerials.includes(s));
+                                      
+                                      if (uniqueNew.length > 0) {
+                                        const updatedSerials = [...currentSerials, ...uniqueNew];
+                                        setPurchaseForm(prev => ({
+                                          ...prev,
+                                          items: prev.items.map(i => 
+                                            i.id === item.id 
+                                              ? { ...i, newSerials: updatedSerials, quantity: updatedSerials.length } 
+                                              : i
+                                          )
+                                        }));
+                                        toast.success(`Successfully added ${uniqueNew.length} serial number(s)!`);
+                                      } else if (newSers.length > 0) {
+                                        toast.error('All pasted serials are already scanned!');
+                                      }
+                                    }}
                                     onKeyDown={(e) => {
                                       if (e.key === 'Enter') {
                                         e.preventDefault();
                                         const val = e.currentTarget.value.trim();
                                         if (val) {
+                                          const newSers = val.split(/[\s,]+/).filter(s => s.trim() !== '');
                                           const currentSerials = Array.isArray(item.newSerials) ? item.newSerials : [];
-                                          if (!currentSerials.includes(val)) {
-                                            const updatedSerials = [...currentSerials, val];
+                                          const uniqueNew = newSers.filter(s => !currentSerials.includes(s));
+                                          
+                                          if (uniqueNew.length > 0) {
+                                            const updatedSerials = [...currentSerials, ...uniqueNew];
                                             setPurchaseForm(prev => ({
                                               ...prev,
                                               items: prev.items.map(i => 
@@ -1119,9 +1146,10 @@ const Purchases: React.FC<PurchasesProps> = ({
                                                   : i
                                               )
                                             }));
+                                            if (uniqueNew.length > 1) toast.success(`Added ${uniqueNew.length} serials!`);
                                             e.currentTarget.value = ''; // clear input
                                           } else {
-                                            toast.error('Barcode already scanned!');
+                                            toast.error('Barcode(s) already scanned!');
                                             e.currentTarget.value = '';
                                           }
                                         }

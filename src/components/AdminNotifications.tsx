@@ -526,17 +526,29 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
           </div>
           
           {/* Footer */}
-          <div className="px-4 py-2.5 border-t border-gray-200 bg-white flex items-center justify-between text-xs">
-            <span className="text-[11px] text-gray-400 font-medium flex items-center gap-1">
-              <Sparkles size={11} className="text-blue-500" /> Live Real-time Sync
-            </span>
+          <div className="px-4 py-2.5 border-t border-gray-200 bg-white flex flex-col gap-2">
             <button 
               type="button"
-              className="text-xs font-bold text-gray-700 hover:text-gray-900 px-2.5 py-1 rounded-lg hover:bg-gray-100 transition-colors" 
-              onClick={() => setIsOpen(false)}
+              className="w-full text-center text-sm font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 py-1.5 rounded-lg transition-colors"
+              onClick={() => {
+                setIsOpen(false);
+                if (setActiveTab) setActiveTab('notifications');
+              }}
             >
-              Close
+              View All Notifications &rarr;
             </button>
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-gray-100">
+              <span className="text-[11px] text-gray-400 font-medium flex items-center gap-1">
+                <Sparkles size={11} className="text-blue-500" /> Live Real-time Sync
+              </span>
+              <button 
+                type="button"
+                className="text-xs font-bold text-gray-700 hover:text-gray-900 px-2.5 py-1 rounded-lg hover:bg-gray-100 transition-colors" 
+                onClick={() => setIsOpen(false)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

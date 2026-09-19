@@ -1,3 +1,4 @@
+import { logoBase64 } from './logoBase64';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Order, Transaction, SiteSettings } from '../types';

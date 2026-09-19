@@ -12,6 +12,7 @@ const TaskManager = lazy(() => import('../components/TaskManager').then(m => ({ 
 const SupportTicketManager = lazy(() => import('../components/SupportTicketManager').then(m => ({ default: m.SupportTicketManager })));
 const AdminOverviewDashboard = lazy(() => import('../components/AdminOverviewDashboard').then(m => ({ default: m.AdminOverviewDashboard })));
 const ApiLogsTab = lazy(() => import('../components/ApiLogsTab').then(m => ({ default: m.ApiLogsTab })));
+const NotificationsPage = lazy(() => import('./admin/tabs/notifications/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
 import { AdminNotifications } from '../components/AdminNotifications';
 const AnalyticsDashboard = lazy(() => import('../components/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
 const CRMIntegrationsSetting = lazy(() => import('../components/CRMIntegrationsSetting').then(m => ({ default: m.CRMIntegrationsSetting })));
@@ -57,6 +58,7 @@ const PurchasesTab = lazy(() => import('./admin/tabs/purchase/Purchases').then(m
 const SaleReturnTab = lazy(() => import('./admin/tabs/sales/SaleReturn').then(m => ({ default: m.default })));
 const CustomersTab = lazy(() => import('./admin/tabs/sales/Customers').then(m => ({ default: m.default })));
 const CustomerDueListTab = lazy(() => import('./admin/tabs/sales/CustomerDueList').then(m => ({ default: m.default })));
+const VendorDueListTab = lazy(() => import('./admin/tabs/purchase/VendorDueList').then(m => ({ default: m.default })));
 const VendorsTab = lazy(() => import('./admin/tabs/purchase/Vendors').then(m => ({ default: m.default })));
 const CustomerReceiveReportTab = lazy(() => import('./admin/tabs/accounting/CustomerReceiveReport').then(m => ({ default: m.default })));
 const TransactionHistoryTab = lazy(() => import('./admin/tabs/accounting/TransactionHistory').then(m => ({ default: m.default })));
@@ -3365,6 +3367,9 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              <button onClick={() => setActiveTab('vendors')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'vendors' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                <Briefcase size={16} className={activeTab === 'vendors' ? "text-blue-600" : "text-gray-400"} /> Supplier
              </button>
+             <button onClick={() => { setActiveTab('vendor_due_list'); setIsMobileMenuOpen(false); }} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'vendor_due_list' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               <CreditCard size={16} className={activeTab === 'vendor_due_list' ? "text-blue-600" : "text-gray-400"} /> Supplier Due List
+             </button>
            </div>
 
            {/* Warranty */}
@@ -3564,7 +3569,8 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="h-8 w-8 border-4 border-[#EF4444] border-t-transparent rounded-full animate-spin"></div></div>}>
-        {activeTab === 'audit_logs' ? <AuditLogsTab /> :
+                {activeTab === 'notifications' ? <NotificationsPage setActiveTab={setActiveTab} /> :
+                activeTab === 'audit_logs' ? <AuditLogsTab /> :
         isStaff && !isAdmin && !isManager && !OFFLINE_SHOP_TABS.includes(activeTab) ? (
           <div className="bg-white rounded-lg shadow-sm border border-red-200 p-8 text-center max-w-md mx-auto mt-12">
             <ShieldAlert size={48} className="mx-auto text-red-500 mb-3" />
@@ -3819,6 +3825,8 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
           />
         ) : activeTab === 'customer_due_list' ? (
           <CustomerDueListTab />
+        ) : activeTab === 'vendor_due_list' ? (
+          <VendorDueListTab />
         ) : activeTab === 'sales' ? (
           <SalesForm
             products={products}

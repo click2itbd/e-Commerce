@@ -1,3 +1,4 @@
+import { logoBase64 } from '../../../lib/logoBase64';
 import React, { useState, useEffect } from 'react';
 import { formatCurrency, cn } from '../../../lib/utils';
 import { generateDocumentNumber } from '../../../lib/numbering';
@@ -80,6 +81,29 @@ export const RetailPOS = () => {
     let barcode = '';
     let timeout: NodeJS.Timeout;
 
+    const playBeep = (type: 'success' | 'error') => {
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        if (type === 'success') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, ctx.currentTime);
+          gain.gain.setValueAtTime(0.1, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.15);
+        } else {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(250, ctx.currentTime);
+          gain.gain.setValueAtTime(0.2, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.3);
+        }
+      } catch (e) {}
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
@@ -110,16 +134,23 @@ export const RetailPOS = () => {
             });
             
             const partialMatches = products.filter(p => p.name.toLowerCase().includes(searchLower) || (p.sku || '').toLowerCase().includes(searchLower));
-            
             const bestMatch = exactMatches.length === 1 ? exactMatches[0] : (partialMatches.length === 1 ? partialMatches[0] : null);
 
             if (bestMatch) {
-              addToCart(bestMatch, matchedSerial);
-              setSearchQuery('');
-              toast.success(`Scanned: ${bestMatch.name}`);
+              if (bestMatch.hasSerialTracking && !matchedSerial) {
+                playBeep('error');
+                toast.error('This product requires a Serial Number! Please scan the S/N instead.', { duration: 4000 });
+              } else {
+                addToCart(bestMatch, matchedSerial);
+                setSearchQuery('');
+                playBeep('success');
+                toast.success(`Scanned: ${bestMatch.name}`);
+              }
             } else if (exactMatches.length > 1 || partialMatches.length > 1) {
+              playBeep('error');
               toast.success(`Found multiple items. Please select manually.`);
             } else {
+              playBeep('error');
               toast.error('No matching product found for scan');
             }
           }
@@ -668,10 +699,10 @@ export const RetailPOS = () => {
         <body>
           <div class="header">
             <div class="brand-info">
-              <h1>${settings?.brandName || 'Click2IT'}</h1>
-              <p>${settings?.address || ''}</p>
-              <p>Phone: ${settings?.phone || ''}</p>
-              <p>Email: ${settings?.email || ''}</p>
+              <img src="${logoBase64}" alt="Logo" style="max-height: 40px; margin-bottom: 10px;" />
+              <p style="font-weight: bold; color: #111;">Shop No. 1072, Level-10, Multiplan Center</p>
+              <p>69-71, New Elephant Road, Dhaka-1205, Bangladesh.</p>
+              <p>Phone: 01686800755 | Web: click2itbd.com</p>
             </div>
             <div class="invoice-details">
               <h2>INVOICE</h2>
