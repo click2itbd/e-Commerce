@@ -22,6 +22,7 @@ deployment:
     - /bin/cp dist/robots.txt /home/click2itbd/public_html/
     - /bin/cp dist/sitemap.xml /home/click2itbd/public_html/
     - /bin/cp dist/logo.png /home/click2itbd/public_html/
+    - /bin/cp upload.php /home/click2itbd/public_html/
 
 
     # ==============================

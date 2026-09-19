@@ -345,7 +345,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     
     // Set to your cPanel URL, e.g., 'https://yourdomain.com/upload.php'
     // If empty, it will fallback to Firebase Storage
-    const CPANEL_UPLOAD_URL = ""; 
+    const CPANEL_UPLOAD_URL = "https://click2itbd.com/upload.php"; 
 
     try {
       const uploadPromises = Array.from(files).map(async (file) => {
