@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import Papa from 'papaparse';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit, writeBatch, where } from 'firebase/firestore';
 import { db, auth, storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeApp } from 'firebase/app';
@@ -56,6 +56,7 @@ const PurchaseReturnTab = lazy(() => import('./admin/tabs/sales/PurchaseReturn')
 const PurchasesTab = lazy(() => import('./admin/tabs/purchase/Purchases').then(m => ({ default: m.default })));
 const SaleReturnTab = lazy(() => import('./admin/tabs/sales/SaleReturn').then(m => ({ default: m.default })));
 const CustomersTab = lazy(() => import('./admin/tabs/sales/Customers').then(m => ({ default: m.default })));
+const CustomerDueListTab = lazy(() => import('./admin/tabs/sales/CustomerDueList').then(m => ({ default: m.default })));
 const VendorsTab = lazy(() => import('./admin/tabs/purchase/Vendors').then(m => ({ default: m.default })));
 const CustomerReceiveReportTab = lazy(() => import('./admin/tabs/accounting/CustomerReceiveReport').then(m => ({ default: m.default })));
 const TransactionHistoryTab = lazy(() => import('./admin/tabs/accounting/TransactionHistory').then(m => ({ default: m.default })));
@@ -341,17 +342,35 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
   const handleImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setIsUploading(true);
-    const uploadPromises = Array.from(files).map(async (file) => {
-      const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
-      return getDownloadURL(storageRef);
-    });
+    
+    // Set to your cPanel URL, e.g., 'https://yourdomain.com/upload.php'
+    // If empty, it will fallback to Firebase Storage
+    const CPANEL_UPLOAD_URL = ""; 
 
     try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        if (CPANEL_UPLOAD_URL) {
+          const formDataToUpload = new FormData();
+          formDataToUpload.append('image', file);
+          const res = await fetch(CPANEL_UPLOAD_URL, {
+            method: 'POST',
+            body: formDataToUpload
+          });
+          const data = await res.json();
+          if (data.success) return data.url;
+          throw new Error(data.message || 'cPanel upload failed');
+        } else {
+          // Fallback to Firebase
+          const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
+          await uploadBytes(storageRef, file);
+          return getDownloadURL(storageRef);
+        }
+      });
+
       const urls = await Promise.all(uploadPromises);
       setFormData(prev => ({
         ...prev,
-        images: [...prev.images.filter(img => img !== ''), ...urls]
+        images: [...(prev.images || []).filter((img: string) => img !== ''), ...urls]
       }));
       toast.success(`Successfully uploaded ${urls.length} images`);
     } catch (error) {
@@ -2875,16 +2894,49 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
       doc.text(`Date: ${new Date(tx.date).toLocaleDateString()}`, pageWidth - 80, currentY + 17);
       currentY += 30;
       
-      // Rect box for receipt amount
+      // Receipt Details Box
       doc.setFillColor(245, 245, 245);
-      doc.rect(20, currentY, pageWidth - 40, 20, 'F');
+      
+      let boxHeight = 20;
+      if (tx.previousDue !== undefined) boxHeight += 10;
+      if (tx.currentBalance !== undefined) boxHeight += 10;
+      if (tx.paymentMethod) boxHeight += 10;
+      
+      doc.rect(20, currentY, pageWidth - 40, boxHeight, 'F');
+      
+      let textY = currentY + 13;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
-      doc.text('Amount Received:', 30, currentY + 13);
-      doc.setTextColor(30, 58, 138);
-      doc.text(formatCurrency(tx.amount, settings), pageWidth - 70, currentY + 13);
       
-      currentY += 40;
+      if (tx.previousDue !== undefined) {
+        doc.setTextColor(80, 80, 80);
+        doc.text('Previous Due:', 30, textY);
+        doc.text(formatCurrency(tx.previousDue, settings), pageWidth - 70, textY);
+        textY += 10;
+      }
+      
+      doc.setTextColor(0, 0, 0);
+      doc.text('Amount Received:', 30, textY);
+      doc.setTextColor(22, 163, 74); // Green
+      doc.text(formatCurrency(tx.amount, settings), pageWidth - 70, textY);
+      textY += 10;
+      
+      if (tx.currentBalance !== undefined) {
+        doc.setTextColor(80, 80, 80);
+        doc.text('Remaining Due:', 30, textY);
+        doc.setTextColor(220, 38, 38); // Red
+        doc.text(formatCurrency(tx.currentBalance, settings), pageWidth - 70, textY);
+        textY += 10;
+      }
+      
+      if (tx.paymentMethod) {
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Payment Method: ${tx.paymentMethod.toUpperCase()}`, 30, textY);
+        textY += 10;
+      }
+      
+      currentY = textY + 20;
     } else {
       const o = order as Order;
       doc.setFont('helvetica', 'bold');
@@ -2998,19 +3050,44 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
         doc.text('Total:', totalsX, currTotalY);
         doc.text(formatCurrency(o.total, settings), alignRightX, currTotalY, { align: 'right' });
         
-        if (type === 'invoice' && o.paymentMethod) {
-          currTotalY += 14;
-          // Add Paid Stamp or Payment Info
+        if (type === 'invoice') {
+          const paidAmt = Number(o.paidAmount || 0);
+          const totalAmt = Number(o.total || 0);
+          const dueAmt = Math.max(0, totalAmt - paidAmt);
+          
+          currTotalY += 8;
           doc.setFontSize(10);
           doc.setFont('helvetica', 'bold');
+          doc.setTextColor(80, 80, 80);
+          doc.text('Paid Amount:', totalsX, currTotalY);
           doc.setTextColor(22, 163, 74); // Green
-          const methodDisplay = o.paymentMethod === 'cod' ? 'CASH ON DELIVERY' : `PAID VIA ${o.paymentMethod.toUpperCase()}`;
-          doc.text(methodDisplay, alignRightX, currTotalY, { align: 'right' });
-          if (o.paymentReference) {
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(100, 100, 100);
-            doc.text(`Ref: ${o.paymentReference}`, alignRightX, currTotalY + 5, { align: 'right' });
+          doc.text(formatCurrency(paidAmt, settings), alignRightX, currTotalY, { align: 'right' });
+          
+          if (dueAmt > 0) {
+            currTotalY += 7;
+            doc.setTextColor(80, 80, 80);
+            doc.text('Due Amount:', totalsX, currTotalY);
+            doc.setTextColor(220, 38, 38); // Red
+            doc.text(formatCurrency(dueAmt, settings), alignRightX, currTotalY, { align: 'right' });
+          }
+
+          currTotalY += 12;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          
+          if (paidAmt === 0) {
+            doc.setTextColor(220, 38, 38); // Red
+            doc.text('UNPAID / FULL DUE', alignRightX, currTotalY, { align: 'right' });
+          } else if (o.paymentMethod) {
+            doc.setTextColor(22, 163, 74); // Green
+            const methodDisplay = o.paymentMethod === 'cod' ? 'CASH ON DELIVERY' : `PAID VIA ${o.paymentMethod.toUpperCase()}`;
+            doc.text(methodDisplay, alignRightX, currTotalY, { align: 'right' });
+            if (o.paymentReference) {
+              doc.setFontSize(9);
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(100, 100, 100);
+              doc.text(`Ref: ${o.paymentReference}`, alignRightX, currTotalY + 5, { align: 'right' });
+            }
           }
         }
         
@@ -3229,6 +3306,9 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              </button>
              <button onClick={() => setActiveTab('customers')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'customers' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                <Users size={16} className={activeTab === 'customers' ? "text-blue-600" : "text-gray-400"} /> Customer
+             </button>
+             <button onClick={() => { setActiveTab('customer_due_list'); setIsMobileMenuOpen(false); }} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'customer_due_list' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               <CreditCard size={16} className={activeTab === 'customer_due_list' ? "text-blue-600" : "text-gray-400"} /> Customer Due List
              </button>
              <button onClick={() => setActiveTab('quotations')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'quotations' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
                <FileText size={16} className={activeTab === 'quotations' ? "text-blue-600" : "text-gray-400"} /> Quotation System
@@ -3699,10 +3779,12 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
             orders={orders}
             transactions={transactions}
             customers={customers}
+            paymentAccounts={paymentAccounts}
             settings={settings}
             hasPermission={hasPermission}
-            formatCurrency={formatCurrency}
           />
+        ) : activeTab === 'customer_due_list' ? (
+          <CustomerDueListTab />
         ) : activeTab === 'sales' ? (
           <SalesForm
             products={products}

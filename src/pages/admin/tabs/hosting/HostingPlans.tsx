@@ -666,12 +666,15 @@ const HostingPlansTab: React.FC = () => {
 
   // State for Features
   const [features, setFeatures] = useState<any[]>(DEFAULT_HOSTING_FEATURES);
+  const [isAddingFeature, setIsAddingFeature] = useState(false);
   const [showFeatureModal, setShowFeatureModal] = useState(false);
   const [editingFeature, setEditingFeature] = useState<any>(null);
+  const [featureForm, setFeatureForm] = useState({ id: '', name: '', category: 'Standard Features', type: 'text', order: 0 });
 
   // State for Packages
   const [packages, setPackages] = useState<any[]>([]);
   const [filteredPackages, setFilteredPackages] = useState<any[]>([]);
+  const [isAddingPackage, setIsAddingPackage] = useState(false);
   const [showPackageModal, setShowPackageModal] = useState(false);
   const [editingPackage, setEditingPackage] = useState<any>(null);
 

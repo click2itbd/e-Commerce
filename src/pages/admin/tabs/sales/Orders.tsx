@@ -465,29 +465,16 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
                             {generatePDF && (
-                              <>
-                                <button
-                                  onClick={() => generatePDF(order, 'invoice')}
-                                  className="p-2 text-gray-600 hover:text-[#EF4444] hover:bg-red-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold"
-                                  title="Invoice"
-                                >
-                                  <Download size={16} /> Invoice
+                              <div className="relative group">
+                                <button className="p-1.5 px-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold border border-gray-200 bg-white">
+                                  <Download size={14} /> Docs ▾
                                 </button>
-                                <button
-                                  onClick={() => generatePDF(order, 'quotation')}
-                                  className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold"
-                                  title="Quotation"
-                                >
-                                  <Download size={16} /> Quotation
-                                </button>
-                                <button
-                                  onClick={() => generatePDF(order, 'challan')}
-                                  className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold"
-                                  title="Challan"
-                                >
-                                  <Download size={16} /> Challan
-                                </button>
-                              </>
+                                <div className="absolute right-0 top-full mt-1 w-28 bg-white rounded-lg shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 flex flex-col overflow-hidden py-1">
+                                  <button onClick={() => generatePDF(order, 'invoice')} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-red-50 hover:text-[#EF4444] transition-colors">Invoice</button>
+                                  <button onClick={() => generatePDF(order, 'quotation')} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors">Quotation</button>
+                                  <button onClick={() => generatePDF(order, 'challan')} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-green-50 hover:text-green-600 transition-colors">Challan</button>
+                                </div>
+                              </div>
                             )}
                             {handleDeleteOrder && (
                               <button

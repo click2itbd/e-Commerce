@@ -80,7 +80,18 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
 
       const accounts = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(accounts);
-      setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
+      
+      const mappedTx = txSnap.docs.map(d => {
+        const data = d.data();
+        let type = data.type;
+        if (data.category === 'Capital / Fund Deposit') type = 'deposit';
+        if (data.category === 'Owner Withdrawal / Drawing') type = 'withdrawal';
+        if (data.category === 'Fund Transfer') {
+          type = data.type === 'expense' ? 'transfer_out' : 'transfer_in';
+        }
+        return { id: d.id, ...data, type } as Transaction;
+      });
+      setTransactions(mappedTx);
 
       if (accounts.length > 0 && !formData.fromAccountId) {
         setFormData(prev => ({
@@ -111,6 +122,7 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
     const accTx = transactions.filter(tx => {
       if (tx.paymentAccountId && tx.paymentAccountId === acc.id) return true;
       const pMethod = (tx.paymentMethod || '').toLowerCase();
+      if (!pMethod) return false;
       const aType = (acc.type || '').toLowerCase();
       const aName = (acc.name || '').toLowerCase();
       return pMethod === aType || pMethod === aName || aName.includes(pMethod);
@@ -167,11 +179,13 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
         await addDoc(collection(db, 'transactions'), {
           date: txDate,
           amount: Number(formData.amount),
-          type: 'transfer_out',
+          type: 'expense',
           category: 'Fund Transfer',
-          paymentAccountId: fromAcc?.id,
-          paymentMethod: fromAcc?.type || fromAcc?.name,
-          description: `Transferred to ${toAcc?.name}${formData.note ? ` (${formData.note})` : ''}`,
+          paymentAccountId: fromAcc?.id || '',
+          paymentMethod: fromAcc?.type || fromAcc?.name || '',
+          entityId: 'SYSTEM',
+          entityName: 'Fund Transfer',
+          description: `Transferred to ${toAcc?.name || 'Unknown'}${formData.note ? ` (${formData.note})` : ''}`,
           reference: formData.reference || transferBatchId,
           transferBatchId,
           createdAt,
@@ -181,11 +195,13 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
         await addDoc(collection(db, 'transactions'), {
           date: txDate,
           amount: Number(formData.amount),
-          type: 'transfer_in',
+          type: 'money_receipt',
           category: 'Fund Transfer',
-          paymentAccountId: toAcc?.id,
-          paymentMethod: toAcc?.type || toAcc?.name,
-          description: `Transferred from ${fromAcc?.name}${formData.note ? ` (${formData.note})` : ''}`,
+          paymentAccountId: toAcc?.id || '',
+          paymentMethod: toAcc?.type || toAcc?.name || '',
+          entityId: 'SYSTEM',
+          entityName: 'Fund Transfer',
+          description: `Transferred from ${fromAcc?.name || 'Unknown'}${formData.note ? ` (${formData.note})` : ''}`,
           reference: formData.reference || transferBatchId,
           transferBatchId,
           createdAt,
@@ -197,10 +213,11 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
         await addDoc(collection(db, 'transactions'), {
           date: txDate,
           amount: Number(formData.amount),
-          type: 'deposit',
+          type: 'money_receipt',
           category: 'Capital / Fund Deposit',
-          paymentAccountId: acc?.id,
-          paymentMethod: acc?.type || acc?.name,
+          paymentAccountId: acc?.id || '',
+          paymentMethod: acc?.type || acc?.name || '',
+          entityId: 'SYSTEM',
           entityName: formData.entityName || 'Owner / Investor',
           description: `Deposit: ${formData.entityName || 'Capital Injection'}${formData.note ? ` (${formData.note})` : ''}`,
           reference: formData.reference || '',
@@ -213,10 +230,11 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
         await addDoc(collection(db, 'transactions'), {
           date: txDate,
           amount: Number(formData.amount),
-          type: 'withdrawal',
+          type: 'expense',
           category: 'Owner Withdrawal / Drawing',
-          paymentAccountId: acc?.id,
-          paymentMethod: acc?.type || acc?.name,
+          paymentAccountId: acc?.id || '',
+          paymentMethod: acc?.type || acc?.name || '',
+          entityId: 'SYSTEM',
           entityName: formData.entityName || 'Owner / Partner',
           description: `Withdrawal: ${formData.entityName || 'Owner Drawings'}${formData.note ? ` (${formData.note})` : ''}`,
           reference: formData.reference || '',

@@ -4,6 +4,7 @@ import { db } from '../../../../firebase';
 import { Product, Customer, DiscountCode, SiteSettings, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
+import { generatePDF } from '../../../../lib/pdf';
 import {
   Plus,
   Minus,
@@ -281,6 +282,18 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
     setSaleData(prev => {
       const existing = prev.items.find(i => i.id === product.id);
+      
+      // Auto-select a serial if none was scanned but the product has serials available
+      let serialToSelect = scannedSerial;
+      if (!serialToSelect && product.hasSerialTracking && product.availableSerials && product.availableSerials.length > 0) {
+        // Find the first available serial that hasn't been selected yet
+        const currentlySelected = existing ? (existing.selectedSerials || []) : [];
+        const firstUnselected = product.availableSerials.find((s: string) => !currentlySelected.includes(s));
+        if (firstUnselected) {
+          serialToSelect = firstUnselected;
+        }
+      }
+
       if (existing) {
         if (existing.quantity >= product.stock) {
           toast.error(`Maximum available stock is ${product.stock}`);
@@ -291,15 +304,15 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           items: prev.items.map(i => i.id === product.id ? { 
             ...i, 
             quantity: i.quantity + 1,
-            selectedSerials: scannedSerial && !i.selectedSerials?.includes(scannedSerial) 
-              ? [...(i.selectedSerials || []), scannedSerial] 
+            selectedSerials: serialToSelect && !i.selectedSerials?.includes(serialToSelect) 
+              ? [...(i.selectedSerials || []), serialToSelect] 
               : (i.selectedSerials || [])
           } : i),
         };
       }
       return {
         ...prev,
-        items: [...prev.items, { ...product, quantity: 1, selectedSerials: scannedSerial ? [scannedSerial] : [] }],
+        items: [...prev.items, { ...product, quantity: 1, selectedSerials: serialToSelect ? [serialToSelect] : [] }],
       };
     });
     toast.success(`Added ${product.name}`);
@@ -323,11 +336,38 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         toast.error(`Maximum available stock is ${product.stock}`);
         return;
       }
+      
+      // Auto-select serials if qty increases
+      if (product && product.hasSerialTracking && product.availableSerials && newQty > itemInCart.quantity) {
+        let newSelectedSerials = [...(itemInCart.selectedSerials || [])];
+        let diff = newQty - itemInCart.quantity;
+        
+        for (const serial of product.availableSerials) {
+          if (diff <= 0) break;
+          if (!newSelectedSerials.includes(serial)) {
+            newSelectedSerials.push(serial);
+            diff--;
+          }
+        }
+        
+        setSaleData(prev => ({
+          ...prev,
+          items: prev.items.map(i => i.id === productId ? { ...i, quantity: newQty, selectedSerials: newSelectedSerials } : i),
+        }));
+        return;
+      }
     }
 
     setSaleData(prev => ({
       ...prev,
-      items: prev.items.map(i => i.id === productId ? { ...i, quantity: newQty } : i),
+      items: prev.items.map(i => i.id === productId ? { 
+        ...i, 
+        quantity: newQty,
+        // Trim selected serials if qty decreases
+        selectedSerials: newQty < (i.selectedSerials?.length || 0) 
+          ? (i.selectedSerials || []).slice(0, newQty) 
+          : (i.selectedSerials || [])
+      } : i),
     }));
   };
 
@@ -506,13 +546,30 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         }
 
         // Record Cash/Bank Inflow Transaction in Firestore
+        // Always record the full sale amount to update the customer ledger (Receivable)
+        await addDoc(collection(db, 'transactions'), {
+          type: 'sale',
+          amount: netTotal,
+          date: createdAt,
+          description: `Sale to ${saleData.customerName} (#${docNumber})`,
+          entityId: saleData.customerId,
+          entityName: saleData.customerName,
+          entityType: 'customer',
+          referenceId: orderRef.id,
+          documentNumber: docNumber,
+          paymentAccountId: '', // No payment account for the sale itself
+          paymentMethod: '',
+          createdAt,
+        });
+
+        // If any amount was paid, record the payment transaction
         if (paid > 0) {
           const selectedAcc = paymentAccounts.find(a => a.id === saleData.paymentAccountId);
           await addDoc(collection(db, 'transactions'), {
-            type: 'sale',
+            type: 'payment_received',
             amount: paid,
             date: createdAt,
-            description: `Sale to ${saleData.customerName} (#${docNumber})`,
+            description: `Payment for Invoice #${docNumber}`,
             entityId: saleData.customerId,
             entityName: saleData.customerName,
             entityType: 'customer',
@@ -594,6 +651,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       }
 
       toast.success(`${typeStr} #${docNumber} created successfully!`);
+
+      // Auto-print invoice/challan/quotation
+      try {
+        const savedOrder = { id: orderRef.id, ...orderData, _autoPrint: true };
+        generatePDF(savedOrder as any, saleData.type as any, settings);
+      } catch (err) {
+        console.error('Failed to auto-print PDF', err);
+      }
 
       // Reset form
       setSaleData({
@@ -868,14 +933,22 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                           </button>
                         </div>
 
-                        {/* Serial Number Picker */}
+                        {/* Serial Numbers (if applicable) */}
                         {item.hasSerialTracking && (
-                          <div className="border-t border-gray-200 pt-2">
-                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
-                              Select Serial Numbers (Required: {item.quantity} | Selected: {item.selectedSerials?.length || 0})
-                            </label>
-                            <div className="flex flex-wrap gap-1">
-                              {(originalProd?.availableSerials || []).map((serial: string) => {
+                          <div className="mt-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                            <p className={cn(
+                              "text-[10px] font-bold uppercase mb-1.5 flex items-center justify-between",
+                              (item.selectedSerials?.length || 0) !== item.quantity ? "text-red-500" : "text-green-600"
+                            )}>
+                              <span>Select Serial Numbers (Required: {item.quantity} | Selected: {item.selectedSerials?.length || 0})</span>
+                              {(item.selectedSerials?.length || 0) !== item.quantity && (
+                                <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded">Must Select!</span>
+                              )}
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {(originalProd?.availableSerials || []).length === 0 ? (
+                                <span className="text-xs text-red-500 font-bold">No serials in stock!</span>
+                              ) : (originalProd?.availableSerials || []).map((serial: string) => {
                                 const isSelected = (item.selectedSerials || []).includes(serial);
                                 return (
                                   <button
@@ -1002,23 +1075,33 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
-                      Paid Amount - Total: {formatCurrency(netTotal, settings)}
-                    </label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase">
+                        Paid Amount (Leave 0 for Due)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setSaleData({ ...saleData, paidAmount: 0 })}
+                        className="text-[10px] font-bold text-blue-600 hover:underline"
+                      >
+                        Keep Full Due
+                      </button>
+                    </div>
                     <input
                       type="number"
                       min={0}
                       value={saleData.paidAmount || ''}
                       onChange={e => setSaleData({ ...saleData, paidAmount: Number(e.target.value) || 0 })}
                       className="w-full border border-gray-200 rounded-lg p-2 font-black text-gray-900 text-sm"
+                      placeholder="Enter amount (0 for Full Due)"
                     />
                   </div>
 
                   {/* Due preview */}
-                  {netTotal > saleData.paidAmount && (
+                  {netTotal > (saleData.paidAmount || 0) && (
                     <div className="flex justify-between items-center text-xs font-bold text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200">
                       <span>Customer Due Balance:</span>
-                      <span>{formatCurrency(netTotal - saleData.paidAmount, settings)}</span>
+                      <span>{formatCurrency(netTotal - (saleData.paidAmount || 0), settings)}</span>
                     </div>
                   )}
                 </div>

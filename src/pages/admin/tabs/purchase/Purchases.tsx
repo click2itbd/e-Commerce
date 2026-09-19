@@ -739,12 +739,29 @@ const Purchases: React.FC<PurchasesProps> = ({
       const purchaseDocRef = await addDoc(collection(db, 'purchases'), purchaseRecord);
 
       // 3. Record Outflow in Firestore `transactions`
+      // Always record the full purchase amount to update the vendor ledger (Payable)
+      await addDoc(collection(db, 'transactions'), {
+        type: 'purchase',
+        amount: billTotal,
+        date: new Date(purchaseForm.date).toISOString(),
+        description: `Purchase from ${purchaseForm.vendorName} (#${docNumber})`,
+        entityId: purchaseForm.vendorId,
+        entityName: purchaseForm.vendorName,
+        entityType: 'vendor',
+        referenceId: purchaseDocRef.id,
+        documentNumber: docNumber,
+        paymentAccountId: '', // No payment for the purchase itself
+        paymentMethod: '',
+        createdAt,
+      });
+
+      // If any amount was paid, record the payment transaction
       if (paid > 0) {
         await addDoc(collection(db, 'transactions'), {
-          type: 'purchase',
+          type: 'payment_made',
           amount: paid,
           date: new Date(purchaseForm.date).toISOString(),
-          description: `Purchase from ${purchaseForm.vendorName} (#${docNumber})`,
+          description: `Payment for Purchase #${docNumber}`,
           entityId: purchaseForm.vendorId,
           entityName: purchaseForm.vendorName,
           entityType: 'vendor',
@@ -752,7 +769,7 @@ const Purchases: React.FC<PurchasesProps> = ({
           documentNumber: docNumber,
           paymentAccountId: selectedAcc?.id || '',
           paymentMethod: selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash',
-          createdAt,
+          createdAt: new Date().toISOString(),
         });
       }
 

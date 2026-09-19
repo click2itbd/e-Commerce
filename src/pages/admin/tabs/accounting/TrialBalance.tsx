@@ -77,58 +77,71 @@ const TrialBalanceTab: React.FC<TrialBalanceProps> = ({ setActiveTab }) => {
   const accountBalances = paymentAccounts.map(acc => {
     const opening = Number(acc.openingBalance || 0);
     const accTx = validTransactions.filter(tx => tx.paymentAccountId === acc.id);
-    const inflow = accTx.filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
-    const outflow = accTx.filter(tx => !['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const inflow = accTx.filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const outflow = accTx.filter(tx => ['purchase', 'payment_made', 'expense', 'salary', 'conveyance', 'sale_return', 'withdrawal', 'transfer_out'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
     return opening + inflow - outflow;
   });
   const totalCashAndBank = accountBalances.reduce((sum, a) => sum + a, 0);
-  const totalInventoryValuation = products.reduce((sum, p) => sum + ((Number(p.costPrice) || Number(p.price) || 0) * (Number(p.stock) || 0)), 0);
-  const totalReceivables = validOrders.reduce((sum, o) => {
-    const orderTotal = Number(o.total || 0);
-    const orderPaid = o.paymentStatus === 'paid' ? orderTotal : Number(o.paidAmount || 0);
-    return sum + Math.max(0, orderTotal - orderPaid);
-  }, 0);
+  // A proper Trial Balance does not include closing Inventory Valuation in the trial balance if Purchases are recorded,
+  // because that would double-count the asset (Purchases is a debit, Inventory is a debit). 
+  // Trial balances generally show opening inventory + purchases. For a simple system, we just omit Closing Inventory 
+  // from the core trial balance (it belongs in the Balance Sheet / Income Statement for COGS calculation).
+  
+  const totalReceivables = customers.map(c => {
+    const cTx = validTransactions.filter(tx => tx.entityId === c.id || tx.entityName === c.name);
+    const debits = cTx.filter(tx => ['sale'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const credits = cTx.filter(tx => ['payment_received', 'money_receipt', 'sale_return'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    return Math.max(0, debits - credits);
+  }).reduce((sum, val) => sum + val, 0);
 
   // Liabilities
   const totalAccountsPayable = vendors.map(v => {
     const vTx = validTransactions.filter(tx => tx.entityId === v.id || tx.entityName === v.name);
-    const purchases = vTx.filter(tx => tx.type === 'purchase').reduce((sum, tx) => sum + (tx.amount || 0), 0);
-    const payments = vTx.filter(tx => ['payment_made', 'purchase_return'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
-    return Math.max(0, purchases - payments);
+    const credits = vTx.filter(tx => ['purchase'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const debits = vTx.filter(tx => ['payment_made', 'purchase_return'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    return Math.max(0, credits - debits);
   }).reduce((sum, p) => sum + p, 0);
 
   // Revenue & Expenses
-  const totalSales = validOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+  // Sales should be computed from transactions to be consistent and include all sales
+  const totalSales = validTransactions.filter(tx => tx.type === 'sale').reduce((sum, tx) => sum + (tx.amount || 0), 0);
   const totalIncome = validTransactions.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + (tx.amount || 0), 0);
   
   const totalPurchases = validTransactions.filter(tx => tx.type === 'purchase').reduce((sum, tx) => sum + (tx.amount || 0), 0);
   const totalExpenses = validTransactions.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + (tx.amount || 0), 0);
   const totalSalaries = validTransactions.filter(tx => tx.type === 'salary').reduce((sum, tx) => sum + (tx.amount || 0), 0);
+  const totalOwnerDrawings = validTransactions.filter(tx => tx.type === 'withdrawal' && tx.category === 'Owner Withdrawal / Drawing').reduce((sum, tx) => sum + (tx.amount || 0), 0);
+  const totalCapitalDeposits = validTransactions.filter(tx => tx.type === 'deposit' || (tx.type === 'money_receipt' && tx.category === 'Capital / Fund Deposit')).reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
-  const totalDebitsBeforeCapital = totalCashAndBank + totalReceivables + totalInventoryValuation + totalPurchases + totalExpenses + totalSalaries;
-  const totalCreditsBeforeCapital = totalAccountsPayable + totalSales + totalIncome;
+  // Debits: Assets (Cash, Receivables), Expenses, Purchases, Drawings
+  const totalDebits = totalCashAndBank + totalReceivables + totalPurchases + totalExpenses + totalSalaries + totalOwnerDrawings;
   
-  // To make the Trial Balance perfectly match, the difference represents Equity/Capital/Retained Earnings
-  const calculatedCapital = totalDebitsBeforeCapital - totalCreditsBeforeCapital;
-  const isCreditCapital = calculatedCapital >= 0;
+  // Credits: Liabilities (Payables), Revenue (Sales, Income), Equity (Capital Deposits)
+  const totalCredits = totalAccountsPayable + totalSales + totalIncome + totalCapitalDeposits;
+  
+  // Any discrepancy is due to Retained Earnings (Profit/Loss generated by the system)
+  // or opening balances not properly modeled. 
+  const calculatedRetainedEarnings = totalDebits - totalCredits;
+  const isCreditRetainedEarnings = calculatedRetainedEarnings >= 0;
   
   const trialBalanceEntries = [
     { account: 'Cash & Bank Balances', debit: totalCashAndBank, credit: 0 },
     { account: 'Accounts Receivable (Customers)', debit: totalReceivables, credit: 0 },
-    { account: 'Inventory Stock Valuation', debit: totalInventoryValuation, credit: 0 },
     { account: 'Purchases (Cost of Goods)', debit: totalPurchases, credit: 0 },
     { account: 'Operating Expenses', debit: totalExpenses, credit: 0 },
     { account: 'Salary & Payroll', debit: totalSalaries, credit: 0 },
+    { account: 'Owner Drawings', debit: totalOwnerDrawings, credit: 0 },
     { account: 'Accounts Payable (Vendors)', debit: 0, credit: totalAccountsPayable },
     { account: 'Sales Revenue', debit: 0, credit: totalSales },
     { account: 'Other Income', debit: 0, credit: totalIncome },
+    { account: 'Owner Capital / Deposits', debit: 0, credit: totalCapitalDeposits },
   ];
 
-  if (calculatedCapital !== 0) {
-    if (isCreditCapital) {
-      trialBalanceEntries.push({ account: 'Owner Equity & Retained Earnings', debit: 0, credit: Math.abs(calculatedCapital) });
+  if (calculatedRetainedEarnings !== 0) {
+    if (isCreditRetainedEarnings) {
+      trialBalanceEntries.push({ account: 'Retained Earnings (Unadjusted)', debit: 0, credit: Math.abs(calculatedRetainedEarnings) });
     } else {
-      trialBalanceEntries.push({ account: 'Owner Equity & Retained Earnings (Deficit)', debit: Math.abs(calculatedCapital), credit: 0 });
+      trialBalanceEntries.push({ account: 'Retained Earnings (Unadjusted)', debit: Math.abs(calculatedRetainedEarnings), credit: 0 });
     }
   }
 

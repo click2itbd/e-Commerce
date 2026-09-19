@@ -227,7 +227,7 @@ export const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quota
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(30, 58, 138);
-      doc.text('Total Amount:', totalsX, currTotalY);
+      doc.text('Total:', totalsX, currTotalY);
       doc.text(formatCurrency(o.total, settings), alignRightX, currTotalY, { align: 'right' });
 
       // Amount in words
@@ -239,19 +239,44 @@ export const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quota
         doc.text(`In Words: ${words} Taka Only`, 20, currTotalY);
       }
       
-      if (type === 'invoice' && o.paymentMethod) {
-        currTotalY += 14;
-        // Add Paid Stamp or Payment Info
+      if (type === 'invoice') {
+        const paidAmt = Number(o.paidAmount || 0);
+        const totalAmt = Number(o.total || 0);
+        const dueAmt = Math.max(0, totalAmt - paidAmt);
+        
+        currTotalY += 8;
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
+        doc.setTextColor(80, 80, 80);
+        doc.text('Paid Amount:', totalsX, currTotalY);
         doc.setTextColor(22, 163, 74); // Green
-        const methodDisplay = o.paymentMethod === 'cod' ? 'CASH ON DELIVERY' : `PAID VIA ${o.paymentMethod.toUpperCase()}`;
-        doc.text(methodDisplay, alignRightX, currTotalY, { align: 'right' });
-        if (o.paymentReference) {
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(100, 100, 100);
-          doc.text(`Ref: ${o.paymentReference}`, alignRightX, currTotalY + 5, { align: 'right' });
+        doc.text(formatCurrency(paidAmt, settings), alignRightX, currTotalY, { align: 'right' });
+        
+        if (dueAmt > 0) {
+          currTotalY += 7;
+          doc.setTextColor(80, 80, 80);
+          doc.text('Due Amount:', totalsX, currTotalY);
+          doc.setTextColor(220, 38, 38); // Red
+          doc.text(formatCurrency(dueAmt, settings), alignRightX, currTotalY, { align: 'right' });
+        }
+
+        currTotalY += 12;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        
+        if (paidAmt === 0) {
+          doc.setTextColor(220, 38, 38); // Red
+          doc.text('UNPAID / FULL DUE', alignRightX, currTotalY, { align: 'right' });
+        } else if (o.paymentMethod) {
+          doc.setTextColor(22, 163, 74); // Green
+          const methodDisplay = o.paymentMethod === 'cod' ? 'CASH ON DELIVERY' : `PAID VIA ${o.paymentMethod.toUpperCase()}`;
+          doc.text(methodDisplay, alignRightX, currTotalY, { align: 'right' });
+          if (o.paymentReference) {
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Ref: ${o.paymentReference}`, alignRightX, currTotalY + 5, { align: 'right' });
+          }
         }
       }
     }
@@ -267,5 +292,23 @@ export const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quota
   doc.text('Thank you for your business!', pageWidth / 2, footerY + 8, { align: 'center' });
   doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, footerY + 12, { align: 'center' });
 
-  doc.save(`${type}_${(order as any).documentNumber || (order as any).referenceId || order.id.substring(0, 8)}.pdf`);
+  if ((order as any)._autoPrint) {
+    doc.autoPrint();
+    const blobURL = URL.createObjectURL(doc.output('blob'));
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    iframe.src = blobURL;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      // Small delay to ensure PDF is loaded in iframe
+      setTimeout(() => {
+        iframe.contentWindow?.print();
+      }, 100);
+    };
+  } else {
+    doc.save(`${type}_${(order as any).documentNumber || (order as any).referenceId || order.id.substring(0, 8)}.pdf`);
+  }
 };

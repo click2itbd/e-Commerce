@@ -90,11 +90,11 @@ const BalanceSheet: React.FC<BalanceSheetProps> = ({
     });
 
     const inflow = accTx
-      .filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit'].includes(tx.type))
+      .filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type))
       .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
     const outflow = accTx
-      .filter(tx => !['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit'].includes(tx.type))
+      .filter(tx => ['purchase', 'payment_made', 'expense', 'salary', 'conveyance', 'sale_return', 'withdrawal', 'transfer_out'].includes(tx.type))
       .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
     return {
@@ -114,17 +114,14 @@ const BalanceSheet: React.FC<BalanceSheetProps> = ({
   }, 0);
 
   // C. Accounts Receivable (Customer Dues up to asOfDate)
-  const validOrders = orders.filter(o => {
-    const oDate = new Date(o.createdAt).toISOString().split('T')[0];
-    return oDate <= asOfDate && o.status !== 'cancelled';
+  const customerReceivables = customers.map(c => {
+    const cTx = validTransactions.filter(tx => tx.entityId === c.id || tx.entityName === c.name);
+    const debits = cTx.filter(tx => ['sale'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const credits = cTx.filter(tx => ['payment_received', 'money_receipt', 'sale_return'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    return Math.max(0, debits - credits);
   });
-
-  const totalReceivables = validOrders.reduce((sum, o) => {
-    const orderTotal = Number(o.total || 0);
-    const orderPaid = o.paymentStatus === 'paid' ? orderTotal : Number(o.paidAmount || 0);
-    const due = Math.max(0, orderTotal - orderPaid);
-    return sum + due;
-  }, 0);
+  
+  const totalReceivables = customerReceivables.reduce((sum, val) => sum + val, 0);
 
   const totalAssets = totalCashAndBank + totalInventoryValuation + totalReceivables;
 
@@ -133,9 +130,9 @@ const BalanceSheet: React.FC<BalanceSheetProps> = ({
   // Sum of purchase transactions minus payments made to vendors
   const vendorPayables = vendors.map(v => {
     const vTx = validTransactions.filter(tx => tx.entityId === v.id || tx.entityName === v.name);
-    const purchases = vTx.filter(tx => tx.type === 'purchase').reduce((sum, tx) => sum + (tx.amount || 0), 0);
-    const payments = vTx.filter(tx => ['payment_made', 'purchase_return'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
-    const balance = purchases - payments;
+    const credits = vTx.filter(tx => ['purchase'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const debits = vTx.filter(tx => ['payment_made', 'purchase_return'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const balance = credits - debits;
     return {
       ...v,
       payable: Math.max(0, balance),

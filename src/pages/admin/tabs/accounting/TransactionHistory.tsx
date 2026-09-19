@@ -80,11 +80,11 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
 
       if (typeFilter !== 'all') {
         if (typeFilter === 'income_group') {
-          if (!['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return'].includes(tx.type)) {
+          if (!['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type)) {
             return false;
           }
         } else if (typeFilter === 'expense_group') {
-          if (['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return'].includes(tx.type)) {
+          if (['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type)) {
             return false;
           }
         } else if (tx.type !== typeFilter) {

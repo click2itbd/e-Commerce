@@ -464,6 +464,26 @@ export const RetailPOS = () => {
         }
       }
 
+      // Always record the full sale amount to update the customer ledger (Receivable)
+      try {
+        await addDoc(collection(db, 'transactions'), {
+          type: 'sale',
+          amount: orderData.total,
+          date: createdAt.split('T')[0],
+          description: `POS Sale - ${docNumber}`,
+          entityId: selectedCustomer?.id || 'general',
+          entityName: orderData.customerName,
+          entityType: 'customer',
+          paymentMethod: '',
+          paymentAccountId: '',
+          referenceId: orderRefId,
+          createdAt,
+        });
+      } catch (e) {
+        console.error("Failed adding primary sale transaction:", e);
+        throw new Error("transactions");
+      }
+
       for (const p of payments) {
         if (p.amount <= 0) continue;
         const paymentAcc = paymentAccounts.find(a => a.id === p.accountId);
@@ -471,10 +491,10 @@ export const RetailPOS = () => {
 
         try {
           await addDoc(collection(db, 'transactions'), {
-            type: 'sale',
+            type: 'payment_received',
             amount: p.amount,
             date: createdAt.split('T')[0],
-            description: `POS Sale - ${docNumber} (Split Payment)`,
+            description: `Payment for POS Sale - ${docNumber}`,
             entityId: selectedCustomer?.id || 'general',
             entityName: orderData.customerName,
             entityType: 'customer',

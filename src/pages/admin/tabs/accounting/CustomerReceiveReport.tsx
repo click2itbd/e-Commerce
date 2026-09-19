@@ -16,20 +16,15 @@ interface CustomerReceiveReportProps {
   paymentAccounts: any[];
   settings: SiteSettings;
   hasPermission: (permission: string) => boolean;
-  formatCurrency: (amount: number, settings: SiteSettings) => string;
-  cn: (...classes: string[]) => string;
-  toast: typeof toast;
 }
 
 const CustomerReceiveReport: React.FC<CustomerReceiveReportProps> = ({
   orders,
   transactions,
   customers,
+  paymentAccounts,
   settings,
   hasPermission,
-  formatCurrency,
-  cn,
-  toast,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);

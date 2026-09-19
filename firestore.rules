@@ -91,12 +91,12 @@ service cloud.firestore {
     }
 
     function isValidTransaction(data) {
-      return data.keys().hasAll(['type', 'amount', 'date', 'entityId', 'entityName']) &&
-             data.type in ['sale', 'purchase', 'expense', 'payment_received', 'payment_made', 'return', 'money_receipt'] &&
+      return data.keys().hasAll(['type', 'amount', 'date']) &&
+             data.type in ['sale', 'purchase', 'expense', 'payment_received', 'payment_made', 'return', 'money_receipt', 'deposit', 'withdrawal', 'transfer_out', 'transfer_in', 'salary', 'conveyance'] &&
              data.amount is number &&
              data.date is string &&
-             data.entityId is string &&
-             data.entityName is string;
+             (!('entityId' in data) || data.entityId is string) &&
+             (!('entityName' in data) || data.entityName is string);
     }
 
     function isValidMenu(data) {

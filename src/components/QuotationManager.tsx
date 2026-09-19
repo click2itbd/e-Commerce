@@ -196,14 +196,35 @@ export const QuotationManager: React.FC = () => {
             <div className="border border-gray-200 rounded-lg p-4">
               <h4 className="font-bold text-sm mb-4">Line Items</h4>
               <div className="mb-4 relative">
-                <div className="relative">
-                  <Search size={16} className="absolute left-3 top-3 text-gray-400" />
-                  <input 
-                    className="w-full border p-2 pl-9 rounded" 
-                    placeholder="Search product to add..."
-                    value={productSearch}
-                    onChange={e => setProductSearch(e.target.value)}
-                  />
+                <div className="flex gap-2 mb-4 relative">
+                  <div className="relative flex-1">
+                    <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+                    <input 
+                      className="w-full border p-2 pl-9 rounded" 
+                      placeholder="Search product to add..."
+                      value={productSearch}
+                      onChange={e => setProductSearch(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        items: [...prev.items, {
+                          id: `custom-${Date.now()}`,
+                          productId: `custom-${Date.now()}`,
+                          name: '',
+                          price: 0,
+                          quantity: 1,
+                          isCustomService: true
+                        } as any]
+                      }));
+                    }}
+                    className="bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-700 px-4 py-2 rounded font-bold text-sm flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <Plus size={16} /> Custom Item
+                  </button>
                 </div>
                 {productSearch && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 shadow-lg max-h-48 overflow-y-auto rounded-md">
@@ -236,8 +257,37 @@ export const QuotationManager: React.FC = () => {
                     <tbody className="divide-y divide-gray-100">
                       {formData.items.map((item, idx) => (
                         <tr key={idx}>
-                          <td className="p-2 text-sm font-medium">{item.name}</td>
-                          <td className="p-2 text-sm font-mono">{formatCurrency(item.price, {})}</td>
+                          <td className="p-2 text-sm font-medium">
+                            {(item as any).isCustomService ? (
+                              <input 
+                                type="text"
+                                className="w-full border p-1 rounded"
+                                placeholder="Item description"
+                                value={item.name}
+                                onChange={e => {
+                                  const newItems = [...formData.items];
+                                  newItems[idx].name = e.target.value;
+                                  setFormData({ ...formData, items: newItems });
+                                }}
+                              />
+                            ) : (
+                              item.name
+                            )}
+                          </td>
+                          <td className="p-2 text-sm font-mono">
+                            <input 
+                              type="number" 
+                              min="0"
+                              step="0.01"
+                              className="w-full border p-1 rounded font-mono"
+                              value={item.price}
+                              onChange={e => {
+                                const newItems = [...formData.items];
+                                newItems[idx].price = Number(e.target.value) || 0;
+                                setFormData({ ...formData, items: newItems });
+                              }}
+                            />
+                          </td>
                           <td className="p-2">
                             <input 
                               type="number" 

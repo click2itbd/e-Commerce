@@ -106,11 +106,11 @@ const AccountStatement: React.FC<AccountStatementProps> = ({
   });
 
   const priorInflow = priorTransactions
-    .filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit'].includes(tx.type))
+    .filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type))
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
   const priorOutflow = priorTransactions
-    .filter(tx => !['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit'].includes(tx.type))
+    .filter(tx => ['purchase', 'payment_made', 'expense', 'salary', 'conveyance', 'sale_return', 'withdrawal', 'transfer_out'].includes(tx.type))
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
   const calculatedOpeningBalance = initialBaseBalance + priorInflow - priorOutflow;
