@@ -10,6 +10,7 @@ import { auth, db } from '../firebase';
 import { collection, addDoc, doc, writeBatch } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { generateDocumentNumber } from '../lib/numbering';
+import { generatePDF } from '../lib/pdf';
 import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../services/paymentApi';
 import { apiPost } from '../services/apiClient';
 
@@ -171,17 +172,36 @@ export const Checkout: React.FC = () => {
         });
       }
 
-      await batch.commit();
-      
-      // Notify Admin
-      try {
-        if (user) {
-          const token = await user.getIdToken();
-          await apiPost('/api/send-email/notify-admin-new-order', { orderId: newOrderRef.id, orderData }, token);
+        await batch.commit();
+        
+        // Notify Admin and Customer
+        try {
+          if (user) {
+            const token = await user.getIdToken();
+            await apiPost('/api/send-email/notify-admin-new-order', { orderId: newOrderRef.id, orderData }, token);
+            
+            // Generate PDF for customer
+            const pdfDoc = generatePDF({ id: newOrderRef.id, ...orderData } as any, 'invoice', settings);
+            const pdfBase64 = pdfDoc.output('datauristring');
+            
+            // Send Order Confirmation to Customer
+            await apiPost('/api/send-email/order-confirmation', {
+              orderId: newOrderRef.id,
+              customerName: `${formData.firstName} ${formData.lastName}`,
+              customerEmail: formData.email,
+              attachments: [
+                {
+                  filename: `Invoice-${newOrderRef.id}.pdf`,
+                  content: pdfBase64.split('base64,')[1],
+                  encoding: 'base64',
+                  contentType: 'application/pdf'
+                }
+              ]
+            }, token);
+          }
+        } catch (err) {
+          console.error('Failed to send order emails:', err);
         }
-      } catch (err) {
-        console.error('Failed to notify admin:', err);
-      }
       
       // Update docRef for payment initiation logic below
       const docRef = newOrderRef;

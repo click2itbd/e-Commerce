@@ -14,12 +14,20 @@ import {
   Globe,
   Sparkles,
   Volume2,
-  VolumeX
+  VolumeX,
+  X
 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '../lib/utils';
+
+function showBrowserNotification(title: string, body: string) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/favicon.ico' });
+  }
+}
 
 function playNotificationChime() {
   try {
@@ -69,6 +77,15 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
       return new Set();
     }
   });
+  
+  const [clearedIds, setClearedIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('admin_cleared_notifs');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
   const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('admin_notif_sound_enabled');
@@ -84,6 +101,12 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
   useEffect(() => {
     soundEnabledRef.current = isSoundEnabled;
   }, [isSoundEnabled]);
+
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   const toggleSound = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -256,9 +279,14 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
 
       // Check if there is any brand new action item arriving in real-time
       if (initialLoadRef.current) {
-        const hasNewItem = arr.some(item => !knownNotifIdsRef.current.has(item.id));
-        if (hasNewItem && soundEnabledRef.current) {
-          playNotificationChime();
+        const newItems = arr.filter(item => !knownNotifIdsRef.current.has(item.id));
+        if (newItems.length > 0) {
+          if (soundEnabledRef.current) {
+            playNotificationChime();
+          }
+          newItems.forEach(item => {
+            showBrowserNotification(item.title, item.message);
+          });
         }
       } else {
         setTimeout(() => {
@@ -300,6 +328,17 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     } catch {}
   };
 
+  // Clear all notifications
+  const handleClearAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newCleared = new Set(clearedIds);
+    notifications.forEach(n => newCleared.add(n.id));
+    setClearedIds(newCleared);
+    try {
+      localStorage.setItem('admin_cleared_notifs', JSON.stringify(Array.from(newCleared)));
+    } catch {}
+  };
+
   // Click on a notification item
   const handleItemClick = (notif: any) => {
     const newSet = new Set(readIds);
@@ -315,10 +354,11 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     setIsOpen(false);
   };
 
-  const unreadNotifications = notifications.filter(n => !readIds.has(n.id));
+  const visibleNotifications = notifications.filter(n => !clearedIds.has(n.id));
+  const unreadNotifications = visibleNotifications.filter(n => !readIds.has(n.id));
   const unreadCount = unreadNotifications.length;
 
-  const filteredNotifications = notifications.filter(n => {
+  const filteredNotifications = visibleNotifications.filter(n => {
     if (activeFilter === 'all') return true;
     return n.category === activeFilter;
   });
@@ -385,8 +425,19 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
                   type="button"
                   onClick={handleMarkAllRead}
                   className="text-[11px] font-bold text-blue-400 hover:text-blue-300 bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors"
+                  title="Mark all as read"
                 >
-                  <CheckCheck size={13} /> Mark read
+                  <CheckCheck size={13} />
+                </button>
+              )}
+              {visibleNotifications.length > 0 && (
+                <button 
+                  type="button"
+                  onClick={handleClearAll}
+                  className="text-[11px] font-bold text-red-400 hover:text-red-300 bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors"
+                  title="Clear all notifications"
+                >
+                  <X size={13} /> Clear
                 </button>
               )}
             </div>
@@ -404,7 +455,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
                   : "text-gray-600 hover:bg-gray-200/70"
               )}
             >
-              All ({notifications.length})
+              All ({visibleNotifications.length})
             </button>
             <button
               type="button"

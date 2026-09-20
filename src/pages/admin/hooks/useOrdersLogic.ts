@@ -250,34 +250,16 @@ export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers
             const order = orders.find(o => o.id === id);
             if (order && order.customerEmail) {
               emailPromises.push(
-                fetch(getApiUrl('/api/send-email'), {
+                fetch(getApiUrl('/api/send-email/order-status-update'), {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    to: order.customerEmail,
-                    subject: `Order Status Update: ${status.toUpperCase()} - Click2IT`,
-                    html: `
-                      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                        <div style="text-align: center; margin-bottom: 30px;">
-                          <h1 style="color: #EF4444; margin: 0;">Click2IT</h1>
-                          <p style="color: #666; margin: 5px 0 0 0;">Order Status Update</p>
-                        </div>
-                        
-                        <p>Hi ${order.customerName},</p>
-                        <p>The status of your order <strong>#${order.documentNumber || order.id.slice(0, 8)}</strong> has been updated to: <span style="color: #EF4444; font-weight: bold; text-transform: uppercase;">${status}</span></p>
-                        
-                        <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                          <h3 style="margin-top: 0;">Order Details</h3>
-                          <p style="margin: 5px 0;"><strong>Status:</strong> ${status}</p>
-                          <p style="margin: 5px 0;"><strong>Total:</strong> ${formatCurrency(order.total, settings)}</p>
-                        </div>
-                        
-                        <p style="margin-top: 30px; color: #888; font-size: 0.9em;">If you have any questions, please reply to this email.</p>
-                      </div>
-                    `,
+                    orderId: order.documentNumber || order.id,
+                    customerName: order.customerName,
+                    customerEmail: order.customerEmail,
+                    status: status
                   }),
-                }).then(() => Promise.resolve())
-                .catch(() => Promise.resolve())
+                }).then(res => { if (!res.ok) throw new Error('Failed to send status update email'); })
               );
             }
           }

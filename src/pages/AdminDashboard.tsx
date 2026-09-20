@@ -1,4 +1,5 @@
 import { logoBase64 } from '../lib/logoBase64';
+import { BannersManagerTab } from './admin/tabs/marketing/BannersManagerTab';
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import Papa from 'papaparse';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit, writeBatch, where } from 'firebase/firestore';
@@ -91,6 +92,19 @@ export const AdminDashboard: React.FC = () => {
   const [isAddingTransactionCategory, setIsAddingTransactionCategory] = useState(false);
   const [newTransactionCategory, setNewTransactionCategory] = useState<Partial<TransactionCategory>>({ name: '', type: 'expense', description: '' });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchModalOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -854,24 +868,16 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
       newStock < settings.lowStockThreshold
     ) {
       try {
-        const emailHtml = `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #16a34a; border-radius: 10px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #ef4444; margin: 0;">Low Stock Alert</h1>
-              <p style="color: #666; margin: 5px 0 0 0;">Action Required</p>
-            </div>
-            <p><strong>${productName}</strong> has dropped below the low stock threshold.</p>
-            <p>Current stock: <strong style="color: #ef4444;">${newStock}</strong></p>
-            <p>Threshold: <strong>${settings.lowStockThreshold}</strong></p>
-          </div>
-        `;
-        await apiPost('/api/send-email', {
-          to: settings.lowStockEmail,
-          subject: `Low Stock Alert: ${productName}`,
-          html: emailHtml,
+        await fetch(getApiUrl('/api/send-email/low-stock-warning'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productName,
+            currentStock: newStock
+          })
         });
       } catch (error) {
-        console.error('Error sending low stock alert:', error);
+        console.error('Failed to send low stock alert:', error);
       }
     }
   };
@@ -1228,34 +1234,19 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
       // Send shipping update email
       try {
         if (order.customerEmail) {
-          const emailHtml = `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-              <div style="text-align: center; margin-bottom: 30px;">
-                <h1 style="color: #EF4444; margin: 0;">Click2IT</h1>
-                <p style="color: #666; margin: 5px 0 0 0;">Order Status Update</p>
-              </div>
-              
-              <p>Hi ${order.customerName},</p>
-              <p>The status of your order <strong>#${orderId.slice(0, 8)}</strong> has been updated to: <span style="color: #EF4444; font-weight: bold; text-transform: uppercase;">${status}</span></p>
-              
-              <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="margin-top: 0;">Order Details</h3>
-                <p style="margin: 5px 0;"><strong>Status:</strong> ${status}</p>
-                <p style="margin: 5px 0;"><strong>Total:</strong> ${formatCurrency(order.total, settings)}</p>
-              </div>
-              
-              <p style="margin-top: 30px; color: #888; font-size: 0.9em;">If you have any questions, please reply to this email.</p>
-            </div>
-           `;
-
-          await apiPost('/api/send-email', {
-            to: order.customerEmail,
-            subject: `Order Status Update: ${status.toUpperCase()} - Click2IT`,
-            html: emailHtml,
+          await fetch(getApiUrl('/api/send-email/order-status-update'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId: order.documentNumber || order.id,
+              customerName: order.customerName,
+              customerEmail: order.customerEmail,
+              status: status
+            })
           });
         }
-      } catch (emailError) {
-        console.error('Failed to send status update email:', emailError);
+      } catch (e) {
+        console.error('Failed to send status update email:', e);
       }
 
       toast.success('Order status updated');
@@ -1488,37 +1479,25 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
             await updateDoc(doc(db, 'orders', id), { status });
             const order = orders.find(o => o.id === id);
             if (order && order.customerEmail) {
-              const emailHtml = `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                  <div style="text-align: center; margin-bottom: 30px;">
-                    <h1 style="color: #EF4444; margin: 0;">Click2IT</h1>
-                    <p style="color: #666; margin: 5px 0 0 0;">Order Status Update</p>
-                  </div>
-                  
-                  <p>Hi ${order.customerName},</p>
-                  <p>The status of your order <strong>#${order.documentNumber || order.id.slice(0, 8)}</strong> has been updated to: <span style="color: #EF4444; font-weight: bold; text-transform: uppercase;">${status}</span></p>
-                  
-                  <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                    <h3 style="margin-top: 0;">Order Details</h3>
-                    <p style="margin: 5px 0;"><strong>Status:</strong> ${status}</p>
-                    <p style="margin: 5px 0;"><strong>Total:</strong> ${formatCurrency(order.total, settings)}</p>
-                  </div>
-                  
-                  <p style="margin-top: 30px; color: #888; font-size: 0.9em;">If you have any questions, please reply to this email.</p>
-                </div>
-                `;
-                try {
-                  await apiPost('/api/send-email', {
-                    to: order.customerEmail,
-                    subject: `Order Status Update: ${status.toUpperCase()} - Click2IT`,
-                    html: emailHtml,
-                  });
-                } catch (e) { console.error(e); }
+              try {
+                await fetch(getApiUrl('/api/send-email/order-status-update'), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    orderId: order.documentNumber || order.id,
+                    customerName: order.customerName,
+                    customerEmail: order.customerEmail,
+                    status: status
+                  }),
+                });
+              } catch (e) {
+                console.error('Failed to send status update email', e);
               }
-            }));
-            toast.success(`${selectedOrderIds.length} orders updated to ${status}`);
-            setSelectedOrderIds([]);
-            debouncedFetchData();
+            }
+          }));
+          toast.success(`${selectedOrderIds.length} orders updated to ${status}`);
+          setSelectedOrderIds([]);
+          debouncedFetchData();
         } catch (error) {
           console.error('Error bulk updating orders:', error);
           toast.error('Failed to update some orders');
@@ -3158,6 +3137,12 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(150, 150, 150);
+    
+    const orderDate = order.createdAt || order.date;
+    if (orderDate) {
+      doc.text(`Order Date: ${new Date(orderDate).toLocaleString()}`, pageWidth / 2, pageHeight - 15, { align: 'center' });
+    }
+    
     doc.text('Thank you for your business!', pageWidth / 2, pageHeight - 10, { align: 'center' });
     
     doc.save(`${type}_${order.id}.pdf`);
@@ -3254,7 +3239,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
                     )}
                   >
                     <DollarSign size={16} className={activeTab === 'domainPricing' ? "text-blue-600" : "text-gray-400"} />
-                    <span>Domain Pricing & TLD Rates</span>
+                    <span>Domain Price</span>
                   </button>
                 )}
                 {(hasPermission('manage_services') || isAdmin) && (
@@ -3522,6 +3507,16 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              </div>
            )}
 
+           {/* Storefront CMS */}
+           {(!isStaff || isAdmin || isManager) && (
+             <div className="px-4 mb-2">
+               <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Storefront CMS</div>
+               <button onClick={() => { setActiveTab('banners'); setIsMobileMenuOpen(false); }} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'banners' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Globe size={16} className={activeTab === 'banners' ? "text-blue-600" : "text-gray-400"} /> Banners & Pages
+               </button>
+             </div>
+           )}
+
            {/* System & Settings */}
            {(!isStaff || isAdmin || isManager) && (
              <div className="px-4 mb-6">
@@ -3558,7 +3553,13 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              </button>
              <div className="flex-1 max-w-lg relative">
                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-               <input type="text" placeholder="Search [CTRL + K]" onClick={() => toast('Coming Soon: Global Search')} className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-md text-sm focus:ring-2 focus:ring-blue-100 outline-none cursor-pointer" readOnly />
+               <input 
+                 type="text" 
+                 placeholder="Search [CTRL + K]" 
+                 onClick={() => setIsSearchModalOpen(true)} 
+                 className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-md text-sm focus:ring-2 focus:ring-blue-100 outline-none cursor-pointer" 
+                 readOnly 
+               />
              </div>
            </div>
            <div className="flex items-center gap-2 sm:gap-4 text-gray-500">
@@ -3739,6 +3740,8 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
             setSelectedLedgerEntity={setSelectedLedgerEntity}
             setActiveTab={setActiveTab}
           />
+        ) : activeTab === 'notifications' ? (
+          <NotificationsPage />
         ) : activeTab === 'all_reports' && hasPermission('all_reports') ? (
           <AllReportsTab setActiveTab={setActiveTab} />
         ) : activeTab === 'menus' && hasPermission('menus') ? (
@@ -3763,6 +3766,8 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
           <ActiveHostingAccountsTab />
         ) : activeTab === 'domainPricing' && (hasPermission('manage_settings') || isAdmin) ? (
           <DomainPricingManagerTab setActiveTab={setActiveTab} />
+        ) : activeTab === 'banners' ? (
+          <BannersManagerTab />
         ) : activeTab === 'domainOffers' ? (
           <DomainOffersTab />
         ) : activeTab === 'domainRenewals' ? (
@@ -3849,6 +3854,226 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
       </div>
       {/* Confirm Modal */}
       <ConfirmModal />
+      {/* Global Search Modal */}
+      {isSearchModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-start justify-center pt-[10vh] px-4" onClick={() => setIsSearchModalOpen(false)}>
+          <div className="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center px-4 py-3 border-b border-gray-100">
+              <Search className="text-gray-400 mr-3" size={20} />
+              <input 
+                type="text" 
+                placeholder="Search menus, orders, customers, or products..." 
+                className="flex-1 bg-transparent border-none outline-none text-gray-800 text-lg placeholder:text-gray-400"
+                value={globalSearchQuery}
+                onChange={e => setGlobalSearchQuery(e.target.value)}
+                autoFocus
+              />
+              <button className="text-xs bg-gray-100 text-gray-500 font-bold px-2 py-1 rounded hover:bg-gray-200" onClick={() => setIsSearchModalOpen(false)}>ESC</button>
+            </div>
+            
+            <div className="max-h-[65vh] overflow-y-auto p-2 bg-gray-50/50">
+              {(() => {
+                const q = globalSearchQuery.toLowerCase();
+                const allModules = [
+                  { label: 'Overview Dashboard', tab: 'dashboard', icon: Activity },
+                  { label: 'Analytics', tab: 'analytics', icon: BarChart2 },
+                  { label: 'Stock / Inventory', tab: 'inventory', icon: Package },
+                  { label: 'CLICK POS', tab: 'pos', icon: ShoppingCart },
+                  { label: 'Hosting Orders', tab: 'hostingOrders', icon: Server },
+                  { label: 'Active Hosting Accounts', tab: 'activeHostingAccounts', icon: Users },
+                  { label: 'Domain Pricing', tab: 'domainPricing', icon: DollarSign },
+                  { label: 'Hosting Packages', tab: 'hostingPlans', icon: HardDrive },
+                  { label: 'Domain Offers', tab: 'domainOffers', icon: Tag },
+                  { label: 'Support Tickets', tab: 'support_tickets', icon: LifeBuoy },
+                  { label: 'Sale (POS Screen)', tab: 'sales', icon: ShoppingCart },
+                  { label: 'Orders & Documents', tab: 'orders', icon: Receipt },
+                  { label: 'Customers', tab: 'customers', icon: Users },
+                  { label: 'Quotation System', tab: 'quotations', icon: FileText },
+                  { label: 'Purchase (Supplier)', tab: 'purchases', icon: ShoppingBag },
+                  { label: 'Suppliers / Vendors', tab: 'vendors', icon: Briefcase },
+                  { label: 'Warranty & Service', tab: 'services', icon: ShieldCheck },
+                  { label: 'Payment Accounts', tab: 'payment_accounts', icon: CreditCard },
+                  { label: 'Ledger', tab: 'ledger', icon: Book },
+                  { label: 'CRM System', tab: 'crm', icon: Users },
+                  { label: 'To-Do Tasks', tab: 'tasks', icon: CheckCircle },
+                  { label: 'Settings', tab: 'settings', icon: Settings },
+                ];
+
+                const filteredModules = q ? allModules.filter(m => m.label.toLowerCase().includes(q)) : allModules;
+                
+                const filteredOrders = q ? orders.filter(o => 
+                  o.documentNumber?.toLowerCase().includes(q) || 
+                  o.id.toLowerCase().includes(q) ||
+                  o.customerName?.toLowerCase().includes(q) || 
+                  o.customerPhone?.includes(q) ||
+                  o.items.some(i => i.name.toLowerCase().includes(q))
+                ).slice(0, 5) : [];
+
+                const filteredProducts = q ? products.filter(p =>
+                  p.name.toLowerCase().includes(q) ||
+                  p.sku.toLowerCase().includes(q) ||
+                  p.category.toLowerCase().includes(q)
+                ).slice(0, 5) : [];
+
+                const filteredCustomers = q ? customers.filter(c =>
+                  c.name?.toLowerCase().includes(q) ||
+                  c.phone?.includes(q) ||
+                  c.email?.toLowerCase().includes(q)
+                ).slice(0, 5) : [];
+
+                if (q && filteredModules.length === 0 && filteredOrders.length === 0 && filteredProducts.length === 0 && filteredCustomers.length === 0) {
+                  return (
+                    <div className="py-12 text-center text-gray-500">
+                      <Search size={32} className="mx-auto text-gray-300 mb-3" />
+                      <p>No results found for "{globalSearchQuery}"</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {/* MODULES */}
+                    {(filteredModules.length > 0 && (!q || filteredModules.length > 0)) && (
+                      <div>
+                        {q && <div className="px-3 py-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider">Menus & Modules</div>}
+                        <div className={q ? "bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm" : ""}>
+                          {filteredModules.map(item => {
+                            const Icon = item.icon;
+                            return (
+                              <div 
+                                key={item.tab}
+                                className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer group transition-colors ${q ? 'border-b border-gray-50 last:border-0 hover:bg-blue-50' : 'hover:bg-gray-100/50 rounded-lg'}`}
+                                onClick={() => {
+                                  if (item.tab === 'pos') {
+                                    window.open('/pos', '_blank');
+                                  } else {
+                                    setActiveTab(item.tab);
+                                    setIsMobileMenuOpen(false);
+                                  }
+                                  setIsSearchModalOpen(false);
+                                  setGlobalSearchQuery('');
+                                }}
+                              >
+                                <div className="w-8 h-8 rounded-lg bg-gray-100/80 flex items-center justify-center text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600">
+                                  <Icon size={16} />
+                                </div>
+                                <span className="text-gray-700 font-medium group-hover:text-blue-700">{item.label}</span>
+                                {q && <ChevronRight size={14} className="ml-auto text-gray-300 group-hover:text-blue-400" />}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ORDERS */}
+                    {filteredOrders.length > 0 && (
+                      <div>
+                        <div className="px-3 py-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider">Orders & Invoices</div>
+                        <div className="bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm">
+                          {filteredOrders.map(o => (
+                            <div 
+                              key={o.id}
+                              className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer group"
+                              onClick={() => {
+                                setActiveTab('orders');
+                                if (typeof setOrderSearchQuery === 'function') {
+                                  setOrderSearchQuery(o.documentNumber || o.id);
+                                }
+                                setIsSearchModalOpen(false);
+                                setGlobalSearchQuery('');
+                              }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600">
+                                  <Receipt size={16} />
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-gray-800 group-hover:text-blue-700">{o.documentNumber || o.id}</div>
+                                  <div className="text-xs text-gray-500">{o.customerName} • {o.customerPhone}</div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold text-gray-900">৳{Number(o.total || 0).toLocaleString()}</div>
+                                <div className="text-[10px] font-semibold uppercase text-gray-400">{o.status}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* PRODUCTS */}
+                    {filteredProducts.length > 0 && (
+                      <div>
+                        <div className="px-3 py-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider">Products</div>
+                        <div className="bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm">
+                          {filteredProducts.map(p => (
+                            <div 
+                              key={p.id}
+                              className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer group"
+                              onClick={() => {
+                                setActiveTab('inventory');
+                                setIsSearchModalOpen(false);
+                                setGlobalSearchQuery('');
+                              }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                  <Package size={16} />
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-gray-800 group-hover:text-blue-700 max-w-[250px] truncate">{p.name}</div>
+                                  <div className="text-xs text-gray-500">SKU: {p.sku || 'N/A'} • {p.category}</div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold text-gray-900">৳{Number(p.price || 0).toLocaleString()}</div>
+                                <div className={`text-[10px] font-semibold uppercase ${p.stock > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                  {p.stock > 0 ? `${p.stock} In Stock` : 'Out of Stock'}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* CUSTOMERS */}
+                    {filteredCustomers.length > 0 && (
+                      <div>
+                        <div className="px-3 py-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider">Customers</div>
+                        <div className="bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm">
+                          {filteredCustomers.map(c => (
+                            <div 
+                              key={c.id}
+                              className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer group"
+                              onClick={() => {
+                                setActiveTab('customers');
+                                setIsSearchModalOpen(false);
+                                setGlobalSearchQuery('');
+                              }}
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                <Users size={16} />
+                              </div>
+                              <div>
+                                <div className="font-semibold text-gray-800 group-hover:text-blue-700">{c.name || 'Unknown'}</div>
+                                <div className="text-xs text-gray-500">{c.phone} {c.email ? `• ${c.email}` : ''}</div>
+                              </div>
+                              <ChevronRight size={14} className="ml-auto text-gray-300 group-hover:text-blue-400" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   </div>
 </div>

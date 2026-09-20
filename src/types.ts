@@ -103,7 +103,7 @@ export interface CartItem extends Product {
   termYears?: number;
 }
 
-export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
+export type OrderStatus = 'pending' | 'processing' | 'accepted' | 'completed' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
 export type OrderType = 'invoice' | 'quotation' | 'challan';
 
 export interface Customer {

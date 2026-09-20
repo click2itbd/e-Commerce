@@ -1,7 +1,7 @@
 import React from 'react';
 import { Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
-import { ShoppingCart, Save, Share2, Printer, Zap, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { ShoppingCart, Save, Share2, Printer, Zap, AlertTriangle, ShieldCheck, Mail } from 'lucide-react';
 import { calculateEstimatedWattage, getOverallCompatibility } from './utils';
 import { FPSPredictor } from './FPSPredictor';
 
@@ -10,6 +10,7 @@ interface BuilderSidebarProps {
   onAddToCart: () => void;
   onSaveBuild: () => void;
   onPrintBuild: () => void;
+  onEmailBuild: () => void;
   onPublishBuild: () => void;
 }
 
@@ -18,6 +19,7 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
   onAddToCart,
   onSaveBuild,
   onPrintBuild,
+  onEmailBuild,
   onPublishBuild
 }) => {
   const selectedList = Object.values(selectedComponents).filter(Boolean) as Product[];
@@ -84,13 +86,13 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
           <span className="relative z-10 text-lg">Add to Cart</span>
         </button>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <button 
             onClick={onSaveBuild}
             className="flex items-center justify-center gap-2 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium text-sm"
           >
             <Save size={16} />
-            Save Build
+            Save
           </button>
           <button 
             onClick={onPrintBuild}
@@ -98,6 +100,13 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
           >
             <Printer size={16} />
             Print
+          </button>
+          <button 
+            onClick={onEmailBuild}
+            className="flex items-center justify-center gap-2 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium text-sm"
+          >
+            <Mail size={16} />
+            Email
           </button>
         </div>
         

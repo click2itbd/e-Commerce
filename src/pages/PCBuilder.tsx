@@ -18,6 +18,9 @@ import { BuilderSelectionModal } from '../components/PCBuilder/BuilderSelectionM
 import { BuildVisualizer } from '../components/PCBuilder/BuildVisualizer';
 import { AIAssistantModal } from '../components/PCBuilder/AIAssistantModal';
 import { SmartBuilderTemplates } from '../components/PCBuilder/SmartBuilderTemplates';
+import { apiPost } from '../services/apiClient';
+import { generatePDF } from '../lib/pdf';
+import { useSettings } from '../context/SettingsContext';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -39,6 +42,7 @@ export const PCBuilder: React.FC = () => {
   
   const navigate = useNavigate();
   const location = useLocation();
+  const { settings } = useSettings();
   
   const matchChoose = location.pathname.match(/\/pc-build\/choose\/(.+)/);
   const categoryId = matchChoose ? matchChoose[1] : null;
@@ -135,6 +139,66 @@ export const PCBuilder: React.FC = () => {
 
   const handlePrintBuild = () => {
     window.print();
+  };
+
+  const handleEmailBuild = async () => {
+    const selectedList = Object.values(selectedComponents).filter(Boolean) as Product[];
+    if (selectedList.length === 0) {
+      toast.error('Add some components to email your build quote');
+      return;
+    }
+    
+    const customerName = window.prompt("Enter your name:");
+    if (!customerName) return;
+    
+    const customerEmail = window.prompt("Enter your email address to receive the quote:");
+    if (!customerEmail || !customerEmail.includes('@')) {
+      toast.error('Valid email is required');
+      return;
+    }
+
+    const toastId = toast.loading('Generating quote and sending email...');
+    
+    try {
+      const totalPrice = selectedList.reduce((sum, p) => sum + p.price, 0);
+      
+      const mockOrder: any = {
+        id: 'QUO-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+        customerName,
+        customerEmail,
+        customerPhone: '',
+        customerAddress: '',
+        items: selectedList.map(p => ({
+          ...p,
+          quantity: 1
+        })),
+        total: totalPrice,
+        discountAmount: 0,
+        createdAt: new Date().toISOString()
+      };
+      
+      const pdfDoc = generatePDF(mockOrder, 'quotation', settings);
+      const pdfBase64 = pdfDoc.output('datauristring');
+      
+      await apiPost('/api/send-email/pc-build-summary', {
+        customerName,
+        customerEmail,
+        totalAmount: totalPrice,
+        attachments: [
+          {
+            filename: 'PC-Build-Quote.pdf',
+            content: pdfBase64.split('base64,')[1],
+            encoding: 'base64',
+            contentType: 'application/pdf'
+          }
+        ]
+      });
+      
+      toast.success('Quote sent to your email!', { id: toastId });
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to send email. Try again.', { id: toastId });
+    }
   };
 
   const handlePublishBuild = async () => {
@@ -248,6 +312,7 @@ export const PCBuilder: React.FC = () => {
                   onAddToCart={handleAddToCart}
                   onSaveBuild={handleSaveBuild}
                   onPrintBuild={handlePrintBuild}
+                  onEmailBuild={handleEmailBuild}
                   onPublishBuild={handlePublishBuild}
                 />
               </div>

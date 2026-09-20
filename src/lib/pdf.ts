@@ -318,6 +318,24 @@ export const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quota
     }
   }
 
+  // Signatures
+  if (type === 'invoice' || type === 'challan' || type === 'quotation') {
+    const sigY = doc.internal.pageSize.getHeight() - 35;
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.5);
+    
+    // Customer Signature
+    doc.line(20, sigY, 70, sigY);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Customer Signature', 45, sigY + 5, { align: 'center' });
+
+    // Authorized Signature
+    doc.line(pageWidth - 70, sigY, pageWidth - 20, sigY);
+    doc.text('Authorized Signature', pageWidth - 45, sigY + 5, { align: 'center' });
+  }
+
   // Footer
   const footerY = doc.internal.pageSize.getHeight() - 20;
   doc.setDrawColor(220, 220, 220);
@@ -325,6 +343,12 @@ export const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quota
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(150, 150, 150);
+  
+  const orderDate = (order as any).createdAt || (order as any).date;
+  if (orderDate) {
+    doc.text(`Order Date: ${new Date(orderDate).toLocaleString()}`, pageWidth / 2, footerY + 4, { align: 'center' });
+  }
+  
   doc.text('Thank you for your business!', pageWidth / 2, footerY + 8, { align: 'center' });
   doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, footerY + 12, { align: 'center' });
 

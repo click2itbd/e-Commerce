@@ -7,7 +7,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 export type OrderStatus = string;
 export const DEFAULT_ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
-import { Receipt, Search, Download, Filter, Eye, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, Globe, Server, Cpu, ShoppingBag, Layers } from 'lucide-react';
+import { Receipt, Search, Download, Filter, Eye, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
 export type OrderCategory = 'all' | 'ecommerce' | 'pc_build' | 'domain' | 'hosting';
@@ -46,6 +46,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [orderCategoryFilter, setOrderCategoryFilter] = useState<OrderCategory>('all');
+  const [shippingModalOrder, setShippingModalOrder] = useState<any | null>(null);
   const { settings } = useSettings();
   const activeStatuses = (settings as any)?.customOrderStatuses || DEFAULT_ORDER_STATUSES;
 
@@ -82,10 +83,11 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
   const currentOrders = processedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-[calc(100vh-8rem)]">
-      {/* Category Tabs Header */}
-      <div className="p-6 pb-0 flex-shrink-0">
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
+    <>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-[calc(100vh-8rem)]">
+        {/* Category Tabs Header */}
+        <div className="p-6 pb-0 flex-shrink-0">
+          <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <FileText className="text-[#EF4444]" /> Order Management
             <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full ml-2">
@@ -367,23 +369,23 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                           </td>
                         <td className="px-6 py-4">
                           {cat === 'domain' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-50 text-cyan-700 border border-cyan-200 whitespace-nowrap">
                               <Globe size={13} /> Domain
                             </span>
                           )}
                           {cat === 'hosting' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
                               <Server size={13} /> Hosting
                             </span>
                           )}
                           {cat === 'pc_build' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap">
                               <Cpu size={13} /> PC Build
                             </span>
                           )}
                           {cat === 'ecommerce' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <ShoppingBag size={13} /> E-Commerce
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                              <ShoppingBag size={13} /> E-Com
                             </span>
                           )}
                         </td>
@@ -456,7 +458,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                             value={order.status}
                             onChange={e => updateOrderStatus && updateOrderStatus(order.id, e.target.value as OrderStatus)}
                             disabled={!hasPermission('manage_orders')}
-                            className="text-xs border-gray-200 rounded-md focus:ring-[#EF4444] disabled:bg-gray-50 disabled:text-gray-500 font-semibold"
+                            className="w-full text-xs border-gray-200 rounded-md focus:ring-[#EF4444] disabled:bg-gray-50 disabled:text-gray-500 font-semibold"
                           >
                             {activeStatuses.map((s: string) => (
                               <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
@@ -465,6 +467,15 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {(order.status === 'shipped' || order.status === 'delivered' || order.courierName) && (
+                              <button
+                                onClick={() => setShippingModalOrder(order)}
+                                className="p-1.5 px-3 text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-all flex items-center gap-1 text-xs font-bold shadow-sm"
+                                title="Shipping Details"
+                              >
+                                <Truck size={14} /> Shipping
+                              </button>
+                            )}
                             {generatePDF && (
                               <div className="relative group">
                                 <button className="p-1.5 px-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold border border-gray-200 bg-white">
@@ -511,6 +522,84 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
           />
         </div>
       </div>
+
+      {/* Shipping Details Modal */}
+      {shippingModalOrder && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShippingModalOrder(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-blue-50/50">
+              <h3 className="font-bold flex items-center gap-2 text-blue-900">
+                <Truck className="text-blue-600" size={18} /> 
+                Shipping Logistics
+              </h3>
+              <button onClick={() => setShippingModalOrder(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            
+            <form 
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const courierName = (form.elements.namedItem('courierName') as HTMLInputElement).value;
+                const trackingNumber = (form.elements.namedItem('trackingNumber') as HTMLInputElement).value;
+                
+                try {
+                  await updateDoc(doc(db, 'orders', shippingModalOrder.id), { courierName, trackingNumber });
+                  toast.success('Shipping details updated');
+                  if (fetchData) fetchData();
+                  setShippingModalOrder(null);
+                } catch (err) {
+                  toast.error('Failed to update shipping details');
+                }
+              }}
+              className="p-6 space-y-4"
+            >
+              <div className="mb-2">
+                <div className="text-xs font-bold text-gray-500 mb-1">Order Number</div>
+                <div className="text-sm font-semibold text-gray-900">#{shippingModalOrder.documentNumber || shippingModalOrder.id.slice(0, 8)}</div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Courier Service Name</label>
+                <input 
+                  type="text" 
+                  name="courierName"
+                  defaultValue={shippingModalOrder.courierName || ''}
+                  placeholder="e.g. Steadfast, Pathao, RedX" 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  disabled={!hasPermission('manage_orders')}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Tracking Number</label>
+                <input 
+                  type="text" 
+                  name="trackingNumber"
+                  defaultValue={shippingModalOrder.trackingNumber || ''}
+                  placeholder="Enter parcel tracking number" 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  disabled={!hasPermission('manage_orders')}
+                />
+              </div>
+
+              {hasPermission('manage_orders') && (
+                <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-6">
+                  <button type="button" onClick={() => setShippingModalOrder(null)} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
+                    Cancel
+                  </button>
+                  <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm">
+                    Save Details
+                  </button>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

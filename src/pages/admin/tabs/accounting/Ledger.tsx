@@ -40,6 +40,19 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
   const [paymentDescription, setPaymentDescription] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
 
+  const [showEntityDropdown, setShowEntityDropdown] = useState(false);
+  const [entitySearchQuery, setEntitySearchQuery] = useState('');
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showEntityDropdown && searchInputRef.current) {
+      // Use setTimeout to ensure the element is rendered before focusing
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+  }, [showEntityDropdown]);
+
   const fetchTransactions = async () => {
     try {
       const q = query(collection(db, 'transactions'), orderBy('date', 'desc'));
@@ -278,39 +291,89 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Quick Party Picker Dropdown */}
-          <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
-            <User size={14} className="text-gray-400" />
-            <select
-              value={selectedLedgerEntity ? `${selectedLedgerEntity.type}:${selectedLedgerEntity.id}` : ''}
-              onChange={e => {
-                if (!e.target.value) {
-                  if (setSelectedLedgerEntity) setSelectedLedgerEntity(null);
-                  return;
-                }
-                const [type, id] = e.target.value.split(':');
-                if (type === 'customer') {
-                  const cust = customers.find(c => c.id === id);
-                  if (cust && setSelectedLedgerEntity) setSelectedLedgerEntity({ id: cust.id, name: cust.name, type: 'customer' });
-                } else {
-                  const vend = vendors.find(v => v.id === id);
-                  if (vend && setSelectedLedgerEntity) setSelectedLedgerEntity({ id: vend.id, name: vend.name, type: 'vendor' });
-                }
-              }}
-              className="text-xs bg-transparent border-none font-bold text-gray-800 focus:ring-0 outline-none"
+          {/* Quick Party Picker Dropdown (Searchable) */}
+          <div className="relative">
+            <div 
+              className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors"
+              onClick={() => setShowEntityDropdown(!showEntityDropdown)}
             >
-              <option value="">-- All (General Ledger) --</option>
-              <optgroup label="Customers">
-                {customers.map(c => (
-                  <option key={`c-${c.id}`} value={`customer:${c.id}`}>👤 {c.name}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Vendors / Suppliers">
-                {vendors.map(v => (
-                  <option key={`v-${v.id}`} value={`vendor:${v.id}`}>🏢 {v.name}</option>
-                ))}
-              </optgroup>
-            </select>
+              <User size={14} className="text-gray-400" />
+              <div className="text-xs font-bold text-gray-800 select-none whitespace-nowrap min-w-[150px]">
+                {selectedLedgerEntity ? `${selectedLedgerEntity.name} (${selectedLedgerEntity.type})` : '-- All (General Ledger) --'}
+              </div>
+            </div>
+
+            {showEntityDropdown && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowEntityDropdown(false)}
+                ></div>
+                <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 shadow-xl rounded-lg z-50 flex flex-col overflow-hidden" style={{ maxHeight: '400px' }}>
+                  <div className="p-2 border-b border-gray-100 bg-gray-50">
+                   <input
+                     ref={searchInputRef}
+                     type="text"
+                     placeholder="Search party by name..."
+                     className="w-full text-xs p-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#EF4444] bg-white text-gray-800"
+                     value={entitySearchQuery}
+                     onChange={e => setEntitySearchQuery(e.target.value)}
+                   />
+                </div>
+                <div className="overflow-y-auto p-1 text-xs bg-white">
+                  <div 
+                    className="p-2 hover:bg-red-50 cursor-pointer font-bold text-gray-800 rounded mb-1 transition-colors"
+                    onClick={() => {
+                      if (setSelectedLedgerEntity) setSelectedLedgerEntity(null);
+                      setShowEntityDropdown(false);
+                      setEntitySearchQuery('');
+                    }}
+                  >
+                    -- All (General Ledger) --
+                  </div>
+                  
+                  {customers.filter(c => c.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).length > 0 && (
+                    <div className="font-black text-[10px] text-gray-400 uppercase mt-2 px-2 mb-1">Customers</div>
+                  )}
+                  {customers.filter(c => c.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).map(c => (
+                     <div 
+                       key={`c-${c.id}`} 
+                       className="p-2 hover:bg-gray-100 cursor-pointer rounded flex items-center gap-2 transition-colors"
+                       onClick={() => {
+                         if (setSelectedLedgerEntity) setSelectedLedgerEntity({ id: c.id, name: c.name, type: 'customer' });
+                         setShowEntityDropdown(false);
+                         setEntitySearchQuery('');
+                       }}
+                     >
+                       <span>👤</span> <span className="font-medium text-gray-700">{c.name}</span>
+                     </div>
+                  ))}
+                  
+                  {vendors.filter(v => v.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).length > 0 && (
+                    <div className="font-black text-[10px] text-gray-400 uppercase mt-2 px-2 mb-1">Vendors / Suppliers</div>
+                  )}
+                  {vendors.filter(v => v.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).map(v => (
+                     <div 
+                       key={`v-${v.id}`} 
+                       className="p-2 hover:bg-gray-100 cursor-pointer rounded flex items-center gap-2 transition-colors"
+                       onClick={() => {
+                         if (setSelectedLedgerEntity) setSelectedLedgerEntity({ id: v.id, name: v.name, type: 'vendor' });
+                         setShowEntityDropdown(false);
+                         setEntitySearchQuery('');
+                       }}
+                     >
+                       <span>🏢</span> <span className="font-medium text-gray-700">{v.name}</span>
+                     </div>
+                  ))}
+                  
+                  {(customers.filter(c => c.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).length === 0 && 
+                    vendors.filter(v => v.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).length === 0) && (
+                      <div className="p-3 text-center text-gray-400 italic font-medium">No matches found</div>
+                  )}
+                </div>
+              </div>
+              </>
+            )}
           </div>
 
           {/* Date Pickers */}

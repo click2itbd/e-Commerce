@@ -35,7 +35,9 @@ const CustomerReceiveReport: React.FC<CustomerReceiveReportProps> = ({
   const [crReportCustomer, setCrReportCustomer] = useState('all');
 
   const mfsMethods = React.useMemo(() => {
-    return paymentAccounts.filter(p => p.type === 'mfs' || p.type === 'mobile_banking').map(p => p.name.toLowerCase());
+    const defaultMfs = ['bkash', 'nagad', 'rocket', 'upay', 'cellfin', 'surecash'];
+    const dbMfs = paymentAccounts.filter(p => p.type === 'mfs' || p.type === 'mobile_banking').map(p => p.name.toLowerCase());
+    return [...new Set([...defaultMfs, ...dbMfs])];
   }, [paymentAccounts]);
 
   const getCustomerReceiveReportData = () => {
@@ -50,7 +52,7 @@ const CustomerReceiveReport: React.FC<CustomerReceiveReportProps> = ({
     }> = [];
 
     transactions.forEach(tx => {
-      if (!['payment_received', 'money_receipt', 'sale'].includes(tx.type)) {
+      if (!['payment_received', 'money_receipt'].includes(tx.type)) {
         return;
       }
 

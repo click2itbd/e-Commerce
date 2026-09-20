@@ -353,6 +353,78 @@ export const EmailTemplates = {
     `,
   }),
 
+  orderConfirmation: (orderId: string, customerName: string) => ({
+    subject: `Order Confirmation - #${orderId.slice(0, 8)}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #2563eb; margin: 0;">Order Confirmed!</h2>
+        </div>
+        <p>Dear <strong>${customerName}</strong>,</p>
+        <p>Thank you for your order. We have successfully received it and are currently processing it.</p>
+        <p><strong>Order ID:</strong> #${orderId}</p>
+        <p>You will find your detailed invoice attached to this email as a PDF.</p>
+        <p>We will notify you once your order has been shipped. If you have any questions, please contact our support team.</p>
+        <p>Best regards,<br><strong>Click2ItBD Team</strong></p>
+      </div>
+    `,
+  }),
+
+  orderStatusUpdate: (orderId: string, customerName: string, status: string) => ({
+    subject: `Order Status Update: ${status.toUpperCase()} - #${orderId.slice(0, 8)}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="color: #2563eb;">Order Status Update</h2>
+        <p>Dear <strong>${customerName}</strong>,</p>
+        <p>The status of your order <strong>#${orderId.slice(0, 8)}</strong> has been updated.</p>
+        <p>New Status: <span style="display: inline-block; padding: 5px 10px; background: #e0e7ff; color: #3730a3; border-radius: 5px; font-weight: bold;">${status.toUpperCase()}</span></p>
+        <p>Thank you for shopping with Click2ItBD!</p>
+      </div>
+    `,
+  }),
+
+  paymentVerification: (orderId: string, customerName: string, amount: number, method: string) => ({
+    subject: `Payment Verified - #${orderId.slice(0, 8)}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="color: #16a34a;">Payment Verified</h2>
+        <p>Dear <strong>${customerName}</strong>,</p>
+        <p>We have successfully verified your payment for order <strong>#${orderId.slice(0, 8)}</strong>.</p>
+        <p><strong>Amount:</strong> ৳ ${amount}</p>
+        <p><strong>Method:</strong> ${method}</p>
+        <p>Your order is now being processed.</p>
+        <p>Thank you,<br>Click2ItBD Team</p>
+      </div>
+    `,
+  }),
+
+  pcBuildSummary: (customerName: string, totalAmount: number) => ({
+    subject: `Your Custom PC Build Summary`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="color: #2563eb;">Your Custom PC Build</h2>
+        <p>Dear <strong>${customerName}</strong>,</p>
+        <p>Thank you for using the Click2ItBD PC Builder! Your custom build summary is attached to this email.</p>
+        <p><strong>Estimated Total:</strong> ৳ ${totalAmount}</p>
+        <p>If you're ready to order or need expert advice, feel free to reply to this email or contact our support.</p>
+        <p>Best regards,<br>Click2ItBD Team</p>
+      </div>
+    `,
+  }),
+
+  lowStockWarning: (productName: string, currentStock: number) => ({
+    subject: `[ALERT] Low Stock Warning - ${productName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #fee2e2; border-radius: 10px; background-color: #fef2f2;">
+        <h2 style="color: #dc2626; margin-top: 0;">Low Stock Alert</h2>
+        <p><strong>Product:</strong> ${productName}</p>
+        <p><strong>Current Stock:</strong> ${currentStock} units</p>
+        <p>Please restock this product soon to avoid missing out on sales.</p>
+        <a href="https://click2itbd.com/admin" style="display: inline-block; padding: 10px 20px; background: #dc2626; color: white; text-decoration: none; border-radius: 5px; margin-top: 15px;">Go to Admin Panel</a>
+      </div>
+    `,
+  }),
+
   welcome: (customerName: string, email: string) => ({
     subject: 'Welcome to Click2IT!',
     html: `

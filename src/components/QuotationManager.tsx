@@ -9,6 +9,7 @@ import { generateDocumentNumber } from '../lib/numbering';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { sendEmail } from '../services/emailService';
+import { Pagination } from './common/Pagination';
 
 export const QuotationManager: React.FC = () => {
   const [quotations, setQuotations] = useState<Order[]>([]);
@@ -18,6 +19,9 @@ export const QuotationManager: React.FC = () => {
   
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'view'>('list');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   
   const [editingId, setEditingId] = useState<string | null>(null);
   
@@ -334,20 +338,20 @@ export const QuotationManager: React.FC = () => {
           finalY = termsStartY + (splitTerms.length * 4) + 10;
       }
       
-      // Signatures
-      finalY += 30; // space for signature
-      if (finalY > 270) {
-        doc.addPage();
-        finalY = 30;
-      }
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(10);
-      
-      doc.line(14, finalY, 70, finalY);
-      doc.text('Client Signature & Stamp', 14, finalY + 5);
-      
-      doc.line(140, finalY, 196, finalY);
-      doc.text('Authorized Signature', 140, finalY + 5);
+        // Signatures
+        let sigY = doc.internal.pageSize.getHeight() - 35;
+        if (finalY > sigY - 20) {
+          doc.addPage();
+        }
+        
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(10);
+        
+        doc.line(14, sigY, 70, sigY);
+        doc.text('Client Signature & Stamp', 14, sigY + 5);
+        
+        doc.line(140, sigY, 196, sigY);
+        doc.text('Authorized Signature', 140, sigY + 5);
       
       if (action === 'print') {
         window.open(doc.output('bloburl'), '_blank');
@@ -511,7 +515,7 @@ export const QuotationManager: React.FC = () => {
               <input 
                 placeholder="Search by quote no, customer, phone..."
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                 className="w-full border border-gray-300 rounded-md py-2 pl-9 pr-4 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
               />
             </div>
@@ -542,7 +546,7 @@ export const QuotationManager: React.FC = () => {
                         <td colSpan={7} className="text-center py-12 text-gray-500 italic">No quotations found.</td>
                     </tr>
                 ) : (
-                    filteredQuotations.map(q => (
+                    filteredQuotations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(q => (
                     <tr key={q.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 font-mono font-bold text-indigo-600 text-xs">
                           {q.documentNumber || q.id.slice(0, 8)}
@@ -559,7 +563,14 @@ export const QuotationManager: React.FC = () => {
                            {q.items.length} items
                         </td>
                         <td className="px-6 py-4">
-                           <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full tracking-wider ${q.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : q.status === 'processing' ? 'bg-blue-100 text-blue-800' : q.status === 'converted' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>
+                           <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full tracking-wider ${
+                             q.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                             q.status === 'processing' ? 'bg-blue-100 text-blue-800' : 
+                             q.status === 'accepted' ? 'bg-green-100 text-green-800' : 
+                             q.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 
+                             q.status === 'converted' ? 'bg-purple-100 text-purple-800' : 
+                             'bg-gray-100 text-gray-800'
+                           }`}>
                              {q.status}
                            </span>
                         </td>
@@ -587,6 +598,16 @@ export const QuotationManager: React.FC = () => {
                 )}
               </tbody>
             </table>
+          </div>
+          
+          <div className="p-4 border-t border-gray-100">
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filteredQuotations.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+            />
           </div>
         </div>
         </>
@@ -639,6 +660,8 @@ export const QuotationManager: React.FC = () => {
                 >
                   <option value="pending">PENDING</option>
                   <option value="processing">PROCESSING</option>
+                  <option value="accepted">ACCEPTED</option>
+                  <option value="completed">COMPLETED</option>
                   <option value="shipped">SHIPPED</option>
                   <option value="delivered">DELIVERED</option>
                   <option value="cancelled">CANCELLED</option>

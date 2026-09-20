@@ -44,8 +44,8 @@ const SalesReportTab: React.FC = () => {
 
       snap.forEach(docSnap => {
         const order = docSnap.data();
-        // Skip cancelled or failed orders
-        if (order.status === 'cancelled' || order.status === 'failed') return;
+        // Skip cancelled or failed orders, and quotations (proposals are not sales)
+        if (order.status === 'cancelled' || order.status === 'failed' || order.type === 'quotation') return;
 
         const orderDate = order.createdAt || new Date().toISOString();
         const docNum = order.documentNumber || docSnap.id.slice(0, 8);
@@ -53,9 +53,20 @@ const SalesReportTab: React.FC = () => {
         const custPhone = order.customerPhone || order.shippingAddress?.phone || '';
 
         if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+          const orderDiscount = order.discountAmount || 0;
+          const orderSubtotal = order.items.reduce((sum: number, i: any) => sum + ((i.price || i.unitPrice || 0) * (i.quantity || 1)), 0);
+
           order.items.forEach((item: any, idx: number) => {
             const itemQty = item.quantity || 1;
             const itemPrice = item.price || item.unitPrice || 0;
+            const lineTotal = itemQty * itemPrice;
+            
+            // Proportional discount for this item
+            let itemDiscount = 0;
+            if (orderSubtotal > 0 && orderDiscount > 0) {
+              itemDiscount = orderDiscount * (lineTotal / orderSubtotal);
+            }
+
             records.push({
               id: `${docSnap.id}-${idx}`,
               orderId: docSnap.id,
@@ -66,7 +77,7 @@ const SalesReportTab: React.FC = () => {
               productName: item.name || item.productName || 'General Item',
               quantity: itemQty,
               unitPrice: itemPrice,
-              total: itemQty * itemPrice,
+              total: lineTotal - itemDiscount, // Net item total
               paymentMethod: order.paymentMethod || 'cash',
               paymentStatus: order.paymentStatus || 'paid',
             });
