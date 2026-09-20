@@ -595,5 +595,10 @@ service cloud.firestore {
       allow update: if true;
       allow delete: if isAdmin();
     }
+
+    match /store_banners/{bannerId} {
+      allow read: if true;
+      allow write: if hasStaffAccess();
+    }
   }
 }
