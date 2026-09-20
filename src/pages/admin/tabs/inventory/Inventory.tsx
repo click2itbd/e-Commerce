@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { db, storage } from '../../../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -240,13 +240,38 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                         </div>
 
                         <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Short Description</label>
+                          <textarea
+                            rows={2}
+                            value={formData.shortDescription || ''}
+                            onChange={e => setFormData({ ...formData, shortDescription: e.target.value })}
+                            className="w-full font-medium text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Brief highlight (1-2 lines) for product cards..."
+                          />
+                        </div>
+
+                        <div>
                           <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Description</label>
                           <textarea
-                            rows={3}
+                            rows={4}
                             value={formData.description}
                             onChange={e => setFormData({ ...formData, description: e.target.value })}
                             className="w-full font-medium text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                             placeholder="Detailed product description..."
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Tags (Comma Separated)</label>
+                          <input
+                            type="text"
+                            value={formData.tags?.join(', ') || ''}
+                            onChange={e => {
+                              const tagsArray = e.target.value.split(',').map(t => t.trim()).filter(t => t !== '');
+                              setFormData({ ...formData, tags: tagsArray });
+                            }}
+                            className="w-full font-medium text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="e.g. gaming, budget, new arrival"
                           />
                         </div>
                       </div>
@@ -256,7 +281,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                       <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Pricing, Stock & Setup</h4>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Purchase Price (BDT)</label>
                           <input
@@ -274,6 +299,16 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                             value={formData.price}
                             onChange={e => setFormData({ ...formData, price: Number(e.target.value) })}
                             className="w-full font-black text-sm text-blue-600 border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Discount Price (BDT)</label>
+                          <input
+                            type="number"
+                            value={formData.discountPrice || ''}
+                            onChange={e => setFormData({ ...formData, discountPrice: e.target.value ? Number(e.target.value) : undefined })}
+                            placeholder="Optional"
+                            className="w-full font-black text-sm text-green-600 border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
                         <div>
@@ -314,22 +349,14 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                               type="checkbox"
                               checked={formData.hasSerialTracking}
                               onChange={e => {
-                                const checked = e.target.checked;
-                                if (checked && !editingProduct && formData.stock > 0) {
-                                  // Auto-generate based on existing stock
-                                  const currentSerials = formData.availableSerials || [];
-                                  let newSerials = [...currentSerials];
-                                  if (formData.stock > currentSerials.length) {
-                                    const diff = formData.stock - currentSerials.length;
-                                    const prefix = Date.now().toString(36).toUpperCase().slice(-4);
-                                    for(let i=0; i<diff; i++) {
-                                      const seq = String(currentSerials.length + i + 1).padStart(3, '0');
-                                      newSerials.push(`SN-${prefix}-${seq}`);
-                                    }
-                                  }
-                                  setFormData({ ...formData, hasSerialTracking: checked, availableSerials: newSerials });
+                                const enabled = e.target.checked;
+                                if (enabled && !editingProduct) {
+                                  const count = formData.stock || 0;
+                                  const prefix = Date.now().toString(36).toUpperCase().slice(-4);
+                                  const initialSerials = Array.from({length: count}, (_, i) => `SN-${prefix}-${String(i+1).padStart(3, '0')}`);
+                                  setFormData({ ...formData, hasSerialTracking: true, availableSerials: initialSerials });
                                 } else {
-                                  setFormData({ ...formData, hasSerialTracking: checked });
+                                  setFormData({ ...formData, hasSerialTracking: enabled });
                                 }
                               }}
                               className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
@@ -355,7 +382,33 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                         </div>
 
                         <div className="flex flex-col gap-3">
-                           <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                          <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={formData.showInStore !== false}
+                              onChange={e => setFormData({ ...formData, showInStore: e.target.checked })}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                            />
+                            <div>
+                              <span className="block text-sm font-bold text-slate-800">Show in Store</span>
+                              <span className="block text-[10px] text-slate-500">Visible on public e-commerce site</span>
+                            </div>
+                          </label>
+
+                          <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={formData.isFeatured || false}
+                              onChange={e => setFormData({ ...formData, isFeatured: e.target.checked })}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                            />
+                            <div>
+                              <span className="block text-sm font-bold text-slate-800">Featured Product</span>
+                              <span className="block text-[10px] text-slate-500">Highlight on store homepage</span>
+                            </div>
+                          </label>
+                          
+                          <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                             <input 
                                 type="checkbox" 
                                 checked={(formData.warrantyMonths || 0) > 0} 
@@ -373,8 +426,8 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                                   value={formData.warrantyMonths || 0}
                                   onChange={e => setFormData({ ...formData, warrantyMonths: Math.max(1, Number(e.target.value)) })}
                                   className="w-20 font-black text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-center"
-                                />
-                                <span className="text-xs font-bold text-slate-500 uppercase">Months</span>
+                              />
+                              <span className="text-xs font-bold text-slate-500 uppercase">Months</span>
                             </div>
                           )}
                         </div>

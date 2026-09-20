@@ -40,6 +40,11 @@ export interface Product {
   availableSerials?: string[];
   warrantyMonths?: number;
   isAccessory?: boolean;
+  showInStore?: boolean;
+  isFeatured?: boolean;
+  discountPrice?: number;
+  shortDescription?: string;
+  tags?: string[];
   createdAt: string;
 }
 

@@ -25,6 +25,11 @@ export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, se
     hasSerialTracking: false,
     availableSerials: [] as string[],
     warrantyMonths: 0,
+    showInStore: true,
+    isFeatured: false,
+    discountPrice: undefined as number | undefined,
+    shortDescription: '',
+    tags: [] as string[],
   });
   const [vendorProductSearchQuery, setVendorProductSearchQuery] = useState('');
   const [vendorProductCategoryFilter, setVendorProductCategoryFilter] = useState<string>('all');
@@ -70,7 +75,15 @@ export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, se
             chipset: '',
             vendorId: '',
             variants: [],
-            specs: {}
+            specs: {},
+            hasSerialTracking: false,
+            availableSerials: [],
+            warrantyMonths: 0,
+            showInStore: true,
+            isFeatured: false,
+            discountPrice: undefined,
+            shortDescription: '',
+            tags: []
           });
           fetchData();
         } catch (error) {
