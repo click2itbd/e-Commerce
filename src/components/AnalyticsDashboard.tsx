@@ -139,8 +139,17 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       totalRevenue += orderTotal;
 
       if (order.items && order.items.length > 0) {
+        const orderDiscount = Number(order.discountAmount) || 0;
+        const orderSubtotal = order.items.reduce((sum: number, i: any) => sum + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0);
+
         order.items.forEach(item => {
-          const itemPrice = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+          const rawItemTotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+          let itemDiscount = 0;
+          if (orderSubtotal > 0 && orderDiscount > 0) {
+            itemDiscount = orderDiscount * (rawItemTotal / orderSubtotal);
+          }
+          const itemPrice = rawItemTotal - itemDiscount; // Net revenue for this item
+
           const itemType = (item as any).itemType || '';
           const itemCat = ((item as any).category || '').toLowerCase();
 
@@ -152,7 +161,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           } else if (itemType === 'domain' || itemType === 'domain_renewal' || itemType === 'domain_transfer' || itemCat.includes('domain')) {
             domainRevenue += itemPrice;
             const wholesaleDomainCost = 1150 * (Number((item as any).termYears) || 1) * (Number(item.quantity) || 1);
-            domainUpstreamCost += Math.min(wholesaleDomainCost, itemPrice * 0.92);
+            domainUpstreamCost += Math.min(wholesaleDomainCost, rawItemTotal * 0.92);
           } else if (itemCat.includes('service') || itemCat.includes('repair')) {
             servicesRevenue += itemPrice;
           } else {
@@ -160,7 +169,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             const savedCostPrice = (item as any).costPrice;
             const knownCost = (savedCostPrice !== undefined && savedCostPrice !== null && savedCostPrice > 0)
               ? Number(savedCostPrice)
-              : (productCostMap.get(item.id) || Number((item as any).purchasePrice) || (itemPrice * 0.82));
+              : (productCostMap.get(item.id) || Number((item as any).purchasePrice) || (rawItemTotal * 0.82));
             hardwareCOGS += knownCost * (Number(item.quantity) || 1);
           }
         });
