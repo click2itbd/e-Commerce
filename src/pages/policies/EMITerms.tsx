@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Layout } from '../../components/Layout';
 import { SEO } from '../../components/SEO';
 import { CreditCard, Clock } from 'lucide-react';
@@ -14,7 +14,7 @@ const EMITerms = () => {
         description="EMI service is coming soon to our platform." 
       />
       <div className="bg-gray-50 min-h-[60vh] py-16 flex items-center justify-center">
-        <div className="container mx-auto px-4 max-w-2xl text-center">
+        <div className="container mx-auto px-2 sm:px-4 max-w-2xl text-center">
           <div className="bg-white p-10 md:p-16 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
             
             <div className="w-24 h-24 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mb-6 relative">

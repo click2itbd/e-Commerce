@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Layout } from '../components/Layout';
 import { SEO } from '../components/SEO';
 import { Phone, Mail, MapPin, Clock, MessageSquare, Send, CheckCircle2, Sparkles } from 'lucide-react';
@@ -65,7 +65,7 @@ export const ContactUs = () => {
 
       {/* Hero */}
       <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-black text-white py-14 md:py-20">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center max-w-3xl">
+        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 text-center max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 text-blue-300 text-xs font-semibold uppercase tracking-wider mb-4">
             <Sparkles size={14} /> 24/7 Dedicated Support
           </div>
@@ -82,7 +82,7 @@ export const ContactUs = () => {
       </div>
 
       <div className="bg-gray-50 py-12 md:py-16">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-6xl">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
             {/* Contact Info Cards (Left 1 Col) */}
@@ -141,7 +141,7 @@ export const ContactUs = () => {
                   <div>
                     <p className="text-xs text-gray-500 font-medium">Business Hours</p>
                     <p className="text-sm font-bold text-gray-900">
-                      10:00 AM – 8:30 PM
+                      10:00 AM â€“ 8:30 PM
                     </p>
                     <p className="text-[11px] text-gray-400 mt-0.5">Friday: 2:30 PM - 8:30 PM</p>
                   </div>

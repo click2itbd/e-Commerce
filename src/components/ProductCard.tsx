@@ -36,7 +36,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             <img
               src={product.images?.[0] || undefined}
               alt={product.name}
-              className="w-full h-full object-contain p-4 group-hover/image:scale-105 transition-transform duration-300"
+              className="w-full h-full object-contain p-3 sm:p-4 group-hover/image:scale-105 transition-transform duration-300"
               referrerPolicy="no-referrer"
               loading="lazy"
             />
@@ -85,7 +85,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           </div>
         </div>
         
-        <div className="p-4 flex flex-col flex-grow">
+        <div className="p-3 sm:p-4 flex flex-col flex-grow">
           <Link 
             to={`/product/${product.id}`} 
             className="text-sm font-medium text-gray-800 line-clamp-2 mb-2 min-h-[40px] transition-colors"

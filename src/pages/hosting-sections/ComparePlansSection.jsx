@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Check, X } from 'lucide-react';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -151,7 +151,7 @@ export default function ComparePlansSection() {
   const allFeatureIds = features.map(f => f.id);
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
+    <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 py-16">
       <div className="text-center mb-10">
         <h2 className="text-3xl font-bold text-gray-900 uppercase tracking-tight">Compare Plan Features</h2>
         <p className="mt-3 text-base text-gray-600">A detailed breakdown of CloudLinux resources, limits, and server features.</p>
@@ -169,7 +169,7 @@ export default function ComparePlansSection() {
                   <th key={plan.id} className={`py-5 px-6 font-bold text-gray-900 text-center min-w-[120px] sm:min-w-[160px] ${isPopular ? 'bg-blue-50/70 border-x border-blue-200' : ''}`}>
                     <div className="uppercase tracking-wider">{plan.name}</div>
                     <div className="text-sm font-semibold text-blue-600 mt-1">
-                      {price.monthly > 0 ? `৳${price.monthly.toLocaleString()}/mo` : 'Custom'}
+                      {price.monthly > 0 ? `à§³${price.monthly.toLocaleString()}/mo` : 'Custom'}
                     </div>
                   </th>
                 );

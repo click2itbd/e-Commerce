@@ -367,7 +367,7 @@ export const generatePDF = async (order: Order | Transaction, type: 'invoice' | 
       setTimeout(() => { iframe.contentWindow?.print(); }, 100);
     };
   } else if (action === 'download') {
-    doc.save(${type}_.pdf);
+    doc.save(type + '_' + (data.id || '') + '.pdf');
   }
   
   return doc;

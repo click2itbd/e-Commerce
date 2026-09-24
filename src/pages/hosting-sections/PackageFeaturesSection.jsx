@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import FeatureIconCard from '../../components/hosting-ui/FeatureIconCard';
 import { Zap, Headphones, ShieldCheck, Gauge, HardDrive, Globe, Server } from 'lucide-react';
 import { SectionHeading } from '../../components/ui/SectionHeading';
@@ -38,11 +38,11 @@ const DETAILED_FEATURES = [
 export default function PackageFeaturesSection() {
   return (
     <section className="py-12 md:py-20 bg-white">
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-2 sm:px-4">
         <SectionHeading
           eyebrow="Why Us"
           title="Package Features"
-          subtitle="Everything you need to launch, scale, and succeed online — built into every plan."
+          subtitle="Everything you need to launch, scale, and succeed online â€” built into every plan."
         />
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-20">

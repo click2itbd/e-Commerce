@@ -640,10 +640,20 @@ const Purchases: React.FC<PurchasesProps> = ({
         const currentProduct = products.find(p => p.id === item.id);
 
         if (currentProduct) {
+          const oldStock = Number(currentProduct.stock) || 0;
+          const oldCost = Number(currentProduct.costPrice) || 0;
+          const newStock = Number(item.quantity) || 0;
+          const newCost = effectivePurchasePrice;
+          
+          const totalStock = oldStock + newStock;
+          const averageCostPrice = totalStock > 0 
+            ? ((oldStock * oldCost) + (newStock * newCost)) / totalStock 
+            : newCost;
+
           const productRef = doc(db, 'products', item.id);
           const updates: any = {
-            stock: (currentProduct.stock || 0) + Number(item.quantity),
-            costPrice: effectivePurchasePrice,
+            stock: totalStock,
+            costPrice: averageCostPrice,
           };
 
           if (item.salesPrice) {
@@ -677,10 +687,20 @@ const Purchases: React.FC<PurchasesProps> = ({
            
            if (matchByDetails) {
               // Merge into existing product instead of creating duplicate
+              const oldStock = Number(matchByDetails.stock) || 0;
+              const oldCost = Number(matchByDetails.costPrice) || 0;
+              const newStock = Number(item.quantity) || 0;
+              const newCost = effectivePurchasePrice;
+              
+              const totalStock = oldStock + newStock;
+              const averageCostPrice = totalStock > 0 
+                ? ((oldStock * oldCost) + (newStock * newCost)) / totalStock 
+                : newCost;
+
               const productRef = doc(db, 'products', matchByDetails.id);
               const updates: any = {
-                 stock: (matchByDetails.stock || 0) + Number(item.quantity),
-                 costPrice: Number(item.purchasePrice) || matchByDetails.costPrice || 0,
+                 stock: totalStock,
+                 costPrice: averageCostPrice,
               };
               if (item.salesPrice) updates.price = Number(item.salesPrice);
               if (item.sku && !matchByDetails.sku) updates.sku = item.sku;

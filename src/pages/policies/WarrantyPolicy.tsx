@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Layout } from '../../components/Layout';
 import { SEO } from '../../components/SEO';
 import { ShieldCheck, AlertTriangle, Clock, Wrench, CheckCircle, FileText, Server } from 'lucide-react';
@@ -18,7 +18,7 @@ const WarrantyPolicy = () => {
         description={isHosting ? `Comprehensive server SLA, uptime guarantee, and service turnaround times for ${settings.brandName} hosting services.` : `Comprehensive product warranty policy and RMA claim procedures for hardware at ${settings.brandName}.`} 
       />
       <div className="bg-gray-50 py-12 md:py-16">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-4xl">
           <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-gray-100">
             {/* Header */}
             <div className="flex items-center gap-3 mb-4">
@@ -170,10 +170,10 @@ const WarrantyPolicy = () => {
                 </p>
                 <div className="flex flex-wrap gap-4 text-sm font-semibold">
                   <a href={`tel:${settings.contactPhone || '+8809640887777'}`} className="text-blue-600 hover:underline">
-                    📞 {settings.contactPhone || '+8809640887777'}
+                    ðŸ“ž {settings.contactPhone || '+8809640887777'}
                   </a>
                   <a href={`mailto:${settings.contactEmail}`} className="text-blue-600 hover:underline">
-                    ✉️ {settings.contactEmail}
+                    âœ‰ï¸ {settings.contactEmail}
                   </a>
                 </div>
               </section>

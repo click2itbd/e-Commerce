@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { SectionHeading } from '../../components/ui/SectionHeading';
 import { Button } from '../../components/ui/Button';
@@ -8,7 +8,7 @@ export default function FAQSection({ items }) {
 
   return (
     <section className="py-12 md:py-20 bg-white">
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-2 sm:px-4">
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-10">
           <div className="lg:sticky lg:top-24 lg:self-start">
             <SectionHeading

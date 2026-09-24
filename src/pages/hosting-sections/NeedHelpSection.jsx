@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Phone, MessageCircle, Ticket } from 'lucide-react';
 
 export default function NeedHelpSection({
@@ -20,14 +20,14 @@ export default function NeedHelpSection({
 
   return (
     <section className="border-y border-[var(--c2i-line)] bg-white">
-      <div className="container mx-auto px-4 py-10 md:py-14">
+      <div className="container mx-auto px-2 sm:px-4 py-10 md:py-14">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div className="text-center md:text-left">
             <h2 className="text-xl md:text-2xl font-bold text-[var(--c2i-ink)]" style={{ fontFamily: 'var(--font-display)' }}>
               Need Help? We're Here For You
             </h2>
             <p className="mt-1 text-sm text-[var(--c2i-ink-soft)]">
-              Our team replies within minutes — pick the channel that works best for you.
+              Our team replies within minutes â€” pick the channel that works best for you.
             </p>
           </div>
 

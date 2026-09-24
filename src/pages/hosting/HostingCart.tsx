@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
@@ -102,7 +102,7 @@ export const HostingCart: React.FC = () => {
         </p>
       </div>
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 py-12">
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl shadow-sm border border-slate-200">
             <div className="bg-slate-100 p-6 rounded-full mb-6">
@@ -168,9 +168,9 @@ export const HostingCart: React.FC = () => {
                             >
                               <option value={1}>1 Year (Regular)</option>
                               <option value={2}>2 Years (Save 5%)</option>
-                              <option value={3}>3 Years (Save 10%) 🔥</option>
+                              <option value={3}>3 Years (Save 10%) ðŸ”¥</option>
                               <option value={4}>4 Years (Save 12%)</option>
-                              <option value={5}>5 Years (Save 15%) ⭐</option>
+                              <option value={5}>5 Years (Save 15%) â­</option>
                             </select>
                           </div>
                         )}
@@ -186,10 +186,10 @@ export const HostingCart: React.FC = () => {
                               className="text-xs font-bold bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-2.5 py-1 outline-none cursor-pointer hover:border-blue-400"
                             >
                               <option value="monthly">1 Month</option>
-                              <option value="1">1 Year (Save 20%) 🔥</option>
+                              <option value="1">1 Year (Save 20%) ðŸ”¥</option>
                               <option value="2">2 Years (Save 25%)</option>
-                              <option value="3">3 Years (Save 30%) ⭐</option>
-                              <option value="5">5 Years (Save 35%) 🚀</option>
+                              <option value="3">3 Years (Save 30%) â­</option>
+                              <option value="5">5 Years (Save 35%) ðŸš€</option>
                             </select>
                           </div>
                         )}

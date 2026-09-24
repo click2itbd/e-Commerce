@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Globe, ArrowRight, Loader2 } from 'lucide-react';
 import { collection, onSnapshot, doc } from 'firebase/firestore';
@@ -113,7 +113,7 @@ export default function DomainPricingSection({
 
   return (
     <section className="py-16 md:py-24 bg-gray-50 border-t border-gray-100">
-      <div className="container mx-auto px-4 max-w-7xl">
+      <div className="container mx-auto px-2 sm:px-4 max-w-7xl">
         <div className="text-center mb-12 md:mb-16">
           <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest mb-4 border border-blue-100">
             <Globe size={14} /> Domain Registration
@@ -172,7 +172,7 @@ export default function DomainPricingSection({
                       <span className="text-sm font-medium text-gray-500">Starting at</span>
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
-                      ৳{price.toLocaleString()}
+                      à§³{price.toLocaleString()}
                     </p>
                     <p className="text-xs text-gray-400">/ year (Includes Privacy)</p>
                   </div>

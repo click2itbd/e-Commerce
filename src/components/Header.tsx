@@ -58,7 +58,7 @@ export const Header: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full text-white shadow-md" style={{ backgroundColor: settings.primaryColor }}>
-      <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px]">
+      <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
         <div className="flex h-16 items-center justify-between gap-4">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0">
@@ -129,7 +129,7 @@ export const Header: React.FC = () => {
 
       {/* Desktop Navigation */}
       <nav className="hidden md:block bg-white text-[#081621] border-b border-gray-200">
-        <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px]">
+        <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
           <ul className="flex items-center gap-8 h-12">
             {menus.map(menu => {
               const isComponents = menu.name.toLowerCase() === 'components';

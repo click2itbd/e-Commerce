@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Layout } from '../../components/Layout';
 import { SEO } from '../../components/SEO';
 import { Truck, Clock, MapPin, Zap, ShieldCheck, HelpCircle, Server, FileText } from 'lucide-react';
@@ -17,7 +17,7 @@ const OnlineDelivery = () => {
         description={isHosting ? `Instant digital provisioning, VPS setup times, and server activation details at ${settings.brandName}.` : `Nationwide delivery timelines, shipping charges, and courier partners at ${settings.brandName}.`} 
       />
       <div className="bg-gray-50 py-12 md:py-16 min-h-screen">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-4xl">
           <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-gray-100">
             {/* Header */}
             <div className="flex items-center gap-3 mb-4">
@@ -98,7 +98,7 @@ const OnlineDelivery = () => {
                         Delivered via Pathao / SteadFast / RedX / Home Express Courier directly to your doorstep. Same-day emergency delivery available for urgent orders upon request.
                       </p>
                       <div className="mt-4 text-xs font-semibold text-gray-800 bg-white/80 px-3 py-1.5 rounded-lg border border-emerald-200 inline-block">
-                        Standard Charge: ৳ 60 - ৳ 100 BDT
+                        Standard Charge: à§³ 60 - à§³ 100 BDT
                       </div>
                     </div>
 
@@ -112,7 +112,7 @@ const OnlineDelivery = () => {
                         Dispatched via Sundarban Courier, SA Paribahan, or SteadFast. You can pick it up from your nearest courier branch or request home delivery depending on your district coverage.
                       </p>
                       <div className="mt-4 text-xs font-semibold text-gray-800 bg-white/80 px-3 py-1.5 rounded-lg border border-blue-200 inline-block">
-                        Standard Charge: ৳ 120 - ৳ 200 BDT
+                        Standard Charge: à§³ 120 - à§³ 200 BDT
                       </div>
                     </div>
                   </div>
@@ -154,10 +154,10 @@ const OnlineDelivery = () => {
                 </p>
                 <div className="flex gap-4 text-sm font-semibold">
                   <a href={`tel:${settings.contactPhone || '+8809640887777'}`} className="text-blue-600 hover:underline">
-                    📞 {settings.contactPhone || '+8809640887777'}
+                    ðŸ“ž {settings.contactPhone || '+8809640887777'}
                   </a>
                   <a href={`mailto:${settings.contactEmail}`} className="text-blue-600 hover:underline">
-                    ✉️ {settings.contactEmail}
+                    âœ‰ï¸ {settings.contactEmail}
                   </a>
                 </div>
               </div>

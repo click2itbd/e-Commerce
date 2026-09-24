@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+﻿import React, { useState, useRef, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -289,7 +289,7 @@ export default function SupportPage() {
         {/* Subtle background mesh */}
         <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none" />
         
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl relative z-10 text-center">
+        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-4xl relative z-10 text-center">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 text-blue-600 text-xs font-bold uppercase tracking-wider mb-4 border border-blue-100/80 shadow-sm">
             <Sparkles size={13} className="text-blue-500" /> Help Center & Knowledgebase
           </div>
@@ -354,7 +354,7 @@ export default function SupportPage() {
       </div>
 
       <div className="bg-white py-14">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl space-y-16">
+        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-6xl space-y-16">
           
           {/* ========================================================================= */}
           {/* 1. VISUAL TOPIC CARDS (Modern 6-Card Grid) */}
@@ -540,7 +540,7 @@ export default function SupportPage() {
                 <h4 className="font-bold text-base text-gray-900 mb-1">Customer Helpline</h4>
                 <p className="text-xs text-gray-500 mb-2">Immediate support for sales and server status.</p>
                 <a href={`tel:${contactPhone}`} className="text-xs font-bold text-blue-600 hover:underline">
-                  {contactPhone} →
+                  {contactPhone} â†’
                 </a>
               </div>
             </div>
@@ -554,7 +554,7 @@ export default function SupportPage() {
                 <h4 className="font-bold text-base text-gray-900 mb-1">Email Support</h4>
                 <p className="text-xs text-gray-500 mb-2">Send migration logs or general inquiries.</p>
                 <a href={`mailto:${contactEmail}`} className="text-xs font-bold text-purple-600 hover:underline break-all">
-                  {contactEmail} →
+                  {contactEmail} â†’
                 </a>
               </div>
             </div>
@@ -573,7 +573,7 @@ export default function SupportPage() {
                   rel="noopener noreferrer" 
                   className="text-xs font-bold text-emerald-600 hover:underline"
                 >
-                  Open WhatsApp Chat →
+                  Open WhatsApp Chat â†’
                 </a>
               </div>
             </div>

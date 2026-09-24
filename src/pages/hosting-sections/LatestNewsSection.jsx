@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 const NEWS = [
   { id: 1, category: 'Cloud', title: 'New cloud infrastructure deployed across 5 regions for faster access', image: '/assets/cloud_server.jpg', date: 'Aug 15, 2026' },
@@ -10,7 +10,7 @@ const NEWS = [
 export default function LatestNewsSection() {
   return (
     <section className="py-20 bg-white">
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-2 sm:px-4">
         <div className="text-center mb-12">
           <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">BLOG & UPDATES</p>
           <h2 className="text-3xl md:text-4xl font-extrabold text-[var(--c2i-blue-dark)] uppercase">OUR LATEST NEWS</h2>

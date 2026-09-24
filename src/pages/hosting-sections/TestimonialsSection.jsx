@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { SectionHeading } from '../../components/ui/SectionHeading';
 
 const DEFAULT_TESTIMONIALS = [
@@ -41,7 +41,7 @@ export default function TestimonialsSection({ testimonials = DEFAULT_TESTIMONIAL
         backgroundImage: 'radial-gradient(circle at 20% 30%, var(--c2i-success-soft) 0%, transparent 45%), radial-gradient(circle at 80% 70%, var(--c2i-success-soft) 0%, transparent 45%)',
       }} />
 
-      <div className="relative z-10 container mx-auto px-4">
+      <div className="relative z-10 container mx-auto px-2 sm:px-4">
         <div className="text-center mb-12">
           <SectionHeading
             eyebrow="Testimonials"
@@ -74,7 +74,7 @@ export default function TestimonialsSection({ testimonials = DEFAULT_TESTIMONIAL
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-[var(--c2i-ink)]">{item.name}</p>
                     <p className="truncate text-xs text-[var(--c2i-ink-soft)]">
-                      {item.role}{item.company ? ` · ${item.company}` : ''}
+                      {item.role}{item.company ? ` Â· ${item.company}` : ''}
                     </p>
                   </div>
                 </div>

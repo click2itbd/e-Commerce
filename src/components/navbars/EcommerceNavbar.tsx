@@ -104,7 +104,7 @@ export const EcommerceNavbar: React.FC = () => {
   return (
     <header className="sticky top-0 z-50 w-full shadow-md bg-black">
       <div className="hidden md:block bg-[#111] text-gray-300 text-xs py-1.5 border-b border-gray-800">
-        <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px] flex justify-between items-center">
+        <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px] flex justify-between items-center">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1"><span className="text-[#F97316]">Phone:</span> {settings.contactPhone}</span>
             <span className="flex items-center gap-1"><span className="text-[#F97316]">Email:</span> {settings.contactEmail}</span>
@@ -118,7 +118,7 @@ export const EcommerceNavbar: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px]">
+      <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
         <div className="flex py-3 items-center justify-between gap-4">
           {/* Logo */}
           <Link to="/shop" className="flex items-center gap-2 shrink-0">
@@ -329,7 +329,7 @@ export const EcommerceNavbar: React.FC = () => {
 
       {/* Desktop Navigation */}
       <nav className="hidden md:block bg-white border-b border-gray-200">
-          <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px]">
+          <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
             <div className="flex items-center justify-between h-12">
               <ul className="flex items-center gap-8 h-full">
             {menus.filter(m => m.name.toLowerCase() !== 'hosting').map(menu => {

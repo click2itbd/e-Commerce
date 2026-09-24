@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { Layout } from '../../components/Layout';
@@ -99,7 +99,7 @@ const DomainTransferPage = () => {
 
       const transferProduct = {
         id: `domain_transfer_${normalized}`,
-        name: `Domain Transfer — ${normalized}`,
+        name: `Domain Transfer â€” ${normalized}`,
         description: 'Includes 1 Year Extension',
         price: transferPrice,
         category: 'Hosting & Domains',
@@ -272,7 +272,7 @@ const DomainTransferPage = () => {
 
       {/* Steps Section */}
       <section className="py-12 sm:py-16 lg:py-20 bg-white">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12 sm:mb-16">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-gray-900">
               How to Transfer a Domain

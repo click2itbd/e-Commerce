@@ -6,7 +6,7 @@ import { CompareBar } from './CompareBar';
 import { useCart } from '../context/CartContext';
 import { getSiteContext } from '../hooks/useSiteContext';
 
-// Navbars — lazy imported to keep bundle clean
+// Navbars � lazy imported to keep bundle clean
 import { HostingNavbar } from './navbars/HostingNavbar';
 import { EcommerceNavbar } from './navbars/EcommerceNavbar';
 import { PCBuildNavbar } from './navbars/PCBuildNavbar';
@@ -21,7 +21,7 @@ function NavbarSelector() {
   const { items } = useCart();
   const siteContext = getSiteContext();
 
-  // ── Explicitly PC-Build routes ──────────────────────────────────────────
+  // ���� Explicitly PC-Build routes ������������������������������������������������������������������������������������
   if (
     pathname.startsWith('/pc-build') ||
     pathname.startsWith('/community-builds')
@@ -29,7 +29,7 @@ function NavbarSelector() {
     return <PCBuildNavbar />;
   }
 
-  // ── Explicitly E-Commerce routes ────────────────────────────────────────
+  // ���� Explicitly E-Commerce routes ��������������������������������������������������������������������������������
   if (
     pathname.startsWith('/shop') ||
     pathname.startsWith('/category') ||
@@ -41,7 +41,7 @@ function NavbarSelector() {
     return <EcommerceNavbar />;
   }
 
-  // ── Hosting-own cart & checkout ─────────────────────────────────────────
+  // ���� Hosting-own cart & checkout ����������������������������������������������������������������������������������
   if (
     pathname.startsWith('/hosting/cart') ||
     pathname.startsWith('/hosting/checkout')
@@ -49,7 +49,7 @@ function NavbarSelector() {
     return <HostingNavbar />;
   }
 
-  // ── Shared routes: use whichever site the user came from ─────────────────
+  // ���� Shared routes: use whichever site the user came from ����������������������������������
   // (cart, checkout, order-success, profile, payment, login)
   if (
     pathname.startsWith('/cart') ||
@@ -76,7 +76,7 @@ function NavbarSelector() {
     return <HostingNavbar />;
   }
 
-  // ── Hosting routes (default) ─────────────────────────────────────────────
+  // ���� Hosting routes (default) ������������������������������������������������������������������������������������������
   return <HostingNavbar />;
 }
 
@@ -84,7 +84,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) =
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <NavbarSelector />
-      <main className={`flex-grow ${fullWidth ? '' : 'w-full max-w-[1440px] mx-auto px-4 md:px-[50px] py-8'}`}>
+      <main className={`flex-grow overflow-x-hidden ${fullWidth ? '' : 'w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px] py-8'}`}>
         {children}
       </main>
       <Footer />

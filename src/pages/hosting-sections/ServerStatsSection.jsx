@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { SectionHeading } from '../../components/ui/SectionHeading';
 
 const stats = [
@@ -12,7 +12,7 @@ const stats = [
 export default function ServerStatsSection() {
   return (
     <section className="bg-white border-y border-[var(--c2i-line)]">
-      <div className="container mx-auto px-4 py-16 md:py-24">
+      <div className="container mx-auto px-2 sm:px-4 py-16 md:py-24">
         <SectionHeading
           eyebrow="Infrastructure"
           title="Our Server Statistics"

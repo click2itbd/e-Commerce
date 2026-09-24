@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Shield, 
@@ -86,7 +86,7 @@ const ServicesPage = () => {
 
         {/* 3 Simple Steps Section */}
         <section className="py-20 bg-white border-b border-gray-100">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+          <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-6xl">
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold uppercase tracking-wider mb-3">
                 <Sparkles size={14} /> Quick Onboarding
@@ -138,7 +138,7 @@ const ServicesPage = () => {
 
         {/* Services Grid Section (Clean Light Cards) */}
         <section className="py-20 bg-white border-b border-gray-100">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+          <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-6xl">
             <div className="text-center mb-16">
               <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
                 Our Hosting & Infrastructure Solutions
@@ -154,7 +154,7 @@ const ServicesPage = () => {
 
         {/* Technology Stack & Specs (White Background) */}
         <section className="py-20 bg-white border-b border-gray-100">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+          <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-6xl">
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold uppercase tracking-wider mb-3">
                 <Zap size={14} /> Advanced Infrastructure
@@ -186,7 +186,7 @@ const ServicesPage = () => {
 
         {/* Plan Comparison Table (White Background) */}
         <section className="py-20 bg-white border-b border-gray-100">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+          <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-6xl">
             <div className="text-center mb-16">
               <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
                 Compare Hosting Package Types
@@ -232,7 +232,7 @@ const ServicesPage = () => {
 
         {/* Premium Features Included Highlights */}
         <section className="py-20 bg-white border-b border-gray-100">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+          <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-6xl">
             <div className="text-center mb-16">
               <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
                 Included in Every Hosting Account
@@ -280,7 +280,7 @@ const ServicesPage = () => {
 
         {/* Services FAQ Accordion */}
         <section className="py-20 bg-white border-b border-gray-100">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+          <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-4xl">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-extrabold text-gray-900 mb-3">
                 Frequently Asked Questions
@@ -322,7 +322,7 @@ const ServicesPage = () => {
 
         {/* Clean White CTA Section */}
         <section className="py-20 bg-white">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
+          <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-5xl">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-3xl p-6 md:p-10 lg:p-14 text-center shadow-lg relative overflow-hidden">
               <h2 className="text-3xl md:text-4xl font-extrabold mb-4">
                 Ready to Boost Your Website Speed & Security?

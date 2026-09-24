@@ -1,11 +1,11 @@
-import React from 'react';
+﻿import React from 'react';
 import { CheckCircle2, ArrowRight, Globe, ShieldCheck } from 'lucide-react';
 import GlassPanel from '../../components/hosting-ui/GlassPanel';
 
 export default function DomainTransferSection() {
   return (
     <section className="py-12 md:py-20 bg-[var(--c2i-ink)] text-white">
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-2 sm:px-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
           <div>
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Transfer Your Domain</h2>

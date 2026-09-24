@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { Layout } from '../../components/Layout';
@@ -54,7 +54,7 @@ const DomainPage = () => {
 
       {/* Domain Search Section */}
       <section className="py-6 md:py-8 ">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6 md:mb-8">
             Start Your Journey Here
           </h2>
@@ -102,7 +102,7 @@ const DomainPage = () => {
 
       {/* Why Register With Us Section */}
       <section className="py-12 md:py-20 bg-white ">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10 md:mb-16">
             <h2 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-black-700 sm:text-4xl">
               Why Register With Us?
@@ -154,7 +154,7 @@ const DomainPage = () => {
 
       {/* Domain Transfer Banner */}
       <section className="py-6 md:py-8 ">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8">
           <div className="bg-blue-700 dark:bg-blue-800 rounded-2xl md:rounded-3xl p-6 md:p-12 lg:flex lg:items-center lg:justify-between shadow-2xl overflow-hidden relative">
             <div className="absolute top-0 right-0 -mt-16 -mr-16 w-64 h-64 md:w-80 md:h-80 bg-blue-500 rounded-full opacity-20 blur-3xl"></div>
             <div className="absolute bottom-0 left-0 -mb-16 -ml-16 w-48 h-48 md:w-64 md:h-64 bg-blue-400 rounded-full opacity-20 blur-3xl"></div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, limit, updateDoc, doc, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Layout } from '../../components/Layout';
@@ -79,7 +79,7 @@ export const CommunityBuilds: React.FC = () => {
       <div className="relative bg-[#0E2A47] overflow-hidden">
         <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay"></div>
         <div className="absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l from-blue-600/30 to-transparent blur-3xl rounded-full translate-x-1/2"></div>
-        <div className="container mx-auto px-4 max-w-7xl py-16 md:py-24 relative z-10">
+        <div className="container mx-auto px-2 sm:px-4 max-w-7xl py-16 md:py-24 relative z-10">
           <div className="flex flex-col items-center justify-center text-center">
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-20 h-20 bg-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center mb-6 shadow-lg border border-blue-400/30 backdrop-blur-sm">
               <Users size={40} />
@@ -95,7 +95,7 @@ export const CommunityBuilds: React.FC = () => {
       </div>
 
       <div className="min-h-screen bg-slate-50 py-12">
-        <div className="container mx-auto px-4 max-w-7xl">
+        <div className="container mx-auto px-2 sm:px-4 max-w-7xl">
           
           {/* Controls Bar */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-8 flex flex-col md:flex-row gap-4 items-center justify-between sticky top-4 z-20">

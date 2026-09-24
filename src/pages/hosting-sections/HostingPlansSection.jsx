@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Database, Monitor, Server, Check, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -303,7 +303,7 @@ export default function HostingPlansSection({
 
   return (
     <section id="shared-hosting" className="py-12 bg-gray-50 border-t border-gray-100 scroll-mt-20">
-      <div className="container mx-auto px-4 max-w-7xl">
+      <div className="container mx-auto px-2 sm:px-4 max-w-7xl">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest mb-4 border border-blue-100">
             <Zap className="w-3.5 h-3.5" /> High Performance cPanel Hosting
@@ -384,7 +384,7 @@ export default function HostingPlansSection({
                   <div className="mb-6 pb-6 border-b border-gray-100">
                     <p className="text-xs uppercase tracking-wider mb-1 text-gray-400 font-semibold">Starting at</p>
                     <div className="flex items-baseline">
-                      <span className="text-2xl font-bold text-gray-500 mr-1">৳</span>
+                      <span className="text-2xl font-bold text-gray-500 mr-1">à§³</span>
                       <span className={cn("text-4xl sm:text-5xl font-extrabold tracking-tight", isPopular ? "text-blue-600" : "text-gray-900")}>
                         {displayPrice.toLocaleString()}
                       </span>

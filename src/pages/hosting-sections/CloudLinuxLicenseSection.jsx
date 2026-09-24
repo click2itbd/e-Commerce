@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Check, X, ArrowRight, Zap, Layers, Server, Shield, Sparkles, HelpCircle, Minus } from 'lucide-react';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -27,7 +27,7 @@ const DEFAULT_CLOUDLINUX_PACKAGES = [
       'Instant License Activation'
     ],
     compareValues: {
-      price: '৳1,100 /mo',
+      price: 'à§³1,100 /mo',
       max_accounts: '1',
       lve_limits: false,
       cagefs: true,
@@ -67,7 +67,7 @@ const DEFAULT_CLOUDLINUX_PACKAGES = [
       'Instant License Activation'
     ],
     compareValues: {
-      price: '৳1,800 /mo',
+      price: 'à§³1,800 /mo',
       max_accounts: '5',
       lve_limits: false,
       cagefs: true,
@@ -109,7 +109,7 @@ const DEFAULT_CLOUDLINUX_PACKAGES = [
       'Enterprise Density & Stability'
     ],
     compareValues: {
-      price: '৳2,700 /mo',
+      price: 'à§³2,700 /mo',
       max_accounts: 'Unlimited',
       lve_limits: true,
       cagefs: true,
@@ -235,7 +235,7 @@ export default function CloudLinuxLicenseSection() {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[350px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-80 h-80 bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 max-w-7xl">
+      <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 relative z-10 max-w-7xl">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-wider mb-4">
@@ -286,7 +286,7 @@ export default function CloudLinuxLicenseSection() {
 
                 <div className="my-6 pb-6 border-b border-gray-800">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl sm:text-4xl font-black text-white">৳{pkg.price.toLocaleString()}</span>
+                    <span className="text-3xl sm:text-4xl font-black text-white">à§³{pkg.price.toLocaleString()}</span>
                     <span className="text-gray-400 text-xs font-semibold">/ Month</span>
                   </div>
                   <p className="text-[11px] text-gray-400 mt-1">Instant server key issuance</p>
@@ -346,7 +346,7 @@ export default function CloudLinuxLicenseSection() {
                           {pkg.name}
                         </span>
                         <span className="text-xs font-medium text-gray-400">
-                          ৳{pkg.price.toLocaleString()} /mo
+                          à§³{pkg.price.toLocaleString()} /mo
                         </span>
                       </div>
                     </th>

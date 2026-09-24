@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
@@ -70,7 +70,7 @@ export const HostingDetails: React.FC = () => {
   return (
     <Layout>
       <div className="bg-[#081621] text-white py-16">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-2 sm:px-4">
           <button 
             onClick={() => navigate('/hosting')}
             className="flex items-center gap-2 text-gray-300 hover:text-white mb-6 transition-colors"
@@ -101,7 +101,7 @@ export const HostingDetails: React.FC = () => {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-16">
+      <div className="container mx-auto px-2 sm:px-4 py-16">
         <div className="flex items-center justify-center gap-4 mb-12">
           <h2 className="text-3xl font-bold text-center">Choose Your Plan</h2>
           <div className="flex bg-gray-100 rounded-lg p-1">

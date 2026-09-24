@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import Eyebrow from '../../components/hosting-ui/Eyebrow';
 import StatCounter from '../../components/hosting-ui/StatCounter';
 import { Globe, Users, Ticket, Server } from 'lucide-react';
@@ -13,7 +13,7 @@ const stats = [
 export default function CompanyStatsSection() {
   return (
     <section className="py-16 md:py-24" style={{ background: 'var(--c2i-gradient-dark)' }}>
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-2 sm:px-4">
         <div className="text-center mb-12">
           <Eyebrow light>10K+ customers trust Click2IT</Eyebrow>
         </div>

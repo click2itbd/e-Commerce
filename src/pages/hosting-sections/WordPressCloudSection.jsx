@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Zap, Check, ArrowRight, Sparkles, Shield, Rocket, Cpu, Server } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useCart } from '../../context/CartContext';
@@ -71,7 +71,7 @@ const CANONICAL_WP_PLANS = [
     features: [
       '30 GB NVMe SSD Storage',
       'Unlimited Hosted Domains',
-      '2 vCPU &৳  GB RAM',
+      '2 vCPU &à§³  GB RAM',
       'LiteSpeed + Redis Cache',
       'CloudLinux OS & CageFS',
       'Free SSL Certificate',
@@ -192,7 +192,7 @@ export default function WordPressCloudSection() {
       <div className="absolute top-0 left-1/4 w-48 h-48 md:w-96 md:h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-48 h-48 md:w-96 md:h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="container mx-auto px-4 max-w-7xl relative z-10">
+      <div className="container mx-auto px-2 sm:px-4 max-w-7xl relative z-10">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-14">
           <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 text-blue-400 border border-blue-500/30 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest mb-4">
@@ -268,7 +268,7 @@ export default function WordPressCloudSection() {
                   {/* Price Block */}
                   <div className="pb-5 mb-6 border-b border-gray-700/60">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-3xl md:text-4xl font-black text-white">৳ {price.toLocaleString()}</span>
+                        <span className="text-3xl md:text-4xl font-black text-white">à§³ {price.toLocaleString()}</span>
                         <span className="text-xs text-gray-400 font-medium">{isAnnual ? '/year' : '/month'}</span>
                       </div>
                     {isAnnual && (
