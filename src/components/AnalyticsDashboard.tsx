@@ -106,8 +106,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       const orderDate = new Date(o.createdAt);
       if (orderDate < startDate || orderDate > endDate) return false;
       if (o.status === 'cancelled') return false;
-      // Quotations only count as revenue when accepted or completed
-      if (o.type === 'quotation' && o.status !== 'accepted' && o.status !== 'completed' && o.status !== 'ACCEPTED' && o.status !== 'COMPLETED') return false;
+      // Completely exclude quotations from financial analytics
+      // Quotations are estimates and shouldn't affect P&L until converted to a sale/invoice
+      if (o.type === 'quotation') return false;
       return true;
     });
   }, [orders, startDate, endDate]);
