@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../../../firebase';
 import { collection, query, orderBy, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
-import { Loader2, Mail, Phone, Clock, CheckCircle, XCircle, Trash2 } from 'lucide-react';
-import { formatCurrency, cn } from '../../../../lib/utils';
+import { Loader2, Mail, Phone, CheckCircle, XCircle, Trash2, Search, Briefcase, Globe, AlertCircle } from 'lucide-react';
+import { cn, formatCurrency } from '../../../../lib/utils';
+import { Pagination } from '../../../../components/common/Pagination';
 
 interface DomainOffer {
   id: string;
@@ -18,6 +19,9 @@ interface DomainOffer {
 export default function DomainOffers() {
   const [offers, setOffers] = useState<DomainOffer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
 
   useEffect(() => {
     fetchOffers();
@@ -43,7 +47,7 @@ export default function DomainOffers() {
       setOffers(prev => prev.map(o => o.id === id ? { ...o, status: newStatus as any } : o));
       toast.success(`Offer marked as ${newStatus}`);
       if (newStatus === "accepted") {
-        toast.success("Automated payment link and invoice sent to user email!");
+        toast.success("Automated payment link and invoice sent to user email!", { icon: '📧' });
       }
     } catch (error) {
       toast.error('Failed to update status');
@@ -61,88 +65,132 @@ export default function DomainOffers() {
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    switch(status) {
+      case 'accepted': return <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-black uppercase tracking-wider border border-emerald-100 shadow-sm flex items-center gap-1.5 w-fit"><CheckCircle size={12}/> Accepted</span>;
+      case 'rejected': return <span className="px-3 py-1 bg-rose-50 text-rose-700 rounded-lg text-xs font-black uppercase tracking-wider border border-rose-100 shadow-sm flex items-center gap-1.5 w-fit"><XCircle size={12}/> Rejected</span>;
+      default: return <span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-black uppercase tracking-wider border border-amber-100 shadow-sm flex items-center gap-1.5 w-fit"><AlertCircle size={12}/> Pending</span>;
+    }
+  };
+
+  const filteredOffers = offers.filter(o => 
+    o.domain.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    o.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    o.phone.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="animate-spin text-blue-500" size={32} />
-      </div>
-    );
+    return <div className="grid grid-cols-1 gap-4"><div className="h-64 bg-slate-100 rounded-3xl animate-pulse"></div></div>;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-800">Domain Broker Offers</h2>
+    <div className="bg-white/40 backdrop-blur-xl rounded-3xl shadow-sm border border-slate-200/60 p-6 md:p-8 animate-in fade-in duration-300">
+      
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-200">
+              <Briefcase className="text-white" size={24} />
+            </div>
+            Domain Broker Offers
+          </h2>
+          <p className="text-slate-500 text-sm mt-1 ml-14">Review, accept, or reject custom price offers for premium domains</p>
+        </div>
+        <div className="flex items-center w-full md:w-auto">
+          <div className="relative w-full md:w-72">
+            <input 
+              type="text" 
+              placeholder="Search domains or customer..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
+            />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          </div>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-3">Domain</th>
-                <th className="px-4 py-3">Offer Amount</th>
-                <th className="px-4 py-3">Customer Info</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {offers.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                    No domain offers found.
-                  </td>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        {filteredOffers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-slate-50/50">
+            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-6">
+              <Globe size={32} className="text-slate-300" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-700 mb-2">No Offers Found</h3>
+            <p className="text-slate-500 max-w-sm mx-auto">There are no pending domain offers matching your criteria right now.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse whitespace-nowrap">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
+                  <th className="p-5">Domain Requested</th>
+                  <th className="p-5">Offer Amount</th>
+                  <th className="p-5">Customer Info</th>
+                  <th className="p-5">Status</th>
+                  <th className="p-5">Date</th>
+                  <th className="p-5 text-right">Actions</th>
                 </tr>
-              ) : offers.map(offer => (
-                <tr key={offer.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{offer.domain}</td>
-                  <td className="px-4 py-3 font-bold text-green-600">৳{offer.amount.toLocaleString()}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col gap-1">
-                      <a href={`mailto:${offer.email}`} className="flex items-center gap-1 text-blue-600 hover:underline">
-                        <Mail size={12} /> {offer.email}
-                      </a>
-                      <a href={`tel:${offer.phone}`} className="flex items-center gap-1 text-gray-600 hover:underline">
-                        <Phone size={12} /> {offer.phone}
-                      </a>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">
-                    {new Date(offer.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={cn(
-                      "px-2.5 py-1 text-[10px] font-bold rounded-full uppercase tracking-wider",
-                      offer.status === 'pending' && "bg-yellow-100 text-yellow-700",
-                      offer.status === 'accepted' && "bg-green-100 text-green-700",
-                      offer.status === 'rejected' && "bg-red-100 text-red-700"
-                    )}>
-                      {offer.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      {offer.status === 'pending' && (
-                        <>
-                          <button onClick={() => updateStatus(offer.id, 'accepted')} title="Accept" className="p-1.5 text-green-600 hover:bg-green-50 rounded">
-                            <CheckCircle size={16} />
-                          </button>
-                          <button onClick={() => updateStatus(offer.id, 'rejected')} title="Reject" className="p-1.5 text-orange-600 hover:bg-orange-50 rounded">
-                            <XCircle size={16} />
-                          </button>
-                        </>
-                      )}
-                      <button onClick={() => deleteOffer(offer.id)} title="Delete" className="p-1.5 text-red-500 hover:bg-red-50 rounded">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredOffers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(offer => (
+                  <tr key={offer.id} className="hover:bg-indigo-50/30 transition-colors group">
+                    <td className="p-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-sm shrink-0 border border-indigo-100">
+                          <Globe size={18} />
+                        </div>
+                        <p className="font-bold text-slate-800 text-base">{offer.domain}</p>
+                      </div>
+                    </td>
+                    <td className="p-5">
+                      <p className="font-black text-emerald-600 text-lg">{formatCurrency(offer.amount)}</p>
+                    </td>
+                    <td className="p-5">
+                      <div className="flex flex-col gap-1.5">
+                        <a href={`mailto:${offer.email}`} className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors">
+                          <Mail size={14} className="text-slate-400" /> {offer.email}
+                        </a>
+                        <a href={`tel:${offer.phone}`} className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors">
+                          <Phone size={14} className="text-slate-400" /> {offer.phone}
+                        </a>
+                      </div>
+                    </td>
+                    <td className="p-5">{getStatusBadge(offer.status)}</td>
+                    <td className="p-5 text-sm font-medium text-slate-600">
+                      {new Date(offer.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </td>
+                    <td className="p-5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {offer.status === 'pending' && (
+                          <>
+                            <button onClick={() => updateStatus(offer.id, 'accepted')} title="Accept Offer" className="px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-sm border border-emerald-100 flex items-center gap-1.5">
+                              <CheckCircle size={14} /> Accept
+                            </button>
+                            <button onClick={() => updateStatus(offer.id, 'rejected')} title="Reject Offer" className="px-3 py-2 bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-sm border border-amber-100 flex items-center gap-1.5">
+                              <XCircle size={14} /> Reject
+                            </button>
+                          </>
+                        )}
+                        <button onClick={() => deleteOffer(offer.id)} title="Delete Record" className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredOffers.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </div>
       </div>
     </div>

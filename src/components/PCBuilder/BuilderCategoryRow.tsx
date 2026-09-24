@@ -2,6 +2,7 @@ import React from 'react';
 import { Product } from '../../types';
 import { BuilderCategory } from './constants';
 import { formatCurrency, cn } from '../../lib/utils';
+import { getColorfulIcon } from './ColorfulIcons';
 import { Plus, Check, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -40,7 +41,7 @@ export const BuilderCategoryRow: React.FC<BuilderCategoryRowProps> = ({
           selectedProduct ? "bg-[#0E2A47] text-white" : "bg-slate-100 text-slate-500",
           !compatibility.isCompatible && "bg-red-100 text-red-600"
         )}>
-          <Icon size={24} />
+          {getColorfulIcon(category.id, <Icon size={24} />)}
         </div>
         <div>
           <h3 className="font-bold text-slate-900">{category.name}</h3>
@@ -70,7 +71,7 @@ export const BuilderCategoryRow: React.FC<BuilderCategoryRowProps> = ({
             ) : category.placeholderImage ? (
               <img src={category.placeholderImage} alt={category.title || category.name} className="w-full h-full object-contain opacity-40 mix-blend-multiply" />
             ) : (
-              <Icon size={28} className="text-slate-300" />
+              getColorfulIcon(category.id, <Icon size={28} className="text-slate-300" />)
             )}
           </div>
           

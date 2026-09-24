@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { CartItem, Product } from '../types';
+import { CartItem, Product, DiscountCode } from '../types';
 import { db } from '../firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { useSettings } from './SettingsContext';
+import { useAuth } from './AuthContext';
 
 interface CartContextType {
   items: CartItem[];
@@ -14,23 +16,33 @@ interface CartContextType {
   total: number;
   promoDiscount: number;
   promoMessage: string | null;
+  appliedDiscount: DiscountCode | null;
+  setAppliedDiscount: (discount: DiscountCode | null) => void;
+  isShippingFree: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('cart');
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [promoSettings, setPromoSettings] = useState<{ isFreeDomainEnabled: boolean; eligibleTlds: string[] }>({
+  const [appliedDiscount, setAppliedDiscount] = useState<DiscountCode | null>(() => {
+    const saved = localStorage.getItem('appliedDiscount');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const { settings } = useSettings();
+
+  const [promoSettings, setPromoSettings] = useState<{ isFreeDomainEnabled: boolean; eligibleTlds: string[]; startDate?: string; endDate?: string; eligibleBillingCycles?: string[] }>({
     isFreeDomainEnabled: false,
     eligibleTlds: []
   });
 
   useEffect(() => {
-    // Listen for promo changes
     const unsub = onSnapshot(doc(db, 'settings', 'hostingPromos'), (snap) => {
       if (snap.exists()) {
         setPromoSettings(snap.data() as any);
@@ -42,6 +54,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(items));
   }, [items]);
+
+  useEffect(() => {
+    if (appliedDiscount) {
+      localStorage.setItem('appliedDiscount', JSON.stringify(appliedDiscount));
+    } else {
+      localStorage.removeItem('appliedDiscount');
+    }
+  }, [appliedDiscount]);
 
   const addToCart = (product: Product) => {
     setItems(prev => {
@@ -55,29 +75,27 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setItems(prev => prev.filter(item => item.id !== productId));
-  };
+  const removeFromCart = (productId: string) => setItems(prev => prev.filter(item => item.id !== productId));
 
   const updateQuantity = (productId: string, quantity: number) => {
     if (quantity <= 0) {
       removeFromCart(productId);
       return;
     }
-    setItems(prev =>
-      prev.map(item => (item.id === productId ? { ...item, quantity } : item))
-    );
+    setItems(prev => prev.map(item => (item.id === productId ? { ...item, quantity } : item)));
   };
 
   const updateCartItem = (productId: string, updates: Partial<CartItem>) => {
     setItems(prev => prev.map(item => item.id === productId ? { ...item, ...updates } : item));
   };
 
-  const clearCart = () => setItems([]);
+  const clearCart = () => {
+    setItems([]);
+    setAppliedDiscount(null);
+  };
 
-  // Apply Promo Logic: Set eligible domain price to 0
   let promoMessage = null;
-  const processedItems = items.map(item => ({ ...item })); // Deep copy
+  const processedItems = items.map(item => ({ ...item }));
 
   if (promoSettings.isFreeDomainEnabled) {
     let isValid = true;
@@ -87,27 +105,70 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isValid) {
       const eligibleCycles = promoSettings.eligibleBillingCycles || ['yearly'];
-      const hasEligibleHosting = processedItems.some(item => item.itemType === 'hosting' && eligibleCycles.includes(item.billingCycle));
+      const hasEligibleHosting = processedItems.some(item => item.itemType === 'hosting' && eligibleCycles.includes(item.billingCycle!));
       
       if (hasEligibleHosting) {
-        // Find an eligible domain
         const eligibleDomain = processedItems.find(item => item.itemType === 'domain' && (promoSettings.eligibleTlds || ['.com']).includes('.' + (item.domainTld || '').replace('.', '')));
         if (eligibleDomain && eligibleDomain.price > 0) {
           promoMessage = `100% discount applied on ${eligibleDomain.name} (Promo!)`;
-          eligibleDomain.originalPrice = eligibleDomain.price; // Save original for reference if needed
-          eligibleDomain.price = 0; // Make it free
+          (eligibleDomain as any).originalPrice = eligibleDomain.price;
+          eligibleDomain.price = 0;
         }
       }
     }
   }
 
-  // Calculate Subtotal & Total based on processed items
   const subtotal = processedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const total = Math.max(0, subtotal);
-  const promoDiscount = 0; // We don't need a separate promoDiscount subtraction since it's built into the item price
+  let promoDiscount = 0;
+  
+  if (appliedDiscount) {
+    if (appliedDiscount.type === 'fixed' && appliedDiscount.fixedAmount) {
+      promoDiscount = appliedDiscount.fixedAmount;
+    } else if (appliedDiscount.type !== 'free_shipping') {
+      promoDiscount = (subtotal * (appliedDiscount.discountPercentage || 0)) / 100;
+    }
+  }
+
+  const total = Math.max(0, subtotal - promoDiscount);
+
+  let isShippingFree = false;
+  if (appliedDiscount && appliedDiscount.type === 'free_shipping') {
+    isShippingFree = true;
+  }
+  if (settings?.freeShippingThreshold && subtotal >= settings.freeShippingThreshold) {
+    isShippingFree = true;
+  }
+  if (processedItems.some(item => item.isFreeShipping)) {
+    isShippingFree = true;
+  }
+
+  useEffect(() => {
+    const syncCart = async () => {
+      if (!user) return;
+      try {
+        if (items.length > 0) {
+          await setDoc(doc(db, 'abandoned_carts', user.uid), {
+            userId: user.uid,
+            userEmail: user.email || '',
+            userName: user.displayName || '',
+            items,
+            total,
+            updatedAt: new Date().toISOString()
+          });
+        } else {
+          await deleteDoc(doc(db, 'abandoned_carts', user.uid)).catch(e => {});
+        }
+      } catch (e) {
+        console.error('Failed to sync abandoned cart', e);
+      }
+    };
+    
+    const timeout = setTimeout(syncCart, 2000);
+    return () => clearTimeout(timeout);
+  }, [items, total, user]);
 
   return (
-    <CartContext.Provider value={{ items: processedItems, addToCart, removeFromCart, updateQuantity, updateCartItem, clearCart, subtotal, total, promoDiscount, promoMessage }}>
+    <CartContext.Provider value={{ items: processedItems, addToCart, removeFromCart, updateQuantity, updateCartItem, clearCart, subtotal, total, promoDiscount, promoMessage, appliedDiscount, setAppliedDiscount, isShippingFree }}>
       {children}
     </CartContext.Provider>
   );

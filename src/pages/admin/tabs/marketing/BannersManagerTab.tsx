@@ -211,7 +211,12 @@ export const BannersManagerTab = () => {
                     <ImageIcon size={16} />
                     {isUploading ? 'Uploading...' : 'Choose Image'}
                   </label>
-                  <p className="text-xs text-gray-500 mt-1">Recommended size depends on position. Standard slider: 1200x400px.</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.position === 'hero_slider' && '📐 Recommended size: 1200×400 px (3:1 ratio)'}
+                    {formData.position === 'sidebar_ad' && '📐 Recommended size: 380×185 px (2:1 ratio)'}
+                    {formData.position === 'deal_of_the_day' && '📐 Recommended size: 1200×300 px (4:1 ratio)'}
+                    {formData.position === 'footer_banner' && '📐 Recommended size: 1200×200 px (6:1 ratio)'}
+                  </p>
                 </div>
               </div>
             </div>

@@ -125,6 +125,7 @@ const Purchases: React.FC<PurchasesProps> = ({
     paymentAccountId: '',
     paymentMethod: 'cash',
     paidAmount: 0,
+    shippingCost: 0,
     notes: '',
   });
 
@@ -531,7 +532,7 @@ const Purchases: React.FC<PurchasesProps> = ({
   };
 
   // Compute bill total
-  const billTotal = purchaseForm.items.reduce((sum, item) => sum + (item.purchasePrice * item.quantity), 0);
+  const billTotal = purchaseForm.items.reduce((sum, item) => sum + (item.purchasePrice * item.quantity), 0) + (Number(purchaseForm.shippingCost) || 0);
 
   // Bill total computed
 
@@ -625,15 +626,24 @@ const Purchases: React.FC<PurchasesProps> = ({
       // 1. Update Product Inventory & Stock & Cost Price
       const updatedItems = [...purchaseForm.items];
       
+      const totalQuantity = updatedItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      const totalShippingCost = Number(purchaseForm.shippingCost) || 0;
+      const shippingPerUnit = totalQuantity > 0 ? totalShippingCost / totalQuantity : 0;
+      
       for (let i = 0; i < updatedItems.length; i++) {
         const item = updatedItems[i];
+        
+        // Add proportional shipping cost to unit purchase price
+        const effectivePurchasePrice = Number(item.purchasePrice) + shippingPerUnit;
+        updatedItems[i].purchasePrice = effectivePurchasePrice;
+        
         const currentProduct = products.find(p => p.id === item.id);
 
         if (currentProduct) {
           const productRef = doc(db, 'products', item.id);
           const updates: any = {
             stock: (currentProduct.stock || 0) + Number(item.quantity),
-            costPrice: Number(item.purchasePrice),
+            costPrice: effectivePurchasePrice,
           };
 
           if (item.salesPrice) {
@@ -786,6 +796,7 @@ const Purchases: React.FC<PurchasesProps> = ({
         paymentAccountId: paymentAccounts[0]?.id || '',
         paymentMethod: paymentAccounts[0]?.type || 'cash',
         paidAmount: 0,
+        shippingCost: 0,
         notes: '',
       });
 
@@ -1250,6 +1261,20 @@ const Purchases: React.FC<PurchasesProps> = ({
                         onChange={e => setPurchaseForm({ ...purchaseForm, paidAmount: Number(e.target.value) || 0 })}
                         className="w-full border border-gray-200 rounded-lg p-2 font-black text-gray-900 text-sm"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                        Shipping / Other Cost (৳)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={purchaseForm.shippingCost || ''}
+                        onChange={e => setPurchaseForm({ ...purchaseForm, shippingCost: Number(e.target.value) || 0 })}
+                        className="w-full border border-gray-200 rounded-lg p-2 font-black text-gray-900 text-sm"
+                        placeholder="e.g. 100"
+                      />
+                      <p className="text-[9px] text-gray-500 mt-1">This cost will be averaged & added to product purchase price.</p>
                     </div>
                     {billTotal > purchaseForm.paidAmount && (
                       <div className="flex justify-between items-center text-xs font-bold text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200">

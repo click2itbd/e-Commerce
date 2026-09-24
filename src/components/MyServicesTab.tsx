@@ -9,8 +9,6 @@ import { Layout } from '../components/Layout';
 import { getHostingUsage, HostingUsageStats } from '../services/hostingApi';
 import { RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, RotateCcw, Server, FileText, Receipt, Download, ExternalLink } from 'lucide-react';
 import { HostingOrder } from '../types';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { useSettings } from '../context/SettingsContext';
 import { formatCurrency } from '../lib/utils';
 import { SupportTicketsClient } from '../components/hosting/SupportTicketsClient';
@@ -203,7 +201,9 @@ export const MyServicesTab: React.FC = () => {
     );
   };
 
-  const generateInvoice = (order: HostingOrder) => {
+  const generateInvoice = async (order: HostingOrder) => {
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
     const doc = new jsPDF('p', 'mm', 'a4');
     let currentY = 15;
     const pageWidth = doc.internal.pageSize.getWidth();

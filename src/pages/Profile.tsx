@@ -8,10 +8,13 @@ import { db, storage, auth } from '../firebase';
 import { updateProfile } from 'firebase/auth';
 import { doc, getDoc, updateDoc, setDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { compressImage } from '../lib/imageCompressor';
 import { toast } from 'react-hot-toast';
 import { User, Mail, Globe, Phone, MapPin, Building, Save, Camera, Loader2, ShoppingBag, Package, Clock, CheckCircle2, XCircle, ChevronRight, Tag, MessageSquare, Image as ImageIcon } from 'lucide-react';
 import { SEO } from '../components/SEO';
 import { formatCurrency } from '../lib/utils';
+import { generatePDF } from '../lib/pdf';
+import { useSettings } from '../context/SettingsContext';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { getSiteContext } from '../hooks/useSiteContext';
@@ -28,6 +31,7 @@ interface UserProfileData {
 
 export const Profile: React.FC = () => {
   const { user } = useAuth();
+  const { settings } = useSettings();
   const { addToCart } = useCart();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -638,9 +642,28 @@ export const Profile: React.FC = () => {
                             </div>
                           )}
 
-                          {/* Order ID for reference */}
-                          <div className="px-6 pb-4">
+                          {/* Actions */}
+                          <div className="px-6 pb-4 flex flex-col sm:flex-row items-center justify-between gap-4">
                             <div className="text-[10px] text-gray-400">Order ID: <span className="font-mono text-gray-600">{order.id}</span></div>
+                            <div className="flex gap-3">
+                              <button onClick={() => navigate('/track-order?id=' + (order.invoiceNumber || order.id))} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">
+                                Track Order
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  try {
+                                    const pdfDoc = generatePDF(order as any, 'invoice', settings);
+                                    pdfDoc.autoPrint();
+                                    window.open(pdfDoc.output('bloburl'), '_blank');
+                                  } catch (err) {
+                                    console.error(err);
+                                  }
+                                }} 
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                              >
+                                Download Invoice
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}

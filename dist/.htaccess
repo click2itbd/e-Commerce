@@ -1,17 +1,23 @@
+Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
   # Forward /api requests to local Node.js backend on port 4000
   RewriteCond %{REQUEST_URI} ^/api [NC]
-  RewriteRule ^api/(.*)$ http://127.0.0.1:4000/api/$1 [P,L]
-  RewriteRule ^api$ http://127.0.0.1:4000/api/ [P,L]
+  RewriteRule ^api/(.*)$ http://127.0.0.1:4000/api/$1 [P,L,E=Cache-Control:no-cache]
+  RewriteRule ^api$ http://127.0.0.1:4000/api/ [P,L,E=Cache-Control:no-cache]
 
   # Direct all other routes to React Single Page App (index.html)
-  RewriteRule ^index\.html$ - [L]
+  RewriteRule ^index\.html$ - [L,E=Cache-Control:no-cache]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
+  RewriteRule . /index.html [L,E=Cache-Control:no-cache]
+</IfModule>
+
+<IfModule LiteSpeed>
+  CacheDisable public /
+  CacheDisable private /
 </IfModule>
 
 <FilesMatch "^index\.html$">

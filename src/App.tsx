@@ -10,25 +10,30 @@ import { ReviewRewardPopup } from './components/ReviewRewardPopup';
 import { ChatWidget } from './components/ChatWidget';
 import { TrackingScripts } from './components/TrackingScripts';
 import { CompareProvider } from './context/CompareContext';
+import { WishlistProvider } from './context/WishlistContext';
 
 import Hosting from './pages/Hosting';
 
-const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
-const ProductDetails = lazy(() => import('./pages/ProductDetails').then(m => ({ default: m.ProductDetails })));
+const Home = lazy(() => import('./pages/shop/Home').then(m => ({ default: m.Home })));
+const ProductDetails = lazy(() => import('./pages/shop/ProductDetails').then(m => ({ default: m.ProductDetails })));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const EcommerceDashboard = lazy(() => import('./pages/ecommerceDashboard/EcommerceDashboard'));
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
-const PCBuilder = lazy(() => import('./pages/PCBuilder').then(m => ({ default: m.PCBuilder })));
-const ComparePage = lazy(() => import('./pages/Compare').then(m => ({ default: m.ComparePage })));
-const CategoryPage = lazy(() => import('./pages/CategoryPage').then(m => ({ default: m.CategoryPage })));
+const PCBuilder = lazy(() => import('./pages/shop/PCBuilder').then(m => ({ default: m.PCBuilder })));
+const ComparePage = lazy(() => import('./pages/shop/Compare').then(m => ({ default: m.ComparePage })));
+const CategoryPage = lazy(() => import('./pages/shop/CategoryPage').then(m => ({ default: m.CategoryPage })));
+const WishlistPage = lazy(() => import('./pages/shop/WishlistPage').then(m => ({ default: m.WishlistPage })));
+const SearchPage = lazy(() => import('./pages/shop/SearchPage').then(m => ({ default: m.SearchPage })));
+const PreBook = lazy(() => import('./pages/shop/PreBook').then(m => ({ default: m.PreBook })));
 const HostingDetails = lazy(() => import('./pages/HostingDetails').then(m => ({ default: m.HostingDetails })));
-const HostingBillingDashboard = lazy(() => import('./pages/HostingBillingDashboard').then(m => ({ default: m.HostingBillingDashboard })));
+const HostingBillingDashboard = lazy(() => import('./pages/hosting-dashboard/HostingBillingDashboard').then(m => ({ default: m.HostingBillingDashboard })));
 const AccountingDashboard = lazy(() => import('./pages/AccountingDashboard').then(m => ({ default: m.AccountingDashboard })));
 const MyServices = lazy(() => import('./pages/MyServices').then(m => ({ default: m.MyServices })));
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
-const Checkout = lazy(() => import('./pages/Checkout').then(m => ({ default: m.Checkout })));
-const OrderSuccess = lazy(() => import('./pages/OrderSuccess').then(m => ({ default: m.OrderSuccess })));
+const Checkout = lazy(() => import('./pages/shop/Checkout').then(m => ({ default: m.Checkout })));
+const OrderSuccess = lazy(() => import('./pages/shop/OrderSuccess').then(m => ({ default: m.OrderSuccess })));
 const RetailPOS = lazy(() => import('./pages/RetailPOS').then(m => ({ default: m.RetailPOS })));
-const Cart = lazy(() => import('./pages/Cart').then(m => ({ default: m.Cart })));
+const Cart = lazy(() => import('./pages/shop/Cart').then(m => ({ default: m.Cart })));
 
 const ServicesPage = lazy(() => import('./pages/hosting/ServicesPage'));
 const PricingPage = lazy(() => import('./pages/hosting/PricingPage'));
@@ -43,7 +48,11 @@ const EMITerms = lazy(() => import('./pages/policies/EMITerms'));
 const StarPointPolicy = lazy(() => import('./pages/policies/StarPointPolicy'));
 const OnlineDelivery = lazy(() => import('./pages/policies/OnlineDelivery'));
 const WarrantyPolicy = lazy(() => import('./pages/policies/WarrantyPolicy'));
-const Brands = lazy(() => import('./pages/Brands'));
+const Brands = lazy(() => import('./pages/shop/Brands'));
+const Blog = lazy(() => import('./pages/shop/Blog'));
+const TrackOrder = lazy(() => import('./pages/shop/TrackOrder'));
+const BlogPost = lazy(() => import('./pages/shop/BlogPost'));
+const AboutUs = lazy(() => import('./pages/AboutUs'));
 const ContactUs = lazy(() => import('./pages/ContactUs'));
 const DomainTransferPage = lazy(() => import('./pages/hosting/DomainTransferPage').then(m => ({ default: m.default || m.DomainTransferPage })));
 const PaymentSimulation = lazy(() => import('./pages/PaymentSimulation'));
@@ -65,6 +74,7 @@ export default function App() {
     <HelmetProvider>
       <SettingsProvider>
         <AuthProvider>
+          <WishlistProvider>
           <CompareProvider>
             <CartProvider>
               <Router>
@@ -98,6 +108,9 @@ export default function App() {
                     <Route path="/payment/callback" element={<LazyWrapper><PaymentCallback /></LazyWrapper>} />
                     <Route path="/payment/return" element={<LazyWrapper><PaymentReturn /></LazyWrapper>} />
                   <Route path="/category/:categorySlug" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
+                  <Route path="/wishlist" element={<LazyWrapper><WishlistPage /></LazyWrapper>} />
+                  <Route path="/pre-book" element={<LazyWrapper><PreBook /></LazyWrapper>} />
+                  <Route path="/search" element={<LazyWrapper><SearchPage /></LazyWrapper>} />
                   <Route path="/category/:categorySlug/:subCategorySlug" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
 
                   {/* PC BUILD */}
@@ -110,7 +123,8 @@ export default function App() {
 
                   {/* ADMIN */}
                   <Route path="/pos" element={<ProtectedRoute adminOnly><LazyWrapper><RetailPOS /></LazyWrapper></ProtectedRoute>} />
-                  <Route path="/admin" element={<ProtectedRoute adminOnly><LazyWrapper><AdminDashboard /></LazyWrapper></ProtectedRoute>} />
+                  <Route path="/admin" element={<ProtectedRoute adminOnly><LazyWrapper><AdminDashboard mode="all" /></LazyWrapper></ProtectedRoute>} />
+                  <Route path="/admin/e-commerce" element={<ProtectedRoute adminOnly><LazyWrapper><EcommerceDashboard /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/admin/billing" element={<ProtectedRoute adminOnly><LazyWrapper><HostingBillingDashboard /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/admin/accounting" element={<ProtectedRoute adminOnly><LazyWrapper><AccountingDashboard /></LazyWrapper></ProtectedRoute>} />
 
@@ -125,6 +139,11 @@ export default function App() {
                     <Route path="/star-points" element={<LazyWrapper><StarPointPolicy /></LazyWrapper>} />
                     <Route path="/reward-policy" element={<Navigate to="/star-points" replace />} />
                     <Route path="/brands" element={<LazyWrapper><Brands /></LazyWrapper>} />
+                    <Route path="/blog" element={<LazyWrapper><Blog /></LazyWrapper>} />
+                    <Route path="/track-order" element={<LazyWrapper><TrackOrder /></LazyWrapper>} />
+                    <Route path="/blog/:slug" element={<LazyWrapper><BlogPost /></LazyWrapper>} />
+                    <Route path="/about" element={<LazyWrapper><AboutUs /></LazyWrapper>} />
+                    <Route path="/about-us" element={<Navigate to="/about" replace />} />
                     <Route path="/contact" element={<LazyWrapper><ContactUs /></LazyWrapper>} />
                     <Route path="/contact-us" element={<Navigate to="/contact" replace />} />
                     <Route path="/online-delivery" element={<LazyWrapper><OnlineDelivery /></LazyWrapper>} />
@@ -136,6 +155,7 @@ export default function App() {
               </Router>
             </CartProvider>
           </CompareProvider>
+          </WishlistProvider>
         </AuthProvider>
       </SettingsProvider>
     </HelmetProvider>

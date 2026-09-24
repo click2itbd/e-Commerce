@@ -42,6 +42,9 @@ export interface Product {
   isAccessory?: boolean;
   showInStore?: boolean;
   isFeatured?: boolean;
+  isNewArrival?: boolean;
+  isBestSeller?: boolean;
+  isFlashSale?: boolean;
   discountPrice?: number;
   shortDescription?: string;
   tags?: string[];
@@ -139,6 +142,8 @@ export interface Order {
   createdAt: string;
   validUntil?: string;
   convertedToInvoiceId?: string;
+  trackingNumber?: string;
+  courier?: string;
 }
 
 export interface SubCategory {
@@ -158,6 +163,7 @@ export interface NavigationMenu {
 }
 
 export interface Review {
+  status: 'pending' | 'approved' | 'rejected';
   id: string;
   productId: string;
   userId: string;
@@ -258,6 +264,17 @@ export interface SiteSettings {
   installmentDays?: string;
   ecommerceChecker?: string;
   shippingCost?: number;
+  shippingCostOutsideDhaka?: number;
+  freeShippingThreshold?: number;
+
+  // Social Links
+  facebookUrl?: string;
+  youtubeUrl?: string;
+  instagramUrl?: string;
+
+  // Store Policies
+  refundPolicy?: string;
+  termsConditions?: string;
 
   // Review Widget Settings
   reviewWidgetEnabled?: boolean;
@@ -428,6 +445,8 @@ export interface Lead {
     flatNo?: string;
     street?: string;
     city?: string;
+    thana?: string;
+    union?: string;
     state?: string;
     zip?: string;
   };
@@ -520,3 +539,6 @@ export interface InternalNote {
   createdAt: string;
   status: 'pending' | 'resolved';
 }
+
+
+

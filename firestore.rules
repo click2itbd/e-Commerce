@@ -137,13 +137,14 @@ service cloud.firestore {
     }
 
     function isValidReview(data) {
-      return data.keys().hasAll(['productId', 'userId', 'userName', 'rating', 'comment', 'createdAt']) &&
+      return data.keys().hasAll(['productId', 'userId', 'userName', 'rating', 'comment', 'createdAt', 'status']) &&
              data.productId is string &&
              data.userId is string &&
              data.userName is string &&
-             data.rating is int && data.rating >= 1 && data.rating <= 5 &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
              data.comment is string && data.comment.size() > 0 && data.comment.size() < 1000 &&
-             data.createdAt is string;
+             data.createdAt is string &&
+             data.status in ['pending', 'approved', 'rejected'];
     }
 
     function isValidSubscriber(data) {
@@ -296,7 +297,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || hasPermission('manage_users') || hasManagerAccess();
       allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
-                    (isOwner(userId) || hasPermission('manage_users'));
+                    ((isOwner(userId) && request.resource.data.role == 'user') || hasPermission('manage_users'));
       allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
                     (hasPermission('manage_users') || (isOwner(userId) && request.resource.data.role == resource.data.role));
       allow delete: if false;
@@ -387,11 +388,13 @@ service cloud.firestore {
 
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isValidReview(request.resource.data) && 
-                    request.resource.data.userId == request.auth.uid;
-      allow update: if isAuthenticated() && isValidReview(request.resource.data) && 
-                    (request.auth.uid == resource.data.userId || isAdmin());
-      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isValidReview(request.resource.data);
+      allow update, delete: if hasStaffAccess();
+    }
+
+    match /inquiries/{inquiryId} {
+      allow create: if true;
+      allow read, update, delete: if hasStaffAccess();
     }
 
     match /subscribers/{subscriberId} {
@@ -596,9 +599,22 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /store_brands/{brandId} {
+      allow read: if true;
+      allow write: if hasStaffAccess();
+    }
+
+    match /pre_bookings/{bookingId} {
+      allow read: if hasStaffAccess();
+      allow create: if true;
+      allow update, delete: if hasStaffAccess();
+    }
+
     match /store_banners/{bannerId} {
       allow read: if true;
       allow write: if hasStaffAccess();
     }
   }
 }
+
+

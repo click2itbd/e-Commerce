@@ -6,8 +6,8 @@ import { formatCurrency } from '../lib/utils';
 import { Plus, X, Trash2, FileText, Search, Edit, Eye, Printer, Download, CheckCircle, ArrowLeft, Mail, FileSignature } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { generateDocumentNumber } from '../lib/numbering';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+
+
 import { sendEmail } from '../services/emailService';
 import { Pagination } from './common/Pagination';
 
@@ -218,6 +218,8 @@ export const QuotationManager: React.FC = () => {
   });
 
   const handleDownloadPDF = async (q: Order, action: 'download' | 'print' | 'base64' = 'download') => {
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     

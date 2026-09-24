@@ -14,6 +14,8 @@ const DiscountCodesTab: React.FC = () => {
   const [discountCodeFormData, setDiscountCodeFormData] = useState({
     code: '',
     discountPercentage: 0,
+    type: 'percentage',
+    fixedAmount: 0,
     expiryDate: '',
     isActive: true,
   });
@@ -57,7 +59,7 @@ const DiscountCodesTab: React.FC = () => {
 
       setIsAddingDiscountCode(false);
       setEditingDiscountCode(null);
-      setDiscountCodeFormData({ code: '', discountPercentage: 0, expiryDate: '', isActive: true });
+      setDiscountCodeFormData({ code: '', discountPercentage: 0, type: 'percentage', fixedAmount: 0, expiryDate: '', isActive: true });
       fetchDiscountCodes();
     } catch (error) {
       console.error('Error saving discount code:', error);
@@ -109,7 +111,7 @@ await deleteDoc(doc(db, 'couponCodes', id));
                   {discountCodes.map(code => (
                     <tr key={code.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 font-mono font-bold text-sm">{code.code}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-[#EF4444]">{code.discountPercentage}%</td>
+                      <td className="px-6 py-4 text-sm font-bold text-[#EF4444]">{code.type === "free_shipping" ? "Free Shipping" : code.type === "fixed" ? `৳${code.fixedAmount}` : `${code.discountPercentage}%`}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {new Date(code.expiryDate).toLocaleDateString()}
                       </td>
@@ -128,7 +130,9 @@ await deleteDoc(doc(db, 'couponCodes', id));
                               setEditingDiscountCode(code);
                               setDiscountCodeFormData({
                                 code: code.code,
-                                discountPercentage: code.discountPercentage,
+                                discountPercentage: code.discountPercentage || 0,
+                                  type: code.type || 'percentage',
+                                  fixedAmount: code.fixedAmount || 0,
                                 expiryDate: code.expiryDate,
                                 isActive: code.isActive,
                               });
@@ -181,17 +185,46 @@ await deleteDoc(doc(db, 'couponCodes', id));
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Discount Percentage (%) *</label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  max="100"
-                  value={discountCodeFormData.discountPercentage}
-                  onChange={e => setDiscountCodeFormData(prev => ({ ...prev, discountPercentage: parseFloat(e.target.value) || 0 }))}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type *</label>
+                <select
+                  value={discountCodeFormData.type || 'percentage'}
+                  onChange={e => setDiscountCodeFormData(prev => ({ ...prev, type: e.target.value }))}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+                >
+                  <option value="percentage">Percentage (%)</option>
+                  <option value="fixed">Fixed Amount (৳)</option>
+                  <option value="free_shipping">Free Shipping</option>
+                </select>
               </div>
+              
+              {(!discountCodeFormData.type || discountCodeFormData.type === 'percentage') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount Percentage (%) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    max="100"
+                    value={discountCodeFormData.discountPercentage || 0}
+                    onChange={e => setDiscountCodeFormData(prev => ({ ...prev, discountPercentage: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              )}
+              
+              {discountCodeFormData.type === 'fixed' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fixed Amount (৳) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={discountCodeFormData.fixedAmount || 0}
+                    onChange={e => setDiscountCodeFormData(prev => ({ ...prev, fixedAmount: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date *</label>

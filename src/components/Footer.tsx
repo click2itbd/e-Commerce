@@ -49,7 +49,7 @@ export const Footer: React.FC = () => {
 
   return (
     <footer className="text-white pt-12 pb-6 bg-black">
-      <div className="container mx-auto px-4">
+      <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px]">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
           {/* Contact Info */}
           <div>

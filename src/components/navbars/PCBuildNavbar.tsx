@@ -8,22 +8,6 @@ import { auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import { setSiteContext } from '../../hooks/useSiteContext';
 
-const CATEGORIES = [
-  { name: 'CPU', slug: 'cpu' },
-  { name: 'CPU Cooler', slug: 'cpu-cooler' },
-  { name: 'Motherboard', slug: 'motherboard' },
-  { name: 'RAM', slug: 'ram' },
-  { name: 'Storage', slug: 'storage' },
-  { name: 'Graphics Card', slug: 'graphics-card' },
-  { name: 'Power Supply', slug: 'power-supply' },
-  { name: 'Casing', slug: 'casing' },
-  { name: 'Monitor', slug: 'monitor' },
-  { name: 'Keyboard', slug: 'keyboard' },
-  { name: 'Mouse', slug: 'mouse' },
-  { name: 'Headphone', slug: 'headphone' },
-  { name: 'UPS', slug: 'ups' }
-];
-
 export const PCBuildNavbar: React.FC = () => {
   const { items } = useCart();
   const { user, canAccessAdmin } = useAuth();
@@ -44,7 +28,7 @@ export const PCBuildNavbar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full text-white shadow-md bg-[#0E2A47]">
-      <div className="container mx-auto px-4">
+      <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px]">
         <div className="flex h-16 items-center justify-between gap-4">
           {/* Logo */}
           <Link to="/pc-build" className="flex items-center gap-2 shrink-0">
@@ -105,7 +89,7 @@ export const PCBuildNavbar: React.FC = () => {
 
       {/* Desktop Navigation */}
       <nav className="hidden md:block bg-white text-[#081621] border-b border-gray-200">
-        <div className="container mx-auto px-4">
+        <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px]">
           <ul className="flex items-center gap-8 h-12">
             <li className="h-full">
               <Link 
@@ -127,35 +111,6 @@ export const PCBuildNavbar: React.FC = () => {
               >
                 <Cpu size={16} /> PC Builder
               </Link>
-            </li>
-
-            <li className="relative group h-full">
-              <div 
-                className="flex items-center gap-1 h-full text-sm font-bold transition-colors cursor-pointer"
-                style={{ color: 'inherit' }}
-                onMouseEnter={(e) => e.currentTarget.style.color = settings.accentColor}
-                onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
-              >
-                Components
-                <ChevronDown size={14} />
-              </div>
-              <div className="absolute top-full left-0 w-96 bg-white shadow-xl border border-gray-100 rounded-b-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                <ul className="py-2 grid grid-cols-2">
-                  {CATEGORIES.map(sub => (
-                    <li key={sub.slug}>
-                      <Link 
-                        to={/category/}
-                        className="block px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
-                        style={{ color: 'inherit' }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = settings.accentColor}
-                        onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
-                      >
-                        {sub.name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
             </li>
 
             <li className="h-full">
@@ -202,21 +157,6 @@ export const PCBuildNavbar: React.FC = () => {
               <Link to="/pc-build" className="block py-2 text-sm font-bold" onClick={() => setIsMenuOpen(false)}>PC Builder</Link>
               <Link to="/compare" className="block py-2 text-sm font-bold" onClick={() => setIsMenuOpen(false)}>Compare</Link>
               
-              <div className="flex flex-col mt-2">
-                <span className="py-2 text-sm font-bold">Components</span>
-                <div className="pl-4 flex flex-col border-l border-gray-700">
-                  {CATEGORIES.map(sub => (
-                    <Link 
-                      key={sub.slug}
-                      to={/category/}
-                      className="py-1.5 text-xs text-gray-400 hover:text-[#EF4444]"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      {sub.name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
             </div>
 
             {user ? (

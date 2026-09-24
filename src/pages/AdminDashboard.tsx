@@ -5,6 +5,7 @@ import Papa from 'papaparse';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, limit, writeBatch, where } from 'firebase/firestore';
 import { db, auth, storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { compressImage } from '../lib/imageCompressor';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -72,16 +73,16 @@ const DepositsWithdrawalsTab = lazy(() => import('./admin/tabs/accounting/Deposi
 const StockAccountingTab = lazy(() => import('./admin/tabs/accounting/StockAccounting').then(m => ({ default: m.default })));
 const AuditLogsTab = lazy(() => import('./admin/tabs/reports/AuditLogs').then(m => ({ default: m.AuditLogs })));
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit2, Trash2, Package, Boxes, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare, Globe, Terminal, RefreshCw, DollarSign } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, Boxes, FileText, ShoppingBag, CheckCircle, Clock, Truck, XCircle, Download, Upload, Cpu, Users, Briefcase, CreditCard, Menu as MenuIcon, ChevronRight, Settings, Search, AlertTriangle, Mail, Phone, MessageCircle, Send, List, Ticket, ShieldAlert, Receipt, Server, Edit, X, ArrowLeftRight, ShieldCheck, ShoppingCart, Tag, Percent, LogOut, User, Book, CheckSquare, ArrowLeft, LifeBuoy, Activity, BarChart2, Monitor, Fan, Keyboard, Mouse, Speaker, Headphones, Wifi, BatteryCharging, HardDrive, Plug, Zap, Database, Star, ArrowRight, MessageSquare, Globe, Terminal, RefreshCw, DollarSign , ExternalLink } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { generateDocumentNumber } from '../lib/numbering';
 import { useNavigate } from 'react-router-dom';
 
-export const AdminDashboard: React.FC = () => {
+export interface AdminDashboardProps { mode?: 'all' | 'ecommerce' | 'hosting' | 'accounting'; }
+
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ mode = 'all' }) => {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -378,8 +379,9 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
           throw new Error(data.message || 'cPanel upload failed');
         } else {
           // Fallback to Firebase
-          const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
-          await uploadBytes(storageRef, file);
+          const compressedFile = await compressImage(file);
+          const storageRef = ref(storage, `products/${Date.now()}_${compressedFile.name}`);
+          await uploadBytes(storageRef, compressedFile);
           return getDownloadURL(storageRef);
         }
       });
@@ -2524,9 +2526,11 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     }));
   };
 
-  const handleDownloadLedgerPDF = () => {
+  const handleDownloadLedgerPDF = async () => {
     if (!selectedLedgerEntity) return;
 
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
     const doc = new jsPDF();
     const entityTransactions = transactions
       .filter(t => {
@@ -2648,7 +2652,9 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     document.body.removeChild(link);
   };
 
-  const printServiceReceipt = (record: ServiceRecord) => {
+  const printServiceReceipt = async (record: ServiceRecord) => {
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
     const doc = new jsPDF('p', 'mm', 'a4');
     let currentY = 20;
 
@@ -2727,7 +2733,9 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     doc.save(`Service_Receipt_${record.id}.pdf`);
   };
 
-  const printServiceBill = (record: ServiceRecord) => {
+  const printServiceBill = async (record: ServiceRecord) => {
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
     const doc = new jsPDF('p', 'mm', 'a4');
     let currentY = 20;
 
@@ -2808,6 +2816,8 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
   };
 
   const generatePDF = async (order: Order | Transaction, type: 'invoice' | 'quotation' | 'challan' | 'receipt') => {
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
     const doc = new jsPDF('p', 'mm', 'a4'); 
     let currentY = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -3198,120 +3208,15 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              </button>
            </div>
            
-            {/* Section 2: Domain & Web Hosting */}
-            {(!isStaff || isAdmin || isManager) && (
+                        {/* Section 2: Domain & Web Hosting */}
+            {(mode === 'all' || mode === 'hosting') && (!isStaff || isAdmin || isManager) && (
               <div className="px-4 mb-3">
                 <div className="text-[10px] uppercase font-bold text-blue-600 tracking-wider mb-1 px-3 flex items-center gap-1.5">
                   <Globe size={12} className="text-blue-600" /> Domain & Web Hosting
                 </div>
-                {(hasPermission('manage_services') || isAdmin) && (
-                  <button
-                    onClick={() => setActiveTab('hostingOrders')}
-                    className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors",
-                      activeTab === 'hostingOrders' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Server size={16} className={activeTab === 'hostingOrders' ? "text-blue-600" : "text-gray-400"} />
-                      <span>Hosting Orders</span>
-                    </div>
-                  </button>
-                )}
-                {(hasPermission('manage_services') || isAdmin) && (
-                  <button
-                    onClick={() => setActiveTab('activeHostingAccounts')}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                      activeTab === 'activeHostingAccounts' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                    )}
-                  >
-                    <Users size={16} className={activeTab === 'activeHostingAccounts' ? "text-blue-600" : "text-gray-400"} />
-                    <span>Active Accounts</span>
-                  </button>
-                )}
-                {(hasPermission('manage_settings') || isAdmin) && (
-                  <button
-                    onClick={() => setActiveTab('domainPricing')}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                      activeTab === 'domainPricing' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                    )}
-                  >
-                    <DollarSign size={16} className={activeTab === 'domainPricing' ? "text-blue-600" : "text-gray-400"} />
-                    <span>Domain Price</span>
-                  </button>
-                )}
-                {(hasPermission('manage_services') || isAdmin) && (
-                  <button
-                    onClick={() => setActiveTab('hostingPlans')}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                      activeTab === 'hostingPlans' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                    )}
-                  >
-                    <HardDrive size={16} className={activeTab === 'hostingPlans' ? "text-blue-600" : "text-gray-400"} />
-                    <span>Hosting Packages</span>
-                  </button>
-                )}
-                {(hasPermission('manage_settings') || isAdmin) && (
-                  <button
-                    onClick={() => setActiveTab('domainOffers')}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                      activeTab === 'domainOffers' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                    )}
-                  >
-                    <Tag size={16} className={activeTab === 'domainOffers' ? "text-blue-600" : "text-gray-400"} />
-                    <span>Domain Offer Request</span>
-                  </button>
-                )}
-                {(hasPermission('manage_settings') || isAdmin) && (
-                  <button
-                    onClick={() => setActiveTab('domainRenewals')}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                      activeTab === 'domainRenewals' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                    )}
-                  >
-                    <RefreshCw size={16} className={activeTab === 'domainRenewals' ? "text-blue-600" : "text-gray-400"} />
-                    <span>Domain Renewals</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => setActiveTab('support_tickets')}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    activeTab === 'support_tickets' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                  )}
-                >
-                  <LifeBuoy size={16} className={activeTab === 'support_tickets' ? "text-blue-600" : "text-gray-400"} />
-                  <span>Support Tickets</span>
-                </button>
-                {(hasPermission('manage_settings') || isAdmin) && (
-                  <button
-                    onClick={() => setActiveTab('hosting_api_settings')}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                      activeTab === 'hosting_api_settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
-                    )}
-                  >
-                    <Plug size={16} className={activeTab === 'hosting_api_settings' ? "text-blue-600" : "text-gray-400"} />
-                    <span>Hosting API Settings</span>
-                  </button>
-                )}
-                {isAdmin && (
-                  <button
-                    onClick={() => navigate('/admin/billing')}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors text-purple-600 font-bold hover:bg-purple-50"
-                  >
-                    <ArrowLeftRight size={16} className="text-purple-600" />
-                    <span>Web Host Billing</span>
-                  </button>
-                )}
               </div>
             )}
-
+            
             {/* Section 3: Sale & Customer */}
             <div className="px-4 mb-2">
               <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Sale & Customer</div>
@@ -3370,7 +3275,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              )}
            </div>
 
-           {/* Accounting */}
+           {(mode === "all" || mode === "accounting") && (<>{/* Accounting */}
            <div className="px-4 mb-2">
              <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Accounting</div>
               {hasPermission('internal_notes') && (
@@ -3460,7 +3365,8 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              )}
            </div>
 
-           {/* Marketing */}
+           </>)}
+             {/* Marketing */}
            {(!isStaff || isAdmin || isManager) && (
              <div className="px-4 mb-2">
                <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Marketing & Feedback</div>
@@ -3482,7 +3388,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              </div>
            )}
 
-           {/* HR */}
+           {(mode === "all") && (<>{/* HR */}
            {(!isStaff || isAdmin || isManager) && (
              <div className="px-4 mb-2">
                <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Human Resource</div>
@@ -3507,7 +3413,8 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              </div>
            )}
 
-           {/* Storefront CMS */}
+           </>)}
+             {/* Storefront CMS */}
            {(!isStaff || isAdmin || isManager) && (
              <div className="px-4 mb-2">
                <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Storefront CMS</div>
@@ -3541,7 +3448,22 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              </div>
            )}
          </div>
-       </aside>
+         <div className="p-4 border-t border-gray-100 shrink-0 mt-auto flex flex-col gap-2">
+            {!isStaff && (
+              <>
+                <button onClick={() => navigate('/admin/billing')} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 border border-purple-200 transition-all shadow-sm">
+                  <ArrowLeftRight size={18} /> Hosting Dashboard
+                </button>
+                <button onClick={() => navigate('/admin/ecommerce')} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-md hover:shadow-lg">
+                  <ShoppingCart size={18} /> E-Commerce Admin
+                </button>
+              </>
+            )}
+             <button onClick={() => window.open('/', '_blank')} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all shadow-sm">
+               <ExternalLink size={18} /> View Shop Site
+             </button>
+           </div>
+        </aside>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
@@ -3564,6 +3486,9 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
            </div>
            <div className="flex items-center gap-2 sm:gap-4 text-gray-500">
               <AdminNotifications setActiveTab={setActiveTab} />
+              <button onClick={() => debouncedFetchData()} className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-full text-gray-600 transition-colors flex items-center justify-center" title="Refresh Data">
+                <RefreshCw size={18} className={loading ? "animate-spin text-blue-600" : ""} />
+              </button>
                 <User size={18} className="hover:text-gray-800 cursor-pointer" onClick={() => toast('Coming Soon: Admin Profile Settings')} />
               <LogOut size={18} className="hover:text-red-600 cursor-pointer" onClick={() => navigate('/')} />
            </div>

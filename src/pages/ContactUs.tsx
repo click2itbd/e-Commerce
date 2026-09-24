@@ -6,9 +6,13 @@ import { useSettings } from '../context/SettingsContext';
 import { db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
+import { useSiteContext } from '../hooks/useSiteContext';
 
 export const ContactUs = () => {
   const { settings } = useSettings();
+  const siteContext = useSiteContext();
+  const isHosting = siteContext === 'hosting';
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -30,6 +34,7 @@ export const ContactUs = () => {
     try {
       await addDoc(collection(db, 'inquiries'), {
         ...formData,
+        siteContext,
         status: 'pending',
         createdAt: new Date().toISOString(),
       });
@@ -68,7 +73,10 @@ export const ContactUs = () => {
             We'd Love to Hear From You
           </h1>
           <p className="text-gray-300 text-sm md:text-base leading-relaxed">
-            Have questions about a product, custom PC build, domain registration, or cloud hosting package? Our tech specialists are here to assist.
+            {isHosting 
+              ? 'Have questions about a domain registration, VPS deployment, or cloud hosting package? Our server technical specialists are here to assist 24/7.'
+              : 'Have questions about a product, custom PC build, or gaming accessories? Our hardware tech specialists are here to assist.'
+            }
           </p>
         </div>
       </div>
@@ -104,7 +112,7 @@ export const ContactUs = () => {
                     <Mail className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 font-medium">Email Address</p>
+                    <p className="text-xs text-gray-500 font-medium">{isHosting ? 'Support Email' : 'Email Address'}</p>
                     <a href={`mailto:${settings.contactEmail}`} className="text-sm font-bold text-gray-900 hover:text-blue-600 break-all">
                       {settings.contactEmail}
                     </a>
@@ -147,130 +155,129 @@ export const ContactUs = () => {
                   <h4 className="font-bold text-base">Instant WhatsApp Support</h4>
                 </div>
                 <p className="text-xs text-emerald-100 leading-relaxed mb-4">
-                  Chat with our technical support team directly on WhatsApp for real-time queries and order assistance.
+                  Chat with our technical support team directly on WhatsApp for real-time queries and {isHosting ? 'server/hosting assistance.' : 'order assistance.'}
                 </p>
-                <a
-                  href={`https://wa.me/${(settings.contactPhone || '+8809640887777').replace(/[^0-9]/g, '')}`}
-                  target="_blank"
+                <a 
+                  href={`https://wa.me/${(settings.contactPhone || '8801900000000').replace(/[^0-9]/g, '')}`} 
+                  target="_blank" 
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center w-full py-2.5 bg-white text-emerald-800 rounded-xl font-bold text-sm hover:bg-emerald-50 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 w-full bg-white text-emerald-700 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-emerald-50 transition-colors"
                 >
-                  Open WhatsApp Chat
+                  Message on WhatsApp
                 </a>
               </div>
             </div>
 
-            {/* Interactive Contact Form (Right 2 Cols) */}
+            {/* Contact Form (Right 2 Cols) */}
             <div className="lg:col-span-2">
-              <div className="bg-white p-8 md:p-10 rounded-3xl border border-gray-100 shadow-sm">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Send Us a Message</h3>
-                <p className="text-gray-500 text-xs md:text-sm mb-6">
-                  Fill out the form below and our team will get back to you with detailed assistance.
+              <div className="bg-white p-8 md:p-10 rounded-3xl border border-gray-100 shadow-sm h-full flex flex-col justify-center">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Send us a Message</h2>
+                <p className="text-sm text-gray-500 mb-8">
+                  Fill out the form below and our team will get back to you as soon as possible.
                 </p>
 
                 {submitted ? (
-                  <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center space-y-3">
-                    <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto" />
-                    <h4 className="text-lg font-bold text-green-900">Thank You! Message Received</h4>
-                    <p className="text-xs text-green-700 max-w-md mx-auto">
-                      Your inquiry has been logged in our system. A customer care representative will contact you via email or phone shortly.
+                  <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center flex flex-col items-center justify-center h-full">
+                    <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
+                      <CheckCircle2 className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-bold text-green-900 mb-2">Message Received!</h3>
+                    <p className="text-sm text-green-700 max-w-md mx-auto">
+                      Thank you for reaching out. A support ticket has been created, and one of our representatives will contact you shortly.
                     </p>
-                    <button
+                    <button 
                       onClick={() => setSubmitted(false)}
-                      className="mt-4 px-4 py-2 bg-green-600 text-white rounded-xl text-xs font-bold hover:bg-green-700 transition-colors"
+                      className="mt-6 px-6 py-2 bg-white text-gray-700 font-medium border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors text-sm"
                     >
                       Send Another Message
                     </button>
                   </div>
                 ) : (
                   <form onSubmit={handleSubmit} className="space-y-5">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">
-                          Your Full Name <span className="text-red-500">*</span>
-                        </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-gray-700">Full Name *</label>
                         <input
                           type="text"
                           required
-                          placeholder="e.g. Shakil Ahmed"
                           value={formData.name}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50/50"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm outline-none"
+                          placeholder="John Doe"
                         />
                       </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">
-                          Email Address <span className="text-red-500">*</span>
-                        </label>
+                      
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-gray-700">Email Address *</label>
                         <input
                           type="email"
                           required
-                          placeholder="shakil@example.com"
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50/50"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm outline-none"
+                          placeholder="john@example.com"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">
-                          Phone / Mobile Number
-                        </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-gray-700">Phone Number (Optional)</label>
                         <input
                           type="tel"
-                          placeholder="017XXXXXXXX"
                           value={formData.phone}
                           onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50/50"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm outline-none"
+                          placeholder="+880 1..."
                         />
                       </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">
-                          Inquiry Topic
-                        </label>
+                      
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-gray-700">Subject</label>
                         <select
                           value={formData.subject}
                           onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50/50"
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm outline-none appearance-none"
                         >
-                          <option value="General Inquiry">General Inquiry</option>
-                          <option value="Web Hosting & cPanel Support">Web Hosting & cPanel Support</option>
-                          <option value="Domain Registration / Transfer">Domain Registration / Transfer</option>
-                          <option value="Hardware & PC Building Quote">Hardware & PC Building Quote</option>
-                          <option value="Warranty & RMA Claim">Warranty & RMA Claim</option>
-                          <option value="Billing & Payment Verification">Billing & Payment Verification</option>
+                          {isHosting ? (
+                            <>
+                              <option>Sales Inquiry</option>
+                              <option>Technical Support</option>
+                              <option>Billing Question</option>
+                              <option>Report Abuse</option>
+                            </>
+                          ) : (
+                            <>
+                              <option>General Inquiry</option>
+                              <option>Product Availability</option>
+                              <option>PC Build Quotation</option>
+                              <option>Order Status</option>
+                              <option>Warranty Claim / RMA</option>
+                            </>
+                          )}
                         </select>
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">
-                        Your Message / Details <span className="text-red-500">*</span>
-                      </label>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-gray-700">Message *</label>
                       <textarea
                         required
-                        rows={5}
-                        placeholder="Tell us about your requirements or issue..."
                         value={formData.message}
                         onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50/50"
-                      />
+                        rows={5}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm outline-none resize-none"
+                        placeholder="How can we help you today?"
+                      ></textarea>
                     </div>
 
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full sm:w-auto px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                      className="w-full bg-[#081621] text-white font-bold px-6 py-4 rounded-xl hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed mt-2"
                     >
-                      {loading ? 'Sending Message...' : (
-                        <>
-                          <Send size={16} /> Submit Message
-                        </>
-                      )}
+                      {loading ? 'Sending...' : 'Send Message'}
+                      {!loading && <Send size={18} className="ml-1" />}
                     </button>
                   </form>
                 )}
@@ -283,5 +290,3 @@ export const ContactUs = () => {
     </Layout>
   );
 };
-
-export default ContactUs;

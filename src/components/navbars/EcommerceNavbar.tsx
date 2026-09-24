@@ -1,23 +1,50 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, Cpu, Server } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, Cpu, Server, CalendarDays, GitCompare, Heart, Trash2 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
+import { useCompare } from '../../context/CompareContext';
+import { useWishlist } from '../../context/WishlistContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
 import { auth, db } from '../../firebase';
 import { signOut } from 'firebase/auth';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { cn } from '../../lib/utils';
-import { NavigationMenu } from '../../types';
+import { NavigationMenu, Product } from '../../types';
 import { setSiteContext } from '../../hooks/useSiteContext';
 
 export const EcommerceNavbar: React.FC = () => {
-  const { items } = useCart();
+    const { items } = useCart();
+  const { compareItems } = useCompare();
+  const { wishlist } = useWishlist();
   const { user, canAccessAdmin } = useAuth();
   const { settings } = useSettings();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [menus, setMenus] = useState<NavigationMenu[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [trendingProducts, setTrendingProducts] = useState<Product[]>([]);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const navigate = useNavigate();
+  const saveSearch = (query: string) => {
+    if(!query.trim()) return;
+    const updated = [query, ...recentSearches.filter(q => q !== query)].slice(0, 5);
+    setRecentSearches(updated);
+    localStorage.setItem('recentSearches', JSON.stringify(updated));
+  };
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    localStorage.removeItem('recentSearches');
+  };
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      setIsSearchFocused(false);
+      saveSearch(searchQuery.trim());
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
 
   useEffect(() => {
     // Mark that the user is in the e-commerce context
@@ -32,6 +59,21 @@ export const EcommerceNavbar: React.FC = () => {
       }
     };
     fetchMenus();
+    const fetchProducts = async () => {
+      try {
+        const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
+        const snap = await getDocs(q);
+        const active = snap.docs.map(d => ({id: d.id, ...d.data()})) as Product[];
+        setProducts(active);
+        setTrendingProducts(active.slice(0, 5));
+      } catch(err) {
+        console.error(err);
+      }
+    };
+    fetchProducts();
+    
+    const saved = localStorage.getItem('recentSearches');
+    if (saved) setRecentSearches(JSON.parse(saved));
   }, []);
 
   const handleLogout = async () => {
@@ -60,9 +102,24 @@ export const EcommerceNavbar: React.FC = () => {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full text-white shadow-md bg-[#0E2A47]">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between gap-4">
+    <header className="sticky top-0 z-50 w-full shadow-md bg-black">
+      <div className="hidden md:block bg-[#111] text-gray-300 text-xs py-1.5 border-b border-gray-800">
+        <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px] flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1"><span className="text-[#F97316]">Phone:</span> {settings.contactPhone}</span>
+            <span className="flex items-center gap-1"><span className="text-[#F97316]">Email:</span> {settings.contactEmail}</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link to="/track-order" className="hover:text-[#F97316] transition-colors">Track Order</Link>
+            <Link to="/blog" className="hover:text-[#F97316] transition-colors">Blog</Link>
+            <Link to="/about" className="hover:text-[#F97316] transition-colors">About Us</Link>
+            <Link to="/contact" className="hover:text-[#F97316] transition-colors">Contact</Link>
+          </div>
+        </div>
+      </div>
+
+      <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px]">
+        <div className="flex py-3 items-center justify-between gap-4">
           {/* Logo */}
           <Link to="/shop" className="flex items-center gap-2 shrink-0">
             {settings.logoUrl ? (
@@ -73,44 +130,194 @@ export const EcommerceNavbar: React.FC = () => {
           </Link>
 
           {/* Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-xl relative">
-            <input
-              type="text"
-              placeholder="Search products..."
-              className="w-full border-none rounded-md py-2 px-4 focus:ring-2 transition-all bg-[#1a3a5f] text-white placeholder-gray-400"
-            />
-            <button className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
-              <Search size={20} />
-            </button>
+          <div className="hidden md:flex flex-1 max-w-2xl relative">
+            <form onSubmit={handleSearch} className="flex w-full items-center bg-[#333333] rounded-full overflow-hidden border border-[#444] focus-within:border-gray-400 transition-all px-4">
+              <Search size={18} className="text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                className="w-full border-none bg-transparent py-2.5 px-3 focus:outline-none focus:ring-0 text-white placeholder-gray-400 text-sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+              />
+            </form>
+            {isSearchFocused && (
+              <div className="absolute top-full left-1/2 -translate-x-1/2 w-[850px] mt-3 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 flex overflow-hidden text-left" style={{ minHeight: '400px', maxHeight: '550px' }}>
+                {/* Left Sidebar */}
+                <div className="w-[30%] bg-white border-r border-gray-100 p-6 overflow-y-auto">
+                  {recentSearches.length > 0 && (
+                    <div className="mb-8">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-gray-800 text-[15px]">Recent Searches</h3>
+                        <button onMouseDown={(e) => { e.preventDefault(); clearRecentSearches(); }} className="text-gray-500 hover:text-red-500 text-xs flex items-center gap-1 font-medium">
+                          <Trash2 size={14} /> Clear
+                        </button>
+                      </div>
+                      <ul className="space-y-3">
+                        {recentSearches.map(rs => (
+                          <li key={rs}>
+                            <button
+                              onMouseDown={(e) => { e.preventDefault(); setSearchQuery(rs); saveSearch(rs); navigate(`/search?q=${encodeURIComponent(rs)}`); setIsSearchFocused(false); }}
+                              className="text-gray-500 hover:text-gray-900 text-sm text-left w-full truncate transition-colors"
+                            >
+                              {rs}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <h3 className="font-bold text-gray-800 text-[15px] mb-4">Trending Search</h3>
+                    <ul className="space-y-3">
+                      {['S25 Ultra', 'OnePlus Buds 4', 'Z Fold7', '16 Pro Max', 'Gaming Mouse'].map(ts => (
+                        <li key={ts}>
+                          <button
+                            onMouseDown={(e) => { e.preventDefault(); setSearchQuery(ts); saveSearch(ts); navigate(`/search?q=${encodeURIComponent(ts)}`); setIsSearchFocused(false); }}
+                            className="text-gray-500 hover:text-gray-900 text-sm text-left w-full truncate transition-colors"
+                          >
+                            {ts}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Right Content */}
+                <div className="w-[70%] p-6 overflow-y-auto bg-[#fcfcfc] custom-scrollbar">
+                  {searchQuery.trim().length === 0 ? (
+                    <>
+                      <h3 className="font-bold text-gray-800 mb-5 text-[15px]">Trending Products</h3>
+                      <div className="grid grid-cols-3 gap-4">
+                        {trendingProducts?.slice(0, 6).map(p => {
+                          const price = p.discountPrice || p.price;
+                          const oldPrice = p.discountPrice ? p.price : null;
+                          const discount = oldPrice ? oldPrice - price : 0;
+                          return (
+                            <Link
+                              key={p.id}
+                              to={`/product/${p.id}`}
+                              onMouseDown={(e) => { e.preventDefault(); if(searchQuery) saveSearch(searchQuery); navigate(`/product/${p.id}`); setIsSearchFocused(false); }}
+                              className="border border-gray-200 rounded-2xl p-4 hover:shadow-lg transition-all group flex flex-col h-full bg-white relative"
+                            >
+                              <div className="aspect-square bg-white rounded-xl flex items-center justify-center p-2 mb-4">
+                                <img src={p.images?.[0] || 'https://via.placeholder.com/150'} alt={p.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform" />
+                              </div>
+                              <p className="text-[14px] font-bold text-gray-800 line-clamp-2 mb-3 flex-grow">{p.name}</p>
+                              <div className="mt-auto">
+                                 <div className="text-[15px] font-bold text-gray-900">৳ {price.toLocaleString()}</div>
+                                 {oldPrice && (
+                                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                     <span className="text-[12px] text-gray-400 line-through">৳ {oldPrice.toLocaleString()}</span>
+                                     <span className="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-bold">৳ {discount.toLocaleString()} OFF</span>
+                                   </div>
+                                 )}
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                       <h3 className="font-bold text-gray-800 mb-5 text-[15px]">Search Results for "{searchQuery}"</h3>
+                       <div className="grid grid-cols-3 gap-4">
+                          {products
+                            ?.filter(p => p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.brand?.toLowerCase().includes(searchQuery.toLowerCase()))
+                            .slice(0, 6)
+                            .map(p => {
+                              const price = p.discountPrice || p.price;
+                              const oldPrice = p.discountPrice ? p.price : null;
+                              const discount = oldPrice ? oldPrice - price : 0;
+                              return (
+                                <Link
+                                  key={p.id}
+                                  to={`/product/${p.id}`}
+                                  onMouseDown={(e) => { e.preventDefault(); if(searchQuery) saveSearch(searchQuery); navigate(`/product/${p.id}`); setIsSearchFocused(false); }}
+                                  className="border border-gray-200 rounded-2xl p-4 hover:shadow-lg transition-all group flex flex-col h-full bg-white relative"
+                                >
+                                  <div className="aspect-square bg-white rounded-xl flex items-center justify-center p-2 mb-4">
+                                    <img src={p.images?.[0] || 'https://via.placeholder.com/150'} alt={p.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform" />
+                                  </div>
+                                  <p className="text-[14px] font-bold text-gray-800 line-clamp-2 mb-3 flex-grow">{p.name}</p>
+                                  <div className="mt-auto">
+                                     <div className="text-[15px] font-bold text-gray-900">৳ {price.toLocaleString()}</div>
+                                     {oldPrice && (
+                                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                         <span className="text-[12px] text-gray-400 line-through">৳ {oldPrice.toLocaleString()}</span>
+                                         <span className="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-bold">৳ {discount.toLocaleString()} OFF</span>
+                                       </div>
+                                     )}
+                                  </div>
+                                </Link>
+                              );
+                            })}
+                       </div>
+                       <div className="text-center mt-8 pt-4 border-t border-gray-100">
+                         <button onMouseDown={(e) => { e.preventDefault(); saveSearch(searchQuery); navigate(`/search?q=${encodeURIComponent(searchQuery)}`); setIsSearchFocused(false); }} className="text-gray-900 font-bold hover:underline text-sm flex items-center justify-center gap-1 mx-auto">
+                           View All Results &rarr;
+                         </button>
+                       </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
           <div className="flex items-center gap-6">
-            <Link to="/cart" className="relative group">
-              <ShoppingCart className="transition-colors" style={{ color: 'white' }} />
-              {items.length > 0 && (
-                <span className="absolute -top-2 -right-2 text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2" style={{ backgroundColor: settings.accentColor, borderColor: settings.primaryColor }}>
+            
+            <Link to="/pre-book" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden sm:flex" title="Pre-Book a Product">
+              <CalendarDays size={24} />
+            </Link>
+
+            <Link to="/compare" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden sm:flex">
+              <GitCompare size={24} />
+              {compareItems?.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-[#F97316] text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-[#0E2A47]">
+                  {compareItems.length}
+                </span>
+              )}
+            </Link>
+
+            <Link to="/wishlist" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden sm:flex">
+              <Heart size={24} />
+              {wishlist?.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-[#F97316] text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-[#0E2A47]">
+                  {wishlist.length}
+                </span>
+              )}
+            </Link>
+
+            <Link to="/cart" className="relative text-[#F97316] hover:text-[#e06612] transition-colors flex">
+              <ShoppingCart size={24} />
+              {items?.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-[#F97316] text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-[#0E2A47]">
                   {items.length}
                 </span>
               )}
             </Link>
 
             {user ? (
-              <div className="flex items-center gap-4">
-                <Link to="/profile" className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
-                  <User size={20} />
-                  <span className="text-sm font-medium">My Profile</span>
+              <div className="flex items-center gap-5 ml-2">
+                <Link to="/profile" className="text-white hover:text-[#F97316] transition-colors hidden sm:flex">
+                  <User size={24} />
                 </Link>
-                <button onClick={handleLogout} className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
-                  <LogOut size={20} />
-                  <span className="text-sm font-medium">Logout</span>
+                <button onClick={handleLogout} className="text-white hover:text-[#EF4444] transition-colors hidden sm:flex">
+                  <LogOut size={24} />
                 </button>
               </div>
             ) : (
-              <Link to="/login" className="flex items-center gap-1 hover:text-[#EF4444] transition-colors">
-                <User size={20} />
-                <span className="hidden sm:block text-sm font-medium">Login</span>
-              </Link>
+              <div className="flex items-center gap-5 ml-2">
+                <Link to="/login" className="text-white hover:text-[#F97316] transition-colors flex">
+                  <User size={24} />
+                </Link>
+              </div>
             )}
 
             <button className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
@@ -121,9 +328,10 @@ export const EcommerceNavbar: React.FC = () => {
       </div>
 
       {/* Desktop Navigation */}
-      <nav className="hidden md:block bg-white text-[#081621] border-b border-gray-200">
-        <div className="container mx-auto px-4">
-          <ul className="flex items-center gap-8 h-12">
+      <nav className="hidden md:block bg-white border-b border-gray-200">
+          <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px]">
+            <div className="flex items-center justify-between h-12">
+              <ul className="flex items-center gap-8 h-full">
             {menus.filter(m => m.name.toLowerCase() !== 'hosting').map(menu => {
               const isComponents = menu.name.toLowerCase() === 'components';
               const subs = isComponents 
@@ -147,16 +355,13 @@ export const EcommerceNavbar: React.FC = () => {
                 </Link>
                 
                 {subs.length > 0 && (
-                  <div className="absolute top-full left-0 w-56 bg-white shadow-xl border border-gray-100 rounded-b-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                    <ul className="py-2">
+                  <div className={`absolute top-full left-0 bg-white shadow-2xl border border-gray-100 rounded-b-md opacity-0 invisible translate-y-2 group-hover:translate-y-0 group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 ${subs.length > 10 ? 'w-[500px] p-4' : 'w-56 py-2'}`}>
+                    <ul className={`grid ${subs.length > 10 ? 'grid-cols-2 gap-x-6 gap-y-1' : 'grid-cols-1'}`}>
                       {subs.map(sub => (
                         <li key={sub.id}>
                           <Link 
                             to={`/category/${menu.slug}/${sub.slug}`}
-                            className="block px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
-                            style={{ color: 'inherit' }}
-                            onMouseEnter={(e) => e.currentTarget.style.color = settings.accentColor}
-                            onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
+                            className={`block px-4 py-2 hover:bg-orange-50 text-gray-900 hover:text-[#F97316] transition-colors rounded-md ${subs.length > 10 ? 'text-[13px] font-medium' : 'text-sm'}`}
                           >
                             {sub.name}
                           </Link>
@@ -167,32 +372,35 @@ export const EcommerceNavbar: React.FC = () => {
                 )}
               </li>
             )})}
-            <li className="h-full">
-              <Link to="/pc-build" className="flex items-center gap-2 h-full text-sm font-bold hover:underline" style={{ color: settings.accentColor }}>
-                <Cpu size={16} /> PC Builder
-              </Link>
-            </li>
-            <li className="h-full">
-              <Link to="/" className="flex items-center gap-2 h-full text-sm font-bold hover:underline" style={{ color: settings.accentColor }}>
-                 Hosting
-              </Link>
-            </li>
-          </ul>
-        </div>
-      </nav>
+            </ul>
+              <div className="flex items-center gap-6 h-full">
+                <Link to="/pc-build" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
+                  <Cpu size={18} /> PC Builder
+                </Link>
+                <Link to="/" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
+                  Hosting
+                </Link>
+              </div>
+            </div>
+          </div>
+        </nav>
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="md:hidden border-t border-gray-700 p-4 bg-[#081621]">
+        <div className="md:hidden border-t border-gray-700 p-4 bg-black">
           <div className="flex flex-col gap-4">
-            <div className="relative">
+            <form onSubmit={handleSearch} className="flex w-full items-center bg-[#333333] rounded-full overflow-hidden border border-[#444] focus-within:border-gray-400 transition-all px-4 mb-2">
+              <Search size={18} className="text-gray-400" />
               <input
                 type="text"
                 placeholder="Search..."
-                className="w-full border-none rounded-md py-2 px-4 bg-[#0E2A47] text-white"
+                className="w-full border-none bg-transparent py-2.5 px-3 focus:outline-none focus:ring-0 text-white placeholder-gray-400 text-sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
               />
-              <Search className="absolute right-3 top-2.5 text-gray-400" size={18} />
-            </div>
+            </form>
             {canAccessAdmin && (
               <Link to="/admin" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
                 <LayoutDashboard size={20} /> Admin Dashboard

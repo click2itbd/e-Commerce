@@ -1,6 +1,5 @@
 import { logoBase64 } from './logoBase64';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+
 import { Order, Transaction, SiteSettings } from '../types';
 import { formatCurrency } from './utils';
 
@@ -56,7 +55,9 @@ function amountToWords(num: number): string {
     return str.trim();
 }
 
-export const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quotation' | 'challan' | 'receipt', settings: SiteSettings) => {
+export const generatePDF = async (order: Order | Transaction, type: 'invoice' | 'quotation' | 'challan' | 'receipt', settings: SiteSettings, action: 'download' | 'doc' = 'download'): Promise<any> => {
+  const { jsPDF } = await import('jspdf');
+  const autoTable = (await import('jspdf-autotable')).default;
   const doc = new jsPDF('p', 'mm', 'a4'); 
   let currentY = 15;
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -363,12 +364,11 @@ export const generatePDF = (order: Order | Transaction, type: 'invoice' | 'quota
     iframe.src = blobURL;
     document.body.appendChild(iframe);
     iframe.onload = () => {
-      // Small delay to ensure PDF is loaded in iframe
-      setTimeout(() => {
-        iframe.contentWindow?.print();
-      }, 100);
+      setTimeout(() => { iframe.contentWindow?.print(); }, 100);
     };
-  } else {
-    doc.save(`${type}_${(order as any).documentNumber || (order as any).referenceId || order.id.substring(0, 8)}.pdf`);
+  } else if (action === 'download') {
+    doc.save(${type}_.pdf);
   }
+  
+  return doc;
 };

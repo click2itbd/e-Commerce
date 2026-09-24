@@ -21,16 +21,10 @@ function NavbarSelector() {
   const { items } = useCart();
   const siteContext = getSiteContext();
 
-  const isPcComponentCategory =
-    pathname.startsWith('/category/components') ||
-    /^\/category\/(cpu|motherboard|ram|storage|graphics-card|power-supply|casing|monitor|keyboard|mouse|headphone|ups|cpu-cooler|casing-cooler)/.test(pathname);
-
   // ── Explicitly PC-Build routes ──────────────────────────────────────────
   if (
     pathname.startsWith('/pc-build') ||
-    pathname === '/compare' ||
-    pathname.startsWith('/community-builds') ||
-    isPcComponentCategory
+    pathname.startsWith('/community-builds')
   ) {
     return <PCBuildNavbar />;
   }
@@ -39,7 +33,10 @@ function NavbarSelector() {
   if (
     pathname.startsWith('/shop') ||
     pathname.startsWith('/category') ||
-    pathname.startsWith('/product')
+    pathname.startsWith('/product') ||
+    pathname.startsWith('/wishlist') ||
+    pathname.startsWith('/search') ||
+    pathname.startsWith('/pre-book')
   ) {
     return <EcommerceNavbar />;
   }
@@ -57,9 +54,10 @@ function NavbarSelector() {
   if (
     pathname.startsWith('/cart') ||
     pathname.startsWith('/checkout') ||
+    pathname === '/compare' ||
     pathname.startsWith('/order-success') ||
-    pathname.startsWith('/payment') ||
     pathname.startsWith('/profile') ||
+    pathname.startsWith('/payment') ||
     pathname.startsWith('/login')
   ) {
     // Smart deduction based on cart items (bulletproof for cart/checkout)
@@ -84,9 +82,9 @@ function NavbarSelector() {
 
 export const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
   return (
-    <div className="min-h-screen flex flex-col bg-[#F2F4F8]">
+    <div className="min-h-screen flex flex-col bg-white">
       <NavbarSelector />
-      <main className={`flex-grow ${fullWidth ? '' : 'container mx-auto px-4 py-8'}`}>
+      <main className={`flex-grow ${fullWidth ? '' : 'w-full max-w-[1440px] mx-auto px-4 md:px-[50px] py-8'}`}>
         {children}
       </main>
       <Footer />
