@@ -44,8 +44,13 @@ const SalesReportTab: React.FC = () => {
 
       snap.forEach(docSnap => {
         const order = docSnap.data();
-        // Skip cancelled or failed orders, and quotations (proposals are not sales)
-        if (order.status === 'cancelled' || order.status === 'failed' || order.type === 'quotation') return;
+        // Skip cancelled or failed orders
+        if (order.status === 'cancelled' || order.status === 'failed') return;
+        // Quotations only count as sales when accepted or completed
+        if (order.type === 'quotation') {
+          const s = (order.status || '').toLowerCase();
+          if (s !== 'accepted' && s !== 'completed') return;
+        }
 
         const orderDate = order.createdAt || new Date().toISOString();
         const docNum = order.documentNumber || docSnap.id.slice(0, 8);

@@ -106,6 +106,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       const orderDate = new Date(o.createdAt);
       if (orderDate < startDate || orderDate > endDate) return false;
       if (o.status === 'cancelled') return false;
+      // Quotations only count as revenue when accepted or completed
+      if (o.type === 'quotation' && o.status !== 'accepted' && o.status !== 'completed' && o.status !== 'ACCEPTED' && o.status !== 'COMPLETED') return false;
       return true;
     });
   }, [orders, startDate, endDate]);
