@@ -384,7 +384,10 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={(e) => { if(e.target === e.currentTarget) setViewingOrder(null); }}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="font-bold text-gray-900">Order #{viewingOrder.documentNumber || viewingOrder.id.substring(0,8)}</h3>
+              <div>
+                <h3 className="font-bold text-gray-900">Order #{viewingOrder.documentNumber || viewingOrder.id.substring(0,8)}</h3>
+                {viewingOrder.createdBy && <p className="text-[10px] text-gray-500 uppercase font-semibold">Handled By: {viewingOrder.createdBy}</p>}
+              </div>
               <button onClick={() => setViewingOrder(null)} className="p-1 hover:bg-gray-200 rounded text-gray-500"><X size={20}/></button>
             </div>
             <div className="p-6 overflow-y-auto">

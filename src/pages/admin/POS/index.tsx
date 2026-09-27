@@ -446,6 +446,7 @@ export const RetailPOS = () => {
         splitPayments: payments,
         status: 'delivered',
         userId: user?.uid || 'admin',
+        createdBy: user?.displayName || user?.email || 'Admin',
         createdAt,
       };
 

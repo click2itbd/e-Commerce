@@ -229,7 +229,7 @@ export const Home: React.FC = () => {
           </div>
         ) : products.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-6">
-            {products.slice(0, 12).map((product) => (
+            {products.slice(0, 16).map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>

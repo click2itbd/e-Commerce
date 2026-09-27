@@ -5,11 +5,49 @@ import { db } from '../../firebase';
 import { Package, Search, Truck, CheckCircle2, Clock, MapPin, Download, AlertCircle, Activity } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import { Layout } from '../../components/Layout';
+import { Player } from '@lottiefiles/react-lottie-player';
 import { generatePDF } from '../../lib/pdf';
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { ChevronRight } from 'lucide-react';
 import { Order } from '../../types';
+
+
+const DeliverySequence = () => {
+  const [phase, setPhase] = useState(0);
+  
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPhase(p => (p + 1) % 4);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, []);
+
+  const phases = [
+    { icon: <div className="text-6xl animate-bounce">🛒</div>, text: "Shopping..." },
+    { icon: <div className="text-6xl animate-pulse scale-125">✅</div>, text: "Order Confirmed!" },
+    { icon: <div className="text-6xl animate-[slide_2s_ease-in-out_infinite] flex justify-center"><div className="-scale-x-100">🚚</div></div>, text: "On the way..." },
+    { icon: <div className="text-6xl animate-bounce">🎁</div>, text: "Delivered!" }
+  ];
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full w-full bg-blue-50/50 rounded-full border-4 border-white shadow-xl overflow-hidden relative">
+      <div className="absolute inset-0 bg-gradient-to-tr from-blue-100 to-white opacity-50"></div>
+      <div className="relative z-10 flex flex-col items-center transition-all duration-500 transform scale-110">
+        {phases[phase].icon}
+        <p className="mt-4 font-bold text-blue-900 bg-white/80 px-3 py-1 rounded-full text-sm shadow-sm">{phases[phase].text}</p>
+      </div>
+      <style>{`
+        @keyframes slide {
+          0% { transform: translateX(-40px); opacity: 0; }
+          20% { opacity: 1; }
+          80% { opacity: 1; }
+          100% { transform: translateX(40px); opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+};
 
 export default function TrackOrder() {
   const { user } = useAuth();
@@ -71,6 +109,17 @@ export default function TrackOrder() {
       track(id);
     }
   }, [searchParams]);
+
+  
+  // Dynamic animation based on tracking step
+  const getAnimationUrl = () => {
+    if (!order) return "https://lottie.host/7905d4b8-2dc3-4a18-80f4-cf3d752f9547/d72sC3Wf7e.json"; // Shopping/Search
+    if (step === -1) return "https://lottie.host/c83783a9-e0d0-4ad3-94c5-c2665e771c66/hYQ7Nq6f5i.json"; // Cancelled
+    if (step === 0 || step === 1) return "https://lottie.host/66d039f9-bdbe-42af-ae7a-0fcda11cb93d/L0aR9a2PjO.json"; // Processing/Packing
+    if (step === 2) return "https://lottie.host/8c06ce1d-720a-4a25-a4db-233bb33396f7/D4T358mPOn.json"; // On the way
+    if (step === 3) return "https://lottie.host/b087091f-0e9b-4bd8-9d58-bb1237a28e5c/5YF5lU6mJz.json"; // Delivered
+    return "https://lottie.host/8c06ce1d-720a-4a25-a4db-233bb33396f7/D4T358mPOn.json";
+  };
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,18 +200,9 @@ export default function TrackOrder() {
         <div className="text-center mb-12">
             <div className="relative w-64 h-64 mx-auto mb-8 flex items-center justify-center animate-in zoom-in duration-700">
               <div className="absolute inset-0 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
-              <img 
-                src="https://cdn3d.iconscout.com/3d/premium/thumb/delivery-scooter-5296811-4436531.png" 
-                alt="Track Delivery" 
-                className="w-full h-full object-contain relative z-10 hover:scale-105 transition-transform duration-500 drop-shadow-2xl"
-              />
+              <DeliverySequence />
             </div>
-              {/* 3D Illustration / Graphic */}
-              <img 
-                src="https://cdn-icons-png.flaticon.com/512/8206/8206253.png" 
-                alt="Track Delivery" 
-                className="w-full h-full object-contain relative z-10 hover:scale-110 transition-transform duration-500"
-              />
+              
             </div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Track Your Order</h1>
             <p className="text-gray-600 text-lg">Enter your Order ID or Invoice Number to see live updates.</p>

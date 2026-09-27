@@ -40,7 +40,7 @@ function getMonthYear(dateVal) {
 export function useHostingBillingState() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(new URLSearchParams(window.location.search).get('tab') || 'dashboard');
   const { settings, updateSettings } = useSettings();
   const [settingsFormData, setSettingsFormData] = useState(settings || {});
   

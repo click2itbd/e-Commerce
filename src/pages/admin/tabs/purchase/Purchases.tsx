@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc } from 'firebase/firestore';
-import { db } from '../../../../firebase';
+import { db, auth } from '../../../../firebase';
 import { Product, Vendor, Transaction, SiteSettings, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
@@ -630,14 +630,29 @@ const Purchases: React.FC<PurchasesProps> = ({
       const totalShippingCost = Number(purchaseForm.shippingCost) || 0;
       const shippingPerUnit = totalQuantity > 0 ? totalShippingCost / totalQuantity : 0;
       
+      
+      // Map to hold newly created/updated products within this transaction
+      const localProductsMap = new Map<string, any>();
+
       for (let i = 0; i < updatedItems.length; i++) {
         const item = updatedItems[i];
         
-        // Add proportional shipping cost to unit purchase price
         const effectivePurchasePrice = Number(item.purchasePrice) + shippingPerUnit;
         updatedItems[i].purchasePrice = effectivePurchasePrice;
         
-        const currentProduct = products.find(p => p.id === item.id);
+        let currentProduct = localProductsMap.get(item.id) || products.find(p => p.id === item.id);
+
+        if (!currentProduct && item.id.startsWith('NEW_')) {
+           currentProduct = Array.from(localProductsMap.values()).find(p => 
+              p.name.toLowerCase() === item.name.toLowerCase() &&
+              (p.category || '').toLowerCase() === (item.category || '').toLowerCase() &&
+              (p.brand || '').toLowerCase() === (item.brand || '').toLowerCase()
+           ) || products.find(p => 
+              p.name.toLowerCase() === item.name.toLowerCase() &&
+              (p.category || '').toLowerCase() === (item.category || '').toLowerCase() &&
+              (p.brand || '').toLowerCase() === (item.brand || '').toLowerCase()
+           );
+        }
 
         if (currentProduct) {
           const oldStock = Number(currentProduct.stock) || 0;
@@ -650,14 +665,32 @@ const Purchases: React.FC<PurchasesProps> = ({
             ? ((oldStock * oldCost) + (newStock * newCost)) / totalStock 
             : newCost;
 
-          const productRef = doc(db, 'products', item.id);
+          const productRef = doc(db, 'products', currentProduct.id);
           const updates: any = {
             stock: totalStock,
             costPrice: averageCostPrice,
           };
 
-          if (item.salesPrice) {
-            updates.price = Number(item.salesPrice);
+          if (item.variantName) {
+             let existingVariants = currentProduct.variants || [];
+             const vIndex = existingVariants.findIndex((v: any) => v.name.toLowerCase() === item.variantName?.toLowerCase() || (item.sku && v.sku === item.sku));
+             if (vIndex > -1) {
+               existingVariants[vIndex].stock = (Number(existingVariants[vIndex].stock) || 0) + Number(item.quantity);
+               if (item.salesPrice) existingVariants[vIndex].price = Number(item.salesPrice);
+             } else {
+               existingVariants.push({
+                 id: crypto.randomUUID(),
+                 name: item.variantName,
+                 sku: item.sku || '',
+                 price: Number(item.salesPrice) || 0,
+                 stock: Number(item.quantity) || 0
+               });
+             }
+             updates.variants = existingVariants;
+             currentProduct.variants = existingVariants;
+          } else {
+             if (item.salesPrice) updates.price = Number(item.salesPrice);
+             if (item.sku && !currentProduct.sku) updates.sku = item.sku;
           }
 
           if (item.hasWarranty && item.warrantyYears) {
@@ -676,74 +709,53 @@ const Purchases: React.FC<PurchasesProps> = ({
           }
 
           await updateDoc(productRef, updates);
-        } else {
-           // Check if a product with same name+category+subCategory+brand already exists
-           const matchByDetails = products.find(p => 
-              p.name.toLowerCase() === item.name.toLowerCase() &&
-              (p.category || '').toLowerCase() === (item.category || '').toLowerCase() &&
-              (p.subCategory || '').toLowerCase() === (item.subCategory || '').toLowerCase() &&
-              (p.brand || '').toLowerCase() === (item.brand || '').toLowerCase()
-           );
-           
-           if (matchByDetails) {
-              // Merge into existing product instead of creating duplicate
-              const oldStock = Number(matchByDetails.stock) || 0;
-              const oldCost = Number(matchByDetails.costPrice) || 0;
-              const newStock = Number(item.quantity) || 0;
-              const newCost = effectivePurchasePrice;
-              
-              const totalStock = oldStock + newStock;
-              const averageCostPrice = totalStock > 0 
-                ? ((oldStock * oldCost) + (newStock * newCost)) / totalStock 
-                : newCost;
+          
+          currentProduct.stock = totalStock;
+          currentProduct.costPrice = averageCostPrice;
+          localProductsMap.set(currentProduct.id, currentProduct);
+          updatedItems[i].id = currentProduct.id;
 
-              const productRef = doc(db, 'products', matchByDetails.id);
-              const updates: any = {
-                 stock: totalStock,
-                 costPrice: averageCostPrice,
-              };
-              if (item.salesPrice) updates.price = Number(item.salesPrice);
-              if (item.sku && !matchByDetails.sku) updates.sku = item.sku;
-              
-              const addedSerials = Array.isArray(item.newSerials)
-                 ? item.newSerials.filter((s: string) => s.trim())
-                 : String(item.newSerials || '').split(/[\n,]/).map((s: string) => s.trim()).filter((s: string) => s);
-              if (addedSerials.length > 0) {
-                 updates.availableSerials = [...(matchByDetails.availableSerials || []), ...addedSerials];
-              }
-              
-              await updateDoc(productRef, updates);
-              updatedItems[i].id = matchByDetails.id;
-           } else {
-              // Completely new product
-              const addedSerials = Array.isArray(item.newSerials)
-                 ? item.newSerials.filter((s: string) => s.trim())
-                 : String(item.newSerials || '')
-                     .split(/[\n,]/)
-                     .map((s: string) => s.trim())
-                     .filter((s: string) => s);
-                     
-              const newProductData = {
-                 name: item.name,
-                 category: item.category || 'General',
-                 subCategory: item.subCategory || '',
-                 brand: item.brand || '',
-                 description: item.name,
-                 images: [],
-                 sku: item.sku || '',
-                 costPrice: Number(item.purchasePrice) || 0,
-                 price: Number(item.salesPrice) || 0,
-                 stock: Number(item.quantity) || 0,
-                 hasWarranty: Boolean(item.hasWarranty),
-                 warrantyMonths: item.hasWarranty && item.warrantyYears ? Number(item.warrantyYears) * 12 : 0,
-                 hasSerialTracking: Boolean(item.hasSerialTracking),
-                 availableSerials: addedSerials,
-                 createdAt: createdAt
-              };
-              
-              const docRef = await addDoc(collection(db, 'products'), newProductData);
-              updatedItems[i].id = docRef.id;
-           }
+        } else {
+          // Completely new product
+          const addedSerials = Array.isArray(item.newSerials)
+             ? item.newSerials.filter((s: string) => s.trim())
+             : String(item.newSerials || '')
+                 .split(/[\n,]/)
+                 .map((s: string) => s.trim())
+                 .filter((s: string) => s);
+                 
+          const newProductData: any = {
+             name: item.name,
+             category: item.category || 'General',
+             subCategory: item.subCategory || '',
+             brand: item.brand || '',
+             description: item.name,
+             images: [],
+             sku: item.variantName ? '' : (item.sku || ''),
+             costPrice: Number(item.purchasePrice) || 0,
+             price: Number(item.salesPrice) || 0,
+             stock: Number(item.quantity) || 0,
+             hasWarranty: Boolean(item.hasWarranty),
+             warrantyMonths: item.hasWarranty && item.warrantyYears ? Number(item.warrantyYears) * 12 : 0,
+             hasSerialTracking: Boolean(item.hasSerialTracking),
+             availableSerials: addedSerials,
+             createdAt: new Date().toISOString()
+          };
+
+          if (item.variantName) {
+             newProductData.variants = [{
+                id: crypto.randomUUID(),
+                name: item.variantName,
+                sku: item.sku || '',
+                price: Number(item.salesPrice) || 0,
+                stock: Number(item.quantity) || 0
+             }];
+          }
+          
+          const docRef = await addDoc(collection(db, 'products'), newProductData);
+          newProductData.id = docRef.id;
+          localProductsMap.set(docRef.id, newProductData);
+          updatedItems[i].id = docRef.id;
         }
       }
 
@@ -1062,7 +1074,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                         <div key={idx} className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-2">
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex-1">
-                              <span className="font-bold text-gray-900 block text-xs">{item.name}</span>
+                              <span className="font-bold text-gray-900 block text-xs">{item.name}{item.variantName ? ` - ${item.variantName}` : ""}</span>
                               <span className="text-[10px] text-gray-400">Category: {item.category}</span>
                             </div>
 
@@ -1709,7 +1721,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                   <ShoppingBag size={16} className="text-[#EF4444]" /> Purchase Voucher #{viewingPurchase.documentNumber}
                 </h3>
                 <span className="text-[10px] text-gray-300">
-                  Supplier: {viewingPurchase.vendorName} | Date: {new Date(viewingPurchase.date || viewingPurchase.createdAt).toLocaleDateString()}
+                  Supplier: {viewingPurchase.vendorName} | Date: {new Date(viewingPurchase.date || viewingPurchase.createdAt).toLocaleDateString()} | By: {viewingPurchase.createdBy || 'Admin'}
                 </span>
               </div>
               <button onClick={() => setViewingPurchase(null)} className="text-gray-400 hover:text-white">

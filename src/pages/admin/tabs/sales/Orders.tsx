@@ -7,7 +7,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 export type OrderStatus = string;
 export const DEFAULT_ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
-import { Receipt, Search, Download, Filter, Eye, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X } from 'lucide-react';
+import { Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
 export type OrderCategory = 'all' | 'ecommerce' | 'pc_build' | 'domain' | 'hosting';
@@ -47,6 +47,15 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [orderCategoryFilter, setOrderCategoryFilter] = useState<OrderCategory>('all');
   const [shippingModalOrder, setShippingModalOrder] = useState<any | null>(null);
+  const [viewingOrder, setViewingOrder] = useState<any | null>(null);
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(new Set());
+
+  const toggleRow = (id: string) => {
+    const newSet = new Set(expandedOrderIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setExpandedOrderIds(newSet);
+  };
   const { settings } = useSettings();
   const activeStatuses = (settings as any)?.customOrderStatuses || DEFAULT_ORDER_STATUSES;
 
@@ -241,6 +250,36 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
         </div>
       </div>
 
+      {/* Quick Date Presets */}
+      <div className="px-6 mt-3 flex items-center gap-2 overflow-x-auto pb-2 shrink-0">
+        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider mr-2">Quick Dates:</span>
+        <button onClick={() => {
+          const d = new Date().toISOString().split('T')[0];
+          setOrderStartDate(d); setOrderEndDate(d); setCurrentPage(1);
+        }} className="px-3 py-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 text-[10px] font-bold uppercase rounded-md transition-colors shadow-sm">Today</button>
+        <button onClick={() => {
+          const d = new Date(); d.setDate(d.getDate() - 1);
+          const ds = d.toISOString().split('T')[0];
+          setOrderStartDate(ds); setOrderEndDate(ds); setCurrentPage(1);
+        }} className="px-3 py-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 text-[10px] font-bold uppercase rounded-md transition-colors shadow-sm">Yesterday</button>
+        <button onClick={() => {
+          const end = new Date().toISOString().split('T')[0];
+          const d = new Date(); d.setDate(d.getDate() - 7);
+          const start = d.toISOString().split('T')[0];
+          setOrderStartDate(start); setOrderEndDate(end); setCurrentPage(1);
+        }} className="px-3 py-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 text-[10px] font-bold uppercase rounded-md transition-colors shadow-sm">Last 7 Days</button>
+        <button onClick={() => {
+          const d = new Date();
+          const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+          const end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+          setOrderStartDate(start); setOrderEndDate(end); setCurrentPage(1);
+        }} className="px-3 py-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 text-[10px] font-bold uppercase rounded-md transition-colors shadow-sm">This Month</button>
+        <button onClick={() => {
+          setOrderStartDate(''); setOrderEndDate(''); setCurrentPage(1);
+        }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 text-[10px] font-bold uppercase rounded-md transition-colors shadow-sm">Clear</button>
+      </div>
+
+
 
             {selectedOrderIds.length > 0 && (
               <div className="bg-[#081621] text-white p-4 flex items-center justify-between animate-in slide-in-from-top duration-300">
@@ -341,11 +380,12 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                   {currentOrders.map(order => {
                     const cat = getOrderCategory(order);
                     return (
-                      <tr key={order.id} className={cn(
-                        "hover:bg-gray-50 transition-colors",
-                        selectedOrderIds.includes(order.id) && "bg-red-50/50"
-                      )}>
-                        <td className="px-6 py-4">
+                      <React.Fragment key={order.id}>
+                      <tr className={cn(
+                        "hover:bg-gray-50 transition-colors cursor-pointer",
+                        selectedOrderIds.includes(order.id) ? "bg-red-50/50" : (expandedOrderIds.has(order.id) ? "bg-blue-50/30" : "")
+                      )} onClick={() => toggleRow(order.id)}>
+                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selectedOrderIds.includes(order.id)}
@@ -360,12 +400,15 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                           />
                         </td>
                         <td className="px-6 py-4 text-xs font-mono text-gray-500">
+                            <div className="flex items-center gap-2">
+                            {expandedOrderIds.has(order.id) ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
                             #{order.documentNumber || order.id.slice(0, 8)}
                             {order.saleSource === 'online' && (
                               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700">
                                 ONLINE
                               </span>
                             )}
+                            </div>
                           </td>
                         <td className="px-6 py-4">
                           {cat === 'domain' && (
@@ -393,8 +436,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
                             <button
-                              onClick={() => {
-                                const customer = customers.find(c => c.name === order.customerName);
+                              onClick={(e) => { e.stopPropagation(); const customer = customers.find(c => c.name === order.customerName);
                                 if (customer) {
                                   setSelectedLedgerEntity({ id: customer.id, name: customer.name, type: 'customer' });
                                 } else {
@@ -441,7 +483,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                             <input
                               type="number"
                               defaultValue={order.discountAmount || 0}
-                              onBlur={(e) => {
+                              onClick={(e)=>e.stopPropagation()} onBlur={(e) => {
                                 const val = parseFloat(e.target.value);
                                 if (!isNaN(val) && val !== (order.discountAmount || 0) && updateOrderDiscount) {
                                   updateOrderDiscount(order.id, val);
@@ -456,7 +498,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                         <td className="px-6 py-4">
                           <select
                             value={order.status}
-                            onChange={e => updateOrderStatus && updateOrderStatus(order.id, e.target.value as OrderStatus)}
+                            onClick={(e)=>e.stopPropagation()} onChange={e => updateOrderStatus && updateOrderStatus(order.id, e.target.value as OrderStatus)}
                             disabled={!hasPermission('manage_orders')}
                             className="w-full text-xs border-gray-200 rounded-md focus:ring-[#EF4444] disabled:bg-gray-50 disabled:text-gray-500 font-semibold"
                           >
@@ -467,9 +509,16 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            <button
+                               onClick={(e) => { e.stopPropagation(); setViewingOrder(order); }}
+                               className="p-1.5 px-3 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold border border-gray-200 bg-white shadow-sm"
+                               title="View Order"
+                             >
+                               <Eye size={14} /> View
+                             </button>
                             {(order.status === 'shipped' || order.status === 'delivered' || order.courierName) && (
                               <button
-                                onClick={() => setShippingModalOrder(order)}
+                                onClick={(e) => { e.stopPropagation(); setShippingModalOrder(order); }}
                                 className="p-1.5 px-3 text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-all flex items-center gap-1 text-xs font-bold shadow-sm"
                                 title="Shipping Details"
                               >
@@ -478,7 +527,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                             )}
                             {generatePDF && (
                               <div className="relative group">
-                                <button className="p-1.5 px-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold border border-gray-200 bg-white">
+                                <button onClick={(e)=>e.stopPropagation()} className="p-1.5 px-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold border border-gray-200 bg-white">
                                   <Download size={14} /> Docs ▾
                                 </button>
                                 <div className="absolute right-0 top-full mt-1 w-28 bg-white rounded-lg shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 flex flex-col overflow-hidden py-1">
@@ -489,7 +538,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                             )}
                             {handleDeleteOrder && (
                               <button
-                                onClick={() => handleDeleteOrder(order)}
+                                onClick={(e) => { e.stopPropagation(); handleDeleteOrder(order); }}
                                 className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all flex items-center justify-center"
                                 title="Delete Sale"
                               >
@@ -499,6 +548,67 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                           </div>
                         </td>
                       </tr>
+
+                      {expandedOrderIds.has(order.id) && (
+                        <tr className="bg-gray-50/30 border-b-2 border-gray-100">
+                          <td colSpan={8} className="p-0">
+                            <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-8 shadow-inner bg-white/60 m-2 rounded-xl border border-gray-200">
+                              <div>
+                                <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2"><ShoppingBag size={14}/> Ordered Items</h4>
+                                <ul className="space-y-2">
+                                  {order.items?.map((item: any, i: number) => (
+                                    <li key={i} className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
+                                      <span className="font-medium text-gray-700">{item.name} <span className="text-gray-400">x{item.quantity}</span></span>
+                                      <span className="font-bold text-gray-900">{formatCurrency((item.price || 0) * (item.quantity || 1), settings)}</span>
+                                    </li>
+                                  ))}
+                                  {order.discountAmount > 0 && (
+                                    <li className="flex justify-between items-center text-sm pt-1">
+                                      <span className="font-medium text-[#EF4444]">Discount</span>
+                                      <span className="font-bold text-[#EF4444]">- {formatCurrency(order.discountAmount, settings)}</span>
+                                    </li>
+                                  )}
+                                  <li className="flex justify-between items-center text-sm pt-2 font-black text-lg">
+                                    <span className="text-gray-900">Total</span>
+                                    <span className="text-gray-900">{formatCurrency(order.total, settings)}</span>
+                                  </li>
+                                </ul>
+                              </div>
+                              <div className="space-y-4">
+                                <div>
+                                   <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2"><Truck size={14}/> Shipping & Tracking</h4>
+                                   {order.shippingAddress ? <p className="text-sm text-gray-600 bg-gray-100 p-3 rounded-md mb-3 border border-gray-200">{order.shippingAddress}</p> : <p className="text-sm text-gray-400 italic mb-2">No shipping address provided</p>}
+                                   
+                                   <form className="flex flex-col sm:flex-row gap-2" onSubmit={async (e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      const form = e.target as HTMLFormElement;
+                                      const courierName = (form.elements.namedItem('courierName') as HTMLInputElement).value;
+                                      const trackingNumber = (form.elements.namedItem('trackingNumber') as HTMLInputElement).value;
+                                      try {
+                                        await updateDoc(doc(db, 'orders', order.id), { courierName, trackingNumber });
+                                        toast.success('Tracking details updated!');
+                                      } catch (err) {
+                                        toast.error('Failed to update tracking details');
+                                      }
+                                   }}>
+                                     <input type="text" name="courierName" defaultValue={order.courierName || ''} placeholder="Courier (e.g. Pathao)" onClick={(e)=>e.stopPropagation()} className="flex-1 text-sm font-semibold px-3 py-2 border border-gray-200 rounded focus:border-[#EF4444] focus:ring-[#EF4444]" />
+                                     <input type="text" name="trackingNumber" defaultValue={order.trackingNumber || ''} placeholder="Tracking Number" onClick={(e)=>e.stopPropagation()} className="flex-1 text-sm font-semibold px-3 py-2 border border-gray-200 rounded focus:border-[#EF4444] focus:ring-[#EF4444]" />
+                                     <button type="submit" onClick={(e)=>e.stopPropagation()} className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition-colors shadow-sm">Save</button>
+                                   </form>
+                                   {order.courierName && (
+                                     <div className="mt-2 text-xs font-medium text-gray-500">
+                                       Currently shipped via <span className="font-bold text-gray-900">{order.courierName}</span> {order.trackingNumber && <span>(Tracking: {order.trackingNumber})</span>}
+                                     </div>
+                                   )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
+
                     );
                   })}
                   {processedOrders.length === 0 && (

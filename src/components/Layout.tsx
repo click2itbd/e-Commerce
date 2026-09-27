@@ -36,7 +36,8 @@ function NavbarSelector() {
     pathname.startsWith('/product') ||
     pathname.startsWith('/wishlist') ||
     pathname.startsWith('/search') ||
-    pathname.startsWith('/pre-book')
+    pathname.startsWith('/pre-book') ||
+    pathname.startsWith('/track-order')
   ) {
     return <EcommerceNavbar />;
   }
@@ -58,7 +59,8 @@ function NavbarSelector() {
     pathname.startsWith('/order-success') ||
     pathname.startsWith('/profile') ||
     pathname.startsWith('/payment') ||
-    pathname.startsWith('/login')
+    pathname.startsWith('/login') ||
+    pathname === '/track-order'
   ) {
     // Smart deduction based on cart items (bulletproof for cart/checkout)
     if (items.length > 0) {

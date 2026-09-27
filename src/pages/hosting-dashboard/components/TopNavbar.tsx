@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Menu, ChevronDown, Bell, User, LogOut, Settings2, Server, Ticket, RefreshCw, Globe, CheckCheck } from 'lucide-react';
+import { AdminNotifications } from '../../../components/AdminNotifications';
 import { auth, db } from '../../../firebase';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { cn } from '../../../lib/utils';
@@ -220,93 +221,9 @@ export function TopNavbar({ state }) {
 
       {/* Right section — always visible, never shrinks */}
       <div className="flex items-center flex-shrink-0 h-full border-l border-slate-200 pl-4 ml-2 gap-1">
-        {/* Bell Notification Panel */}
-        <div className="relative" ref={bellRef}>
-          <button
-            onClick={() => { setBellOpen(v => !v); setUnreadCount(0); }}
-            title="Notifications"
-            className={cn(
-              "relative p-2 rounded-lg transition-colors",
-              bellOpen ? "bg-indigo-50 text-indigo-600" : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
-            )}
-          >
-            <Bell size={20} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center leading-none border border-white">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-
-          {bellOpen && (
-            <div className="absolute top-full right-0 mt-2 w-96 max-w-[calc(100vw-1rem)] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden">
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-                <div>
-                  <p className="text-sm font-black text-slate-800">Notifications</p>
-                  <p className="text-xs text-slate-400 font-medium">Recent activity from your store</p>
-                </div>
-                <button onClick={() => setBellOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
-                  <CheckCheck size={16} className="text-slate-400" />
-                </button>
-              </div>
-
-              {/* Notification List */}
-              <div className="max-h-[400px] overflow-y-auto divide-y divide-slate-50">
-                {notifLoading ? (
-                  <div className="flex items-center justify-center py-12 gap-3">
-                    <RefreshCw size={18} className="text-slate-300 animate-spin" />
-                    <span className="text-sm text-slate-400 font-medium">Loading...</span>
-                  </div>
-                ) : notifications.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3 border border-slate-200">
-                      <Bell size={20} className="text-slate-300" />
-                    </div>
-                    <p className="text-sm font-bold text-slate-600">All caught up!</p>
-                    <p className="text-xs text-slate-400 mt-1">No new notifications</p>
-                  </div>
-                ) : (
-                  notifications.map((notif) => (
-                    <button
-                      key={notif.id}
-                      onClick={() => { setActiveTab(notif.tab); setBellOpen(false); }}
-                      className="w-full text-left px-5 py-3.5 hover:bg-slate-50 transition-colors flex items-start gap-3 group"
-                    >
-                      <div className={cn(
-                        "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5",
-                        notif.type === 'order' ? 'bg-indigo-50' :
-                        notif.type === 'ticket' ? 'bg-rose-50' : 'bg-emerald-50'
-                      )}>
-                        {getIcon(notif.icon)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={cn("text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider", getBadge(notif.type))}>
-                            {notif.title}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-medium ml-auto flex-shrink-0">{timeAgo(notif.time)}</span>
-                        </div>
-                        <p className="text-xs font-semibold text-slate-700 mt-1 truncate">{notif.desc}</p>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-
-              {/* Footer */}
-              {notifications.length > 0 && (
-                <div className="border-t border-slate-100 px-5 py-3 flex gap-3">
-                  <button onClick={() => { setActiveTab('all-orders'); setBellOpen(false); }} className="flex-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 text-center py-1.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
-                    View All Orders
-                  </button>
-                  <button onClick={() => { setActiveTab('tickets'); setBellOpen(false); }} className="flex-1 text-xs font-bold text-rose-600 hover:text-rose-700 text-center py-1.5 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors">
-                    View Tickets
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+                {/* Bell Notification Panel */}
+        <div className="relative flex items-center justify-center mr-2">
+          <AdminNotifications setActiveTab={setActiveTab} />
         </div>
 
         {/* Profile & Logout */}
