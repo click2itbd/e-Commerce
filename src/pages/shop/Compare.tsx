@@ -3,6 +3,7 @@ import { useCompare } from '../../context/CompareContext';
 import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency, cn } from '../../lib/utils';
+import { useState } from 'react';
 import { X, ShoppingCart, Info, Activity, Shield, Cpu, Scale, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -10,6 +11,21 @@ import { motion } from 'framer-motion';
 export const ComparePage: React.FC = () => {
   const { compareItems, removeFromCompare, clearCompare } = useCompare();
   const { addToCart } = useCart();
+  const [highlightDiff, setHighlightDiff] = useState(false);
+  const [hideSimilar, setHideSimilar] = useState(false);
+
+  const isDifferent = (key, isBasic) => {
+    if (compareItems.length <= 1) return false;
+    const values = compareItems.map(p => {
+      if (isBasic) {
+        if (key === 'stock') return p.stock > 0 ? 'instock' : 'outofstock';
+        return String(p[key] || '').toLowerCase();
+      }
+      return String(p.specs?.[key] || '').toLowerCase();
+    });
+    return !values.every(v => v === values[0]);
+  };
+
 
   if (compareItems.length === 0) {
     return (
@@ -61,12 +77,22 @@ export const ComparePage: React.FC = () => {
               <h1 className="text-2xl font-black text-[#081621]">Product Comparison</h1>
               <p className="text-gray-500 text-sm mt-1">Comparing {compareItems.length} selected products side-by-side</p>
             </div>
-            <button 
-              onClick={clearCompare}
-              className="text-sm text-red-500 hover:text-white border border-red-200 hover:bg-red-500 hover:border-red-500 font-bold transition-all px-5 py-2 rounded-md"
-            >
-              Clear All
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg transition-colors">
+                <input type="checkbox" checked={highlightDiff} onChange={e => setHighlightDiff(e.target.checked)} className="rounded text-blue-500 focus:ring-blue-500" />
+                Highlight Differences
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg transition-colors">
+                <input type="checkbox" checked={hideSimilar} onChange={e => setHideSimilar(e.target.checked)} className="rounded text-blue-500 focus:ring-blue-500" />
+                Hide Similarities
+              </label>
+              <button 
+                onClick={clearCompare}
+                className="text-sm text-red-500 hover:text-white border border-red-200 hover:bg-red-500 hover:border-red-500 font-bold transition-all px-5 py-2 rounded-lg"
+              >
+                Clear All
+              </button>
+            </div>
           </motion.div>
 
           <motion.div 
@@ -87,11 +113,15 @@ export const ComparePage: React.FC = () => {
                 </div>
                 
                 {/* Basic Details */}
-                {mainSpecLabels.map(spec => (
-                   <div key={spec.key} className="px-6 py-4 border-b border-gray-200 min-h-[64px] flex items-center bg-gray-50">
-                     <span className="font-bold text-gray-700 text-sm">{spec.label}</span>
-                   </div>
-                ))}
+                {mainSpecLabels.map(spec => {
+                  const diff = isDifferent(spec.key, true);
+                  if (hideSimilar && !diff) return null;
+                  return (
+                    <div key={spec.key} className={cn("px-6 py-4 border-b border-gray-200 min-h-[64px] flex items-center transition-colors", diff && highlightDiff ? "bg-yellow-50/80" : "bg-gray-50")}>
+                      <span className="font-bold text-gray-700 text-sm">{spec.label}</span>
+                    </div>
+                  );
+                })}
 
                 {/* Dynamic Technical Specs */}
                 {allSpecKeys.length > 0 && (
@@ -99,11 +129,15 @@ export const ComparePage: React.FC = () => {
                     <div className="p-4 border-b border-gray-200 bg-[#081621] text-white">
                       <span className="font-bold text-sm tracking-wider uppercase">Technical Specs</span>
                     </div>
-                    {allSpecKeys.map(specKey => (
-                      <div key={specKey} className="px-6 py-4 border-b border-gray-200 min-h-[64px] flex items-center bg-gray-50">
-                        <span className="font-bold text-gray-700 text-sm">{specKey}</span>
-                      </div>
-                    ))}
+                    {allSpecKeys.map(specKey => {
+                      const diff = isDifferent(specKey, false);
+                      if (hideSimilar && !diff) return null;
+                      return (
+                        <div key={specKey} className={cn("px-6 py-4 border-b border-gray-200 min-h-[64px] flex items-center transition-colors", diff && highlightDiff ? "bg-yellow-50/80" : "bg-gray-50")}>
+                          <span className="font-bold text-gray-700 text-sm">{specKey}</span>
+                        </div>
+                      );
+                    })}
                   </>
                 )}
               </div>
@@ -146,25 +180,40 @@ export const ComparePage: React.FC = () => {
                   
                   {/* Price Row */}
                   <div className="p-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center bg-white text-center">
-                    <span className="text-lg font-black text-[#EF4444]">{formatCurrency(product.price)}</span>
+                    <span className="text-lg font-black text-[#EF4444]">
+                      {product.discountPrice ? (
+                        <div className="flex flex-col items-center">
+                          <span className="text-sm line-through text-gray-400 font-bold">{formatCurrency(product.price)}</span>
+                          <span>{formatCurrency(product.discountPrice)}</span>
+                        </div>
+                      ) : formatCurrency(product.price)}
+                    </span>
                   </div>
                   
                   {/* Basic Details Rows */}
-                  <div className="p-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-gray-700 text-sm bg-white text-center">
-                    <span className="font-bold capitalize">{product.brand || '-'}</span>
-                  </div>
-                  <div className="p-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-gray-700 text-sm bg-white text-center">
-                    <span className="uppercase tracking-wider text-xs font-bold">{product.category || '-'}</span>
-                  </div>
-                  <div className="p-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-sm bg-white text-center">
-                    {product.stock > 0 
-                      ? <span className="text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full">In Stock</span> 
-                      : <span className="text-red-500 font-bold bg-red-50 px-3 py-1 rounded-full">Out of Stock</span>
-                    }
-                  </div>
-                  <div className="p-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-gray-700 text-sm bg-white text-center">
-                    <span className="font-medium">{product.warrantyMonths ? `${product.warrantyMonths} Months` : 'No Warranty'}</span>
-                  </div>
+                  {(!hideSimilar || isDifferent('brand', true)) && (
+                    <div className={cn("p-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-gray-700 text-sm text-center transition-colors", isDifferent('brand', true) && highlightDiff ? "bg-yellow-50/50" : "bg-white")}>
+                      <span className="font-bold capitalize">{product.brand || '-'}</span>
+                    </div>
+                  )}
+                  {(!hideSimilar || isDifferent('category', true)) && (
+                    <div className={cn("p-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-gray-700 text-sm text-center transition-colors", isDifferent('category', true) && highlightDiff ? "bg-yellow-50/50" : "bg-white")}>
+                      <span className="uppercase tracking-wider text-xs font-bold">{product.category || '-'}</span>
+                    </div>
+                  )}
+                  {(!hideSimilar || isDifferent('stock', true)) && (
+                    <div className={cn("p-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-sm text-center transition-colors", isDifferent('stock', true) && highlightDiff ? "bg-yellow-50/50" : "bg-white")}>
+                      {product.stock > 0 
+                        ? <span className="text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full">In Stock</span> 
+                        : <span className="text-red-500 font-bold bg-red-50 px-3 py-1 rounded-full">Out of Stock</span>
+                      }
+                    </div>
+                  )}
+                  {(!hideSimilar || isDifferent('warrantyMonths', true)) && (
+                    <div className={cn("p-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-gray-700 text-sm text-center transition-colors", isDifferent('warrantyMonths', true) && highlightDiff ? "bg-yellow-50/50" : "bg-white")}>
+                      <span className="font-medium">{product.warrantyMonths ? `${product.warrantyMonths} Months` : 'No Warranty'}</span>
+                    </div>
+                  )}
 
                   {/* Dynamic Technical Specs Rows */}
                   {allSpecKeys.length > 0 && (
@@ -172,8 +221,10 @@ export const ComparePage: React.FC = () => {
                       <div className="p-4 border-b border-gray-200 min-h-[53px] bg-white"></div>
                       {allSpecKeys.map(specKey => {
                         const val = product.specs?.[specKey];
+                        const diff = isDifferent(specKey, false);
+                        if (hideSimilar && !diff) return null;
                         return (
-                          <div key={specKey} className="px-4 py-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-center bg-white">
+                          <div key={specKey} className={cn("px-4 py-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-center transition-colors", diff && highlightDiff ? "bg-yellow-50/50" : "bg-white")}>
                             <span className={cn(
                               "text-sm font-medium",
                               val ? "text-gray-800" : "text-gray-300"

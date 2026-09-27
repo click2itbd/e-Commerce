@@ -97,6 +97,29 @@ export const EcommerceSettings: React.FC = () => {
           </div>
         </div>
 
+        
+          {/* Advance Delivery Settings */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+              <h3 className="font-semibold text-gray-800">Advanced COD Protection</h3>
+            </div>
+            <div className="p-6 bg-orange-50 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="flex flex-col justify-center">
+                <label className="flex items-center gap-3 text-sm font-bold text-gray-800 cursor-pointer">
+                  <div className="relative">
+                    <input type="checkbox" name="requireAdvanceDeliveryCharge" checked={settings.requireAdvanceDeliveryCharge || false} onChange={(e) => setSettings(prev => ({...prev, requireAdvanceDeliveryCharge: e.target.checked}))} className="sr-only peer" />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                  </div>
+                  Require Advance Delivery Charge (For COD)
+                </label>
+                <p className="text-xs text-gray-500 mt-2">Prevents fake orders by forcing the customer to pay the delivery charge in advance before confirming a COD order.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">bKash/Nagad Number (For Advance Payment)</label>
+                <input type="text" name="advancePaymentNumber" value={settings.advancePaymentNumber || ''} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g. 017XXXXXXX (Personal/Agent)" />
+              </div>
+            </div>
+          </div>
         {/* Contact Info */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
@@ -150,7 +173,32 @@ export const EcommerceSettings: React.FC = () => {
           </div>
         </div>
 
-        {/* Store Policies */}
+        
+          {/* Steadfast Courier Integration */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Truck className="text-orange-500" size={20} />
+                <h3 className="font-semibold text-gray-800">Steadfast Courier Integration</h3>
+              </div>
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-bold">API Integration</span>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                <input type="text" name="steadfastApiKey" value={settings.steadfastApiKey || ''} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Steadfast API Key" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Secret Key</label>
+                <input type="password" name="steadfastSecretKey" value={settings.steadfastSecretKey || ''} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Steadfast Secret Key" />
+              </div>
+              <div className="md:col-span-2 bg-blue-50 p-3 rounded-lg border border-blue-100 text-sm text-blue-800">
+                <strong>Note:</strong> By adding Steadfast API keys, a "Send to Steadfast" button will appear in the Orders panel to automatically push orders and get a Tracking ID.
+              </div>
+            </div>
+          </div>
+          
+          {/* Store Policies */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
             <FileText className="text-blue-600" size={20} />

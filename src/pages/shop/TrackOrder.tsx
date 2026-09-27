@@ -2,13 +2,18 @@
 import { useSearchParams } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { Package, Search, Truck, CheckCircle2, Clock, MapPin, Download, AlertCircle } from 'lucide-react';
+import { Package, Search, Truck, CheckCircle2, Clock, MapPin, Download, AlertCircle, Activity } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
+import { Layout } from '../../components/Layout';
 import { generatePDF } from '../../lib/pdf';
 import { useSettings } from '../../context/SettingsContext';
+import { useAuth } from '../../context/AuthContext';
+import { ChevronRight } from 'lucide-react';
 import { Order } from '../../types';
 
 export default function TrackOrder() {
+  const { user } = useAuth();
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [orderId, setOrderId] = useState('');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,6 +21,25 @@ export default function TrackOrder() {
   const [error, setError] = useState('');
   const { settings } = useSettings();
   const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (user) {
+      const fetchRecent = async () => {
+        try {
+          const q = query(collection(db, 'orders'), where('userId', '==', user.uid));
+          const snap = await getDocs(q);
+          const orders = snap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+          // Filter active orders and sort
+          const active = orders
+            .filter(o => o.status !== 'cancelled' && o.status !== 'delivered')
+            .sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 3);
+          setRecentOrders(active);
+        } catch (err) {}
+      };
+      fetchRecent();
+    }
+  }, [user]);
 
   useEffect(() => {
     const id = searchParams.get('id');
@@ -117,6 +141,7 @@ export default function TrackOrder() {
   const step = order ? getStatusStep(order.status) : 0;
 
   return (
+    <Layout>
     <div className="bg-gray-50 min-h-screen py-16">
       <Helmet>
         <title>Track Order - {settings.storeName || 'Store'}</title>
@@ -124,12 +149,24 @@ export default function TrackOrder() {
 
       <div className="container mx-auto px-2 sm:px-4 max-w-4xl">
         <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 text-blue-600 mb-4">
-            <Package size={32} />
+            <div className="relative w-64 h-64 mx-auto mb-8 flex items-center justify-center animate-in zoom-in duration-700">
+              <div className="absolute inset-0 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
+              <img 
+                src="https://cdn3d.iconscout.com/3d/premium/thumb/delivery-scooter-5296811-4436531.png" 
+                alt="Track Delivery" 
+                className="w-full h-full object-contain relative z-10 hover:scale-105 transition-transform duration-500 drop-shadow-2xl"
+              />
+            </div>
+              {/* 3D Illustration / Graphic */}
+              <img 
+                src="https://cdn-icons-png.flaticon.com/512/8206/8206253.png" 
+                alt="Track Delivery" 
+                className="w-full h-full object-contain relative z-10 hover:scale-110 transition-transform duration-500"
+              />
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Track Your Order</h1>
+            <p className="text-gray-600 text-lg">Enter your Order ID or Invoice Number to see live updates.</p>
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Track Your Order</h1>
-          <p className="text-gray-600 text-lg">Enter your Order ID to see real-time updates.</p>
-        </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
           <div className="p-6 md:p-8">
@@ -162,7 +199,35 @@ export default function TrackOrder() {
                 {loading ? 'Tracking...' : 'Track Order'}
               </button>
             </form>
-
+            
+            {/* Quick Access for Logged In Users */}
+            {!order && recentOrders.length > 0 && (
+              <div className="mt-8 text-left animate-in fade-in slide-in-from-bottom-4">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Your Active Orders</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {recentOrders.map(ro => (
+                    <button 
+                      key={ro.id}
+                      onClick={() => {
+                        setOrderId(ro.invoiceNumber || ro.id);
+                        setOrder(ro);
+                      }}
+                      className="flex flex-col bg-gray-50 border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all p-4 rounded-xl text-left group"
+                    >
+                      <div className="flex justify-between items-start mb-2 w-full">
+                        <span className="font-bold text-gray-900 truncate pr-2">#{ro.invoiceNumber || ro.id.slice(0,8)}</span>
+                        <span className="bg-blue-100 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full capitalize shrink-0">{ro.status}</span>
+                      </div>
+                      <span className="text-xs text-gray-500 mb-3">{new Date(ro.createdAt).toLocaleDateString()}</span>
+                      <div className="mt-auto flex items-center justify-between text-blue-600 font-bold text-sm group-hover:translate-x-1 transition-transform w-full">
+                        Track Now <ChevronRight size={16} />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             {error && (
               <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-xl flex items-center gap-2">
                 <AlertCircle size={20} /> {error}
@@ -266,6 +331,6 @@ export default function TrackOrder() {
           </div>
         )}
       </div>
-    </div>
+    </Layout>
   );
 }

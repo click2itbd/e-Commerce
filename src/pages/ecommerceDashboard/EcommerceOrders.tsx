@@ -124,6 +124,88 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
     }
   };
 
+
+  const handleSendToSteadfast = async (order: Order) => {
+    if (!settings?.steadfastApiKey || !settings?.steadfastSecretKey) {
+      toast.error('Steadfast API keys are missing in Settings!');
+      return;
+    }
+    
+    const tid = toast.loading('Sending to Steadfast...');
+    try {
+      const payload = {
+        invoice: order.id.slice(0, 8).toUpperCase(),
+        recipient_name: order.shippingInfo?.fullName || 'Customer',
+        recipient_phone: order.shippingInfo?.phone || '',
+        recipient_address: (order.shippingInfo?.address || '') + ', ' + (order.shippingInfo?.city || ''),
+        cod_amount: order.paymentMethod === 'cod' ? order.total : 0,
+        note: `Order ${order.id.slice(0, 8)}`
+      };
+
+      const res = await fetch('https://portal.steadfast.com.bd/api/v1/create_order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Api-Key': settings.steadfastApiKey,
+          'Secret-Key': settings.steadfastSecretKey
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      const data = await res.json();
+      
+      if (data.status === 200) {
+        await updateDoc(doc(db, 'orders', order.id), { 
+          trackingNumber: data.consignment.tracking_code, 
+          courier: 'Steadfast' 
+        });
+        toast.success('Sent to Steadfast successfully!', { id: tid });
+        setViewingOrder(prev => prev ? { ...prev, trackingNumber: data.consignment.tracking_code, courier: 'Steadfast' } : null);
+      } else {
+        toast.error(data.message || 'Failed to send to Steadfast', { id: tid });
+      }
+    } catch (err: any) {
+      toast.error('Network Error: ' + err.message, { id: tid });
+    }
+  };
+
+  const handleAddTrackingUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!viewingOrder) return;
+    
+    const formData = new FormData(e.currentTarget as HTMLFormElement);
+    const status = formData.get('status') as string;
+    const location = formData.get('location') as string;
+    const description = formData.get('description') as string;
+    const deliveryManName = formData.get('deliveryManName') as string;
+    const deliveryManPhone = formData.get('deliveryManPhone') as string;
+    
+    const update = {
+      status,
+      location,
+      description,
+      timestamp: new Date().toISOString(),
+      updatedBy: 'Admin',
+      deliveryMan: deliveryManName ? { name: deliveryManName, phone: deliveryManPhone } : undefined
+    };
+    
+    const newTimeline = [...(viewingOrder.trackingTimeline || []), update];
+    
+    try {
+      const tid = toast.loading('Adding update...');
+      await updateDoc(doc(db, 'orders', viewingOrder.id), { trackingTimeline: newTimeline });
+      setViewingOrder({ ...viewingOrder, trackingTimeline: newTimeline });
+      
+      // Update in main list
+      setOrders(orders.map(o => o.id === viewingOrder.id ? { ...o, trackingTimeline: newTimeline } : o));
+      
+      toast.success('Tracking update added!', { id: tid });
+      (e.target as HTMLFormElement).reset();
+    } catch(err) {
+      toast.error('Failed to add update');
+    }
+  };
+
   const handleUpdateTracking = async (orderId: string, trackingNumber: string, courier: string) => {
     try {
       await updateDoc(doc(db, 'orders', orderId), { trackingNumber, courier });

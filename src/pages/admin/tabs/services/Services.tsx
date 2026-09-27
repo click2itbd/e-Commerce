@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../../../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, where, limit } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
-import { ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle } from 'lucide-react';
+import { ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle, Clock, AlertCircle, Package, MessageCircle, ShoppingCart } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -42,14 +43,20 @@ interface SoldSerial {
   orderId: string;
 }
 
-const Services: React.FC = () => {
+interface ServicesProps {
+  setActiveTab?: (tab: string) => void;
+}
+
+const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   const { isAdmin, hasPermission } = useAuth();
   const { settings } = useSettings();
+  const navigate = useNavigate();
 
   const [soldSerials, setSoldSerials] = useState<SoldSerial[]>([]);
   const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
   const [vendors, setVendors] = useState<{id: string; name: string}[]>([]);
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('All');
   const [isAddingService, setIsAddingService] = useState(false);
   const [editingService, setEditingService] = useState<ServiceRecord | null>(null);
   
@@ -367,6 +374,31 @@ const Services: React.FC = () => {
     }
   };
 
+  const handleDeliverToPOS = (record: ServiceRecord) => {
+    if (record.serviceCharge > 0 && !record.isWarranty) {
+      if (window.confirm('Do you want to send this service charge to the Sales form for billing?')) {
+        const pendingServiceItem = {
+          id: `svc-${record.id}`,
+          name: `Service: ${record.productName} (Ticket: ${record.serialNumber || record.id.slice(-6).toUpperCase()})`,
+          price: record.serviceCharge,
+          costPrice: 0,
+          stock: 999,
+          quantity: 1,
+          isCustomService: true,
+          hasSerialTracking: false,
+          hasWarranty: false,
+          selectedSerials: [],
+        };
+        localStorage.setItem('pos_pending_service_item', JSON.stringify(pendingServiceItem));
+        if (setActiveTab) {
+          setActiveTab('sales');
+        } else {
+          navigate('/pos');
+        }
+      }
+    }
+  };
+
   const updateRmaStatus = async (record: ServiceRecord, newStatus: string, newSerial?: string) => {
     try {
       const updates: any = { rmaStatus: newStatus };
@@ -379,8 +411,27 @@ const Services: React.FC = () => {
       await updateDoc(doc(db, 'services', record.id), updates);
       toast.success(`RMA Status updated to ${newStatus}`);
       fetchData();
+
+      if (newStatus === 'Delivered') {
+        handleDeliverToPOS(record);
+      }
     } catch (error) {
       console.error('Error updating RMA status:', error);
+      toast.error('Failed to update status');
+    }
+  };
+
+  const updateServiceStatus = async (record: ServiceRecord, newStatus: string) => {
+    try {
+      await updateDoc(doc(db, 'services', record.id), { status: newStatus });
+      toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
+      fetchData();
+
+      if (newStatus === 'delivered') {
+        handleDeliverToPOS(record);
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
       toast.error('Failed to update status');
     }
   };
@@ -547,19 +598,24 @@ const Services: React.FC = () => {
       )}
 
       {ledgerView === 'ledger' && (
-        <div className="p-6">
-          <div className="max-w-xl mx-auto space-y-6">
-            <div className="bg-gray-50 p-6 rounded-lg text-center">
-              <h3 className="font-bold text-lg mb-2">Check Warranty Status</h3>
-              <p className="text-sm text-gray-500 mb-4">Enter a product serial number to verify its warranty status.</p>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+        <div className="p-8 bg-gray-50/30 min-h-[60vh] flex flex-col items-center">
+          <div className="max-w-3xl w-full space-y-8">
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center justify-center p-4 bg-blue-100 text-blue-600 rounded-full mb-2 shadow-sm">
+                <ShieldCheck size={40} />
+              </div>
+              <h3 className="font-bold text-3xl text-gray-800 tracking-tight">Warranty Checker</h3>
+              <p className="text-gray-500 text-lg">Scan barcode or enter serial number to verify warranty validity.</p>
+              
+              <div className="relative max-w-xl mx-auto mt-6 shadow-sm rounded-xl">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={24} />
                 <input
                   type="text"
-                  placeholder="Scan or enter Serial Number..."
+                  placeholder="Scan or type serial number..."
                   value={ledgerSearchQuery}
                   onChange={(e) => setLedgerSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#EF4444] focus:ring-0 text-lg transition-all"
+                  className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 text-lg transition-all"
+                  autoFocus
                 />
               </div>
             </div>
@@ -569,19 +625,28 @@ const Services: React.FC = () => {
                 .map(record => {
                   const wEndDate = new Date(record.warrantyEndDate);
                   const isExpired = wEndDate < new Date();
+                  const daysLeft = Math.ceil((wEndDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24));
                   return (
-                    <div key={record.id} className="bg-white border rounded-lg p-5 shadow-sm hover:border-[#EF4444] transition-all">
+                    <div key={record.id} className="bg-white border-2 rounded-xl p-6 shadow-sm hover:shadow-md hover:border-blue-500 transition-all">
                       <div className="flex justify-between items-start mb-4">
                         <div>
                           <h4 className="font-bold text-lg">{record.productName}</h4>
                           <p className="font-mono text-sm text-gray-500">SN: {record.serial}</p>
                         </div>
-                        <span className={cn(
-                          "px-3 py-1 rounded-full text-xs font-bold",
-                          isExpired ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
-                        )}>
-                          {isExpired ? 'Warranty Expired' : 'In Warranty'}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={cn(
+                            "px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-1.5 shadow-sm",
+                            isExpired ? "bg-red-100 text-red-700 border border-red-200" : "bg-green-100 text-green-700 border border-green-200"
+                          )}>
+                            {isExpired ? <X size={16} /> : <CheckCircle size={16} />}
+                            {isExpired ? 'Warranty Expired' : 'Active Warranty'}
+                          </span>
+                          {!isExpired && (
+                            <span className="text-xs text-gray-500 font-medium">
+                              {daysLeft} days remaining
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm mt-4 border-t border-gray-100 pt-4">
                         <div>
@@ -657,16 +722,65 @@ const Services: React.FC = () => {
       )}
 
       {ledgerView === 'products' && (
-        <div>
-          <div className="p-4 bg-white border-b border-gray-100 flex gap-4">
-            <div className="relative flex-1">
+        <div className="flex flex-col bg-gray-50/30">
+          {/* Dashboard Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 border-b border-gray-100 bg-white">
+            <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl shadow-sm flex items-center gap-4">
+              <div className="bg-amber-100 p-3 rounded-lg text-amber-600"><Clock size={24} /></div>
+              <div>
+                <p className="text-sm text-amber-800 font-medium">Pending</p>
+                <h4 className="text-2xl font-bold text-amber-900">{serviceRecords.filter(r => r.status === 'received' || r.rmaStatus === 'Pending Vendor').length}</h4>
+              </div>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl shadow-sm flex items-center gap-4">
+              <div className="bg-blue-100 p-3 rounded-lg text-blue-600"><Wrench size={24} /></div>
+              <div>
+                <p className="text-sm text-blue-800 font-medium">In Repair</p>
+                <h4 className="text-2xl font-bold text-blue-900">{serviceRecords.filter(r => r.status === 'in_progress' || r.rmaStatus === 'Sent to Vendor').length}</h4>
+              </div>
+            </div>
+            <div className="bg-green-50 border border-green-100 p-4 rounded-xl shadow-sm flex items-center gap-4">
+              <div className="bg-green-100 p-3 rounded-lg text-green-600"><CheckCircle size={24} /></div>
+              <div>
+                <p className="text-sm text-green-800 font-medium">Ready</p>
+                <h4 className="text-2xl font-bold text-green-900">{serviceRecords.filter(r => r.status === 'ready' || r.rmaStatus === 'Received from Vendor').length}</h4>
+              </div>
+            </div>
+            <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl shadow-sm flex items-center gap-4">
+              <div className="bg-purple-100 p-3 rounded-lg text-purple-600"><Package size={24} /></div>
+              <div>
+                <p className="text-sm text-purple-800 font-medium">Delivered</p>
+                <h4 className="text-2xl font-bold text-purple-900">{serviceRecords.filter(r => r.status === 'delivered' || r.rmaStatus === 'Delivered').length}</h4>
+              </div>
+            </div>
+          </div>
+
+          {/* Filters & Search */}
+          <div className="p-4 bg-white border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center">
+            <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
+              {['All', 'Pending', 'In Progress', 'Ready', 'Delivered', 'RMA'].map(f => (
+                <button
+                  key={f}
+                  onClick={() => setFilterStatus(f)}
+                  className={cn(
+                    "px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border",
+                    filterStatus === f 
+                      ? "bg-gray-900 text-white border-gray-900 shadow-sm" 
+                      : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+            <div className="relative w-full md:w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
-                placeholder="Search by Customer Name or Serial Number..."
+                placeholder="Search ticket, customer, SN..."
                 value={serviceSearchQuery}
                 onChange={(e) => setServiceSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-md focus:border-[#EF4444] focus:ring-0 text-sm transition-all"
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:border-gray-900 focus:ring-0 text-sm transition-all"
               />
             </div>
           </div>
@@ -683,7 +797,24 @@ const Services: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {serviceRecords.filter(r => r.serialNumber?.toLowerCase().includes(serviceSearchQuery.toLowerCase()) || r.customerName?.toLowerCase().includes(serviceSearchQuery.toLowerCase())).map((record) => (
+                {serviceRecords
+                  .filter(r => {
+                    const searchLower = serviceSearchQuery.toLowerCase();
+                    const matchesSearch = r.serialNumber?.toLowerCase().includes(searchLower) || 
+                                          r.customerName?.toLowerCase().includes(searchLower) ||
+                                          r.id.toLowerCase().includes(searchLower);
+                    if (!matchesSearch) return false;
+                    
+                    if (filterStatus === 'All') return true;
+                    if (filterStatus === 'Pending') return r.status === 'received' || r.rmaStatus === 'Pending Vendor';
+                    if (filterStatus === 'In Progress') return r.status === 'in_progress' || r.rmaStatus === 'Sent to Vendor';
+                    if (filterStatus === 'Ready') return r.status === 'ready' || r.rmaStatus === 'Received from Vendor';
+                    if (filterStatus === 'Delivered') return r.status === 'delivered' || r.rmaStatus === 'Delivered';
+                    if (filterStatus === 'RMA') return r.serviceType === 'rma';
+                    
+                    return true;
+                  })
+                  .map((record) => (
                   <tr key={record.id} className="bg-white border-b hover:bg-gray-50 transition-all">
                     <td className="px-6 py-4">
                       <div className="font-bold">{record.id.slice(-6).toUpperCase()}</div>
@@ -764,10 +895,10 @@ const Services: React.FC = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right flex items-center justify-end">
-                       {record.serviceType === 'rma' && (
+                       {record.serviceType === 'rma' ? (
                          <>
                            {record.rmaStatus === 'Pending Vendor' && (
-                             <button onClick={() => updateRmaStatus(record, 'Sent to Vendor')} className="text-orange-500 hover:text-orange-700 mx-1 bg-orange-50 p-1.5 rounded" title="Send to Vendor">
+                             <button onClick={() => updateRmaStatus(record, 'Sent to Vendor')} className="text-orange-500 hover:text-orange-700 mx-1 bg-orange-50 hover:bg-orange-100 p-1.5 rounded shadow-sm transition-all" title="Send to Vendor">
                                <Truck size={16} />
                              </button>
                            )}
@@ -777,28 +908,64 @@ const Services: React.FC = () => {
                                if (newSerial !== null) {
                                  updateRmaStatus(record, 'Received from Vendor', newSerial);
                                }
-                             }} className="text-blue-500 hover:text-blue-700 mx-1 bg-blue-50 p-1.5 rounded" title="Receive from Vendor">
+                             }} className="text-blue-500 hover:text-blue-700 mx-1 bg-blue-50 hover:bg-blue-100 p-1.5 rounded shadow-sm transition-all" title="Receive from Vendor">
                                <RefreshCw size={16} />
                              </button>
                            )}
                            {record.rmaStatus === 'Received from Vendor' && (
-                             <button onClick={() => updateRmaStatus(record, 'Delivered')} className="text-green-600 hover:text-green-800 mx-1 bg-green-50 p-1.5 rounded" title="Deliver to Customer">
-                               <ShieldCheck size={16} />
+                             <button onClick={() => updateRmaStatus(record, 'Delivered')} className="text-green-600 hover:text-green-800 mx-1 bg-green-50 hover:bg-green-100 p-1.5 rounded shadow-sm transition-all" title="Deliver to Customer">
+                               <CheckCircle size={16} />
                              </button>
                            )}
                          </>
+                       ) : (
+                         <div className="flex flex-wrap items-center gap-1.5">
+                           {record.status === 'received' && (
+                             <button onClick={() => updateServiceStatus(record, 'in_progress')} className="flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded transition-colors" title="Mark In Progress">
+                               <Wrench size={12} /> Start Repair
+                             </button>
+                           )}
+                           {record.status === 'in_progress' && (
+                             <button onClick={() => updateServiceStatus(record, 'ready')} className="flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-2 py-1 rounded transition-colors" title="Mark Ready">
+                               <CheckCircle size={12} /> Mark Ready
+                             </button>
+                           )}
+                           {record.status === 'ready' && (
+                             <button onClick={() => updateServiceStatus(record, 'delivered')} className="flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-1 rounded transition-colors" title="Mark Delivered">
+                               <Package size={12} /> Deliver
+                             </button>
+                           )}
+                           {record.status === 'delivered' && (
+                             <button onClick={() => updateServiceStatus(record, 'received')} className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-1 rounded transition-colors" title="Revert to Pending">
+                               <RefreshCw size={12} /> Mark Pending
+                             </button>
+                           )}
+                         </div>
                        )}
-                       <button onClick={() => printServiceReceipt(record)} className="text-gray-500 hover:text-gray-900 mx-1" title="Print Receipt">
-                         <FileText size={16} />
-                       </button>
-                       {!record.isWarranty && record.serviceCharge > 0 && (
-                         <button onClick={() => printServiceBill(record)} className="text-green-600 hover:text-green-800 mx-1" title="Print Bill">
-                           <Download size={16} />
+
+                       <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-gray-100 w-full">
+                         {record.customerPhone && (
+                           <a href={`https://wa.me/${record.customerPhone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="text-green-500 hover:text-green-700 bg-green-50 hover:bg-green-100 p-1.5 rounded shadow-sm transition-all" title="Message on WhatsApp">
+                             <MessageCircle size={14} />
+                           </a>
+                         )}
+                         <button onClick={() => printServiceReceipt(record)} className="text-gray-500 hover:text-blue-700 bg-gray-50 hover:bg-blue-50 p-1.5 rounded shadow-sm transition-all" title="Print Receipt">
+                           <FileText size={14} />
                          </button>
-                       )}
-                       <button onClick={() => { setEditingService(record); setServiceFormData({...record, serviceType: record.serviceType || 'in_house', vendorId: record.vendorId || '', rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || 'Laptop', paymentMethod: record.paymentMethod || 'cash', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || ''}); setIsAddingService(true); }} className="text-blue-500 hover:text-blue-700 mx-1" title="Edit Service/Payment">
-                         <Edit2 size={16} />
-                       </button>
+                         {!record.isWarranty && record.serviceCharge > 0 && (
+                           <button onClick={() => printServiceBill(record)} className="text-gray-500 hover:text-green-700 bg-gray-50 hover:bg-green-50 p-1.5 rounded shadow-sm transition-all" title="Print Bill">
+                             <Download size={14} />
+                           </button>
+                         )}
+                         {!record.isWarranty && record.serviceCharge > 0 && (record.status === 'delivered' || record.rmaStatus === 'Delivered') && (
+                           <button onClick={() => handleDeliverToPOS(record)} className="text-gray-500 hover:text-purple-700 bg-gray-50 hover:bg-purple-50 p-1.5 rounded shadow-sm transition-all" title="Send to Sales">
+                             <ShoppingCart size={14} />
+                           </button>
+                         )}
+                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, serviceType: record.serviceType || 'in_house', vendorId: record.vendorId || '', rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || 'Laptop', paymentMethod: record.paymentMethod || 'cash', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || ''}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
+                           <Edit2 size={14} />
+                         </button>
+                       </div>
                     </td>
                   </tr>
                 ))}

@@ -279,7 +279,8 @@ export const Checkout: React.FC = () => {
       // Update docRef for payment initiation logic below
       const docRef = newOrderRef;
       // Only clear cart and show success if not redirecting to a payment gateway
-      if (formData.paymentMethod === 'bkash') {
+        const selectedPayment = paymentType === 'cod' ? 'cod' : formData.paymentMethod;
+        if (selectedPayment === 'bkash') {
         const res = await initiateBkashPayment(docRef.id, grandTotal, formData.email, `${formData.firstName} ${formData.lastName}`, formData.phone);
         if (res.success && res.paymentUrl) {
           window.location.href = res.paymentUrl;

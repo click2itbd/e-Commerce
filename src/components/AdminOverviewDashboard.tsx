@@ -57,7 +57,7 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
   // Summary Metrics
   const totalProducts = products.length;
   const totalCustomers = customers.length;
-  const totalOrders = orders.length;
+  const totalOrders = orders.filter(o => o.type !== 'quotation').length;
 
   const totalRevenue = useMemo(() => {
     return orders

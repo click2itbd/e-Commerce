@@ -3704,7 +3704,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
         ) : activeTab === 'hosting_api_settings' && hasPermission('manage_settings') ? (
           <HostingApiSettings />
         ) : activeTab === 'services' ? (
-          <ServicesTab />
+          <ServicesTab setActiveTab={setActiveTab} />
         ) : activeTab === 'employees' ? (
           <EmployeesTab />
         ) : activeTab === 'leave' ? (

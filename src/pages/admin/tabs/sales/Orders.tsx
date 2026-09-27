@@ -91,7 +91,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
           <h2 className="text-xl font-bold flex items-center gap-2">
             <FileText className="text-[#EF4444]" /> Order Management
             <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full ml-2">
-              {processedOrders.length} of {orders.length} Orders
+              {processedOrders.length} of {actualOrders.length} Orders
             </span>
           </h2>
         </div>

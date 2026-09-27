@@ -64,9 +64,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               </span>
             </div>
           )}
-          {product.stock <= 0 && (
+          {product.isOutOfStock && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 pointer-events-none">
-              <span className="bg-white text-black px-3 py-1 rounded-full text-xs font-bold uppercase">Stock Out</span>
+              <span className="bg-white text-black px-3 py-1 rounded-full text-xs font-bold uppercase">Out of Stock</span>
             </div>
           )}
           
@@ -104,7 +104,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             
             <button
               onClick={handleAddToCart}
-              disabled={product.stock <= 0}
+              disabled={product.isOutOfStock === true}
               className="w-full bg-[#F97316] text-white hover:bg-[#e06612] py-2 rounded-md flex items-center justify-center gap-2 transition-colors font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed mb-2"
             >
               <ShoppingCart size={16} />
@@ -208,7 +208,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                       handleAddToCart(e);
                       setShowQuickView(false);
                     }}
-                    disabled={product.stock <= 0}
+                    disabled={product.isOutOfStock === true}
                     className="flex-1 bg-[#081621] hover:bg-[#F97316] text-white py-3 rounded-lg flex items-center justify-center gap-2 font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ShoppingCart size={18} />

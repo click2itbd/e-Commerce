@@ -6,7 +6,7 @@ import { Product, Review } from '../../types';
 import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency, cn } from '../../lib/utils';
-import { ShoppingCart, Truck, ChevronRight, ChevronDown, GitCompare, Minus, Plus, Share2, Facebook, Twitter, MessageCircle, Star, ShieldCheck } from 'lucide-react';
+import { ShoppingCart, Truck, ChevronRight, ChevronDown, GitCompare, Minus, Plus, Share2, Facebook, Twitter, MessageCircle, Star, ShieldCheck, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useCompare } from '../../context/CompareContext';
 import { ProductCard } from '../../components/ProductCard';
@@ -17,12 +17,14 @@ export const ProductDetails: React.FC = () => {
   const { addToCompare, isInCompare } = useCompare();
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [fbtFullProducts, setFbtFullProducts] = useState<Product[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<'specification' | 'description' | 'warranty' | 'reviews'>('specification');
   const [selectedImage, setSelectedImage] = useState(0);
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [mainImage, setMainImage] = useState('');
   
   const [isWritingReview, setIsWritingReview] = useState(false);
@@ -33,6 +35,8 @@ export const ProductDetails: React.FC = () => {
   const { addRecentlyViewed, recentlyViewed } = useRecentlyViewed();
   
   const { addToCart } = useCart();
+
+  const displayImages = product?.images?.length > 1 ? product.images : [product?.images?.[0], product?.images?.[0], product?.images?.[0], product?.images?.[0]].filter(Boolean);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -101,7 +105,50 @@ export const ProductDetails: React.FC = () => {
             </div>
           </div>
         </div>
-      </Layout>
+      
+      {/* Zoom Modal */}
+      {isImageZoomed && (
+        <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+          <button 
+            onClick={() => setIsImageZoomed(false)}
+            className="absolute top-4 right-4 text-white hover:text-orange-500 bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all"
+          >
+            <X size={24} />
+          </button>
+          
+          <img
+            src={displayImages?.[selectedImage] || undefined}
+            alt={product.name}
+            className="w-full max-w-5xl max-h-[80vh] object-contain cursor-zoom-out"
+            onClick={() => setIsImageZoomed(false)}
+            referrerPolicy="no-referrer"
+          />
+          
+          {displayImages && displayImages.length > 1 && (
+            <div className="flex gap-3 overflow-x-auto mt-6 pb-2 px-4 w-full max-w-3xl justify-center">
+              {displayImages.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedImage(idx);
+                  }}
+                  className={cn(
+                    "w-16 h-16 border rounded-lg p-1.5 flex-shrink-0 transition-all bg-white",
+                    selectedImage === idx 
+                      ? "border-[#F97316] shadow-[0_0_10px_rgba(249,115,22,0.5)] scale-110" 
+                      : "border-transparent opacity-50 hover:opacity-100"
+                  )}
+                >
+                  <img src={img} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+    </Layout>
     );
   }
 
@@ -260,7 +307,7 @@ export const ProductDetails: React.FC = () => {
               
               <div className="flex items-center gap-2 text-gray-700">
                 <span className="font-bold">Availability:</span> 
-                {product.stock > 0 ? (
+                {!product.isOutOfStock ? (
                   <span className="font-bold text-green-600">Online Order</span>
                 ) : (
                   <span className="font-bold text-red-600">Out of Stock</span>
@@ -302,7 +349,7 @@ export const ProductDetails: React.FC = () => {
                 </div>
                 <button 
                   onClick={() => setQuantity(q => q + 1)}
-                  disabled={quantity >= product.stock}
+                  disabled={product.isOutOfStock === true}
                   className="w-9 h-9 flex items-center justify-center bg-white rounded-full text-gray-800 shadow-sm hover:bg-gray-50 transition-all active:scale-90 disabled:opacity-50"
                 >
                   <Plus size={16} strokeWidth={2.5} />
@@ -314,14 +361,14 @@ export const ProductDetails: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <button 
                 onClick={handleBuyNow}
-                disabled={product.stock <= 0}
+                disabled={product.isOutOfStock === true}
                 className="flex-1 bg-[#F97316] text-white py-3.5 rounded-full font-bold hover:bg-[#e06612] transition-all duration-200 disabled:opacity-50 active:scale-95 active:shadow-inner shadow-sm"
               >
                 Shop Now
               </button>
               <button 
                 onClick={handleAddToCart}
-                disabled={product.stock <= 0}
+                disabled={product.isOutOfStock === true}
                 className="flex-1 bg-white border border-gray-300 text-gray-800 py-3.5 rounded-full font-bold flex items-center justify-center gap-2 hover:border-[#081621] hover:text-[#081621] hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:border-gray-300 disabled:text-gray-400 active:scale-95 active:bg-gray-100"
               >
                 <ShoppingCart size={18} />
@@ -691,6 +738,86 @@ export const ProductDetails: React.FC = () => {
           </div>
         </div>
 
+        {/* Frequently Bought Together (FBT) / Combo Offer */}
+        {fbtFullProducts.length > 0 && (
+          <div className="mt-8 mb-8 p-6 bg-blue-50/50 border border-blue-100 rounded-2xl">
+            <h3 className="text-xl font-black text-[#081621] mb-6 flex items-center gap-2">
+              <span className="bg-orange-500 text-white text-xs px-2 py-1 rounded">COMBO OFFER</span>
+              Frequently Bought Together
+            </h3>
+            
+            <div className="flex flex-col lg:flex-row gap-8 items-center">
+              {/* Products Row */}
+              <div className="flex-1 flex flex-wrap items-center gap-4">
+                <div className="flex flex-col items-center gap-2 max-w-[120px]">
+                  <img src={product.images?.[0]} className="w-24 h-24 object-contain bg-white rounded-lg border border-gray-200 p-2" alt="Main" />
+                  <span className="text-xs font-bold text-center line-clamp-2">{product.name}</span>
+                  <span className="text-sm font-bold text-orange-500">{formatCurrency(displayPrice)}</span>
+                </div>
+                
+                {fbtFullProducts.map(fbtP => (
+                  <React.Fragment key={fbtP.id}>
+                    <div className="text-gray-400 font-bold text-2xl">+</div>
+                    <div className="flex flex-col items-center gap-2 max-w-[120px]">
+                      <img src={fbtP.images?.[0]} className="w-24 h-24 object-contain bg-white rounded-lg border border-gray-200 p-2" alt="FBT" />
+                      <span className="text-xs font-bold text-center line-clamp-2">{fbtP.name}</span>
+                      <span className="text-sm font-bold text-orange-500">{formatCurrency(fbtP.discountPrice || fbtP.price)}</span>
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+              
+              {/* Action Box */}
+              <div className="w-full lg:w-72 bg-white p-6 rounded-xl border border-blue-200 shadow-sm text-center">
+                <p className="text-sm text-gray-500 font-medium mb-1">Total Price:</p>
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  {product.fbtDiscount ? (
+                    <>
+                      <span className="text-lg text-gray-400 line-through decoration-red-500 font-bold">
+                        {formatCurrency(
+                          displayPrice + fbtFullProducts.reduce((sum, p) => sum + (p.discountPrice || p.price), 0)
+                        )}
+                      </span>
+                      <span className="text-2xl font-black text-[#081621]">
+                        {formatCurrency(
+                          displayPrice + fbtFullProducts.reduce((sum, p) => sum + (p.discountPrice || p.price), 0) - product.fbtDiscount
+                        )}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-2xl font-black text-[#081621]">
+                      {formatCurrency(
+                        displayPrice + fbtFullProducts.reduce((sum, p) => sum + (p.discountPrice || p.price), 0)
+                      )}
+                    </span>
+                  )}
+                </div>
+                {product.fbtDiscount && (
+                  <p className="text-sm font-bold text-green-600 mb-4">You Save {formatCurrency(product.fbtDiscount)}!</p>
+                )}
+                
+                <button 
+                  onClick={() => {
+                    // Add main product
+                    // If there's a discount, we apply it to the main product for simplicity
+                    const comboMain = { ...product };
+                    if (comboMain.fbtDiscount) {
+                      comboMain.discountPrice = displayPrice - comboMain.fbtDiscount;
+                    }
+                    addToCart(comboMain);
+                    // Add FBT products
+                    fbtFullProducts.forEach(fP => addToCart(fP));
+                    toast.success('Combo added to cart successfully!');
+                  }}
+                  className="w-full bg-[#081621] hover:bg-orange-500 text-white font-bold py-3 rounded-lg transition-colors"
+                >
+                  Buy Both & Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Related Products */}
         {relatedProducts.length > 0 && (
           <div className="mt-12 mb-8">
@@ -730,7 +857,7 @@ export const ProductDetails: React.FC = () => {
         </div>
         <button
           onClick={handleBuyNow}
-          disabled={product.stock <= 0}
+          disabled={product.isOutOfStock === true}
           className="bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold px-6 py-2.5 rounded-xl disabled:opacity-50 whitespace-nowrap shadow-lg text-sm"
         >
           Buy Now

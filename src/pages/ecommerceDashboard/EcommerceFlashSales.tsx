@@ -25,7 +25,7 @@ export const EcommerceFlashSales: React.FC = () => {
     setLoading(true);
     try {
       // Fetch settings
-      const settingsSnap = await getDoc(doc(db, 'settings', 'ecommerce_flash_sale'));
+      const settingsSnap = await getDoc(doc(db, 'store_banners', 'ecommerce_flash_sale'));
       if (settingsSnap.exists()) {
         setFlashSaleConfig(settingsSnap.data() as any);
       } else {
@@ -49,7 +49,7 @@ export const EcommerceFlashSales: React.FC = () => {
   const saveConfig = async () => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'settings', 'ecommerce_flash_sale'), flashSaleConfig);
+      await setDoc(doc(db, 'store_banners', 'ecommerce_flash_sale'), flashSaleConfig);
       toast.success('Flash sale configuration saved!');
     } catch (error) {
       console.error('Error saving config:', error);

@@ -20,8 +20,10 @@ import {
   AlertCircle,
   UserCheck,
   User,
+  PackagePlus,
 } from 'lucide-react';
 import { generateDocumentNumber } from '../../../../lib/numbering';
+import { CustomProductPurchaseModal } from '../../modals/CustomProductPurchaseModal';
 import { sendEmail } from '../../../../services/emailService';
 
 interface SalesFormProps {
@@ -83,6 +85,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [submitting, setSubmitting] = useState(false);
+  const [showCustomProductModal, setShowCustomProductModal] = useState(false);
 
   // Sync customers and fetch accounts
   const loadData = async () => {
@@ -110,6 +113,20 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
   useEffect(() => {
     loadData();
+    const pendingService = localStorage.getItem('pos_pending_service_item');
+    if (pendingService) {
+      try {
+        const parsedService = JSON.parse(pendingService);
+        setSaleData(prev => ({
+          ...prev,
+          items: [...prev.items, parsedService]
+        }));
+        localStorage.removeItem('pos_pending_service_item');
+        toast.success(`Added ${parsedService.name} to invoice`);
+      } catch (e) {
+        console.error('Failed to parse pending service item', e);
+      }
+    }
   }, []);
 
   // Global Barcode Scanner Logic for SalesForm
@@ -1181,10 +1198,11 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
           {/* Search & Category Filter */}
           <div className="space-y-2 text-xs">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Scan Barcode or Search (SKU/Name)..."
+            <div className="flex items-center justify-between mb-2"><button onClick={() => setShowCustomProductModal(true)} className="bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-indigo-100 transition-colors border border-indigo-200"><PackagePlus size={14} /> Custom Product</button></div>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Scan Barcode or Search (SKU/Name)..."
                 value={productSearch}
                 onChange={e => setProductSearch(e.target.value)}
                 onKeyDown={e => {
@@ -1373,6 +1391,15 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             </form>
           </div>
         </div>
+      )}
+      {showCustomProductModal && (
+        <CustomProductPurchaseModal 
+          onClose={() => setShowCustomProductModal(false)} 
+          onSuccess={(product) => {
+            setShowCustomProductModal(false);
+            addItemToSale(product);
+          }} 
+        />
       )}
     </div>
   );

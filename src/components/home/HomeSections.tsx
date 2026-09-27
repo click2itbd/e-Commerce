@@ -59,7 +59,7 @@ export const FlashSale = ({ products }: { products: Product[] }) => {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const snap = await getDoc(doc(db, 'settings', 'ecommerce_flash_sale'));
+        const snap = await getDoc(doc(db, 'store_banners', 'ecommerce_flash_sale'));
         if (snap.exists()) {
           setConfig(snap.data());
         }

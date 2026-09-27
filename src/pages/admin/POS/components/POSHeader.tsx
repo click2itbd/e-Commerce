@@ -1,8 +1,10 @@
-import React from 'react';
+﻿import React, { useState } from 'react';
 import { ShoppingCart, List, Trash2, Search } from 'lucide-react';
 import { cn, formatCurrency } from '../../../../lib/utils';
 import toast from 'react-hot-toast';
 import { Product } from '../../../../types';
+import { CustomProductPurchaseModal } from '../../modals/CustomProductPurchaseModal';
+import { PackagePlus } from 'lucide-react';
 
 interface POSHeaderProps {
   heldCarts: any[];
@@ -31,7 +33,9 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
   addToCart,
   settings,
 }) => {
+  const [showCustomProductModal, setShowCustomProductModal] = useState(false);
   return (
+    <>
     <header className="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between shadow-sm z-10">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-md shadow-blue-200">
@@ -84,6 +88,7 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
       </div>
       
       <div className="flex items-center gap-4">
+        <button onClick={() => setShowCustomProductModal(true)} className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-indigo-100 transition-colors border border-indigo-200"><PackagePlus size={16} /> Custom Product</button>
         <div className="relative group w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
           <input 
@@ -159,7 +164,7 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
                         <div className="flex flex-col">
                           <span className="font-bold text-slate-800">{p.name}</span>
                           <span className="text-[10px] uppercase font-bold text-slate-400 mt-1">
-                            {p.category} • Stock: {isAvailable ? p.stock : 'OUT'}
+                            {p.category} â€¢ Stock: {isAvailable ? p.stock : 'OUT'}
                           </span>
                         </div>
                         <div className="font-black text-blue-600">{formatCurrency(p.price, settings)}</div>
@@ -173,5 +178,16 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
         </div>
       </div>
     </header>
+      {showCustomProductModal && (
+        <CustomProductPurchaseModal 
+          onClose={() => setShowCustomProductModal(false)} 
+          onSuccess={(product) => {
+            setShowCustomProductModal(false);
+            addToCart(product);
+          }} 
+        />
+      )}
+    </>
   );
 };
+

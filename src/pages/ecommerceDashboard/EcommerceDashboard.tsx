@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, getDoc, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Product, Order, Customer, Transaction, Vendor, NavigationMenu } from '../../types';
@@ -142,6 +142,34 @@ const EcommerceDashboard: React.FC = () => {
     try {
       const toastId = toast.loading('Updating status...');
       const orderRef = doc(db, 'orders', orderId);
+      const order = orders.find(o => o.id === orderId);
+      
+      // Stock Deduction Logic
+      if (newStatus === 'delivered' && order && order.status !== 'delivered') {
+        // Deduct stock
+        for (const item of order.items) {
+          if (item.isBundle && item.bundleItems) {
+            // Deduct individual bundle items
+            for (const bItem of item.bundleItems) {
+              const bRef = doc(db, 'products', bItem.productId);
+              const bSnap = await getDoc(bRef);
+              if (bSnap.exists()) {
+                const p = bSnap.data();
+                await updateDoc(bRef, { stock: Math.max(0, (p.stock || 0) - (bItem.quantity * item.quantity)) });
+              }
+            }
+          } else {
+            // Deduct normal product
+            const pRef = doc(db, 'products', item.id);
+            const pSnap = await getDoc(pRef);
+            if (pSnap.exists()) {
+              const p = pSnap.data();
+              await updateDoc(pRef, { stock: Math.max(0, (p.stock || 0) - item.quantity) });
+            }
+          }
+        }
+      }
+
       await updateDoc(orderRef, { status: newStatus });
       setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
       toast.success('Status updated', { id: toastId });

@@ -54,6 +54,26 @@ export const RetailPOS = () => {
         setHeldCarts(JSON.parse(stored));
       } catch (e) {}
     }
+    
+    // Check for pending service item from Warranty/Services tab
+    const pendingService = localStorage.getItem('pos_pending_service_item');
+    if (pendingService) {
+      try {
+        const parsedService = JSON.parse(pendingService);
+        // Add to cart directly
+        setCart(prev => [...prev, {
+          cartItemId: Date.now().toString() + Math.random().toString(),
+          product: parsedService, 
+          quantity: 1, 
+          selectedSerials: [],
+          selectedVariant: null
+        }]);
+        localStorage.removeItem('pos_pending_service_item');
+        toast.success(`Added ${parsedService.name} to cart`);
+      } catch (e) {
+        console.error('Failed to parse pending service item', e);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -439,6 +459,7 @@ export const RetailPOS = () => {
       }
 
       for (const item of cart) {
+        if (item.product.isCustomService) continue;
         const prodRef = doc(db, 'products', item.product.id);
         const updates: any = {};
         

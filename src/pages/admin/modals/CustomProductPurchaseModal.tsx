@@ -1,0 +1,268 @@
+﻿import React, { useState, useEffect } from 'react';
+import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '../../../firebase';
+import { X, CheckCircle } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { generateDocumentNumber } from '../../../lib/numbering';
+import { Vendor, PaymentAccount } from '../../../types';
+
+interface CustomProductPurchaseModalProps {
+  onClose: () => void;
+  onSuccess: (product: any) => void;
+}
+
+export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProps> = ({ onClose, onSuccess }) => {
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [accounts, setAccounts] = useState<PaymentAccount[]>([]);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    vendorId: '',
+    costPrice: 0,
+    salesPrice: 0,
+    quantity: 1,
+    paymentAccountId: '',
+    paidAmount: 0,
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [venSnap, accSnap] = await Promise.all([
+          getDocs(query(collection(db, 'vendors'), orderBy('name'))),
+          getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
+        ]);
+        
+        const fetchedVendors = venSnap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor));
+        const fetchedAccs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
+        
+        setVendors(fetchedVendors);
+        setAccounts(fetchedAccs);
+
+        if (fetchedAccs.length > 0) {
+          setFormData(prev => ({ ...prev, paymentAccountId: fetchedAccs[0].id }));
+        }
+      } catch (err) {
+        console.error('Error fetching data:', err);
+        toast.error('Failed to load vendors and accounts');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name.trim() || !formData.vendorId || formData.quantity <= 0) {
+      toast.error('Please fill required fields (Name, Vendor, Quantity > 0)');
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      const vendor = vendors.find(v => v.id === formData.vendorId);
+      const account = accounts.find(a => a.id === formData.paymentAccountId);
+
+      // 1. Create Product
+      const productData = {
+        name: formData.name,
+        description: 'Custom Product',
+        price: formData.salesPrice,
+        costPrice: formData.costPrice,
+        stock: formData.quantity,
+        category: 'Custom Product',
+        images: [],
+        vendorId: formData.vendorId,
+        createdAt: new Date().toISOString(),
+      };
+      const prodRef = await addDoc(collection(db, 'products'), productData);
+      const newProduct = { id: prodRef.id, ...productData };
+
+      // 2. Create Purchase
+      const totalAmount = formData.costPrice * formData.quantity;
+      const docNumber = await generateDocumentNumber('purchase');
+      const purchaseData = {
+        documentNumber: docNumber,
+        vendorId: formData.vendorId,
+        vendorName: vendor?.name || 'Unknown Vendor',
+        date: new Date().toISOString().split('T')[0],
+        items: [{
+          id: prodRef.id,
+          name: formData.name,
+          purchasePrice: formData.costPrice,
+          salesPrice: formData.salesPrice,
+          quantity: formData.quantity,
+        }],
+        subtotal: totalAmount,
+        total: totalAmount,
+        paidAmount: formData.paidAmount,
+        paymentStatus: formData.paidAmount >= totalAmount ? 'paid' : (formData.paidAmount > 0 ? 'partial' : 'unpaid'),
+        paymentAccountId: formData.paymentAccountId,
+        paymentMethod: account?.type || 'cash',
+        createdAt: new Date().toISOString(),
+      };
+      
+      const purchaseRef = await addDoc(collection(db, 'purchases'), purchaseData);
+
+      // 3. Create Transaction if payment made
+      if (formData.paidAmount > 0) {
+        await addDoc(collection(db, 'transactions'), {
+          type: 'payment_made',
+          amount: formData.paidAmount,
+          date: purchaseData.date,
+          accountId: formData.paymentAccountId,
+          accountName: account?.name || 'Unknown Account',
+          vendorId: formData.vendorId,
+          vendorName: vendor?.name || 'Unknown Vendor',
+          reference: docNumber,
+          description: `Payment for custom purchase #${docNumber}`,
+          linkedPurchaseId: purchaseRef.id,
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      toast.success('Custom product purchased successfully!');
+      onSuccess(newProduct);
+    } catch (err) {
+      console.error('Error purchasing custom product:', err);
+      toast.error('Failed to purchase custom product');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white p-6 rounded-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  const totalAmount = formData.costPrice * formData.quantity;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white w-full max-w-md rounded-xl shadow-xl flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h2 className="text-lg font-bold text-gray-800">Quick Purchase: Custom Product</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-red-500">
+            <X size={20} />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Product Name *</label>
+            <input
+              type="text"
+              required
+              value={formData.name}
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+              placeholder="Enter product name"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Vendor *</label>
+            <select
+              required
+              value={formData.vendorId}
+              onChange={e => setFormData({ ...formData, vendorId: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+            >
+              <option value="">-- Select Vendor --</option>
+              {vendors.map(v => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Cost Price</label>
+              <input
+                type="number"
+                min="0"
+                value={formData.costPrice || ''}
+                onChange={e => setFormData({ ...formData, costPrice: Number(e.target.value) })}
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Sales Price</label>
+              <input
+                type="number"
+                min="0"
+                value={formData.salesPrice || ''}
+                onChange={e => setFormData({ ...formData, salesPrice: Number(e.target.value) })}
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Quantity *</label>
+            <input
+              type="number"
+              min="1"
+              required
+              value={formData.quantity || ''}
+              onChange={e => setFormData({ ...formData, quantity: Number(e.target.value) })}
+              className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+            />
+          </div>
+
+          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <div className="flex justify-between font-bold text-sm mb-3">
+              <span>Total Cost:</span>
+              <span>{totalAmount}</span>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Payment Account</label>
+                <select
+                  value={formData.paymentAccountId}
+                  onChange={e => setFormData({ ...formData, paymentAccountId: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                >
+                  <option value="">-- No Payment --</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Paid Amount</label>
+                <input
+                  type="number"
+                  min="0"
+                  max={totalAmount}
+                  value={formData.paidAmount || ''}
+                  onChange={e => setFormData({ ...formData, paidAmount: Number(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+          >
+            <CheckCircle size={18} />
+            {submitting ? 'Processing...' : 'Purchase & Add to Cart'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};

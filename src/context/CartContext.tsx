@@ -95,7 +95,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   let promoMessage = null;
-  const processedItems = items.map(item => ({ ...item }));
+  const processedItems = items.map(item => {
+      const finalPrice = item.discountPrice && item.discountPrice < item.price ? item.discountPrice : item.price;
+      return { 
+        ...item, 
+        originalPrice: item.price !== finalPrice ? item.price : null, 
+        price: finalPrice 
+      };
+    });
 
   if (promoSettings.isFreeDomainEnabled) {
     let isValid = true;

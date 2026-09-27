@@ -29,6 +29,11 @@ export interface Product {
   subCategory?: string;
   brand?: string;
   stock: number;
+  isOutOfStock?: boolean;
+  isBundle?: boolean;
+  bundleItems?: { productId: string; quantity: number }[];
+  fbtProducts?: string[];
+  fbtDiscount?: number;
   images: string[];
   variants?: ProductVariant[];
   specs?: Record<string, string>;
@@ -57,6 +62,10 @@ export interface Vendor {
   email: string;
   phone: string;
   address: string;
+  steadfastApiKey?: string;
+  steadfastSecretKey?: string;
+  requireAdvanceDeliveryCharge?: boolean;
+  advancePaymentNumber?: string;
   category: string; // e.g., "Mainboard", "CPU", "General"
   createdAt: string;
 }
@@ -144,6 +153,7 @@ export interface Order {
   convertedToInvoiceId?: string;
   trackingNumber?: string;
   courier?: string;
+  trackingTimeline?: { status: string; location?: string; description?: string; timestamp: string; updatedBy?: string; deliveryMan?: { name: string; phone: string } }[];
 }
 
 export interface SubCategory {
