@@ -6,6 +6,7 @@ import { formatCurrency } from '../lib/utils';
 import { Plus, X, Trash2, FileText, Search, Edit, Eye, Printer, Download, CheckCircle, ArrowLeft, Mail, FileSignature } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { generateDocumentNumber } from '../lib/numbering';
+import { generatePDF } from '../lib/pdf';
 
 
 import { sendEmail } from '../services/emailService';
@@ -27,7 +28,8 @@ export const QuotationManager: React.FC = () => {
   
   const initialFormState = {
     documentNumber: '',
-    customerName: '',
+      workOrderNumber: '',
+      customerName: '',
     customerPhone: '',
     customerEmail: '',
     shippingAddress: '',
@@ -94,7 +96,8 @@ export const QuotationManager: React.FC = () => {
       if (viewMode === 'edit' && editingId) {
         const updateData = {
           customerName: formData.customerName,
-          customerPhone: formData.customerPhone,
+            workOrderNumber: formData.workOrderNumber,
+            customerPhone: formData.customerPhone,
           customerEmail: formData.customerEmail,
           shippingAddress: formData.shippingAddress,
           items: formData.items,
@@ -114,7 +117,8 @@ export const QuotationManager: React.FC = () => {
           type: 'quotation',
           status: 'pending',
           documentNumber: docNumber,
-          customerName: formData.customerName,
+            workOrderNumber: formData.workOrderNumber,
+            customerName: formData.customerName,
           customerPhone: formData.customerPhone,
           customerEmail: formData.customerEmail,
           shippingAddress: formData.shippingAddress,
@@ -223,7 +227,8 @@ export const QuotationManager: React.FC = () => {
   const openEdit = (q: Order) => {
     setFormData({
       documentNumber: q.documentNumber || '',
-      customerName: q.customerName || '',
+        workOrderNumber: q.workOrderNumber || '',
+        customerName: q.customerName || '',
       customerPhone: q.customerPhone || '',
       customerEmail: q.customerEmail || '',
       shippingAddress: q.shippingAddress || '',
@@ -241,7 +246,8 @@ export const QuotationManager: React.FC = () => {
   const openView = (q: Order) => {
     setFormData({
       documentNumber: q.documentNumber || '',
-      customerName: q.customerName || '',
+        workOrderNumber: q.workOrderNumber || '',
+        customerName: q.customerName || '',
       customerPhone: q.customerPhone || '',
       customerEmail: q.customerEmail || '',
       shippingAddress: q.shippingAddress || '',
@@ -507,8 +513,17 @@ export const QuotationManager: React.FC = () => {
                   value={formData.customerPhone}
                   onChange={e => setFormData({ ...formData, customerPhone: e.target.value })}
                   placeholder="Customer phone number"
-                />
-              </div>
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Work Order No</label>
+                  <input 
+                    className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
+                    value={formData.workOrderNumber || ''}
+                    onChange={e => setFormData({ ...formData, workOrderNumber: e.target.value })}
+                    placeholder="Optional Work Order/PO Number"
+                  />
+                </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Status</label>
                 <select 

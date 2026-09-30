@@ -132,7 +132,7 @@ export default function App() {
                     <>
                       <Route path="/" element={<LazyWrapper><Home /></LazyWrapper>} />
                       <Route path="/shop" element={<Navigate to="/" replace />} />
-                      <Route path="/exclusive-deals" element={<LazyWrapper><CampaignLanding /></LazyWrapper>} />
+                      <Route path="/deals" element={<LazyWrapper><CampaignLanding /></LazyWrapper>} />
                       <Route path="/product/:id" element={<LazyWrapper><ProductDetails /></LazyWrapper>} />
                       <Route path="/cart" element={<LazyWrapper><Cart /></LazyWrapper>} />
                       <Route path="/checkout" element={<LazyWrapper><Checkout /></LazyWrapper>} />

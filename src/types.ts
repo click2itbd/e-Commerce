@@ -144,6 +144,7 @@ export interface Order {
   paymentMethod?: string;
   paymentReference?: string;
   documentNumber?: string;
+  workOrderNumber?: string;
   invoiceNumber?: string;
   discountAmount?: number;
   discountCode?: string;

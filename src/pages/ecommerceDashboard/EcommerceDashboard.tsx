@@ -11,6 +11,7 @@ import {
   Tag, Globe, Settings, ExternalLink, ArrowLeft, Star, CalendarPlus, MessageCircle, HelpCircle, Zap, RefreshCcw, Truck, ShoppingCart, PieChart as PieChartIcon, Layers, Heart, FileText
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { generatePDF } from '../../lib/pdf';
 import { BannersManagerTab } from '../admin/tabs/marketing/BannersManagerTab';
 import { AdminNotifications } from '../../components/AdminNotifications';
 const NotificationsPage = lazy(() => import('../admin/tabs/notifications/NotificationsPage').then(m => ({ default: m.NotificationsPage })));

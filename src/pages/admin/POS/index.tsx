@@ -1,77 +1,116 @@
-import { logoBase64 } from '../../../lib/logoBase64';
-import React, { useState, useEffect } from 'react';
-import { formatCurrency, cn } from '../../../lib/utils';
-import { generateDocumentNumber } from '../../../lib/numbering';
-import { db } from '../../../firebase';
-import { collection, getDocs, query, orderBy, limit, addDoc, doc, updateDoc } from 'firebase/firestore';
-import { Product, Customer, PaymentAccount } from '../../../types';
-import toast from 'react-hot-toast';
-import { useSettings } from '../../../context/SettingsContext';
-import { useAuth } from '../../../context/AuthContext';
-import { POSHeader } from './components/POSHeader';
-import { POSCartArea } from './components/POSCartArea';
-import { POSSidebar } from './components/POSSidebar';
-import { POSModals } from './components/POSModals';
+import { logoBase64 } from "../../../lib/logoBase64";
+import React, { useState, useEffect } from "react";
+import { formatCurrency, cn } from "../../../lib/utils";
+import { generateDocumentNumber } from "../../../lib/numbering";
+import { db } from "../../../firebase";
+import {
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  limit,
+  addDoc,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
+import { Product, Customer, PaymentAccount } from "../../../types";
+import toast from "react-hot-toast";
+import { useSettings } from "../../../context/SettingsContext";
+import { useAuth } from "../../../context/AuthContext";
+import { POSHeader } from "./components/POSHeader";
+import { POSCartArea } from "./components/POSCartArea";
+import { POSSidebar } from "./components/POSSidebar";
+import { POSModals } from "./components/POSModals";
 
 export const RetailPOS = () => {
   const { settings } = useSettings();
   const { user } = useAuth();
-  
+
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('All');
-  
-  const [cart, setCart] = useState<{cartItemId: string, product: Product, quantity: number, hasWarranty?: boolean, warrantyMonths?: number, selectedSerials?: string[], selectedVariant?: any}[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All");
+
+  const [cart, setCart] = useState<
+    {
+      cartItemId: string;
+      product: Product;
+      quantity: number;
+      hasWarranty?: boolean;
+      warrantyMonths?: number;
+      selectedSerials?: string[];
+      selectedVariant?: any;
+    }[]
+  >([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [showSerialModal, setShowSerialModal] = useState(false);
-  const [activeSerialItemIdx, setActiveSerialItemIdx] = useState<number | null>(null);
+  const [activeSerialItemIdx, setActiveSerialItemIdx] = useState<number | null>(
+    null,
+  );
 
   const [isPaymentView, setIsPaymentView] = useState(false);
 
-  const [discountType, setDiscountType] = useState<'flat' | 'percentage'>('flat');
+  const [discountType, setDiscountType] = useState<"flat" | "percentage">(
+    "flat",
+  );
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [taxPercent, setTaxPercent] = useState<number>(0);
 
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
-  const [customerFormData, setCustomerFormData] = useState({ name: '', phone: '', email: '', address: '' });
+  const [customerFormData, setCustomerFormData] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+  });
 
-  const [heldCarts, setHeldCarts] = useState<{id: string, time: string, cart: any[], customer: any}[]>([]);
+  const [heldCarts, setHeldCarts] = useState<
+    { id: string; time: string; cart: any[]; customer: any }[]
+  >([]);
   const [showHeldCarts, setShowHeldCarts] = useState(false);
 
-  const [payments, setPayments] = useState<{accountId: string, amount: number}[]>([]);
-  const [receivedAmount, setReceivedAmount] = useState<number | ''>('');
-  const [saleSource, setSaleSource] = useState<'in_store'|'online'>('in_store');
+  const [payments, setPayments] = useState<
+    { accountId: string; amount: number }[]
+  >([]);
+  const [receivedAmount, setReceivedAmount] = useState<number | "">("");
+  const [saleSource, setSaleSource] = useState<"in_store" | "online">(
+    "in_store",
+  );
 
   useEffect(() => {
-    const stored = localStorage.getItem('pos_held_carts');
+    const stored = localStorage.getItem("pos_held_carts");
     if (stored) {
       try {
         setHeldCarts(JSON.parse(stored));
       } catch (e) {}
     }
-    
+
     // Check for pending service item from Warranty/Services tab
-    const pendingService = localStorage.getItem('pos_pending_service_item');
+    const pendingService = localStorage.getItem("pos_pending_service_item");
     if (pendingService) {
       try {
         const parsedService = JSON.parse(pendingService);
         // Add to cart directly
-        setCart(prev => [...prev, {
-          cartItemId: Date.now().toString() + Math.random().toString(),
-          product: parsedService, 
-          quantity: 1, 
-          selectedSerials: [],
-          selectedVariant: null
-        }]);
-        localStorage.removeItem('pos_pending_service_item');
+        setCart((prev) => [
+          ...prev,
+          {
+            cartItemId: Date.now().toString() + Math.random().toString(),
+            product: parsedService,
+            quantity: 1,
+            selectedSerials: [],
+            selectedVariant: null,
+          },
+        ]);
+        localStorage.removeItem("pos_pending_service_item");
         toast.success(`Added ${parsedService.name} to cart`);
       } catch (e) {
-        console.error('Failed to parse pending service item', e);
+        console.error("Failed to parse pending service item", e);
       }
     }
   }, []);
@@ -80,13 +119,34 @@ export const RetailPOS = () => {
     const fetchData = async () => {
       try {
         const [prodSnap, custSnap, paySnap] = await Promise.all([
-          getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500))),
-          getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(200))),
-          getDocs(query(collection(db, 'payment_accounts'), orderBy('name')))
+          getDocs(
+            query(
+              collection(db, "products"),
+              orderBy("createdAt", "desc"),
+              limit(500),
+            ),
+          ),
+          getDocs(
+            query(
+              collection(db, "customers"),
+              orderBy("createdAt", "desc"),
+              limit(200),
+            ),
+          ),
+          getDocs(query(collection(db, "payment_accounts"), orderBy("name"))),
         ]);
-        setProducts(prodSnap.docs.map(d => ({id: d.id, ...d.data()})) as Product[]);
-        setCustomers(custSnap.docs.map(d => ({id: d.id, ...d.data()})) as Customer[]);
-        setPaymentAccounts(paySnap.docs.map(d => ({id: d.id, ...d.data()})) as PaymentAccount[]);
+        setProducts(
+          prodSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Product[],
+        );
+        setCustomers(
+          custSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Customer[],
+        );
+        setPaymentAccounts(
+          paySnap.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+          })) as PaymentAccount[],
+        );
       } catch (err) {
         console.error("Failed to load POS data", err);
         toast.error("Failed to load POS data");
@@ -98,24 +158,26 @@ export const RetailPOS = () => {
   }, []);
 
   useEffect(() => {
-    let barcode = '';
+    let barcode = "";
     let timeout: NodeJS.Timeout;
 
-    const playBeep = (type: 'success' | 'error') => {
+    const playBeep = (type: "success" | "error") => {
       try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const ctx = new (
+          window.AudioContext || (window as any).webkitAudioContext
+        )();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
-        if (type === 'success') {
-          osc.type = 'sine';
+        if (type === "success") {
+          osc.type = "sine";
           osc.frequency.setValueAtTime(800, ctx.currentTime);
           gain.gain.setValueAtTime(0.1, ctx.currentTime);
           osc.start();
           osc.stop(ctx.currentTime + 0.15);
         } else {
-          osc.type = 'sawtooth';
+          osc.type = "sawtooth";
           osc.frequency.setValueAtTime(250, ctx.currentTime);
           gain.gain.setValueAtTime(0.2, ctx.currentTime);
           osc.start();
@@ -125,68 +187,85 @@ export const RetailPOS = () => {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
         return;
       }
-      
-      if (e.key === 'Enter') {
-          if (barcode.trim().length > 0) {
-            const scanValue = barcode.trim();
-            const searchLower = scanValue.toLowerCase();
-            
-            let matchedSerial: string | undefined = undefined;
 
-            const exactMatches = products.filter(p => {
-              if (
-                p.id.toLowerCase() === searchLower || 
-                (p.sku || '').toLowerCase() === searchLower || 
-                (p.model || '').toLowerCase() === searchLower || 
-                p.name.toLowerCase() === searchLower
-              ) {
-                return true;
-              }
-              const foundSerial = (p.availableSerials || []).find((s: string) => s.toLowerCase() === searchLower);
-              if (foundSerial) {
-                matchedSerial = foundSerial;
-                return true;
-              }
-              return false;
-            });
-            
-            const partialMatches = products.filter(p => p.name.toLowerCase().includes(searchLower) || (p.sku || '').toLowerCase().includes(searchLower));
-            const bestMatch = exactMatches.length === 1 ? exactMatches[0] : (partialMatches.length === 1 ? partialMatches[0] : null);
+      if (e.key === "Enter") {
+        if (barcode.trim().length > 0) {
+          const scanValue = barcode.trim();
+          const searchLower = scanValue.toLowerCase();
 
-            if (bestMatch) {
-              if (bestMatch.hasSerialTracking && !matchedSerial) {
-                playBeep('error');
-                toast.error('This product requires a Serial Number! Please scan the S/N instead.', { duration: 4000 });
-              } else {
-                addToCart(bestMatch, matchedSerial, matchedVariant);
-                setSearchQuery('');
-                playBeep('success');
-                toast.success(`Scanned: ${bestMatch.name}`);
-              }
-            } else if (exactMatches.length > 1 || partialMatches.length > 1) {
-              playBeep('error');
-              toast.success(`Found multiple items. Please select manually.`);
-            } else {
-              playBeep('error');
-              toast.error('No matching product found for scan');
+          let matchedSerial: string | undefined = undefined;
+
+          const exactMatches = products.filter((p) => {
+            if (
+              p.id.toLowerCase() === searchLower ||
+              (p.sku || "").toLowerCase() === searchLower ||
+              (p.model || "").toLowerCase() === searchLower ||
+              p.name.toLowerCase() === searchLower
+            ) {
+              return true;
             }
+            const foundSerial = (p.availableSerials || []).find(
+              (s: string) => s.toLowerCase() === searchLower,
+            );
+            if (foundSerial) {
+              matchedSerial = foundSerial;
+              return true;
+            }
+            return false;
+          });
+
+          const partialMatches = products.filter(
+            (p) =>
+              p.name.toLowerCase().includes(searchLower) ||
+              (p.sku || "").toLowerCase().includes(searchLower),
+          );
+          const bestMatch =
+            exactMatches.length === 1
+              ? exactMatches[0]
+              : partialMatches.length === 1
+                ? partialMatches[0]
+                : null;
+
+          if (bestMatch) {
+            if (bestMatch.hasSerialTracking && !matchedSerial) {
+              playBeep("error");
+              toast.error(
+                "This product requires a Serial Number! Please scan the S/N instead.",
+                { duration: 4000 },
+              );
+            } else {
+              addToCart(bestMatch, matchedSerial, matchedVariant);
+              setSearchQuery("");
+              playBeep("success");
+              toast.success(`Scanned: ${bestMatch.name}`);
+            }
+          } else if (exactMatches.length > 1 || partialMatches.length > 1) {
+            playBeep("error");
+            toast.success(`Found multiple items. Please select manually.`);
+          } else {
+            playBeep("error");
+            toast.error("No matching product found for scan");
           }
-          barcode = '';
-        } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-          barcode += e.key;
-          clearTimeout(timeout);
-          timeout = setTimeout(() => {
-            barcode = '';
-          }, 200);
         }
+        barcode = "";
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        barcode += e.key;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          barcode = "";
+        }, 200);
+      }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown);
       clearTimeout(timeout);
     };
   }, [products]);
@@ -194,18 +273,22 @@ export const RetailPOS = () => {
   const handleQuickAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const docRef = await addDoc(collection(db, 'customers'), {
+      const docRef = await addDoc(collection(db, "customers"), {
         ...customerFormData,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       });
-      const newC = { id: docRef.id, ...customerFormData, createdAt: new Date().toISOString() } as Customer;
+      const newC = {
+        id: docRef.id,
+        ...customerFormData,
+        createdAt: new Date().toISOString(),
+      } as Customer;
       setCustomers([newC, ...customers]);
       setSelectedCustomer(newC);
       setIsAddingCustomer(false);
-      setCustomerFormData({ name: '', phone: '', email: '', address: '' });
-      toast.success('Customer added seamlessly!');
+      setCustomerFormData({ name: "", phone: "", email: "", address: "" });
+      toast.success("Customer added seamlessly!");
     } catch (err) {
-      toast.error('Failed to add customer');
+      toast.error("Failed to add customer");
     }
   };
 
@@ -215,79 +298,93 @@ export const RetailPOS = () => {
       id: Date.now().toString(),
       time: new Date().toLocaleTimeString(),
       cart,
-      customer: selectedCustomer
+      customer: selectedCustomer,
     };
     const updated = [newHold, ...heldCarts];
     setHeldCarts(updated);
-    localStorage.setItem('pos_held_carts', JSON.stringify(updated));
+    localStorage.setItem("pos_held_carts", JSON.stringify(updated));
     setCart([]);
     setSelectedCustomer(null);
-    toast.success('Cart held!');
+    toast.success("Cart held!");
   };
 
   const restoreCart = (id: string) => {
-    const toRestore = heldCarts.find(h => h.id === id);
+    const toRestore = heldCarts.find((h) => h.id === id);
     if (toRestore) {
       if (cart.length > 0) holdCurrentCart();
       setCart(toRestore.cart);
       setSelectedCustomer(toRestore.customer);
-      const updated = heldCarts.filter(h => h.id !== id);
+      const updated = heldCarts.filter((h) => h.id !== id);
       setHeldCarts(updated);
-      localStorage.setItem('pos_held_carts', JSON.stringify(updated));
+      localStorage.setItem("pos_held_carts", JSON.stringify(updated));
       setShowHeldCarts(false);
-      toast.success('Cart restored');
+      toast.success("Cart restored");
     }
   };
 
   const deleteHeldCart = (id: string) => {
-    const updated = heldCarts.filter(h => h.id !== id);
+    const updated = heldCarts.filter((h) => h.id !== id);
     setHeldCarts(updated);
-    localStorage.setItem('pos_held_carts', JSON.stringify(updated));
+    localStorage.setItem("pos_held_carts", JSON.stringify(updated));
   };
 
   const addToCart = (product: Product, scannedSerial?: string) => {
     if (product.stock <= 0) {
-      toast.error('Item is out of stock');
+      toast.error("Item is out of stock");
       return;
     }
-    
-    setCart(prev => {
+
+    setCart((prev) => {
       const hasVariants = product.variants && product.variants.length > 0;
-      const existingIdx = prev.findIndex(item => 
-        item.product.id === product.id && 
-        (!hasVariants || item.selectedVariant === null)
+      const existingIdx = prev.findIndex(
+        (item) =>
+          item.product.id === product.id &&
+          (!hasVariants || item.selectedVariant === null),
       );
-      
+
       if (existingIdx >= 0 && !hasVariants) {
         const newCart = [...prev];
         if (newCart[existingIdx].quantity < product.stock) {
           newCart[existingIdx].quantity += 1;
-          if (scannedSerial && !newCart[existingIdx].selectedSerials?.includes(scannedSerial)) {
-            newCart[existingIdx].selectedSerials = [...(newCart[existingIdx].selectedSerials || []), scannedSerial];
+          if (
+            scannedSerial &&
+            !newCart[existingIdx].selectedSerials?.includes(scannedSerial)
+          ) {
+            newCart[existingIdx].selectedSerials = [
+              ...(newCart[existingIdx].selectedSerials || []),
+              scannedSerial,
+            ];
           }
         } else {
-          toast.error('Cannot exceed available stock');
+          toast.error("Cannot exceed available stock");
         }
         return newCart;
       }
-      
-      return [...prev, {
-        cartItemId: Date.now().toString() + Math.random().toString(),
-        product: product, 
-        quantity: 1, 
-        selectedSerials: scannedSerial ? [scannedSerial] : [],
-        selectedVariant: null
-      }];
+
+      return [
+        ...prev,
+        {
+          cartItemId: Date.now().toString() + Math.random().toString(),
+          product: product,
+          quantity: 1,
+          selectedSerials: scannedSerial ? [scannedSerial] : [],
+          selectedVariant: null,
+        },
+      ];
     });
   };
 
   const changeVariant = (cartItemId: string, variantId: string) => {
-    setCart(prev => {
-      return prev.map(item => {
+    setCart((prev) => {
+      return prev.map((item) => {
         if (item.cartItemId === cartItemId && item.product.variants) {
           const v = item.product.variants.find((x: any) => x.id === variantId);
           if (v) {
-             return { ...item, selectedVariant: v, product: { ...item.product, price: v.price } };
+            return {
+              ...item,
+              selectedVariant: v,
+              product: { ...item.product, price: v.price },
+            };
           }
         }
         return item;
@@ -296,7 +393,7 @@ export const RetailPOS = () => {
   };
 
   const removeFromCart = (cartItemId: string) => {
-    setCart(prev => prev.filter(item => item.cartItemId !== cartItemId));
+    setCart((prev) => prev.filter((item) => item.cartItemId !== cartItemId));
   };
 
   const adjustQty = (cartItemId: string, qty: number) => {
@@ -304,15 +401,18 @@ export const RetailPOS = () => {
       removeFromCart(cartItemId);
       return;
     }
-    setCart(prev => {
-      return prev.map(item => {
+    setCart((prev) => {
+      return prev.map((item) => {
         if (item.cartItemId === cartItemId) {
-          const currentStockLimit = item.selectedVariant && item.selectedVariant.stock > 0 ? item.selectedVariant.stock : item.product.stock;
+          const currentStockLimit =
+            item.selectedVariant && item.selectedVariant.stock > 0
+              ? item.selectedVariant.stock
+              : item.product.stock;
           if (qty > currentStockLimit) {
-            toast.error('Cannot exceed available stock');
+            toast.error("Cannot exceed available stock");
             return item;
           }
-          return {...item, quantity: qty};
+          return { ...item, quantity: qty };
         }
         return item;
       });
@@ -326,14 +426,14 @@ export const RetailPOS = () => {
 
   const toggleSerialSelection = (serial: string) => {
     if (activeSerialItemIdx === null) return;
-    
-    setCart(prev => {
+
+    setCart((prev) => {
       const newCart = [...prev];
       const item = newCart[activeSerialItemIdx];
       const currentSerials = item.selectedSerials || [];
-      
+
       if (currentSerials.includes(serial)) {
-        item.selectedSerials = currentSerials.filter(s => s !== serial);
+        item.selectedSerials = currentSerials.filter((s) => s !== serial);
       } else {
         if (currentSerials.length >= item.quantity) {
           toast.error(`You only need ${item.quantity} serial(s)`);
@@ -346,8 +446,14 @@ export const RetailPOS = () => {
   };
 
   const [isRedeemingPoints, setIsRedeemingPoints] = useState(false);
-  const subtotal = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
-  let calculatedDiscount = discountType === 'percentage' ? (subtotal * discountValue) / 100 : discountValue;
+  const subtotal = cart.reduce(
+    (acc, item) => acc + item.product.price * item.quantity,
+    0,
+  );
+  let calculatedDiscount =
+    discountType === "percentage"
+      ? (subtotal * discountValue) / 100
+      : discountValue;
   if (isRedeemingPoints) calculatedDiscount += 40;
   const subtotalAfterDiscount = Math.max(0, subtotal - calculatedDiscount);
   const calculatedTax = (subtotalAfterDiscount * taxPercent) / 100;
@@ -361,12 +467,16 @@ export const RetailPOS = () => {
 
   const handleCheckoutClick = () => {
     if (cart.length === 0) {
-      toast.error('Cart is empty');
+      toast.error("Cart is empty");
       return;
     }
 
     for (const item of cart) {
-      if (item.product.variants && item.product.variants.length > 0 && !item.selectedVariant) {
+      if (
+        item.product.variants &&
+        item.product.variants.length > 0 &&
+        !item.selectedVariant
+      ) {
         toast.error(`Please select a variant for ${item.product.name}`);
         return;
       }
@@ -378,12 +488,16 @@ export const RetailPOS = () => {
   const processPaymentAndOrder = async () => {
     try {
       if (cart.length === 0) {
-        toast.error('Cart is empty');
+        toast.error("Cart is empty");
         return;
       }
 
       for (const item of cart) {
-        if (item.product.variants && item.product.variants.length > 0 && !item.selectedVariant) {
+        if (
+          item.product.variants &&
+          item.product.variants.length > 0 &&
+          !item.selectedVariant
+        ) {
           toast.error(`Please select a variant for ${item.product.name}`);
           return;
         }
@@ -391,16 +505,20 @@ export const RetailPOS = () => {
 
       const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
       if (Math.abs(totalPaid - total) > 0.01) {
-        toast.error(`Payment amount (${formatCurrency(totalPaid, settings)}) does not match total (${formatCurrency(total, settings)})`);
+        toast.error(
+          `Payment amount (${formatCurrency(totalPaid, settings)}) does not match total (${formatCurrency(total, settings)})`,
+        );
         return;
       }
 
       setIsProcessing(true);
       const createdAt = new Date().toISOString();
-      const docNumber = await generateDocumentNumber('invoice');
-      
-      const processedItems = cart.map(c => {
-        const itemName = c.selectedVariant ? `${c.product.name} (${c.selectedVariant.name})` : c.product.name;
+      const docNumber = await generateDocumentNumber("invoice");
+
+      const processedItems = cart.map((c) => {
+        const itemName = c.selectedVariant
+          ? `${c.product.name} (${c.selectedVariant.name})`
+          : c.product.name;
         return {
           id: c.product.id,
           productId: c.product.id,
@@ -412,27 +530,34 @@ export const RetailPOS = () => {
           hasSerialTracking: c.product.hasSerialTracking || false,
           selectedSerials: c.selectedSerials || [],
           hasWarranty: c.hasWarranty || false,
-          warrantyMonths: c.warrantyMonths || (c.product.warrantyMonths || 0)
+          warrantyMonths: c.warrantyMonths || c.product.warrantyMonths || 0,
         };
       });
 
-      const totalCost = processedItems.reduce((acc, i) => acc + (i.costPrice * i.quantity), 0);
+      const totalCost = processedItems.reduce(
+        (acc, i) => acc + i.costPrice * i.quantity,
+        0,
+      );
       const profit = total - totalCost;
 
-      const methodsUsed = payments.map(p => {
-        const acc = paymentAccounts.find(a => a.id === p.accountId);
-        return acc ? acc.name : 'Unknown';
-      }).join(', ');
+      const methodsUsed = payments
+        .map((p) => {
+          const acc = paymentAccounts.find((a) => a.id === p.accountId);
+          return acc ? acc.name : "Unknown";
+        })
+        .join(", ");
 
       const orderData = {
         documentNumber: docNumber,
-        type: 'pos_sale',
+        type: "pos_sale",
         saleSource,
-        customerId: selectedCustomer?.id || 'general',
-        customerName: selectedCustomer ? selectedCustomer.name : 'General Customer',
-        customerPhone: selectedCustomer?.phone || '',
-        customerEmail: selectedCustomer?.email || '',
-        customerAddress: selectedCustomer?.address || '',
+        customerId: selectedCustomer?.id || "general",
+        customerName: selectedCustomer
+          ? selectedCustomer.name
+          : "General Customer",
+        customerPhone: selectedCustomer?.phone || "",
+        customerEmail: selectedCustomer?.email || "",
+        customerAddress: selectedCustomer?.address || "",
         items: processedItems,
         subtotal,
         discountAmount: calculatedDiscount,
@@ -441,18 +566,18 @@ export const RetailPOS = () => {
         profit,
         total,
         paidAmount: total,
-        paymentStatus: 'paid',
+        paymentStatus: "paid",
         paymentMethod: methodsUsed,
         splitPayments: payments,
-        status: 'delivered',
-        userId: user?.uid || 'admin',
-        createdBy: user?.displayName || user?.email || 'Admin',
+        status: "delivered",
+        userId: user?.uid || "admin",
+        createdBy: user?.displayName || user?.email || "Admin",
         createdAt,
       };
 
-      let orderRefId = '';
+      let orderRefId = "";
       try {
-        const orderRef = await addDoc(collection(db, 'orders'), orderData);
+        const orderRef = await addDoc(collection(db, "orders"), orderData);
         orderRefId = orderRef.id;
       } catch (e) {
         console.error("Failed adding to orders:", e);
@@ -461,36 +586,40 @@ export const RetailPOS = () => {
 
       for (const item of cart) {
         if (item.product.isCustomService) continue;
-        const prodRef = doc(db, 'products', item.product.id);
+        const prodRef = doc(db, "products", item.product.id);
         const updates: any = {};
-        
+
         updates.stock = Math.max(0, item.product.stock - item.quantity);
-        
+
         if (item.selectedVariant && item.product.variants) {
-          updates.variants = item.product.variants.map((v: any) => 
-            v.id === item.selectedVariant!.id 
-              ? { ...v, stock: Math.max(0, v.stock - item.quantity) } 
-              : v
+          updates.variants = item.product.variants.map((v: any) =>
+            v.id === item.selectedVariant!.id
+              ? { ...v, stock: Math.max(0, v.stock - item.quantity) }
+              : v,
           );
         }
-        
+
         if (item.product.hasSerialTracking) {
-          const serialsToUse = (item.selectedSerials && item.selectedSerials.length === item.quantity) 
-            ? item.selectedSerials 
-            : (item.product.availableSerials || []).slice(0, item.quantity);
-            
+          const serialsToUse =
+            item.selectedSerials &&
+            item.selectedSerials.length === item.quantity
+              ? item.selectedSerials
+              : (item.product.availableSerials || []).slice(0, item.quantity);
+
           const remainingSerials = (item.product.availableSerials || []).filter(
-            (s: string) => !serialsToUse.includes(s)
+            (s: string) => !serialsToUse.includes(s),
           );
           updates.availableSerials = remainingSerials;
-          
+
           const warrantyEndDate = new Date();
-          const wMonths = item.hasWarranty ? (item.warrantyMonths || item.product.warrantyMonths || 0) : (item.product.warrantyMonths || 0);
+          const wMonths = item.hasWarranty
+            ? item.warrantyMonths || item.product.warrantyMonths || 0
+            : item.product.warrantyMonths || 0;
           warrantyEndDate.setMonth(warrantyEndDate.getMonth() + wMonths);
 
           for (const serial of serialsToUse) {
             try {
-              await addDoc(collection(db, 'sold_serials'), {
+              await addDoc(collection(db, "sold_serials"), {
                 serial,
                 productId: item.product.id,
                 productName: item.product.name,
@@ -500,7 +629,7 @@ export const RetailPOS = () => {
                 customerPhone: orderData.customerPhone,
                 soldAt: createdAt,
                 warrantyEndDate: warrantyEndDate.toISOString(),
-                status: 'active',
+                status: "active",
               });
             } catch (e) {
               console.error("Failed adding to sold_serials:", e);
@@ -508,7 +637,7 @@ export const RetailPOS = () => {
             }
           }
         }
-        
+
         try {
           await updateDoc(prodRef, updates);
         } catch (e) {
@@ -519,16 +648,16 @@ export const RetailPOS = () => {
 
       // Always record the full sale amount to update the customer ledger (Receivable)
       try {
-        await addDoc(collection(db, 'transactions'), {
-          type: 'sale',
+        await addDoc(collection(db, "transactions"), {
+          type: "sale",
           amount: orderData.total,
-          date: createdAt.split('T')[0],
+          date: createdAt.split("T")[0],
           description: `POS Sale - ${docNumber}`,
-          entityId: selectedCustomer?.id || 'general',
+          entityId: selectedCustomer?.id || "general",
           entityName: orderData.customerName,
-          entityType: 'customer',
-          paymentMethod: '',
-          paymentAccountId: '',
+          entityType: "customer",
+          paymentMethod: "",
+          paymentAccountId: "",
           referenceId: orderRefId,
           createdAt,
         });
@@ -539,19 +668,19 @@ export const RetailPOS = () => {
 
       for (const p of payments) {
         if (p.amount <= 0) continue;
-        const paymentAcc = paymentAccounts.find(a => a.id === p.accountId);
+        const paymentAcc = paymentAccounts.find((a) => a.id === p.accountId);
         if (!paymentAcc) continue;
 
         try {
-          await addDoc(collection(db, 'transactions'), {
-            type: 'payment_received',
+          await addDoc(collection(db, "transactions"), {
+            type: "payment_received",
             amount: p.amount,
-            date: createdAt.split('T')[0],
+            date: createdAt.split("T")[0],
             description: `Payment for POS Sale - ${docNumber}`,
-            entityId: selectedCustomer?.id || 'general',
+            entityId: selectedCustomer?.id || "general",
             entityName: orderData.customerName,
-            entityType: 'customer',
-            paymentMethod: paymentAcc.type || 'cash',
+            entityType: "customer",
+            paymentMethod: paymentAcc.type || "cash",
             paymentAccountId: paymentAcc.id,
             paymentAccountName: paymentAcc.name,
             referenceId: orderRefId,
@@ -566,18 +695,24 @@ export const RetailPOS = () => {
       const pointsRedeemed = isRedeemingPoints ? 100 : 0;
       const pointsEarned = Math.floor(total / 100);
 
-      toast.success('Sale completed successfully!');
-      
+      toast.success("Sale completed successfully!");
+
       if (selectedCustomer) {
         try {
-          const custRef = doc(db, 'customers', selectedCustomer.id);
-          const newPoints = (selectedCustomer.loyaltyPoints || 0) - pointsRedeemed + pointsEarned;
+          const custRef = doc(db, "customers", selectedCustomer.id);
+          const newPoints =
+            (selectedCustomer.loyaltyPoints || 0) -
+            pointsRedeemed +
+            pointsEarned;
           await updateDoc(custRef, {
-            loyaltyPoints: newPoints
+            loyaltyPoints: newPoints,
           });
-          setSelectedCustomer({ ...selectedCustomer, loyaltyPoints: newPoints });
+          setSelectedCustomer({
+            ...selectedCustomer,
+            loyaltyPoints: newPoints,
+          });
         } catch (e) {
-          console.error('Failed to update loyalty points', e);
+          console.error("Failed to update loyalty points", e);
           // Don't throw here to avoid failing checkout for just loyalty points
         }
       }
@@ -586,28 +721,35 @@ export const RetailPOS = () => {
       setSelectedCustomer(null);
       setIsPaymentView(false);
       setIsRedeemingPoints(false);
-      setReceivedAmount('');
+      setReceivedAmount("");
       setPayments([]);
-      
-      const prodSnap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500)));
-      setProducts(prodSnap.docs.map(d => ({id: d.id, ...d.data()})) as Product[]);
+
+      const prodSnap = await getDocs(
+        query(
+          collection(db, "products"),
+          orderBy("createdAt", "desc"),
+          limit(500),
+        ),
+      );
+      setProducts(
+        prodSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Product[],
+      );
 
       printReceipt(orderData);
-
     } catch (err: any) {
       console.error("Checkout failed:", err);
-      toast.error('Checkout failed: ' + (err.message || 'Permissions error'));
+      toast.error("Checkout failed: " + (err.message || "Permissions error"));
     } finally {
       setIsProcessing(false);
     }
   };
 
   const printReceipt = (orderData: any) => {
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    let itemsHtml = '';
-    const isThermal = settings?.receiptPrinterType === 'Thermal Printer';
+    let itemsHtml = "";
+    const isThermal = settings?.receiptPrinterType === "Thermal Printer";
 
     if (isThermal) {
       orderData.items.forEach((item: any) => {
@@ -640,7 +782,8 @@ export const RetailPOS = () => {
       });
     }
 
-    const html = isThermal ? `
+    const html = isThermal
+      ? `
       <!DOCTYPE html>
       <html>
         <head>
@@ -693,7 +836,8 @@ export const RetailPOS = () => {
           </script>
         </body>
       </html>
-    ` : `
+    `
+      : `
       <!DOCTYPE html>
       <html>
         <head>
@@ -724,7 +868,7 @@ export const RetailPOS = () => {
               <img src="${logoBase64}" alt="Logo" style="max-height: 40px; margin-bottom: 10px;" />
               <p style="font-weight: bold; color: #111;">Shop No. 1072, Level-10, Multiplan Center</p>
               <p>69-71, New Elephant Road, Dhaka-1205, Bangladesh.</p>
-              <p>Phone: 01916618866, 01712258259 | Web: click2itbd.com</p>
+              <p>Phone: +8809640887777, +8801729887777 | Web: click2itbd.com</p>
             </div>
             <div class="invoice-details">
               <h2>INVOICE</h2>
@@ -736,9 +880,9 @@ export const RetailPOS = () => {
           
           <div class="customer-info">
             <h3>Bill To:</h3>
-            <p><strong>${orderData.customerName || 'Walk-in Customer'}</strong></p>
-            ${orderData.customerPhone ? `<p>Phone: ${orderData.customerPhone}</p>` : ''}
-            ${orderData.customerEmail ? `<p>Email: ${orderData.customerEmail}</p>` : ''}
+            <p><strong>${orderData.customerName || "Walk-in Customer"}</strong></p>
+            ${orderData.customerPhone ? `<p>Phone: ${orderData.customerPhone}</p>` : ""}
+            ${orderData.customerEmail ? `<p>Email: ${orderData.customerEmail}</p>` : ""}
           </div>
           
           <table>
@@ -762,7 +906,7 @@ export const RetailPOS = () => {
                 <span>Subtotal</span>
                 <span>${formatCurrency(orderData.subtotal, settings)}</span>
               </div>
-              ${orderData.discountAmount > 0 ? `<div class="totals-row" style="color: #059669;"><span>Discount</span><span>-${formatCurrency(orderData.discountAmount, settings)}</span></div>` : ''}
+              ${orderData.discountAmount > 0 ? `<div class="totals-row" style="color: #059669;"><span>Discount</span><span>-${formatCurrency(orderData.discountAmount, settings)}</span></div>` : ""}
               <div class="totals-row final">
                 <span>Total</span>
                 <span>${formatCurrency(orderData.total, settings)}</span>
@@ -804,26 +948,34 @@ export const RetailPOS = () => {
     );
   }
 
-  const activeSerialItem = activeSerialItemIdx !== null ? cart[activeSerialItemIdx] : null;
+  const activeSerialItem =
+    activeSerialItemIdx !== null ? cart[activeSerialItemIdx] : null;
 
-  const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];
+  const categories = [
+    "All",
+    ...Array.from(new Set(products.map((p) => p.category))),
+  ];
 
-  const filteredProducts = products.filter(p => {
+  const filteredProducts = products.filter((p) => {
     const sq = searchQuery.toLowerCase();
-    const matchesSearch = p.name.toLowerCase().includes(sq) || 
-                          (p.category || '').toLowerCase().includes(sq) || 
-                          (p.model || '').toLowerCase().includes(sq) || 
-                          (p as any).sku?.toLowerCase().includes(sq) || 
-                          p.id.toLowerCase().includes(sq) || 
-                          (p.availableSerials || []).some((s: string) => s.toLowerCase().includes(sq));
-    const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
+    const matchesSearch =
+      p.name.toLowerCase().includes(sq) ||
+      (p.category || "").toLowerCase().includes(sq) ||
+      (p.model || "").toLowerCase().includes(sq) ||
+      (p as any).sku?.toLowerCase().includes(sq) ||
+      p.id.toLowerCase().includes(sq) ||
+      (p.availableSerials || []).some((s: string) =>
+        s.toLowerCase().includes(sq),
+      );
+    const matchesCategory =
+      activeCategory === "All" || p.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        <POSHeader 
+        <POSHeader
           heldCarts={heldCarts}
           showHeldCarts={showHeldCarts}
           setShowHeldCarts={setShowHeldCarts}

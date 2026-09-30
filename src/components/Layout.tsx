@@ -40,7 +40,7 @@ function NavbarSelector() {
     pathname.startsWith('/search') ||
     pathname.startsWith('/pre-book') ||
     pathname.startsWith('/track-order') ||
-    pathname.startsWith('/exclusive-deals') ||
+    pathname.startsWith('/deals') ||
     (!isHostingDomain && pathname === '/')
   ) {
     return <EcommerceNavbar />;

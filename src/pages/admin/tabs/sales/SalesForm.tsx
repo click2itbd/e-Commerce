@@ -65,6 +65,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const [saleData, setSaleData] = useState({
     customerId: '',
     customerName: '',
+    workOrderNumber: '',
     customerPhone: '',
     customerEmail: '',
     shippingAddress: '',
@@ -247,6 +248,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         ...prev,
         customerId: '',
         customerName: '',
+        workOrderNumber: '',
         customerPhone: '',
         customerEmail: '',
         shippingAddress: '',
@@ -529,6 +531,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         saleSource: saleData.saleSource,
         customerId: saleData.customerId,
         customerName: saleData.customerName,
+        workOrderNumber: saleData.workOrderNumber,
         customerPhone: saleData.customerPhone || '',
         customerEmail: saleData.customerEmail || '',
         shippingAddress: saleData.shippingAddress || '',
@@ -713,6 +716,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       setSaleData({
         customerId: '',
         customerName: '',
+        workOrderNumber: '',
         customerPhone: '',
         customerEmail: '',
         shippingAddress: '',
