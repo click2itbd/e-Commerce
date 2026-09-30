@@ -311,6 +311,49 @@ export interface SiteSettings {
   // Admin Auth
   adminPin?: string;
 
+  // POS Setting
+  posFastMode?: string;
+  receiptPrinterType?: string;
+
+  // Tax Setting
+  defaultTaxRate?: number;
+  taxName?: string;
+  vatNumber?: string;
+
+  // Invoice Setting
+  invoicePrefix?: string;
+  invoiceTerms?: string;
+
+  // Zatca Setting
+  zatcaEnable?: string;
+  zatcaPhase?: string;
+  zatcaCrn?: string;
+
+  // Email Setting
+  mailDriver?: string;
+  mailHost?: string;
+  mailPort?: string;
+  mailUsername?: string;
+  mailEncryption?: string;
+
+  // SMS Setting
+  smsApiUrl?: string;
+  smsSenderId?: string;
+
+  // Whatsapp Setting
+  whatsappApiUrl?: string;
+
+  // PWA Setting
+  pwaEnable?: string;
+  pwaAppName?: string;
+  pwaShortName?: string;
+  pwaThemeColor?: string;
+  pwaBackgroundColor?: string;
+
+  // Review Widget Settings
+  reviewRewardEnabled?: boolean;
+  reviewRewardPercentage?: number;
+
   updatedAt: string;
   [key: string]: any;
 }
@@ -549,6 +592,7 @@ export interface InternalNote {
   createdAt: string;
   status: 'pending' | 'resolved';
 }
+
 
 
 
