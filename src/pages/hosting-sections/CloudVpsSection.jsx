@@ -288,7 +288,7 @@ export default function CloudVpsSection() {
               <div>
                 <h3 className="text-xl font-bold text-gray-900 mb-1">{plan.name}</h3>
                 <div className="flex items-baseline gap-1 pb-4 mb-4 border-b border-gray-100">
-                  <span className="text-3xl md:text-4xl font-black text-gray-900">à§³{plan.monthlyPrice.toLocaleString()}</span>
+                  <span className="text-3xl md:text-4xl font-black text-gray-900">৳{plan.monthlyPrice.toLocaleString()}</span>
                   <span className="text-xs text-gray-500 font-medium">/ month</span>
                 </div>
 

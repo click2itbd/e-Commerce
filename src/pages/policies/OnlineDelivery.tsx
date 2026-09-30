@@ -98,7 +98,7 @@ const OnlineDelivery = () => {
                         Delivered via Pathao / SteadFast / RedX / Home Express Courier directly to your doorstep. Same-day emergency delivery available for urgent orders upon request.
                       </p>
                       <div className="mt-4 text-xs font-semibold text-gray-800 bg-white/80 px-3 py-1.5 rounded-lg border border-emerald-200 inline-block">
-                        Standard Charge: à§³ 60 - à§³ 100 BDT
+                        Standard Charge: ৳ 60 - ৳ 100 BDT
                       </div>
                     </div>
 
@@ -112,7 +112,7 @@ const OnlineDelivery = () => {
                         Dispatched via Sundarban Courier, SA Paribahan, or SteadFast. You can pick it up from your nearest courier branch or request home delivery depending on your district coverage.
                       </p>
                       <div className="mt-4 text-xs font-semibold text-gray-800 bg-white/80 px-3 py-1.5 rounded-lg border border-blue-200 inline-block">
-                        Standard Charge: à§³ 120 - à§³ 200 BDT
+                        Standard Charge: ৳ 120 - ৳ 200 BDT
                       </div>
                     </div>
                   </div>

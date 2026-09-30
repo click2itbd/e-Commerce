@@ -1,3 +1,4 @@
+import { generatePDF } from '../lib/pdf';
 import { logoBase64 } from '../lib/logoBase64';
 import { BannersManagerTab } from './admin/tabs/marketing/BannersManagerTab';
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
@@ -93,6 +94,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ mode = 'all' }) 
   const [isAddingTransactionCategory, setIsAddingTransactionCategory] = useState(false);
   const [newTransactionCategory, setNewTransactionCategory] = useState<Partial<TransactionCategory>>({ name: '', type: 'expense', description: '' });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
 
@@ -614,6 +616,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     parentId: '',
     name: '',
     slug: '',
+    brands: '',
   });
 
   const [campaignFormData, setCampaignFormData] = useState({
@@ -660,8 +663,14 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
   useEffect(() => {
     fetchDataRef.current = fetchData;
     debouncedFetchData();
+    
+    const intervalId = setInterval(() => {
+      fetchDataRef.current?.();
+    }, 15000);
+    
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      clearInterval(intervalId);
     };
   }, []);
 
@@ -2038,7 +2047,8 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
       const newSub = {
         id: Math.random().toString(36).substr(2, 9),
         name: subCategoryFormData.name,
-        slug: subCategoryFormData.slug || subCategoryFormData.name.toLowerCase().replace(/\s+/g, '-')
+        slug: subCategoryFormData.slug || subCategoryFormData.name.toLowerCase().replace(/\s+/g, '-'),
+        brands: subCategoryFormData.brands ? subCategoryFormData.brands.split(',').map(s => s.trim()).filter(Boolean) : []
       };
 
       const updatedSubCategories = [...(parentMenu.subCategories || []), newSub];
@@ -2048,7 +2058,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
 
       toast.success('Sub category added successfully');
       setIsAddingSubCategory(false);
-      setSubCategoryFormData({ parentId: '', name: '', slug: '' });
+      setSubCategoryFormData({ parentId: '', name: '', slug: '', brands: '' });
       debouncedFetchData();
     } catch (error) {
       console.error('Error adding sub category:', error);
@@ -2815,348 +2825,7 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
     doc.save(`Service_Bill_${record.id}.pdf`);
   };
 
-  const generatePDF = async (order: Order | Transaction, type: 'invoice' | 'quotation' | 'challan' | 'receipt') => {
-    const { jsPDF } = await import('jspdf');
-    const autoTable = (await import('jspdf-autotable')).default;
-    const doc = new jsPDF('p', 'mm', 'a4'); 
-    let currentY = 15;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const useLetterhead = settings?.documentDesign?.printOnLetterhead;
-
-    // Helper to load image
-    const loadImage = (url: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'Anonymous';
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = url;
-    });
-
-    // ----- HEADER -----
-    if (!useLetterhead) {
-      try {
-        doc.addImage(logoBase64, 'PNG', 20, currentY, 25, 20);
-      } catch(e) {
-        doc.setFontSize(26);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 58, 138); // Deep Blue
-        doc.text(settings?.brandName || 'CLICK2IT BD', 20, currentY + 10);
-      }
-      
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 100, 100);
-      doc.text('Shop No. 1072, Level-10, Multiplan Center', 20, currentY + 25);
-      doc.text('69-71, New Elephant Road, Dhaka-1205, Bangladesh.', 20, currentY + 29);
-      doc.text('Phone: 01916618866, 01712258259 | Web: click2itbd.com', 20, currentY + 33);
-    } else {
-      currentY += 30; // Extra shift for letterhead
-    }
-
-    // Document Title Box
-    doc.setFillColor(30, 58, 138); // Deep Blue
-    doc.rect(pageWidth - 70, currentY - 5, 50, 14, 'F');
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text(type.toUpperCase(), pageWidth - 45, currentY + 4, { align: 'center' });
-
-    currentY += 45;
-
-    // ----- CUSTOMER & DOC INFO -----
-    doc.setDrawColor(220, 220, 220);
-    doc.setLineWidth(0.5);
-    doc.line(20, currentY - 5, pageWidth - 20, currentY - 5);
-
-    doc.setFontSize(10);
-    doc.setTextColor(80, 80, 80);
-    
-    if (type === 'receipt') {
-      const tx = order as Transaction;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Bill To:', 20, currentY + 5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(0, 0, 0);
-      doc.text(tx.entityName, 20, currentY + 11);
-      
-      doc.setTextColor(80, 80, 80);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Receipt Details:', pageWidth - 80, currentY + 5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(0, 0, 0);
-      doc.text(`Receipt No: ${tx.referenceId}`, pageWidth - 80, currentY + 11);
-      doc.text(`Date: ${new Date(tx.date).toLocaleDateString()}`, pageWidth - 80, currentY + 17);
-      currentY += 30;
-      
-      // Receipt Details Box
-      doc.setFillColor(245, 245, 245);
-      
-      let boxHeight = 20;
-      if (tx.previousDue !== undefined) boxHeight += 10;
-      if (tx.currentBalance !== undefined) boxHeight += 10;
-      if (tx.paymentMethod) boxHeight += 10;
-      
-      doc.rect(20, currentY, pageWidth - 40, boxHeight, 'F');
-      
-      let textY = currentY + 13;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      
-      if (tx.previousDue !== undefined) {
-        doc.setTextColor(80, 80, 80);
-        doc.text('Previous Due:', 30, textY);
-        doc.text(formatCurrency(tx.previousDue, settings), pageWidth - 70, textY);
-        textY += 10;
-      }
-      
-      doc.setTextColor(0, 0, 0);
-      doc.text('Amount Received:', 30, textY);
-      doc.setTextColor(22, 163, 74); // Green
-      doc.text(formatCurrency(tx.amount, settings), pageWidth - 70, textY);
-      textY += 10;
-      
-      if (tx.currentBalance !== undefined) {
-        doc.setTextColor(80, 80, 80);
-        doc.text('Remaining Due:', 30, textY);
-        doc.setTextColor(220, 38, 38); // Red
-        doc.text(formatCurrency(tx.currentBalance, settings), pageWidth - 70, textY);
-        textY += 10;
-      }
-      
-      if (tx.paymentMethod) {
-        doc.setFontSize(10);
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Payment Method: ${tx.paymentMethod.toUpperCase()}`, 30, textY);
-        textY += 10;
-      }
-      
-      currentY = textY + 20;
-    } else {
-      const o = order as Order;
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(100, 100, 100);
-      doc.text(type === 'challan' ? 'Ship To:' : 'Bill To:', 20, currentY + 5);
-      
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 0, 0);
-      const nameLines = doc.splitTextToSize(o.customerName || 'N/A', 120);
-      doc.text(nameLines, 20, currentY + 12);
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(80, 80, 80);
-      doc.text(o.customerPhone, 20, currentY + 17 + ((nameLines.length - 1) * 5));
-      
-      let addressY = currentY + 22 + ((nameLines.length - 1) * 5);
-      if (type === 'challan') {
-        const addressText = doc.splitTextToSize(`Address: ${o.shippingAddress || 'N/A'}`, 80);
-        doc.text(addressText, 20, addressY);
-        addressY += (addressText.length * 5);
-      } else if (o.paymentMethod === 'cod') {
-        doc.text('Address: Pay On Delivery', 20, addressY);
-        addressY += 5;
-      }
-
-      doc.setFont('helvetica', 'bold');
-      let detailsLabel = 'Invoice Details:';
-      if (type === 'quotation') detailsLabel = 'Quote Details:';
-      if (type === 'challan') detailsLabel = 'Challan Details:';
-      
-      doc.text(detailsLabel, pageWidth - 80, currentY + 5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(0, 0, 0);
-      
-      let docNum = o.documentNumber || o.id.substring(0, 8).toUpperCase();
-      if (type === 'quotation') docNum = docNum.replace(/^INV-/, 'QUO-');
-      if (type === 'challan') docNum = docNum.replace(/^INV-/, 'CHA-');
-      
-      doc.text(`Doc No: ${docNum}`, pageWidth - 80, currentY + 11);
-      doc.text(`Date: ${new Date(o.createdAt).toLocaleDateString()}`, pageWidth - 80, currentY + 17);
-      currentY = Math.max(addressY, currentY + 20) + 10;
-      
-      // Table
-      const tableData = o.items.map(item => {
-        let nameDesc = item.name;
-        if (item.hasSerialTracking && type !== 'quotation') {
-          const serials = item.selectedSerials?.join(', ') || 'N/A';
-          nameDesc += `\nSN: ${serials}`;
-          if (item.warrantyMonths && item.warrantyMonths > 0) {
-            const warrantyEnd = new Date(o.createdAt);
-            warrantyEnd.setMonth(warrantyEnd.getMonth() + item.warrantyMonths);
-            nameDesc += `\nWarranty: ${item.warrantyMonths} Months`;
-          }
-        }
-        return [
-          nameDesc,
-          item.quantity.toString(),
-          type === 'challan' ? '-' : formatCurrency(item.price, settings),
-          type === 'challan' ? '-' : formatCurrency(item.price * item.quantity, settings)
-        ];
-      });
-      
-      autoTable(doc, {
-        startY: currentY,
-        head: [['Product Description', 'Qty', 'Unit Price', 'Total']],
-        body: tableData,
-        theme: 'striped',
-        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
-        styles: { fontSize: 9, cellPadding: 4 },
-        columnStyles: {
-          1: { halign: 'center' },
-          2: { halign: 'right' },
-          3: { halign: 'right' }
-        }
-      });
-      
-      if (type !== 'challan') {
-        const finalY = (doc as any).lastAutoTable.finalY + 10;
-        doc.setFontSize(10);
-        
-        const subtotal = o.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
-        const discount = o.discountAmount || 0;
-        
-        const totalsX = pageWidth - 70;
-        const alignRightX = pageWidth - 20;
-
-        doc.setTextColor(80, 80, 80);
-        doc.text('Subtotal:', totalsX, finalY);
-        doc.setTextColor(0, 0, 0);
-        doc.text(formatCurrency(subtotal, settings), alignRightX, finalY, { align: 'right' });
-        
-        let currTotalY = finalY;
-        
-        if (discount > 0) {
-          currTotalY += 7;
-          doc.setTextColor(80, 80, 80);
-          doc.text('Discount:', totalsX, currTotalY);
-          doc.setTextColor(220, 38, 38); // Red
-          doc.text(`-${formatCurrency(discount, settings)}`, alignRightX, currTotalY, { align: 'right' });
-        }
-        
-        currTotalY += 10;
-        doc.setDrawColor(220, 220, 220);
-        doc.line(totalsX, currTotalY - 6, alignRightX, currTotalY - 6);
-        
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 58, 138);
-        doc.text('Total:', totalsX, currTotalY);
-        doc.text(formatCurrency(o.total, settings), alignRightX, currTotalY, { align: 'right' });
-        
-        if (type === 'invoice') {
-          const paidAmt = Number(o.paidAmount || 0);
-          const totalAmt = Number(o.total || 0);
-          const dueAmt = Math.max(0, totalAmt - paidAmt);
-          
-          currTotalY += 8;
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(80, 80, 80);
-          doc.text('Paid Amount:', totalsX, currTotalY);
-          doc.setTextColor(22, 163, 74); // Green
-          doc.text(formatCurrency(paidAmt, settings), alignRightX, currTotalY, { align: 'right' });
-          
-          if (dueAmt > 0) {
-            currTotalY += 7;
-            doc.setTextColor(80, 80, 80);
-            doc.text('Due Amount:', totalsX, currTotalY);
-            doc.setTextColor(220, 38, 38); // Red
-            doc.text(formatCurrency(dueAmt, settings), alignRightX, currTotalY, { align: 'right' });
-          }
-
-          currTotalY += 12;
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'bold');
-          
-          if (paidAmt === 0) {
-            doc.setTextColor(220, 38, 38); // Red
-            doc.text('UNPAID / FULL DUE', alignRightX, currTotalY, { align: 'right' });
-          } else if (o.paymentMethod) {
-            doc.setTextColor(22, 163, 74); // Green
-            const methodDisplay = o.paymentMethod === 'cod' ? 'CASH ON DELIVERY' : `PAID VIA ${o.paymentMethod.toUpperCase()}`;
-            doc.text(methodDisplay, alignRightX, currTotalY, { align: 'right' });
-            if (o.paymentReference) {
-              doc.setFontSize(9);
-              doc.setFont('helvetica', 'normal');
-              doc.setTextColor(100, 100, 100);
-              doc.text(`Ref: ${o.paymentReference}`, alignRightX, currTotalY + 5, { align: 'right' });
-            }
-          }
-        }
-        
-        currentY = currTotalY + 20;
-      } else {
-         currentY = (doc as any).lastAutoTable.finalY + 30;
-      }
-
-      // Notes & Terms
-      if (type !== 'receipt') {
-        const o = order as Order;
-        if (o.notes || o.termsAndConditions) {
-          if (o.notes) {
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(30, 58, 138);
-            doc.text('Notes:', 20, currentY);
-            currentY += 5;
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(80, 80, 80);
-            const splitNotes = doc.splitTextToSize(o.notes, 120);
-            doc.text(splitNotes, 20, currentY);
-            currentY += (splitNotes.length * 4) + 5;
-          }
-  
-          if (o.termsAndConditions) {
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(30, 58, 138);
-            doc.text('Terms & Conditions:', 20, currentY);
-            currentY += 5;
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(80, 80, 80);
-            const splitTerms = doc.splitTextToSize(o.termsAndConditions, 120);
-            doc.text(splitTerms, 20, currentY);
-            currentY += (splitTerms.length * 4) + 5;
-          }
-        }
-      }
-    }
-    
-    // ----- FOOTER -----
-    const pageHeight = doc.internal.pageSize.getHeight();
-    if (pageHeight - currentY < 40) {
-      doc.addPage();
-      currentY = 20;
-    }
-    
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.5);
-    doc.line(20, pageHeight - 40, pageWidth - 20, pageHeight - 40);
-    
-    // Signatures
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(100, 100, 100);
-    doc.text(type === 'challan' ? 'Receiver Signature' : 'Customer Signature', 30, pageHeight - 20);
-    doc.text('Authorized Signature', pageWidth - 70, pageHeight - 20);
-    
-    // Thank you text
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(150, 150, 150);
-    
-    const orderDate = order.createdAt || order.date;
-    if (orderDate) {
-      doc.text(`Order Date: ${new Date(orderDate).toLocaleString()}`, pageWidth / 2, pageHeight - 15, { align: 'center' });
-    }
-    
-    doc.text('Thank you for your business!', pageWidth / 2, pageHeight - 10, { align: 'center' });
-    
-    doc.save(`${type}_${order.id}.pdf`);
-  };
+  ;
 
   const statusIcons = {
     pending: <Clock className="text-yellow-500" size={18} />,
@@ -3175,17 +2844,32 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
       
       {/* Sidebar */}
       <aside className={cn(
-        "w-[260px] bg-white border-r border-gray-200 flex-col h-screen overflow-y-auto shrink-0 shadow-sm z-50",
+        isSidebarCollapsed ? "w-[80px]" : "w-[260px]",
+        "bg-white border-r border-gray-200 flex-col h-screen overflow-y-auto shrink-0 shadow-sm z-50 transition-all duration-300",
         "fixed inset-y-0 left-0 lg:sticky lg:top-0 lg:flex",
         isMobileMenuOpen ? "flex" : "hidden"
       )}>
-        <div className="h-[60px] flex items-center px-6 border-b border-gray-100 shrink-0">
-          <div className="flex items-center gap-2 font-bold text-xl tracking-tight text-[#0f172a]">
-             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
-                <ShoppingBag size={18} />
-             </div>
-             CLICK POS <span className="opacity-50 text-xs mt-1 border border-gray-200 px-1 rounded-full">+</span>
-          </div>
+        <div className={cn("h-[60px] flex items-center border-b border-gray-100 shrink-0 justify-between relative", isSidebarCollapsed ? "px-2" : "px-6")}>
+          {!isSidebarCollapsed ? (
+            <div className="flex items-center gap-2 font-bold text-xl tracking-tight text-[#0f172a] truncate w-full">
+               <img src={logoBase64} alt="Logo" className="w-8 h-8 object-contain shrink-0" />
+               <span className="truncate">Dashboard</span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center w-full">
+               <img src={logoBase64} alt="Logo" className="w-8 h-8 object-contain" />
+            </div>
+          )}
+          {!isSidebarCollapsed && (
+            <button className="hidden lg:flex p-2 hover:bg-gray-100 rounded text-gray-500 shrink-0 ml-auto" onClick={() => setIsSidebarCollapsed(true)}>
+              <MenuIcon size={20} />
+            </button>
+          )}
+          {isSidebarCollapsed && (
+            <button className="hidden lg:flex p-1.5 hover:bg-gray-100 rounded text-gray-500 absolute -right-3 top-4 bg-white border border-gray-200 shadow-sm z-50" onClick={() => setIsSidebarCollapsed(false)}>
+              <ChevronRight size={14} />
+            </button>
+          )}
           <button className="lg:hidden ml-auto p-2 hover:bg-gray-100 rounded" onClick={() => setIsMobileMenuOpen(false)}>
             <X size={20} />
           </button>
@@ -3194,173 +2878,173 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
         <div className="flex-1 py-4 overflow-y-auto">
            {/* Section 1 */}
            <div className="px-4 mb-2">
-             <button onClick={() => setActiveTab('dashboard')} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors", activeTab === 'dashboard' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 font-medium hover:bg-gray-50")}>
-               <Activity size={18} className={activeTab === 'dashboard' ? "text-blue-600" : "text-gray-400"} /> Overview
+             <button onClick={() => setActiveTab('dashboard')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2.5" : "gap-3 px-3 py-2.5", activeTab === 'dashboard' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 font-medium hover:bg-gray-50")}>
+               <Activity size={18} className={activeTab === 'dashboard' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Overview</span>}
              </button>
-             <button onClick={() => setActiveTab('analytics')} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors", activeTab === 'analytics' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 font-medium hover:bg-gray-50")}>
-               <BarChart2 size={18} className={activeTab === 'analytics' ? "text-blue-600" : "text-gray-400"} /> Analytics
+             <button onClick={() => setActiveTab('analytics')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2.5" : "gap-3 px-3 py-2.5", activeTab === 'analytics' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 font-medium hover:bg-gray-50")}>
+               <BarChart2 size={18} className={activeTab === 'analytics' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Analytics</span>}
              </button>
-             <button onClick={() => setActiveTab('inventory')} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors", activeTab === 'inventory' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 font-medium hover:bg-gray-50")}>
-               <Package size={18} className={activeTab === 'inventory' ? "text-blue-600" : "text-gray-400"} /> Stock
+             <button onClick={() => setActiveTab('inventory')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2.5" : "gap-3 px-3 py-2.5", activeTab === 'inventory' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 font-medium hover:bg-gray-50")}>
+               <Package size={18} className={activeTab === 'inventory' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Stock</span>}
              </button>
-             <button onClick={() => window.open('/pos', '_blank')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors text-gray-600 font-medium hover:bg-gray-50">
-               <ShoppingCart size={18} className="text-gray-400" /> CLICK POS
+             <button onClick={() => window.open('/pos', '_blank')} className={cn("w-full flex items-center rounded-md text-sm transition-colors text-gray-600 font-medium hover:bg-gray-50", isSidebarCollapsed ? "justify-center py-2.5" : "gap-3 px-3 py-2.5")}>
+               <ShoppingCart size={18} className="text-gray-400" /> {!isSidebarCollapsed && <span className="truncate">CLICK POS</span>}
              </button>
            </div>
            
                         {/* Section 2: Domain & Web Hosting */}
             {(mode === 'all' || mode === 'hosting') && (!isStaff || isAdmin || isManager) && (
               <div className="px-4 mb-3">
-                <div className="text-[10px] uppercase font-bold text-blue-600 tracking-wider mb-1 px-3 flex items-center gap-1.5">
+                {!isSidebarCollapsed && <div className="text-[10px] uppercase font-bold text-blue-600 tracking-wider mb-1 px-3 flex items-center gap-1.5">
                   <Globe size={12} className="text-blue-600" /> Domain & Web Hosting
-                </div>
+                </div>}
               </div>
             )}
             
             {/* Section 3: Sale & Customer */}
             <div className="px-4 mb-2">
-              <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Sale & Customer</div>
+              {!isSidebarCollapsed && <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Sale & Customer</div>}
              {hasPermission('sales') && (
-              <button onClick={() => setActiveTab('sales')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'sales' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <ShoppingCart size={16} className={activeTab === 'sales' ? "text-blue-600" : "text-gray-400"} /> Sale
+              <button onClick={() => setActiveTab('sales')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'sales' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <ShoppingCart size={16} className={activeTab === 'sales' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Sale</span>}
                </button>
              )}
              {hasPermission('sale_return') && (
-              <button onClick={() => setActiveTab('sale_return')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'sale_return' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <ArrowLeftRight size={16} className={activeTab === 'sale_return' ? "text-blue-600" : "text-gray-400"} /> Sale Return
+              <button onClick={() => setActiveTab('sale_return')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'sale_return' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <ArrowLeftRight size={16} className={activeTab === 'sale_return' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Sale Return</span>}
                </button>
              )}
-             <button onClick={() => setActiveTab('orders')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'orders' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-               <Receipt size={16} className={activeTab === 'orders' ? "text-blue-600" : "text-gray-400"} /> Orders & Docs
+             <button onClick={() => setActiveTab('orders')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'orders' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               <Receipt size={16} className={activeTab === 'orders' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Orders & Docs</span>}
              </button>
-             <button onClick={() => setActiveTab('customers')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'customers' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-               <Users size={16} className={activeTab === 'customers' ? "text-blue-600" : "text-gray-400"} /> Customer
+             <button onClick={() => setActiveTab('customers')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'customers' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               <Users size={16} className={activeTab === 'customers' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Customer</span>}
              </button>
-             <button onClick={() => { setActiveTab('customer_due_list'); setIsMobileMenuOpen(false); }} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'customer_due_list' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-               <CreditCard size={16} className={activeTab === 'customer_due_list' ? "text-blue-600" : "text-gray-400"} /> Customer Due List
+             <button onClick={() => { setActiveTab('customer_due_list'); setIsMobileMenuOpen(false); }} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'customer_due_list' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               <CreditCard size={16} className={activeTab === 'customer_due_list' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Customer Due List</span>}
              </button>
-             <button onClick={() => setActiveTab('quotations')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'quotations' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-               <FileText size={16} className={activeTab === 'quotations' ? "text-blue-600" : "text-gray-400"} /> Quotation System
+             <button onClick={() => setActiveTab('quotations')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'quotations' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               <FileText size={16} className={activeTab === 'quotations' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Quotation System</span>}
              </button>
            </div>
 
            {/* Section 3: Purchase & Supplier */}
            <div className="px-4 mb-2">
-             <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Purchase & Supplier</div>
+             {!isSidebarCollapsed && <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Purchase & Supplier</div>}
              {hasPermission('purchases') && (
-              <button onClick={() => setActiveTab('purchases')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'purchases' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <ShoppingBag size={16} className={activeTab === 'purchases' ? "text-blue-600" : "text-gray-400"} /> Purchase
+              <button onClick={() => setActiveTab('purchases')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'purchases' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <ShoppingBag size={16} className={activeTab === 'purchases' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Purchase</span>}
                </button>
              )}
              {hasPermission('purchase_return') && (
-              <button onClick={() => setActiveTab('purchase_return')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'purchase_return' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <ArrowLeftRight size={16} className={activeTab === 'purchase_return' ? "text-blue-600" : "text-gray-400"} /> Purchase Return
+              <button onClick={() => setActiveTab('purchase_return')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'purchase_return' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <ArrowLeftRight size={16} className={activeTab === 'purchase_return' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Purchase Return</span>}
                </button>
              )}
-             <button onClick={() => setActiveTab('vendors')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'vendors' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-               <Briefcase size={16} className={activeTab === 'vendors' ? "text-blue-600" : "text-gray-400"} /> Supplier
+             <button onClick={() => setActiveTab('vendors')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'vendors' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               <Briefcase size={16} className={activeTab === 'vendors' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Supplier</span>}
              </button>
-             <button onClick={() => { setActiveTab('vendor_due_list'); setIsMobileMenuOpen(false); }} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'vendor_due_list' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-               <CreditCard size={16} className={activeTab === 'vendor_due_list' ? "text-blue-600" : "text-gray-400"} /> Supplier Due List
+             <button onClick={() => { setActiveTab('vendor_due_list'); setIsMobileMenuOpen(false); }} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'vendor_due_list' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+               <CreditCard size={16} className={activeTab === 'vendor_due_list' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Supplier Due List</span>}
              </button>
            </div>
 
            {/* Warranty */}
            <div className="px-4 mb-2">
-             <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Warranty & Servicing</div>
+             {!isSidebarCollapsed && <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Warranty & Servicing</div>}
              {hasPermission('manage_services') && (
-               <button onClick={() => setActiveTab('services')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'services' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <ShieldCheck size={16} className={activeTab === 'services' ? "text-blue-600" : "text-gray-400"} /> Warranty & Service
+               <button onClick={() => setActiveTab('services')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'services' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <ShieldCheck size={16} className={activeTab === 'services' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Warranty & Service</span>}
                </button>
              )}
            </div>
 
            {(mode === "all" || mode === "accounting") && (<>{/* Accounting */}
            <div className="px-4 mb-2">
-             <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Accounting</div>
+             {!isSidebarCollapsed && <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Accounting</div>}
               {hasPermission('internal_notes') && (
-              <button onClick={() => setActiveTab('internal_notes')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'internal_notes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                <MessageSquare size={16} className={activeTab === 'internal_notes' ? "text-blue-600" : "text-gray-400"} /> Staff Notes
+              <button onClick={() => setActiveTab('internal_notes')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'internal_notes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <MessageSquare size={16} className={activeTab === 'internal_notes' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Staff Notes</span>}
               </button>
               )}
               {hasPermission('menus') && (
-              <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                  <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> Products Category
+              <button onClick={() => setActiveTab('menus')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'menus' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                  <List size={16} className={activeTab === 'menus' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Products Category</span>}
                 </button>
               )}
              {hasPermission('payment_accounts') && (
-              <button onClick={() => setActiveTab('payment_accounts')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'payment_accounts' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <CreditCard size={16} className={activeTab === 'payment_accounts' ? "text-blue-600" : "text-gray-400"} /> Payment Account
+              <button onClick={() => setActiveTab('payment_accounts')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'payment_accounts' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <CreditCard size={16} className={activeTab === 'payment_accounts' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Payment Account</span>}
                </button>
              )}
              {hasPermission('ledger') && (
-              <button onClick={() => setActiveTab('ledger')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'ledger' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Book size={16} className={activeTab === 'ledger' ? "text-blue-600" : "text-gray-400"} /> Ledger
+              <button onClick={() => setActiveTab('ledger')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'ledger' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Book size={16} className={activeTab === 'ledger' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Ledger</span>}
                </button>
              )}
              {hasPermission('manual_income') && (
-              <button onClick={() => setActiveTab('manual_income')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'manual_income' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Download size={16} className={activeTab === 'manual_income' ? "text-blue-600" : "text-gray-400"} /> Income
+              <button onClick={() => setActiveTab('manual_income')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'manual_income' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Download size={16} className={activeTab === 'manual_income' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Income</span>}
                </button>
              )}
              {hasPermission('manual_expense') && (
-              <button onClick={() => setActiveTab('manual_expense')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'manual_expense' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Upload size={16} className={activeTab === 'manual_expense' ? "text-blue-600" : "text-gray-400"} /> Expense
+              <button onClick={() => setActiveTab('manual_expense')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'manual_expense' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Upload size={16} className={activeTab === 'manual_expense' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Expense</span>}
                </button>
              )}
              {hasPermission('tx_categories') && (
-              <button onClick={() => setActiveTab('tx_categories')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'tx_categories' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <List size={16} className={activeTab === 'tx_categories' ? "text-blue-600" : "text-gray-400"} /> Categories
+              <button onClick={() => setActiveTab('tx_categories')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'tx_categories' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <List size={16} className={activeTab === 'tx_categories' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Categories</span>}
                </button>
              )}
              {hasPermission('reports') && (
-              <button onClick={() => setActiveTab('reports')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'reports' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <FileText size={16} className={activeTab === 'reports' ? "text-blue-600" : "text-gray-400"} /> Sales Accounting
+              <button onClick={() => setActiveTab('reports')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'reports' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <FileText size={16} className={activeTab === 'reports' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Sales Accounting</span>}
                </button>
              )}
              {hasPermission('stock_accounting') && (
-              <button onClick={() => setActiveTab('stock_accounting')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'stock_accounting' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Boxes size={16} className={activeTab === 'stock_accounting' ? "text-blue-600" : "text-gray-400"} /> Stock Accounting
+              <button onClick={() => setActiveTab('stock_accounting')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'stock_accounting' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Boxes size={16} className={activeTab === 'stock_accounting' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Stock Accounting</span>}
                </button>
              )}
              {hasPermission('customer_receive_report') && (
-              <button onClick={() => setActiveTab('customer_receive_report')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'customer_receive_report' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Receipt size={16} className={activeTab === 'customer_receive_report' ? "text-blue-600" : "text-gray-400"} /> Receive Report
+              <button onClick={() => setActiveTab('customer_receive_report')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'customer_receive_report' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Receipt size={16} className={activeTab === 'customer_receive_report' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Receive Report</span>}
                </button>
              )}
              {hasPermission('deposits_withdrawals') && (
-              <button onClick={() => setActiveTab('deposits_withdrawals')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'deposits_withdrawals' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <ArrowLeftRight size={16} className={activeTab === 'deposits_withdrawals' ? "text-blue-600" : "text-gray-400"} /> Deposit/Withdraw
+              <button onClick={() => setActiveTab('deposits_withdrawals')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'deposits_withdrawals' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <ArrowLeftRight size={16} className={activeTab === 'deposits_withdrawals' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Deposit/Withdraw</span>}
                </button>
              )}
              {hasPermission('account_balance') && (
-              <button onClick={() => setActiveTab('account_balance')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'account_balance' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <CreditCard size={16} className={activeTab === 'account_balance' ? "text-blue-600" : "text-gray-400"} /> Account Balance
+              <button onClick={() => setActiveTab('account_balance')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'account_balance' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <CreditCard size={16} className={activeTab === 'account_balance' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Account Balance</span>}
                </button>
              )}
              {hasPermission('account_statement') && (
-              <button onClick={() => setActiveTab('account_statement')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'account_statement' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <FileText size={16} className={activeTab === 'account_statement' ? "text-blue-600" : "text-gray-400"} /> Account Statement
+              <button onClick={() => setActiveTab('account_statement')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'account_statement' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <FileText size={16} className={activeTab === 'account_statement' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Account Statement</span>}
                </button>
              )}
              {hasPermission('balance_sheet') && (
-              <button onClick={() => setActiveTab('balance_sheet')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'balance_sheet' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Book size={16} className={activeTab === 'balance_sheet' ? "text-blue-600" : "text-gray-400"} /> Balance Sheet
+              <button onClick={() => setActiveTab('balance_sheet')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'balance_sheet' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Book size={16} className={activeTab === 'balance_sheet' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Balance Sheet</span>}
                </button>
              )}
              {hasPermission('trial_balance') && (
-              <button onClick={() => setActiveTab('trial_balance')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'trial_balance' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Book size={16} className={activeTab === 'trial_balance' ? "text-blue-600" : "text-gray-400"} /> Trial Balance
+              <button onClick={() => setActiveTab('trial_balance')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'trial_balance' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Book size={16} className={activeTab === 'trial_balance' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Trial Balance</span>}
                </button>
              )}
              {hasPermission('manage_finances') && (
-               <button onClick={() => setActiveTab('transaction_history')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'transaction_history' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <List size={16} className={activeTab === 'transaction_history' ? "text-blue-600" : "text-gray-400"} /> Transaction History
+               <button onClick={() => setActiveTab('transaction_history')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'transaction_history' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <List size={16} className={activeTab === 'transaction_history' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Transaction History</span>}
                </button>
              )}
              {hasPermission('all_reports') && (
-              <button onClick={() => setActiveTab('all_reports')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'all_reports' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <FileText size={16} className={activeTab === 'all_reports' ? "text-blue-600" : "text-gray-400"} /> All Reports
+              <button onClick={() => setActiveTab('all_reports')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'all_reports' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <FileText size={16} className={activeTab === 'all_reports' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">All Reports</span>}
                </button>
              )}
            </div>
@@ -3369,20 +3053,20 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              {/* Marketing */}
            {(!isStaff || isAdmin || isManager) && (
              <div className="px-4 mb-2">
-               <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Marketing & Feedback</div>
+               {!isSidebarCollapsed && <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Marketing & Feedback</div>}
                {hasPermission('campaigns') && (
-              <button onClick={() => setActiveTab('campaigns')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'campaigns' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                   <Tag size={16} className={activeTab === 'campaigns' ? "text-blue-600" : "text-gray-400"} /> Marketing
+              <button onClick={() => setActiveTab('campaigns')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'campaigns' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Tag size={16} className={activeTab === 'campaigns' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Marketing</span>}
                  </button>
                )}
                {hasPermission('discountCodes') && (
-              <button onClick={() => setActiveTab('discountCodes')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'discountCodes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                   <Percent size={16} className={activeTab === 'discountCodes' ? "text-blue-600" : "text-gray-400"} /> Discounts
+              <button onClick={() => setActiveTab('discountCodes')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'discountCodes' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Percent size={16} className={activeTab === 'discountCodes' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Discounts</span>}
                  </button>
                )}
                {hasPermission('reviews') && (
-              <button onClick={() => setActiveTab('reviews')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'reviews' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                   <Star size={16} className={activeTab === 'reviews' ? "text-blue-600" : "text-gray-400"} /> Reviews
+              <button onClick={() => setActiveTab('reviews')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'reviews' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Star size={16} className={activeTab === 'reviews' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Reviews</span>}
                  </button>
                )}
              </div>
@@ -3391,22 +3075,22 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
            {(mode === "all") && (<>{/* HR */}
            {(!isStaff || isAdmin || isManager) && (
              <div className="px-4 mb-2">
-               <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Human Resource</div>
+               {!isSidebarCollapsed && <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Human Resource</div>}
                {hasPermission('users') && (
-              <button onClick={() => setActiveTab('users')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'users' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                   <Users size={16} className={activeTab === 'users' ? "text-blue-600" : "text-gray-400"} /> App Access
+              <button onClick={() => setActiveTab('users')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'users' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Users size={16} className={activeTab === 'users' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">App Access</span>}
                  </button>
                )}
                {hasPermission('manage_hr') && (
                  <>
-                   <button onClick={() => setActiveTab('employees')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'employees' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                     <Briefcase size={16} className={activeTab === 'employees' ? "text-blue-600" : "text-gray-400"} /> Employees
+                   <button onClick={() => setActiveTab('employees')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'employees' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                     <Briefcase size={16} className={activeTab === 'employees' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Employees</span>}
                    </button>
-                   <button onClick={() => setActiveTab('leave')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'leave' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                     <CheckCircle size={16} className={activeTab === 'leave' ? "text-blue-600" : "text-gray-400"} /> Leave
+                   <button onClick={() => setActiveTab('leave')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'leave' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                     <CheckCircle size={16} className={activeTab === 'leave' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Leave</span>}
                    </button>
-                   <button onClick={() => setActiveTab('salary')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'salary' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                     <CreditCard size={16} className={activeTab === 'salary' ? "text-blue-600" : "text-gray-400"} /> Salary Overview
+                   <button onClick={() => setActiveTab('salary')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'salary' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                     <CreditCard size={16} className={activeTab === 'salary' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Salary Overview</span>}
                    </button>
                  </>
                )}
@@ -3417,9 +3101,9 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
              {/* Storefront CMS */}
            {(!isStaff || isAdmin || isManager) && (
              <div className="px-4 mb-2">
-               <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Storefront CMS</div>
-               <button onClick={() => { setActiveTab('banners'); setIsMobileMenuOpen(false); }} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'banners' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Globe size={16} className={activeTab === 'banners' ? "text-blue-600" : "text-gray-400"} /> Banners & Pages
+               {!isSidebarCollapsed && <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Storefront CMS</div>}
+               <button onClick={() => { setActiveTab('banners'); setIsMobileMenuOpen(false); }} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'banners' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Globe size={16} className={activeTab === 'banners' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Banners & Pages</span>}
                </button>
              </div>
            )}
@@ -3427,22 +3111,22 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
            {/* System & Settings */}
            {(!isStaff || isAdmin || isManager) && (
              <div className="px-4 mb-6">
-               <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">System & Settings</div>
+               {!isSidebarCollapsed && <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">System & Settings</div>}
                
-               <button onClick={() => setActiveTab('crm')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'crm' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <Users size={16} className={activeTab === 'crm' ? "text-blue-600" : "text-gray-400"} /> CRM System
+               <button onClick={() => setActiveTab('crm')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'crm' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <Users size={16} className={activeTab === 'crm' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">CRM System</span>}
                </button>
-               <button onClick={() => setActiveTab('tasks')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'tasks' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                 <CheckCircle size={16} className={activeTab === 'tasks' ? "text-blue-600" : "text-gray-400"} /> To-Do List
+               <button onClick={() => setActiveTab('tasks')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'tasks' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                 <CheckCircle size={16} className={activeTab === 'tasks' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">To-Do List</span>}
                </button>
                {isAdmin && (
-                <button onClick={() => setActiveTab('audit_logs')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'audit_logs' ? "text-red-600 font-bold bg-red-50" : "text-gray-600 hover:bg-gray-50")}>
-                  <ShieldAlert size={16} className={activeTab === 'audit_logs' ? "text-red-600" : "text-gray-400"} /> Audit Logs
+                <button onClick={() => setActiveTab('audit_logs')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'audit_logs' ? "text-red-600 font-bold bg-red-50" : "text-gray-600 hover:bg-gray-50")}>
+                  <ShieldAlert size={16} className={activeTab === 'audit_logs' ? "text-red-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Audit Logs</span>}
                 </button>
               )}
               {hasPermission('settings') && (
-              <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                   <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> Settings
+              <button onClick={() => setActiveTab('settings')} className={cn("w-full flex items-center rounded-md text-[13px] transition-colors", isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2", activeTab === 'settings' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                   <Settings size={16} className={activeTab === 'settings' ? "text-blue-600" : "text-gray-400"} /> {!isSidebarCollapsed && <span className="truncate">Settings</span>}
                  </button>
                )}
              </div>
@@ -3451,16 +3135,16 @@ const [activeTab, setActiveTab] = useState<any>(() => sessionStorage.getItem('ad
          <div className="p-4 border-t border-gray-100 shrink-0 mt-auto flex flex-col gap-2">
             {!isStaff && (
               <>
-                <button onClick={() => navigate('/admin/billing')} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 border border-purple-200 transition-all shadow-sm">
-                  <ArrowLeftRight size={18} /> Hosting Dashboard
+                <button onClick={() => navigate('/admin/billing')} className={cn("w-full flex items-center justify-center rounded-lg text-sm font-bold transition-all", isSidebarCollapsed ? "py-2.5" : "gap-2 px-4 py-2.5", "text-purple-700 bg-purple-100 hover:bg-purple-200 border border-purple-200 transition-all shadow-sm")}>
+                  <ArrowLeftRight size={18} /> {!isSidebarCollapsed && <span className="truncate">Hosting Dashboard</span>}
                 </button>
-                <button onClick={() => navigate('/admin/ecommerce')} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-md hover:shadow-lg">
-                  <ShoppingCart size={18} /> E-Commerce Admin
+                <button onClick={() => navigate('/admin/e-commerce')} className={cn("w-full flex items-center justify-center rounded-lg text-sm font-bold transition-all", isSidebarCollapsed ? "py-2.5" : "gap-2 px-4 py-2.5", "text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-md hover:shadow-lg")}>
+                  <ShoppingCart size={18} /> {!isSidebarCollapsed && <span className="truncate">E-Commerce Admin</span>}
                 </button>
               </>
             )}
-             <button onClick={() => window.open('/', '_blank')} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all shadow-sm">
-               <ExternalLink size={18} /> View Shop Site
+             <button onClick={() => window.open('/', '_blank')} className={cn("w-full flex items-center justify-center rounded-lg text-sm font-bold transition-all", isSidebarCollapsed ? "py-2.5" : "gap-2 px-4 py-2.5", "text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all shadow-sm")}>
+               <ExternalLink size={18} /> {!isSidebarCollapsed && <span className="truncate">View Shop Site</span>}
              </button>
            </div>
         </aside>

@@ -67,24 +67,7 @@ export const EcommerceAnalytics: React.FC = () => {
         sales: salesByDate[date]
       })).reverse();
       
-      // If no data, provide dummy data for preview
-      if (chartData.length === 0) {
-        setSalesData([
-          { date: 'Sep 1', sales: 12000 }, { date: 'Sep 2', sales: 15000 },
-          { date: 'Sep 3', sales: 9000 }, { date: 'Sep 4', sales: 22000 },
-          { date: 'Sep 5', sales: 18000 }, { date: 'Sep 6', sales: 28000 },
-          { date: 'Sep 7', sales: 32000 }
-        ]);
-        
-        setStats({
-          totalRevenue: 136000,
-          totalOrders: 45,
-          averageOrderValue: 3022,
-          totalCustomers: 38
-        });
-      } else {
-        setSalesData(chartData);
-      }
+      setSalesData(chartData);
 
       // 3. Category Distribution
       const catCount: Record<string, number> = {};

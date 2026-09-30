@@ -196,7 +196,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               playBeep('error');
               toast.error('This product requires a Serial Number! Please scan the S/N instead.', { duration: 4000 });
             } else {
-              addItemToSale(bestMatch, matchedSerial);
+              addItemToSale(bestMatch, matchedSerial, matchedVariant);
               setProductSearch('');
               playBeep('success');
               toast.success(`Scanned: ${bestMatch.name}`);
@@ -911,7 +911,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                                 />
                               </div>
                             ) : (
-                              <span className="font-bold text-gray-900 block text-xs">{item.name}</span>
+                              <span className="font-bold text-gray-900 block text-xs">{item.name}{(item as any).variantName ? " - " + (item as any).variantName : ""}</span>
                             )}
                             
                             {!item.isCustomService && (

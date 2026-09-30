@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { useSettings } from '../../context/SettingsContext';
@@ -546,7 +546,7 @@ export const Checkout: React.FC = () => {
               <div className="relative flex items-center">
                 <input type="checkbox" name="termsAccepted" checked={formData.termsAccepted} onChange={handleChange} className="w-5 h-5 border-2 border-slate-300 rounded text-[#0E2A47] focus:ring-[#0E2A47] cursor-pointer transition-colors" />
               </div>
-              <span>I have read and agree to the <a href="/terms" className="text-[#0E2A47] font-semibold hover:underline" target="_blank">Terms of Service</a> & Privacy Policy</span>
+              <span>I have read and agree to the <Link to="/terms" className="text-[#0E2A47] font-semibold hover:underline" target="_blank">Terms of Service</Link> & Privacy Policy</span>
             </label>
 
             <button type="submit" disabled={isProcessing} className="bg-gradient-to-r from-[#0E2A47] to-[#1a426e] hover:shadow-xl hover:shadow-[#0E2A47]/20 hover:-translate-y-0.5 text-white font-bold py-4 px-10 rounded-xl text-lg flex items-center gap-3 disabled:opacity-50 disabled:hover:translate-y-0 transition-all min-w-[300px] justify-center group">

@@ -48,22 +48,12 @@ export const EcommerceWishlistAnalytics: React.FC = () => {
       // If we had real data, we'd process it here...
       
     } catch (error) {
-      console.log('Using simulated wishlist data');
-      
-      // Simulated Data
-      const dummyData: WishlistItem[] = [
-        { productId: 'p1', name: 'Mechanical Gaming Keyboard Pro', imageUrl: 'https://images.unsplash.com/photo-1595225476474-87563907a212?w=300&q=80', price: 4500, wishlistCount: 124, recentAdds: 12 },
-        { productId: 'p2', name: 'Wireless Noise-Cancelling Headphones', imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&q=80', price: 12000, wishlistCount: 98, recentAdds: 8 },
-        { productId: 'p3', name: '27" IPS 144Hz Gaming Monitor', imageUrl: 'https://images.unsplash.com/photo-1527443224154-c4a3942d4aff?w=300&q=80', price: 28000, wishlistCount: 86, recentAdds: 15 },
-        { productId: 'p4', name: 'Ergonomic Office Chair', imageUrl: 'https://images.unsplash.com/photo-1505843490538-5133c6c7d0e1?w=300&q=80', price: 15000, wishlistCount: 65, recentAdds: 4 },
-        { productId: 'p5', name: '1TB NVMe M.2 SSD', imageUrl: 'https://images.unsplash.com/photo-1531492746076-161ca9bcad58?w=300&q=80', price: 8500, wishlistCount: 42, recentAdds: 2 },
-      ];
-
-      setWishlistProducts(dummyData);
+      console.log('Error fetching wishlist data', error);
+      setWishlistProducts([]);
       setStats({
-        totalWishlistedProducts: 345,
-        totalUsersWithWishlist: 128,
-        mostWishlisted: 'Mechanical Gaming Keyboard Pro'
+        totalWishlistedProducts: 0,
+        totalUsersWithWishlist: 0,
+        mostWishlisted: 'None'
       });
     } finally {
       setLoading(false);

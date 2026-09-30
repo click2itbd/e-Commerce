@@ -1593,7 +1593,7 @@ export const Settings = () => {
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-2.5 text-gray-500">
-                        à§³
+                        ৳
                       </span>
                       <input
                         type="number"
@@ -1704,14 +1704,14 @@ export const Settings = () => {
                       <p>Wholesale: $10.00 USD</p>
                       <p>Exchange Rate: {apiKeys.usdToBdtRate || 120} BDT/USD</p>
                       <p>Retail USD: ${((10 * (1 + (apiKeys.domainMarkupPercent ?? 15) / 100)).toFixed(2))}</p>
-                      <p className="font-bold">Final BDT: à§³{Math.round(10 * (apiKeys.usdToBdtRate || 120) * (1 + (apiKeys.domainMarkupPercent ?? 15) / 100)).toLocaleString()}</p>
+                      <p className="font-bold">Final BDT: ৳{Math.round(10 * (apiKeys.usdToBdtRate || 120) * (1 + (apiKeys.domainMarkupPercent ?? 15) / 100)).toLocaleString()}</p>
                     </div>
                     <div className="text-xs text-blue-800 space-y-1 font-mono mt-3 pt-3 border-t border-blue-200">
                       <p className="font-bold text-blue-700">Hosting Pricing (margin: {apiKeys.hostingMarkupPercent ?? 35}%)</p>
                       <p>License Cost: $10.00 USD</p>
                       <p>Exchange Rate: {apiKeys.usdToBdtRate || 120} BDT/USD</p>
                       <p>Retail USD: ${((10 * (1 + (apiKeys.hostingMarkupPercent ?? 35) / 100)).toFixed(2))}</p>
-                      <p className="font-bold">Final BDT: à§³{Math.round(10 * (apiKeys.usdToBdtRate || 120) * (1 + (apiKeys.hostingMarkupPercent ?? 35) / 100)).toLocaleString()}</p>
+                      <p className="font-bold">Final BDT: ৳{Math.round(10 * (apiKeys.usdToBdtRate || 120) * (1 + (apiKeys.hostingMarkupPercent ?? 35) / 100)).toLocaleString()}</p>
                     </div>
                   </div>
 

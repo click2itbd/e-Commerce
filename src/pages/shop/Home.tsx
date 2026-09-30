@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
-import { Product } from "../../types";
+import { Product, NavigationMenu } from "../../types";
 import { ProductCard } from "../../components/ProductCard";
 import { Layout } from "../../components/Layout";
 import { HeroBanner } from "../../components/HeroBanner";
@@ -33,117 +33,89 @@ import {
   Testimonials,
 } from "../../components/home/HomeSections";
 
+const getPlaceholder = (slug: string) => {
+  const map: Record<string, string> = {
+    'cpu': 'cpu_placeholder.jpg',
+    'cpu-cooler': 'cooler_placeholder.jpg',
+    'motherboard': 'motherboard_placeholder.jpg',
+    'ram': 'ram_placeholder.jpg',
+    'storage': 'storage_placeholder.jpg',
+    'graphics-card': 'gpu_placeholder.jpg',
+    'power-supply': 'psu_placeholder.jpg',
+    'casing': 'casing_placeholder.jpg',
+    'monitor': 'monitor_placeholder.jpg',
+    'casing-cooler': 'cooler_placeholder.jpg',
+    'keyboard': 'keyboard_placeholder.jpg',
+    'mouse': 'mouse_placeholder.jpg',
+    'speaker': 'speaker_placeholder.jpg',
+    'headphone': 'headphone_placeholder.jpg',
+    'ups': 'ups_placeholder.jpg',
+    'cctv-camera': 'cctv_placeholder.jpg'
+  };
+  return map[slug] ? '/images/placeholders/' + map[slug] : '/images/placeholders/cpu_placeholder.jpg';
+};
+
 export const Home: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { settings } = useSettings();
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const q = query(
-          collection(db, "products"),
-          orderBy("createdAt", "desc"),
-          limit(12),
-        );
-        const querySnapshot = await getDocs(q);
-        const productsData = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Product[];
-        setProducts(productsData);
-      } catch (error) {
-        console.error("Error fetching products:", error);
-      } finally {
-        setLoading(false);
-      }
+    const q = query(
+      collection(db, "products"),
+      orderBy("createdAt", "desc"),
+      limit(12),
+    );
+
+    const unsubscribeProducts = onSnapshot(q, (querySnapshot) => {
+      const productsData = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Product[];
+      setProducts(productsData);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching products:", error);
+      setLoading(false);
+    });
+
+    const menusQuery = query(
+      collection(db, "menus"),
+      orderBy("order", "asc")
+    );
+
+    const unsubscribeMenus = onSnapshot(menusQuery, (querySnapshot) => {
+      const menusData = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as NavigationMenu[];
+      
+      const allItems = menusData.flatMap(menu => {
+        const items = [];
+        items.push({ name: menu.name, slug: menu.slug, imageUrl: menu.imageUrl });
+        if (menu.subCategories) {
+          menu.subCategories.forEach(sub => {
+            items.push({ name: sub.name, slug: sub.slug, imageUrl: sub.imageUrl });
+          });
+        }
+        return items;
+      });
+
+      const displayItems = allItems.filter(item => item.imageUrl).length > 0 
+        ? allItems.filter(item => item.imageUrl) 
+        : allItems.slice(0, 16);
+
+      setCategories(displayItems as any[]);
+    }, (error) => {
+      console.error("Error fetching menus:", error);
+    });
+
+    return () => {
+      unsubscribeProducts();
+      unsubscribeMenus();
     };
-
-    fetchProducts();
   }, []);
-
-  const categories = [
-    {
-      name: "CPU",
-      imageUrl: "/images/placeholders/cpu_placeholder.jpg",
-      slug: "cpu",
-    },
-    {
-      name: "CPU Cooler",
-      imageUrl: "/images/placeholders/cooler_placeholder.jpg",
-      slug: "cpu-cooler",
-    },
-    {
-      name: "Motherboard",
-      imageUrl: "/images/placeholders/motherboard_placeholder.jpg",
-      slug: "motherboard",
-    },
-    {
-      name: "RAM",
-      imageUrl: "/images/placeholders/ram_placeholder.jpg",
-      slug: "ram",
-    },
-    {
-      name: "Storage",
-      imageUrl: "/images/placeholders/storage_placeholder.jpg",
-      slug: "storage",
-    },
-    {
-      name: "Graphics Card",
-      imageUrl: "/images/placeholders/gpu_placeholder.jpg",
-      slug: "graphics-card",
-    },
-    {
-      name: "Power Supply",
-      imageUrl: "/images/placeholders/psu_placeholder.jpg",
-      slug: "power-supply",
-    },
-    {
-      name: "Casing",
-      imageUrl: "/images/placeholders/casing_placeholder.jpg",
-      slug: "casing",
-    },
-    {
-      name: "Monitor",
-      imageUrl: "/images/placeholders/monitor_placeholder.jpg",
-      slug: "monitor",
-    },
-    {
-      name: "Casing Cooler",
-      imageUrl: "/images/placeholders/cooler_placeholder.jpg",
-      slug: "casing-cooler",
-    },
-    {
-      name: "Keyboard",
-      imageUrl: "/images/placeholders/keyboard_placeholder.jpg",
-      slug: "keyboard",
-    },
-    {
-      name: "Mouse",
-      imageUrl: "/images/placeholders/mouse_placeholder.jpg",
-      slug: "mouse",
-    },
-    {
-      name: "Speaker & Home Theater",
-      imageUrl: "/images/placeholders/speaker_placeholder.jpg",
-      slug: "speaker",
-    },
-    {
-      name: "Headphone",
-      imageUrl: "/images/placeholders/headphone_placeholder.jpg",
-      slug: "headphone",
-    },
-    {
-      name: "UPS",
-      imageUrl: "/images/placeholders/ups_placeholder.jpg",
-      slug: "ups",
-    },
-    {
-      name: "CCTV CAMERA",
-      imageUrl: "/images/placeholders/cctv_placeholder.jpg",
-      slug: "cctv-camera",
-    },
-  ];
 
   return (
     <Layout>
@@ -166,15 +138,18 @@ export const Home: React.FC = () => {
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-x-2 gap-y-8">
           {categories.map((cat) => (
             <Link
-              key={cat.name}
-              to={`/category/components/${cat.slug}`}
+              key={cat.id || cat.name}
+              to={`/shop?category=${encodeURIComponent(cat.name)}`}
               className="flex flex-col items-center justify-start gap-3 group cursor-pointer"
             >
               <div className="h-14 w-14 md:h-16 md:w-16 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
                 <img
-                  src={cat.imageUrl}
+                  src={cat.imageUrl || getPlaceholder(cat.slug)}
                   alt={cat.name}
                   className="max-h-full max-w-full object-contain mix-blend-multiply contrast-125 brightness-110"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = getPlaceholder(cat.slug);
+                  }}
                 />
               </div>
               <span className="font-medium text-gray-700 text-[11px] md:text-xs text-center leading-tight group-hover:text-orange-500 transition-colors px-1">
@@ -284,3 +259,4 @@ export const Home: React.FC = () => {
     </Layout>
   );
 };
+

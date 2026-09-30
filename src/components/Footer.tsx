@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Youtube, MapPin, Phone, Mail, Send } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { db } from '../firebase';
@@ -89,10 +90,10 @@ export const Footer: React.FC = () => {
           <div>
             <h3 className="text-lg font-bold mb-4 uppercase tracking-wider">About Us</h3>
             <ul className="flex flex-col gap-2 text-gray-400 text-sm">
-              <li><a href="/emi-terms" className="hover:text-white transition-colors">EMI Terms</a></li>
-              <li><a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a></li>
-              <li><a href="/star-points" className="hover:text-white transition-colors">Star Point Policy</a></li>
-              <li><a href="/brands" className="hover:text-white transition-colors">Brands</a></li>
+              <li><Link to="/emi-terms" className="hover:text-white transition-colors">EMI Terms</Link></li>
+              <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+              <li><Link to="/star-points" className="hover:text-white transition-colors">Star Point Policy</Link></li>
+              <li><Link to="/brands" className="hover:text-white transition-colors">Brands</Link></li>
             </ul>
           </div>
 
@@ -100,10 +101,10 @@ export const Footer: React.FC = () => {
           <div>
             <h3 className="text-lg font-bold mb-4 uppercase tracking-wider">Customer Service</h3>
             <ul className="flex flex-col gap-2 text-gray-400 text-sm">
-              <li><a href="/contact" className="hover:text-white transition-colors">Contact Us</a></li>
-              <li><a href="/online-delivery" className="hover:text-white transition-colors">Online Delivery</a></li>
-              <li><a href="/refund-policy" className="hover:text-white transition-colors">Refund and Return Policy</a></li>
-              <li><a href="/warranty-policy" className="hover:text-white transition-colors">Warranty Policy</a></li>
+              <li><Link to="/contact" className="hover:text-white transition-colors">Contact Us</Link></li>
+              <li><Link to="/online-delivery" className="hover:text-white transition-colors">Online Delivery</Link></li>
+              <li><Link to="/refund-policy" className="hover:text-white transition-colors">Refund and Return Policy</Link></li>
+              <li><Link to="/warranty-policy" className="hover:text-white transition-colors">Warranty Policy</Link></li>
             </ul>
           </div>
 

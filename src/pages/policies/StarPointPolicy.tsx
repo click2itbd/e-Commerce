@@ -1,6 +1,7 @@
-﻿import React from 'react';
+import React from 'react';
 import { Layout } from '../../components/Layout';
 import { SEO } from '../../components/SEO';
+import { Link } from 'react-router-dom';
 import { Star, Gift, Zap, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
 
@@ -37,7 +38,7 @@ const StarPointPolicy = () => {
                     1
                   </div>
                   <h3 className="font-bold text-gray-900 text-base mb-1">Earn Points</h3>
-                  <p className="text-xs text-gray-600">Get 1 Star Point for every à§³100 spent across products & hosting.</p>
+                  <p className="text-xs text-gray-600">Get 1 Star Point for every ৳100 spent across products & hosting.</p>
                 </div>
                 <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl text-center">
                   <div className="w-10 h-10 mx-auto bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg mb-3">
@@ -73,7 +74,7 @@ const StarPointPolicy = () => {
                   2. How to Earn Star Points
                 </h2>
                 <ul className="list-disc pl-6 space-y-2 text-sm text-gray-700">
-                  <li><strong>Standard Purchases:</strong> Earn 1 Star Point for every <strong>à§³100 BDT</strong> spent on eligible products.</li>
+                  <li><strong>Standard Purchases:</strong> Earn 1 Star Point for every <strong>৳100 BDT</strong> spent on eligible products.</li>
                   <li><strong>Hosting & Server Plans:</strong> Earn bonus 2X Star Points on annual, biennial, or triennial cloud hosting package subscriptions.</li>
                   <li><strong>Product Reviews:</strong> Earn 10 bonus Star Points when you submit an approved verified buyer review on our website.</li>
                   <li><strong>Special Promotions:</strong> Earn multiplier points during holiday campaigns, Eid sales, and Black Friday tech promotions.</li>
@@ -88,11 +89,11 @@ const StarPointPolicy = () => {
                 </h2>
                 <div className="bg-white p-4 rounded-xl border border-gray-200 mb-4 inline-block">
                   <p className="font-bold text-lg text-gray-900">
-                    ðŸª™ 1 Star Point = <span className="text-green-600">à§³1.00 BDT Cash Value</span>
+                    ðŸª™ 1 Star Point = <span className="text-green-600">৳1.00 BDT Cash Value</span>
                   </p>
                 </div>
                 <ul className="list-disc pl-6 space-y-2 text-sm text-gray-700">
-                  <li>Minimum points required for redemption: <strong>50 Star Points (à§³50 discount)</strong>.</li>
+                  <li>Minimum points required for redemption: <strong>50 Star Points (৳50 discount)</strong>.</li>
                   <li>Points can be applied at the checkout screen before final payment authorization.</li>
                   <li>Star Points can be combined with active promotional coupon codes unless explicitly restricted by a flash sale campaign.</li>
                   <li>Points are non-transferable between customer accounts and cannot be exchanged directly for liquid cash.</li>
@@ -116,12 +117,12 @@ const StarPointPolicy = () => {
                   <h3 className="font-bold text-lg">Start Earning Points Today!</h3>
                   <p className="text-blue-100 text-xs mt-1">Create an account or login to track your current Star Points balance.</p>
                 </div>
-                <a 
-                  href="/shop" 
+                <Link 
+                  to="/shop" 
                   className="px-5 py-2.5 bg-white text-blue-600 rounded-xl font-bold text-sm hover:bg-blue-50 transition-colors flex items-center gap-2 shrink-0"
                 >
                   Explore Products <ArrowRight size={16} />
-                </a>
+                </Link>
               </div>
             </div>
           </div>

@@ -384,7 +384,7 @@ export default function HostingPlansSection({
                   <div className="mb-6 pb-6 border-b border-gray-100">
                     <p className="text-xs uppercase tracking-wider mb-1 text-gray-400 font-semibold">Starting at</p>
                     <div className="flex items-baseline">
-                      <span className="text-2xl font-bold text-gray-500 mr-1">à§³</span>
+                      <span className="text-2xl font-bold text-gray-500 mr-1">৳</span>
                       <span className={cn("text-4xl sm:text-5xl font-extrabold tracking-tight", isPopular ? "text-blue-600" : "text-gray-900")}>
                         {displayPrice.toLocaleString()}
                       </span>

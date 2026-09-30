@@ -6,7 +6,7 @@ import { CompareBar } from './CompareBar';
 import { useCart } from '../context/CartContext';
 import { getSiteContext } from '../hooks/useSiteContext';
 
-// Navbars � lazy imported to keep bundle clean
+// Navbars ï¿½ lazy imported to keep bundle clean
 import { HostingNavbar } from './navbars/HostingNavbar';
 import { EcommerceNavbar } from './navbars/EcommerceNavbar';
 import { PCBuildNavbar } from './navbars/PCBuildNavbar';
@@ -17,11 +17,13 @@ interface LayoutProps {
 }
 
 function NavbarSelector() {
+  const currentDomain = window.location.hostname;
+  const isHostingDomain = currentDomain === 'click2it.bd' || currentDomain === 'www.click2it.bd' || currentDomain === '127.0.0.1';
   const { pathname } = useLocation();
   const { items } = useCart();
   const siteContext = getSiteContext();
 
-  // ���� Explicitly PC-Build routes ������������������������������������������������������������������������������������
+  // ï¿½ï¿½ï¿½ï¿½ Explicitly PC-Build routes ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   if (
     pathname.startsWith('/pc-build') ||
     pathname.startsWith('/community-builds')
@@ -29,7 +31,7 @@ function NavbarSelector() {
     return <PCBuildNavbar />;
   }
 
-  // ���� Explicitly E-Commerce routes ��������������������������������������������������������������������������������
+  // ï¿½ï¿½ï¿½ï¿½ Explicitly E-Commerce routes ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   if (
     pathname.startsWith('/shop') ||
     pathname.startsWith('/category') ||
@@ -37,12 +39,14 @@ function NavbarSelector() {
     pathname.startsWith('/wishlist') ||
     pathname.startsWith('/search') ||
     pathname.startsWith('/pre-book') ||
-    pathname.startsWith('/track-order')
+    pathname.startsWith('/track-order') ||
+    pathname.startsWith('/exclusive-deals') ||
+    (!isHostingDomain && pathname === '/')
   ) {
     return <EcommerceNavbar />;
   }
 
-  // ���� Hosting-own cart & checkout ����������������������������������������������������������������������������������
+  // ï¿½ï¿½ï¿½ï¿½ Hosting-own cart & checkout ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   if (
     pathname.startsWith('/hosting/cart') ||
     pathname.startsWith('/hosting/checkout')
@@ -50,7 +54,7 @@ function NavbarSelector() {
     return <HostingNavbar />;
   }
 
-  // ���� Shared routes: use whichever site the user came from ����������������������������������
+  // ï¿½ï¿½ï¿½ï¿½ Shared routes: use whichever site the user came from ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   // (cart, checkout, order-success, profile, payment, login)
   if (
     pathname.startsWith('/cart') ||
@@ -78,7 +82,7 @@ function NavbarSelector() {
     return <HostingNavbar />;
   }
 
-  // ���� Hosting routes (default) ������������������������������������������������������������������������������������������
+  // ï¿½ï¿½ï¿½ï¿½ Hosting routes (default) ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   return <HostingNavbar />;
 }
 
@@ -95,3 +99,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) =
     </div>
   );
 };
+
+
+
+

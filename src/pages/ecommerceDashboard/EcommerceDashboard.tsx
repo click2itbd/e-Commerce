@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { BannersManagerTab } from '../admin/tabs/marketing/BannersManagerTab';
+import { AdminNotifications } from '../../components/AdminNotifications';
+const NotificationsPage = lazy(() => import('../admin/tabs/notifications/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
 import { toast } from 'react-hot-toast';
 
 // Lazy loaded components
@@ -316,6 +318,7 @@ const EcommerceDashboard: React.FC = () => {
               </div>
               <span className="hidden sm:inline-block">{user?.email}</span>
             </div>
+            <AdminNotifications setActiveTab={setActiveTab as any} />
           </div>
         </header>
 

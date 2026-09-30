@@ -407,6 +407,19 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                               <span className="block text-[10px] text-slate-500">Highlight on store homepage</span>
                             </div>
                           </label>
+
+                          <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={formData.isExclusiveDeal || false}
+                              onChange={e => setFormData({ ...formData, isExclusiveDeal: e.target.checked })}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                            />
+                            <div>
+                              <span className="block text-sm font-bold text-slate-800">Exclusive Deal</span>
+                              <span className="block text-[10px] text-slate-500">Show on exclusive deals page</span>
+                            </div>
+                          </label>
                           
                           <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                             <input 

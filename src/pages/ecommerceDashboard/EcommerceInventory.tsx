@@ -313,6 +313,10 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
                       Featured Product
                     </label>
                     <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                      <input type="checkbox" checked={formData.isExclusiveDeal || false} onChange={e => setFormData({...formData, isExclusiveDeal: e.target.checked})} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                      Exclusive Deal
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
                       <input type="checkbox" checked={formData.isFreeShipping || false} onChange={e => setFormData({...formData, isFreeShipping: e.target.checked})} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                       Free Shipping
                     </label>

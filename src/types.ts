@@ -50,6 +50,7 @@ export interface Product {
   isNewArrival?: boolean;
   isBestSeller?: boolean;
   isFlashSale?: boolean;
+  isExclusiveDeal?: boolean;
   discountPrice?: number;
   shortDescription?: string;
   tags?: string[];
@@ -161,6 +162,7 @@ export interface SubCategory {
   name: string;
   slug: string;
   brands?: string[];
+  imageUrl?: string;
 }
 
 export interface NavigationMenu {

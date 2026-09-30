@@ -161,7 +161,7 @@ export const RetailPOS = () => {
                 playBeep('error');
                 toast.error('This product requires a Serial Number! Please scan the S/N instead.', { duration: 4000 });
               } else {
-                addToCart(bestMatch, matchedSerial);
+                addToCart(bestMatch, matchedSerial, matchedVariant);
                 setSearchQuery('');
                 playBeep('success');
                 toast.success(`Scanned: ${bestMatch.name}`);

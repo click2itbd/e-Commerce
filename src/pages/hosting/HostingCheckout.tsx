@@ -879,7 +879,7 @@ export const HostingCheckout: React.FC = () => {
                         <CheckCircle className="w-3.5 h-3.5 text-white absolute opacity-0 scale-50 peer-checked:opacity-100 peer-checked:scale-100 transition-all pointer-events-none" />
                       </div>
                       <span className="text-sm text-gray-600 leading-tight">
-                        I have read and agree to the <a href="/terms" target="_blank" className="text-blue-600 hover:underline">Terms of Service</a> and <a href="/privacy" target="_blank" className="text-blue-600 hover:underline">Privacy Policy</a>.
+                        I have read and agree to the <Link to="/terms" target="_blank" className="text-blue-600 hover:underline">Terms of Service</Link> and <Link to="/privacy" target="_blank" className="text-blue-600 hover:underline">Privacy Policy</Link>.
                       </span>
                     </label>
                   </div>

@@ -34,22 +34,6 @@ export const EcommerceAbandonedCarts: React.FC = () => {
       setCarts(data);
     } catch (error) {
       console.error('Error fetching abandoned carts:', error);
-      // Dummy data if collection is empty/doesn't exist
-      if (carts.length === 0) {
-        setCarts([
-          {
-            id: 'dummy-1',
-            userId: 'user-1',
-            userEmail: 'customer@example.com',
-            userName: 'Test User',
-            items: [
-              { product: { id: 'p1', name: 'Gaming Mouse', price: 2500, images: [] }, quantity: 1, variantId: null } as any
-            ],
-            total: 2500,
-            updatedAt: new Date(Date.now() - 3600000 * 5).toISOString() // 5 hours ago
-          }
-        ]);
-      }
     } finally {
       setLoading(false);
     }

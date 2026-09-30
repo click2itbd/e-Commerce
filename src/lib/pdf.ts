@@ -1,5 +1,3 @@
-import { logoBase64 } from './logoBase64';
-
 import { Order, Transaction, SiteSettings } from '../types';
 import { formatCurrency } from './utils';
 
@@ -59,299 +57,272 @@ export const generatePDF = async (order: Order | Transaction, type: 'invoice' | 
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
   const doc = new jsPDF('p', 'mm', 'a4'); 
-  let currentY = 15;
   const pageWidth = doc.internal.pageSize.getWidth();
-  const useLetterhead = settings?.documentDesign?.printOnLetterhead;
+  
+  let currentY = 20;
 
-  // ----- HEADER -----
-  if (!useLetterhead) {
-    try {
-      doc.addImage(logoBase64, 'PNG', 20, currentY, 25, 20);
-    } catch(e) {
-      doc.setFontSize(26);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(30, 58, 138); // Deep Blue
-      doc.text(settings?.brandName || 'CLICK2IT BD', 20, currentY + 10);
-    }
-    
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Shop No. 1072, Level-10, Multiplan Center', 20, currentY + 25);
-    doc.text('69-71, New Elephant Road, Dhaka-1205, Bangladesh.', 20, currentY + 29);
-    doc.text('Phone: 01916618866, 01712258259 | Web: click2itbd.com', 20, currentY + 33);
-  } else {
-    currentY += 30; // Extra shift for letterhead
-  }
+  // Header Title
+  doc.setFontSize(28);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(type.toUpperCase(), 15, currentY + 10);
 
-  // Document Title Box
-  doc.setFillColor(30, 58, 138); // Deep Blue
-  doc.rect(pageWidth - 70, currentY - 5, 50, 14, 'F');
+  // Company Info (Right Aligned)
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
-  doc.text(type.toUpperCase(), pageWidth - 45, currentY + 4, { align: 'center' });
+  doc.setTextColor(71, 85, 105);
 
-  currentY += 45;
+  try {
+    const urlsToTry = [settings?.logoUrl, '/logo.png'].filter(Boolean);
+    let dataUrl = '';
+    let loadedImg: HTMLImageElement | null = null;
 
-  // ----- CUSTOMER & DOC INFO -----
-  doc.setDrawColor(220, 220, 220);
-  doc.setLineWidth(0.5);
-  doc.line(20, currentY - 5, pageWidth - 20, currentY - 5);
+    for (const url of urlsToTry) {
+      if (!url) continue;
+      try {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        await new Promise((resolve, reject) => {
+          img.onload = () => resolve(true);
+          img.onerror = reject;
+          img.src = url;
+        });
 
-  doc.setFontSize(10);
-  doc.setTextColor(80, 80, 80);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          dataUrl = canvas.toDataURL('image/png');
+          loadedImg = img;
+          break; // successfully loaded
+        }
+      } catch (e) {
+        console.warn(`Failed to load logo from ${url}`, e);
+      }
+    }
+
+    if (loadedImg && dataUrl) {
+      const textWidth = doc.getTextWidth('CLICK 2 IT');
+      const logoHeight = 14;
+      const logoWidth = (loadedImg.width / loadedImg.height) * logoHeight;
+      doc.addImage(dataUrl, 'PNG', pageWidth - 15 - textWidth - logoWidth - 3, currentY - 10, logoWidth, logoHeight);
+    }
+  } catch (err) {
+    console.error('Error in logo processing for PDF', err);
+  }
+
+  doc.text('CLICK 2 IT', pageWidth - 15, currentY, { align: 'right' });
   
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Shop No. 1072, Level 10, Multiplan Center', pageWidth - 15, currentY + 6, { align: 'right' });
+  doc.text('69-71, New Elephant Road, Dhaka-1205', pageWidth - 15, currentY + 11, { align: 'right' });
+  doc.text('+8801916618866, +8801712258259', pageWidth - 15, currentY + 16, { align: 'right' });
+  doc.text('www.click2itbd.com', pageWidth - 15, currentY + 21, { align: 'right' });
+
+  currentY += 40;
+
   if (type === 'receipt') {
     const tx = order as Transaction;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Bill To:', 20, currentY + 5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    doc.text(tx.entityName, 20, currentY + 11);
+    doc.setFillColor(248, 249, 250);
+    doc.rect(15, currentY, pageWidth - 30, 40, 'F');
     
-    doc.setTextColor(80, 80, 80);
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('Receipt Details:', pageWidth - 80, currentY + 5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Receipt No: ${tx.referenceId}`, pageWidth - 80, currentY + 11);
-    doc.text(`Date: ${new Date(tx.date).toLocaleDateString()}`, pageWidth - 80, currentY + 17);
-    currentY += 30;
+    doc.setTextColor(15, 23, 42);
+    doc.text('Bill To:', 20, currentY + 8);
+    doc.text(tx.entityName, 20, currentY + 20);
     
-    // Rect box for receipt amount
-    doc.setFillColor(245, 245, 245);
-    doc.rect(20, currentY, pageWidth - 40, 20, 'F');
+    doc.text('Receipt Details:', pageWidth / 2 + 5, currentY + 8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Receipt No: ${tx.referenceId}`, pageWidth / 2 + 5, currentY + 20);
+    doc.text(`Date: ${new Date(tx.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, pageWidth / 2 + 5, currentY + 26);
+    
+    currentY += 55;
+    
+    doc.setFillColor(248, 249, 250);
+    doc.rect(15, currentY, pageWidth - 30, 20, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.text('Amount Received:', 30, currentY + 13);
-    doc.setTextColor(30, 58, 138);
-    doc.text(formatCurrency(tx.amount, settings), pageWidth - 70, currentY + 13);
-    
+    doc.text('Amount Received:', 20, currentY + 13);
+    doc.text(formatCurrency(tx.amount, settings), pageWidth - 20, currentY + 13, { align: 'right' });
     currentY += 40;
   } else {
     const o = order as Order;
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(100, 100, 100);
-    doc.text(type === 'challan' ? 'Ship To:' : 'Bill To:', 20, currentY + 5);
     
-    doc.setFontSize(12);
+    // Light Grey Box Backgrounds
+    doc.setFillColor(248, 250, 252);
+    
+    // Left Box - Bill To
+    doc.rect(15, currentY, (pageWidth - 30) / 2, 45, 'F');
+    // Right Box - Details
+    doc.rect(15 + (pageWidth - 30) / 2, currentY, (pageWidth - 30) / 2, 45, 'F');
+    
+    // Vertical Divider Line (Subtle)
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(15 + (pageWidth - 30) / 2, currentY, 15 + (pageWidth - 30) / 2, currentY + 45);
+
+    // Box 1 (Left) Content
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text(o.customerName, 20, currentY + 12);
+    doc.setTextColor(15, 23, 42);
+    doc.text(type === 'challan' ? 'Ship To:' : 'Bill To:', 20, currentY + 10);
+    
+    doc.text(o.customerName || 'N/A', 20, currentY + 22);
     
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(80, 80, 80);
-    doc.text(o.customerPhone, 20, currentY + 17);
+    doc.setTextColor(71, 85, 105);
+    const splitAddr = doc.splitTextToSize(o.shippingAddress || o.customerPhone || 'N/A', ((pageWidth - 30) / 2) - 10);
+    doc.text(splitAddr, 20, currentY + 28);
     
-    let addressY = currentY + 22;
-    if (type === 'challan') {
-      const addressText = doc.splitTextToSize(`Address: ${o.shippingAddress || 'N/A'}`, 80);
-      doc.text(addressText, 20, addressY);
-      addressY += (addressText.length * 5);
-    } else if (o.paymentMethod === 'cod') {
-      doc.text('Address: Pay On Delivery', 20, addressY);
-      addressY += 5;
-    }
-
+    // Box 2 (Right) Content
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    let detailsLabel = 'Invoice Details:';
-    if (type === 'quotation') detailsLabel = 'Quote Details:';
-    if (type === 'challan') detailsLabel = 'Challan Details:';
+    doc.setTextColor(15, 23, 42);
+    doc.text(type.charAt(0).toUpperCase() + type.slice(1) + ' Details:', 15 + (pageWidth - 30) / 2 + 5, currentY + 10);
     
-    doc.text(detailsLabel, pageWidth - 80, currentY + 5);
+    doc.setFontSize(10);
+    doc.text(`${type.charAt(0).toUpperCase() + type.slice(1)} No: `, 15 + (pageWidth - 30) / 2 + 5, currentY + 22);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Doc No: ${o.documentNumber || o.id.substring(0, 8).toUpperCase()}`, pageWidth - 80, currentY + 11);
-    doc.text(`Date: ${new Date(o.createdAt).toLocaleDateString()}`, pageWidth - 80, currentY + 17);
-    currentY = Math.max(addressY, currentY + 20) + 10;
+    doc.text(`${o.documentNumber || o.id.substring(0, 8).toUpperCase()}`, 15 + (pageWidth - 30) / 2 + 30, currentY + 22);
     
-    // Table
-    const tableData = o.items.map(item => {
-      let nameDesc = item.name;
-      if (item.hasSerialTracking && type !== 'quotation') {
-        const serials = item.selectedSerials?.join(', ') || 'N/A';
-        nameDesc += `\nSN: ${serials}`;
-        if (item.warrantyMonths && item.warrantyMonths > 0) {
-          const warrantyEnd = new Date(o.createdAt);
-          warrantyEnd.setMonth(warrantyEnd.getMonth() + item.warrantyMonths);
-          nameDesc += `\nWarranty: ${item.warrantyMonths} Months`;
-        }
+    doc.setFont('helvetica', 'bold');
+    doc.text('Date: ', 15 + (pageWidth - 30) / 2 + 5, currentY + 28);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${new Date(o.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, 15 + (pageWidth - 30) / 2 + 18, currentY + 28);
+    
+    currentY += 55;
+    
+    // Table Data
+    const tableData = o.items.map((item: any, idx: number) => {
+      let desc = item.description || '-';
+      // Strip HTML if exists
+      desc = desc.replace(/<[^>]+>/g, '').trim();
+      if (desc.length > 50) desc = desc.substring(0, 47) + '...';
+      
+      let warranty = '-';
+      if (item.warrantyMonths) {
+        warranty = `${item.warrantyMonths} Months`;
+      } else if (item.specs?.Warranty) {
+        warranty = item.specs.Warranty;
       }
+      
       return [
-        nameDesc,
+        (idx + 1).toString(),
+        item.name,
+        desc,
+        item.brand || '-',
         item.quantity.toString(),
-        type === 'challan' ? '-' : formatCurrency(item.price, settings),
-        type === 'challan' ? '-' : formatCurrency(item.price * item.quantity, settings)
+        type === 'challan' ? '-' : item.price.toFixed(2),
+        warranty,
+        type === 'challan' ? '-' : (item.price * item.quantity).toFixed(2)
       ];
     });
-    
+
     autoTable(doc, {
       startY: currentY,
-      head: [['Product Description', 'Qty', 'Unit Price', 'Total']],
+      head: [['S.N.', 'Product Name', 'Description', 'Brand', 'Unit', 'Unit Price', 'Warranty', 'Total (TK.)']],
       body: tableData,
-      theme: 'striped',
-      headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
-      styles: { fontSize: 9, cellPadding: 4 },
+      theme: 'plain',
+      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', halign: 'center' },
+      styles: { fontSize: 8, cellPadding: 2, textColor: [15, 23, 42] },
       columnStyles: {
-        1: { halign: 'center' },
-        2: { halign: 'right' },
-        3: { halign: 'right' }
+        0: { halign: 'center', cellWidth: 12 },
+        1: { halign: 'left', cellWidth: 45 },
+        2: { halign: 'left', cellWidth: 40 },
+        3: { halign: 'center', cellWidth: 16 },
+        4: { halign: 'center', cellWidth: 12 },
+        5: { halign: 'right', cellWidth: 18 },
+        6: { halign: 'center', cellWidth: 16 },
+        7: { halign: 'right', cellWidth: 21 }
+      },
+      didDrawCell: (data: any) => {
+        // Draw bottom border for rows
+        if (data.row.section === 'body') {
+          doc.setDrawColor(226, 232, 240);
+          doc.setLineWidth(0.1);
+          doc.line(data.cell.x, data.cell.y + data.cell.height, data.cell.x + data.cell.width, data.cell.y + data.cell.height);
+        }
       }
     });
     
     if (type !== 'challan') {
-      const finalY = (doc as any).lastAutoTable.finalY + 10;
-      doc.setFontSize(10);
+      let finalY = (doc as any).lastAutoTable.finalY + 15;
       
       const subtotal = o.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
       const discount = o.discountAmount || 0;
       
-      const totalsX = pageWidth - 90;
-      const alignRightX = pageWidth - 14;
-
-      doc.setTextColor(80, 80, 80);
-      doc.text('Subtotal:', totalsX, finalY);
-      doc.setTextColor(0, 0, 0);
-      doc.text(formatCurrency(subtotal, settings), alignRightX, finalY, { align: 'right' });
+      const alignRightX = pageWidth - 15;
       
-      let currTotalY = finalY;
+      doc.setFontSize(11);
       
       if (discount > 0) {
-        currTotalY += 7;
-        doc.setTextColor(80, 80, 80);
-        doc.text('Discount:', totalsX, currTotalY);
-        doc.setTextColor(220, 38, 38); // Red
-        doc.text(`-${formatCurrency(discount, settings)}`, alignRightX, currTotalY, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        doc.text('Subtotal:', pageWidth - 60, finalY);
+        doc.text(subtotal.toFixed(2), alignRightX, finalY, { align: 'right' });
+        finalY += 7;
+        
+        doc.text('Discount:', pageWidth - 60, finalY);
+        doc.text(`-${discount.toFixed(2)}`, alignRightX, finalY, { align: 'right' });
+        finalY += 7;
       }
       
-      currTotalY += 10;
-      doc.setDrawColor(220, 220, 220);
-      doc.line(totalsX, currTotalY - 6, alignRightX, currTotalY - 6);
-      
-      doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(30, 58, 138);
-      doc.text('Total:', totalsX, currTotalY);
-      doc.text(formatCurrency(o.total, settings), alignRightX, currTotalY, { align: 'right' });
+      doc.text('Total TK.', pageWidth - 60, finalY);
+      doc.text(Number(o.total).toFixed(2), alignRightX, finalY, { align: 'right' });
+      
+      finalY += 20;
 
-      // Amount in words
+      // Amount in words Box
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.5);
+      doc.rect(15, finalY, pageWidth - 30, 12, 'FD');
+      
       doc.setFontSize(10);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(100, 100, 100);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text('Taka In Word: ', 20, finalY + 8);
+      
       const words = amountToWords(o.total);
       if (words) {
-        doc.text(`In Words: ${words} Taka Only`, 20, currTotalY);
-      }
-      
-      if (type === 'invoice') {
-        const paidAmt = Number(o.paidAmount || 0);
-        const totalAmt = Number(o.total || 0);
-        const dueAmt = Math.max(0, totalAmt - paidAmt);
-        
-        currTotalY += 8;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(80, 80, 80);
-        doc.text('Paid Amount:', totalsX, currTotalY);
-        doc.setTextColor(22, 163, 74); // Green
-        doc.text(formatCurrency(paidAmt, settings), alignRightX, currTotalY, { align: 'right' });
-        
-        if (dueAmt > 0) {
-          currTotalY += 7;
-          doc.setTextColor(80, 80, 80);
-          doc.text('Due Amount:', totalsX, currTotalY);
-          doc.setTextColor(220, 38, 38); // Red
-          doc.text(formatCurrency(dueAmt, settings), alignRightX, currTotalY, { align: 'right' });
-        }
-
-        currTotalY += 12;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        
-        if (paidAmt === 0) {
-          doc.setTextColor(220, 38, 38); // Red
-          doc.text('UNPAID / FULL DUE', alignRightX, currTotalY, { align: 'right' });
-        } else if (o.paymentMethod) {
-          doc.setTextColor(22, 163, 74); // Green
-          const methodDisplay = o.paymentMethod === 'cod' ? 'CASH ON DELIVERY' : `PAID VIA ${o.paymentMethod.toUpperCase()}`;
-          doc.text(methodDisplay, alignRightX, currTotalY, { align: 'right' });
-          if (o.paymentReference) {
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(100, 100, 100);
-            doc.text(`Ref: ${o.paymentReference}`, alignRightX, currTotalY + 5, { align: 'right' });
-          }
-        }
-      }
-
-      // Notes & Terms
-      let currentBottomY = currTotalY + 15;
-      if (o.notes || o.termsAndConditions) {
-        if (o.notes) {
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(30, 58, 138);
-          doc.text('Notes:', 20, currentBottomY);
-          currentBottomY += 5;
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(80, 80, 80);
-          const splitNotes = doc.splitTextToSize(o.notes, 120);
-          doc.text(splitNotes, 20, currentBottomY);
-          currentBottomY += (splitNotes.length * 4) + 5;
-        }
-
-        if (o.termsAndConditions) {
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(30, 58, 138);
-          doc.text('Terms & Conditions:', 20, currentBottomY);
-          currentBottomY += 5;
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(80, 80, 80);
-          const splitTerms = doc.splitTextToSize(o.termsAndConditions, 120);
-          doc.text(splitTerms, 20, currentBottomY);
-        }
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Taka ${words} Only`, 48, finalY + 8);
       }
     }
   }
 
-  // Signatures
-  if (type === 'invoice' || type === 'challan' || type === 'quotation') {
-    const sigY = doc.internal.pageSize.getHeight() - 35;
-    doc.setDrawColor(180, 180, 180);
-    doc.setLineWidth(0.5);
-    
-    // Customer Signature
-    doc.line(20, sigY, 70, sigY);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Customer Signature', 45, sigY + 5, { align: 'center' });
-
-    // Authorized Signature
-    doc.line(pageWidth - 70, sigY, pageWidth - 20, sigY);
-    doc.text('Authorized Signature', pageWidth - 45, sigY + 5, { align: 'center' });
-  }
-
-  // Footer
-  const footerY = doc.internal.pageSize.getHeight() - 20;
-  doc.setDrawColor(220, 220, 220);
-  doc.line(20, footerY, pageWidth - 20, footerY);
-  doc.setFontSize(8);
+  // Footer / Signatures
+  const bottomY = doc.internal.pageSize.getHeight() - 40;
+  
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(0.5);
+  
+  // Authorized Signature
+  doc.line(15, bottomY, 70, bottomY);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(150, 150, 150);
-  
-  const orderDate = (order as any).createdAt || (order as any).date;
-  if (orderDate) {
-    doc.text(`Order Date: ${new Date(orderDate).toLocaleString()}`, pageWidth / 2, footerY + 4, { align: 'center' });
+  doc.setTextColor(15, 23, 42);
+  doc.text('Authorized Signature', 15, bottomY + 5);
+
+  // Customer Signature
+  if (type === 'invoice' || type === 'challan' || type === 'quotation') {
+    doc.line(pageWidth - 70, bottomY, pageWidth - 15, bottomY);
+    doc.text('Customer Signature', pageWidth - 15, bottomY + 5, { align: 'right' });
   }
-  
-  doc.text('Thank you for your business!', pageWidth / 2, footerY + 8, { align: 'center' });
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, footerY + 12, { align: 'center' });
+
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text('* Note: There is no warranty in case of Burning or Physical Damages.', 15, bottomY + 20);
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('THANK YOU FOR YOUR BUSINESS', pageWidth / 2, bottomY + 30, { align: 'center' });
 
   if ((order as any)._autoPrint) {
     doc.autoPrint();
@@ -367,7 +338,7 @@ export const generatePDF = async (order: Order | Transaction, type: 'invoice' | 
       setTimeout(() => { iframe.contentWindow?.print(); }, 100);
     };
   } else if (action === 'download') {
-    doc.save(type + '_' + (data.id || '') + '.pdf');
+    doc.save(type + '_' + (order.id || '') + '.pdf');
   }
   
   return doc;

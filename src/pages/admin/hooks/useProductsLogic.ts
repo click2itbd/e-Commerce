@@ -27,6 +27,7 @@ export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, se
     warrantyMonths: 0,
     showInStore: true,
     isFeatured: false,
+    isExclusiveDeal: false,
     discountPrice: undefined as number | undefined,
     shortDescription: '',
     tags: [] as string[],
@@ -81,6 +82,7 @@ export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, se
             warrantyMonths: 0,
             showInStore: true,
             isFeatured: false,
+            isExclusiveDeal: false,
             discountPrice: undefined,
             shortDescription: '',
             tags: []

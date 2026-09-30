@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { doc, getDoc, collection, query, orderBy, limit, getDocs, addDoc, where } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, limit, getDocs, addDoc, where, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { Product, Review } from '../../types';
+import { useSettings } from '../../context/SettingsContext';
 import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -13,6 +14,7 @@ import { ProductCard } from '../../components/ProductCard';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 
 export const ProductDetails: React.FC = () => {
+  const { settings } = useSettings();
   const { id } = useParams<{ id: string }>();
   const { addToCompare, isInCompare } = useCompare();
   const [product, setProduct] = useState<Product | null>(null);
@@ -40,55 +42,59 @@ export const ProductDetails: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchProduct = async () => {
-      if (!id) return;
-      try {
-        const docSnap = await getDoc(doc(db, 'products', id));
-        if (docSnap.exists()) {
-          const pData = { id: docSnap.id, ...docSnap.data() } as Product;
-          setProduct(pData);
-          setMainImage(pData.images?.[0] || '');
-          addRecentlyViewed(pData);
-          
-          // Fetch related
-          try {
-            const q = query(
-              collection(db, 'products'),
-              where('category', '==', pData.category),
-              limit(5)
-            );
-            const rSnap = await getDocs(q);
+    if (!id) return;
+
+    let unsubRelated: (() => void) | undefined;
+    let unsubReviews: (() => void) | undefined;
+
+    const unsubProduct = onSnapshot(doc(db, 'products', id), (docSnap) => {
+      if (docSnap.exists()) {
+        const pData = { id: docSnap.id, ...docSnap.data() } as Product;
+        setProduct(pData);
+        if (!mainImage) setMainImage(pData.images?.[0] || '');
+        addRecentlyViewed(pData);
+
+        if (!unsubRelated) {
+          const qRelated = query(
+            collection(db, 'products'),
+            where('category', '==', pData.category),
+            limit(5)
+          );
+          unsubRelated = onSnapshot(qRelated, (rSnap) => {
             const related = rSnap.docs
               .map(d => ({ id: d.id, ...d.data() } as Product))
               .filter(p => p.id !== pData.id)
               .slice(0, 4);
             setRelatedProducts(related);
-          } catch(err) {
-            console.error('Error fetching related products:', err);
-          }
-
-          // Fetch approved reviews
-          try {
-            const qRev = query(
-              collection(db, 'reviews'),
-              where('productId', '==', pData.id),
-              where('status', '==', 'approved'),
-              orderBy('createdAt', 'desc')
-            );
-            const revSnap = await getDocs(qRev);
-            setReviews(revSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review)));
-          } catch(err) {
-            console.error('Error fetching reviews:', err);
-          }
+          });
         }
-      } catch (error) {
-        console.error('Error fetching product:', error);
-      } finally {
+
+        if (!unsubReviews) {
+          const qRev = query(
+            collection(db, 'reviews'),
+            where('productId', '==', pData.id),
+            where('status', '==', 'approved'),
+            orderBy('createdAt', 'desc')
+          );
+          unsubReviews = onSnapshot(qRev, (revSnap) => {
+            setReviews(revSnap.docs.map(d => ({ id: d.id, ...d.data() } as Review)));
+          });
+        }
+        setLoading(false);
+      } else {
+        setProduct(null);
         setLoading(false);
       }
-    };
+    }, (error) => {
+      console.error('Error fetching product:', error);
+      setLoading(false);
+    });
 
-    fetchProduct();
+    return () => {
+      unsubProduct();
+      if (unsubRelated) unsubRelated();
+      if (unsubReviews) unsubReviews();
+    };
   }, [id]);
 
   if (loading) {
@@ -178,7 +184,7 @@ export const ProductDetails: React.FC = () => {
   };
 
   const displayPrice = product.discountPrice || product.price;
-  const sku = product.id.slice(0, 8).toUpperCase();
+  const sku = product.sku || product.id.slice(0, 8).toUpperCase();
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,11 +235,14 @@ export const ProductDetails: React.FC = () => {
           
           {/* Left: Images */}
           <div className="w-full lg:w-5/12 flex flex-col gap-4">
-            <div className="aspect-square border border-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-4 relative group cursor-crosshair">
+            <div 
+              className="aspect-square border border-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-4 relative group cursor-zoom-in hover:shadow-md transition-shadow"
+              onClick={() => setIsImageZoomed(true)}
+            >
               <img
                 src={product.images?.[selectedImage] || product.images?.[0] || undefined}
                 alt={product.name}
-                className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-150"
+                className="w-full h-full object-contain transition-transform duration-500"
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -308,7 +317,7 @@ export const ProductDetails: React.FC = () => {
               <div className="flex items-center gap-2 text-gray-700">
                 <span className="font-bold">Availability:</span> 
                 {!product.isOutOfStock ? (
-                  <span className="font-bold text-green-600">Online Order</span>
+                  <span className="font-bold text-green-600">In Stock</span>
                 ) : (
                   <span className="font-bold text-red-600">Out of Stock</span>
                 )}
@@ -378,7 +387,7 @@ export const ProductDetails: React.FC = () => {
 
             {/* Info Cards */}
             <div className="space-y-3">
-              <div className="bg-green-50 border border-green-100 p-3 rounded-md flex items-center text-sm font-bold text-green-700 cursor-pointer hover:bg-green-100 transition-colors" onClick={() => window.open('https://wa.me/1234567890', '_blank')}>
+              <div className="bg-green-50 border border-green-100 p-3 rounded-md flex items-center text-sm font-bold text-green-700 cursor-pointer hover:bg-green-100 transition-colors" onClick={() => window.open(settings?.contactPhone ? `https://wa.me/${settings.contactPhone.replace(/[^0-9]/g, '')}` : '', '_blank')}>
                 <img src="https://img.icons8.com/color/48/whatsapp--v1.png" className="w-5 h-5 mr-2" alt="whatsapp" />
                 Order via Whatsapp
               </div>
@@ -691,51 +700,6 @@ export const ProductDetails: React.FC = () => {
             </div>
           </div>
 
-        </div>
-
-        {/* Promotional Banner */}
-        <div className="mt-16 mb-8 relative rounded-3xl overflow-hidden shadow-2xl group min-h-[280px] flex items-center">
-          <div className="absolute inset-0">
-            <img 
-              src="https://images.unsplash.com/photo-1610812389658-0639d675bda0?q=80&w=2000&auto=format&fit=crop" 
-              alt="Build PC" 
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-gray-900/80 to-transparent"></div>
-            <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 md:hidden"></div>
-          </div>
-          
-          <div className="relative z-10 w-full p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8">
-            <div className="flex flex-col items-center md:items-start text-center md:text-left">
-              <div className="inline-block px-4 py-1.5 rounded-full bg-orange-500/20 border border-orange-500/30 text-orange-400 font-bold text-xs mb-4 uppercase tracking-wider backdrop-blur-sm">
-                Custom PC Builder
-              </div>
-              <h3 className="text-3xl md:text-4xl font-black text-white mb-4 leading-tight drop-shadow-lg">
-                Build Your Dream <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-400">PC Today</span>
-              </h3>
-              <p className="text-gray-300 mb-8 max-w-md text-sm md:text-base">
-                Design the ultimate gaming or workstation rig. Use our intelligent PC builder to ensure 100% component compatibility.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center gap-4">
-                <Link to="/pc-builder" className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white font-bold px-8 py-3.5 rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all transform hover:-translate-y-0.5">
-                  Start Building <ChevronRight size={18} />
-                </Link>
-                <span className="text-xs text-gray-400 font-semibold tracking-wide uppercase">
-                  Gaming â€¢ Components â€¢ Accessories
-                </span>
-              </div>
-            </div>
-            
-            <div className="hidden lg:block relative z-10">
-              <div className="w-56 h-56 rounded-full border-2 border-orange-500/30 flex items-center justify-center relative">
-                <div className="absolute inset-0 rounded-full border border-orange-400/20 animate-ping" style={{ animationDuration: '3s' }}></div>
-                <div className="w-48 h-48 bg-gradient-to-br from-gray-800 to-gray-900 rounded-full flex flex-col items-center justify-center border border-gray-700 shadow-2xl overflow-hidden">
-                   <div className="text-orange-500 font-black text-3xl mb-1 tracking-tighter">CLICK2IT</div>
-                   <div className="text-gray-400 text-[10px] font-bold tracking-widest uppercase">PC Builder</div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Frequently Bought Together (FBT) / Combo Offer */}

@@ -37,23 +37,6 @@ export const EcommerceReturns: React.FC = () => {
       setReturns(data);
     } catch (error) {
       console.error('Error fetching returns:', error);
-      // Dummy data for preview if collection doesn't exist yet
-      if (returns.length === 0) {
-        setReturns([
-          {
-            id: 'RET-1234',
-            orderId: 'ORD-9876',
-            customerName: 'Rahim Uddin',
-            customerEmail: 'rahim@example.com',
-            customerPhone: '01711223344',
-            productName: 'Mechanical Keyboard X1',
-            reason: 'Defective product, keys are not working properly.',
-            status: 'pending',
-            createdAt: new Date().toISOString(),
-            refundAmount: 4500
-          }
-        ]);
-      }
     } finally {
       setLoading(false);
     }

@@ -71,7 +71,7 @@ const CANONICAL_WP_PLANS = [
     features: [
       '30 GB NVMe SSD Storage',
       'Unlimited Hosted Domains',
-      '2 vCPU &à§³  GB RAM',
+      '2 vCPU &৳  GB RAM',
       'LiteSpeed + Redis Cache',
       'CloudLinux OS & CageFS',
       'Free SSL Certificate',
@@ -268,7 +268,7 @@ export default function WordPressCloudSection() {
                   {/* Price Block */}
                   <div className="pb-5 mb-6 border-b border-gray-700/60">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-3xl md:text-4xl font-black text-white">à§³ {price.toLocaleString()}</span>
+                        <span className="text-3xl md:text-4xl font-black text-white">৳ {price.toLocaleString()}</span>
                         <span className="text-xs text-gray-400 font-medium">{isAnnual ? '/year' : '/month'}</span>
                       </div>
                     {isAnnual && (

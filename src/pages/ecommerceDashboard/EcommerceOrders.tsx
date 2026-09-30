@@ -29,71 +29,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [seeding, setSeeding] = useState(false);
 
-  const handleLoadDummyData = async () => {
-    setSeeding(true);
-    const toastId = toast.loading('Adding dummy orders...');
-    try {
-      const dummyOrders = [
-        {
-          customerId: "dummy-cust-1",
-          customerName: "Jane Doe",
-          customerPhone: "01711000001",
-          type: "invoice",
-          status: "pending",
-          saleSource: "ecommerce",
-          items: [
-            { productId: "dummy-prod-1", name: "Sony PlayStation 5 Pro", quantity: 1, sellingPrice: 50000, purchasePrice: 45000, discount: 0, tax: 0, subtotal: 50000 }
-          ],
-          subtotal: 50000,
-          discount: 0,
-          tax: 0,
-          total: 50000,
-          paidAmount: 0,
-          paymentStatus: "unpaid",
-          shippingAddress: "Banani, Dhaka",
-          shippingCity: "Dhaka",
-          shippingPhone: "01711000001",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          customerId: "dummy-cust-2",
-          customerName: "Rafi Ahmed",
-          customerPhone: "01811000002",
-          type: "invoice",
-          status: "processing",
-          saleSource: "ecommerce",
-          items: [
-            { productId: "dummy-prod-2", name: "Apple iPhone 16 Pro Max", quantity: 1, sellingPrice: 150000, purchasePrice: 140000, discount: 0, tax: 0, subtotal: 150000 }
-          ],
-          subtotal: 150000,
-          discount: 0,
-          tax: 0,
-          total: 150000,
-          paidAmount: 150000,
-          paymentStatus: "paid",
-          paymentMethod: "bKash",
-          shippingAddress: "Dhanmondi, Dhaka",
-          shippingCity: "Dhaka",
-          shippingPhone: "01811000002",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          updatedAt: new Date(Date.now() - 86400000).toISOString(),
-        }
-      ];
-
-      for (const item of dummyOrders) {
-        await addDoc(collection(db, 'orders'), item);
-      }
-      toast.success('Dummy orders added successfully!', { id: toastId });
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to add dummy orders', { id: toastId });
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-  // Filter ONLY e-commerce and pc-build orders
+  
   const storeOrders = useMemo(() => {
     return orders.filter(o => {
       const cat = getOrderCategory(o);
@@ -223,14 +159,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Store Orders</h2>
           <p className="text-gray-500 text-sm mt-1">Manage e-commerce and PC build orders.</p>
         </div>
-        <button 
-          onClick={handleLoadDummyData} 
-          disabled={seeding}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {seeding ? <div className="w-4 h-4 rounded-full border-2 border-gray-400 border-t-transparent animate-spin"></div> : <Database size={16} />}
-          Load Dummy Orders
-        </button>
+        
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 items-center">

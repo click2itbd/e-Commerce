@@ -27,7 +27,7 @@ const DEFAULT_CLOUDLINUX_PACKAGES = [
       'Instant License Activation'
     ],
     compareValues: {
-      price: 'à§³1,100 /mo',
+      price: '৳1,100 /mo',
       max_accounts: '1',
       lve_limits: false,
       cagefs: true,
@@ -67,7 +67,7 @@ const DEFAULT_CLOUDLINUX_PACKAGES = [
       'Instant License Activation'
     ],
     compareValues: {
-      price: 'à§³1,800 /mo',
+      price: '৳1,800 /mo',
       max_accounts: '5',
       lve_limits: false,
       cagefs: true,
@@ -109,7 +109,7 @@ const DEFAULT_CLOUDLINUX_PACKAGES = [
       'Enterprise Density & Stability'
     ],
     compareValues: {
-      price: 'à§³2,700 /mo',
+      price: '৳2,700 /mo',
       max_accounts: 'Unlimited',
       lve_limits: true,
       cagefs: true,
@@ -286,7 +286,7 @@ export default function CloudLinuxLicenseSection() {
 
                 <div className="my-6 pb-6 border-b border-gray-800">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl sm:text-4xl font-black text-white">à§³{pkg.price.toLocaleString()}</span>
+                    <span className="text-3xl sm:text-4xl font-black text-white">৳{pkg.price.toLocaleString()}</span>
                     <span className="text-gray-400 text-xs font-semibold">/ Month</span>
                   </div>
                   <p className="text-[11px] text-gray-400 mt-1">Instant server key issuance</p>
@@ -346,7 +346,7 @@ export default function CloudLinuxLicenseSection() {
                           {pkg.name}
                         </span>
                         <span className="text-xs font-medium text-gray-400">
-                          à§³{pkg.price.toLocaleString()} /mo
+                          ৳{pkg.price.toLocaleString()} /mo
                         </span>
                       </div>
                     </th>

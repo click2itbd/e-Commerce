@@ -34,6 +34,7 @@ const Checkout = lazy(() => import('./pages/shop/Checkout').then(m => ({ default
 const OrderSuccess = lazy(() => import('./pages/shop/OrderSuccess').then(m => ({ default: m.OrderSuccess })));
 const RetailPOS = lazy(() => import('./pages/RetailPOS').then(m => ({ default: m.RetailPOS })));
 const Cart = lazy(() => import('./pages/shop/Cart').then(m => ({ default: m.Cart })));
+const CampaignLanding = lazy(() => import('./pages/shop/CampaignLanding').then(m => ({ default: m.CampaignLanding })));
 
 const ServicesPage = lazy(() => import('./pages/hosting/ServicesPage'));
 const PricingPage = lazy(() => import('./pages/hosting/PricingPage'));
@@ -70,6 +71,10 @@ function LazyWrapper({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const currentDomain = window.location.hostname;
+  const isHostingDomain = currentDomain === 'click2it.bd' || currentDomain === 'www.click2it.bd' || currentDomain === '127.0.0.1';
+  const isEcommerceDomain = currentDomain === 'click2itbd.com' || currentDomain === 'www.click2itbd.com' || currentDomain === 'localhost';
+
   return (
     <HelmetProvider>
       <SettingsProvider>
@@ -83,73 +88,77 @@ export default function App() {
                 <ReviewRewardPopup />
                 <ChatWidget />
                 <Routes>
-                  {/* HOSTING - Default Home */}
-                  <Route path="/" element={<Hosting />} />
-                  <Route path="/hosting/:serviceId" element={<HostingDetails />} />
-                  <Route path="/services" element={<LazyWrapper><ServicesPage /></LazyWrapper>} />
-                  <Route path="/pricing" element={<LazyWrapper><PricingPage /></LazyWrapper>} />
-                    <Route path="/domain" element={<LazyWrapper><DomainPage /></LazyWrapper>} />
-                    <Route path="/domain/search" element={<LazyWrapper><DomainSearchResults /></LazyWrapper>} />
-                    <Route path="/domain/transfer" element={<LazyWrapper><DomainTransferPage /></LazyWrapper>} />
-                    <Route path="/domain-renewal" element={<LazyWrapper><DomainRenewal /></LazyWrapper>} />
-                  <Route path="/support" element={<LazyWrapper><SupportPage /></LazyWrapper>} />
-                  <Route path="/hosting/cart" element={<LazyWrapper><HostingCart /></LazyWrapper>} />
-                  <Route path="/hosting/checkout" element={<LazyWrapper><HostingCheckout /></LazyWrapper>} />
-
-                  {/* E-COMMERCE */}
-                  <Route path="/shop" element={<LazyWrapper><Home /></LazyWrapper>} />
-                  <Route path="/product/:id" element={<LazyWrapper><ProductDetails /></LazyWrapper>} />
-                  <Route path="/cart" element={<LazyWrapper><Cart /></LazyWrapper>} />
-                  <Route path="/checkout" element={<LazyWrapper><Checkout /></LazyWrapper>} />
-                  {/* <Route path="/checkout" element={<Checkout />} /> */}
-                  <Route path="/order-success/:id" element={<LazyWrapper><OrderSuccess /></LazyWrapper>} />
-                  <Route path="/order-success" element={<LazyWrapper><OrderSuccess /></LazyWrapper>} />
-                    <Route path="/payment/simulate" element={<LazyWrapper><PaymentSimulation /></LazyWrapper>} />
-                    <Route path="/payment/callback" element={<LazyWrapper><PaymentCallback /></LazyWrapper>} />
-                    <Route path="/payment/return" element={<LazyWrapper><PaymentReturn /></LazyWrapper>} />
-                  <Route path="/category/:categorySlug" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
-                  <Route path="/wishlist" element={<LazyWrapper><WishlistPage /></LazyWrapper>} />
-                  <Route path="/pre-book" element={<LazyWrapper><PreBook /></LazyWrapper>} />
-                  <Route path="/search" element={<LazyWrapper><SearchPage /></LazyWrapper>} />
-                  <Route path="/category/:categorySlug/:subCategorySlug" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
-
-                  {/* PC BUILD */}
-                  <Route path="/pc-build/*" element={<LazyWrapper><PCBuilder /></LazyWrapper>} />
-                  <Route path="/pc-builder/*" element={<Navigate to="/pc-build" replace />} />
-                  <Route path="/compare" element={<LazyWrapper><ComparePage /></LazyWrapper>} />
-
-                  {/* AUTH */}
+                  {/* --- COMMON ROUTES --- */}
                   <Route path="/login" element={<LazyWrapper><Login /></LazyWrapper>} />
-
-                  {/* ADMIN */}
                   <Route path="/pos" element={<ProtectedRoute adminOnly><LazyWrapper><RetailPOS /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/admin" element={<ProtectedRoute adminOnly><LazyWrapper><AdminDashboard mode="all" /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/admin/e-commerce" element={<ProtectedRoute adminOnly><LazyWrapper><EcommerceDashboard /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/admin/billing" element={<ProtectedRoute adminOnly><LazyWrapper><HostingBillingDashboard /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/admin/accounting" element={<ProtectedRoute adminOnly><LazyWrapper><AccountingDashboard /></LazyWrapper></ProtectedRoute>} />
-
-                  {/* ACCOUNT */}
                   <Route path="/account/services" element={<ProtectedRoute><LazyWrapper><MyServices /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/profile" element={<ProtectedRoute><LazyWrapper><Profile /></LazyWrapper></ProtectedRoute>} />
-                    <Route path="/terms" element={<LazyWrapper><TermsOfService /></LazyWrapper>} />
-                    <Route path="/privacy" element={<LazyWrapper><PrivacyPolicy /></LazyWrapper>} />
-                    <Route path="/refund-policy" element={<LazyWrapper><RefundPolicy /></LazyWrapper>} />
-                    <Route path="/emi-terms" element={<LazyWrapper><EMITerms /></LazyWrapper>} />
-                    <Route path="/emi" element={<Navigate to="/emi-terms" replace />} />
-                    <Route path="/star-points" element={<LazyWrapper><StarPointPolicy /></LazyWrapper>} />
-                    <Route path="/reward-policy" element={<Navigate to="/star-points" replace />} />
-                    <Route path="/brands" element={<LazyWrapper><Brands /></LazyWrapper>} />
-                    <Route path="/blog" element={<LazyWrapper><Blog /></LazyWrapper>} />
-                    <Route path="/track-order" element={<LazyWrapper><TrackOrder /></LazyWrapper>} />
-                    <Route path="/blog/:slug" element={<LazyWrapper><BlogPost /></LazyWrapper>} />
-                    <Route path="/about" element={<LazyWrapper><AboutUs /></LazyWrapper>} />
-                    <Route path="/about-us" element={<Navigate to="/about" replace />} />
-                    <Route path="/contact" element={<LazyWrapper><ContactUs /></LazyWrapper>} />
-                    <Route path="/contact-us" element={<Navigate to="/contact" replace />} />
-                    <Route path="/online-delivery" element={<LazyWrapper><OnlineDelivery /></LazyWrapper>} />
-                    <Route path="/delivery-info" element={<Navigate to="/online-delivery" replace />} />
-                    <Route path="/warranty-policy" element={<LazyWrapper><WarrantyPolicy /></LazyWrapper>} />
-                    <Route path="/warranty" element={<Navigate to="/warranty-policy" replace />} />
+                  <Route path="/terms" element={<LazyWrapper><TermsOfService /></LazyWrapper>} />
+                  <Route path="/privacy" element={<LazyWrapper><PrivacyPolicy /></LazyWrapper>} />
+                  <Route path="/refund-policy" element={<LazyWrapper><RefundPolicy /></LazyWrapper>} />
+                  <Route path="/about" element={<LazyWrapper><AboutUs /></LazyWrapper>} />
+                  <Route path="/about-us" element={<Navigate to="/about" replace />} />
+                  <Route path="/contact" element={<LazyWrapper><ContactUs /></LazyWrapper>} />
+                  <Route path="/contact-us" element={<Navigate to="/contact" replace />} />
+                  <Route path="/payment/simulate" element={<LazyWrapper><PaymentSimulation /></LazyWrapper>} />
+                  <Route path="/payment/callback" element={<LazyWrapper><PaymentCallback /></LazyWrapper>} />
+                  <Route path="/payment/return" element={<LazyWrapper><PaymentReturn /></LazyWrapper>} />
+                  <Route path="/blog" element={<LazyWrapper><Blog /></LazyWrapper>} />
+                  <Route path="/blog/:slug" element={<LazyWrapper><BlogPost /></LazyWrapper>} />
+
+                  {/* --- HOSTING DOMAIN ROUTES --- */}
+                  {isHostingDomain && (
+                    <>
+                      <Route path="/" element={<Hosting />} />
+                      <Route path="/hosting/:serviceId" element={<HostingDetails />} />
+                      <Route path="/services" element={<LazyWrapper><ServicesPage /></LazyWrapper>} />
+                      <Route path="/pricing" element={<LazyWrapper><PricingPage /></LazyWrapper>} />
+                      <Route path="/domain" element={<LazyWrapper><DomainPage /></LazyWrapper>} />
+                      <Route path="/domain/search" element={<LazyWrapper><DomainSearchResults /></LazyWrapper>} />
+                      <Route path="/domain/transfer" element={<LazyWrapper><DomainTransferPage /></LazyWrapper>} />
+                      <Route path="/domain-renewal" element={<LazyWrapper><DomainRenewal /></LazyWrapper>} />
+                      <Route path="/support" element={<LazyWrapper><SupportPage /></LazyWrapper>} />
+                      <Route path="/hosting/cart" element={<LazyWrapper><HostingCart /></LazyWrapper>} />
+                      <Route path="/hosting/checkout" element={<LazyWrapper><HostingCheckout /></LazyWrapper>} />
+                    </>
+                  )}
+
+                  {/* --- E-COMMERCE DOMAIN ROUTES --- */}
+                  {(!isHostingDomain || isEcommerceDomain) && (
+                    <>
+                      <Route path="/" element={<LazyWrapper><Home /></LazyWrapper>} />
+                      <Route path="/shop" element={<Navigate to="/" replace />} />
+                      <Route path="/exclusive-deals" element={<LazyWrapper><CampaignLanding /></LazyWrapper>} />
+                      <Route path="/product/:id" element={<LazyWrapper><ProductDetails /></LazyWrapper>} />
+                      <Route path="/cart" element={<LazyWrapper><Cart /></LazyWrapper>} />
+                      <Route path="/checkout" element={<LazyWrapper><Checkout /></LazyWrapper>} />
+                      <Route path="/order-success/:id" element={<LazyWrapper><OrderSuccess /></LazyWrapper>} />
+                      <Route path="/order-success" element={<LazyWrapper><OrderSuccess /></LazyWrapper>} />
+                      <Route path="/category/:categorySlug" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
+                      <Route path="/wishlist" element={<LazyWrapper><WishlistPage /></LazyWrapper>} />
+                      <Route path="/pre-book" element={<LazyWrapper><PreBook /></LazyWrapper>} />
+                      <Route path="/search" element={<LazyWrapper><SearchPage /></LazyWrapper>} />
+                      <Route path="/category/:categorySlug/:subCategorySlug" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
+                      <Route path="/pc-build/*" element={<LazyWrapper><PCBuilder /></LazyWrapper>} />
+                      <Route path="/pc-builder/*" element={<Navigate to="/pc-build" replace />} />
+                      <Route path="/compare" element={<LazyWrapper><ComparePage /></LazyWrapper>} />
+                      <Route path="/brands" element={<LazyWrapper><Brands /></LazyWrapper>} />
+                      <Route path="/track-order" element={<LazyWrapper><TrackOrder /></LazyWrapper>} />
+                      <Route path="/emi-terms" element={<LazyWrapper><EMITerms /></LazyWrapper>} />
+                      <Route path="/emi" element={<Navigate to="/emi-terms" replace />} />
+                      <Route path="/star-points" element={<LazyWrapper><StarPointPolicy /></LazyWrapper>} />
+                      <Route path="/reward-policy" element={<Navigate to="/star-points" replace />} />
+                      <Route path="/online-delivery" element={<LazyWrapper><OnlineDelivery /></LazyWrapper>} />
+                      <Route path="/delivery-info" element={<Navigate to="/online-delivery" replace />} />
+                      <Route path="/warranty-policy" element={<LazyWrapper><WarrantyPolicy /></LazyWrapper>} />
+                      <Route path="/warranty" element={<Navigate to="/warranty-policy" replace />} />
+                    </>
+                  )}
+
                   <Route path="*" element={<LazyWrapper><NotFound /></LazyWrapper>} />
                 </Routes>
               </Router>
@@ -161,3 +170,7 @@ export default function App() {
     </HelmetProvider>
   );
 }
+
+
+
+

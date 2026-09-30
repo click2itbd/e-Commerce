@@ -333,13 +333,7 @@ export const EcommerceNavbar: React.FC = () => {
             <div className="flex items-center justify-between h-12">
               <ul className="flex items-center gap-8 h-full">
             {menus.filter(m => m.name.toLowerCase() !== 'hosting').map(menu => {
-              const isComponents = menu.name.toLowerCase() === 'components';
-              const subs = isComponents 
-                ? [
-                    ...(menu.subCategories || []),
-                    ...pcBuilderCategories.filter(pc => !(menu.subCategories || []).some(sub => sub.slug.toLowerCase() === pc.slug.toLowerCase()))
-                  ]
-                : (menu.subCategories || []);
+              const subs = menu.subCategories || [];
 
               return (
               <li key={menu.id} className="relative group h-full">
@@ -411,13 +405,7 @@ export const EcommerceNavbar: React.FC = () => {
             <div className="border-t border-gray-700 pt-4">
               <p className="text-xs font-bold text-gray-500 uppercase mb-2">Categories</p>
               {menus.filter(m => m.name.toLowerCase() !== 'hosting').map(menu => {
-                const isComponents = menu.name.toLowerCase() === 'components';
-                const subs = isComponents 
-                  ? [
-                      ...(menu.subCategories || []),
-                      ...pcBuilderCategories.filter(pc => !(menu.subCategories || []).some(sub => sub.slug.toLowerCase() === pc.slug.toLowerCase()))
-                    ]
-                  : (menu.subCategories || []);
+                const subs = menu.subCategories || [];
 
                 return (
                 <div key={menu.id} className="flex flex-col">

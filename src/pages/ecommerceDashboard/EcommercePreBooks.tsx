@@ -12,76 +12,7 @@ export const EcommercePreBooks: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [seeding, setSeeding] = useState(false);
 
-  const handleLoadDummyData = async () => {
-    setSeeding(true);
-    const toastId = toast.loading('Adding dummy pre-books...');
-    try {
-      const dummyData = [
-        {
-          customerName: "Jane Doe",
-          phone: "+880 1711-000001",
-          email: "jane@example.com",
-          address: "123 Tech Street, Banani, Dhaka",
-          productName: "Sony PlayStation 5 Pro",
-          productUrl: "https://example.com/ps5-pro",
-          imageUrl: "https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=500&q=80",
-          advanceAmount: 10000,
-          transactionId: "TRX-PS5-9988",
-          notes: "Please deliver it as soon as the stock arrives. Very excited!",
-          status: "pending",
-          createdAt: new Date().toISOString(),
-        },
-        {
-          customerName: "Rafi Ahmed",
-          phone: "+880 1811-222333",
-          email: "rafi@example.com",
-          address: "45/A, Dhanmondi 27, Dhaka",
-          productName: "Apple iPhone 16 Pro Max",
-          productUrl: "https://example.com/iphone-16",
-          imageUrl: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=500&q=80",
-          advanceAmount: 25000,
-          transactionId: "BKASH-98765X",
-          notes: "Color preference: Natural Titanium",
-          status: "approved",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-        },
-        {
-          customerName: "Sakib Al Hasan",
-          phone: "+880 1922-333444",
-          email: "sakib@example.com",
-          address: "Mirpur 10, Block C, Dhaka",
-          productName: "NVIDIA RTX 5090 GPU",
-          productUrl: "",
-          imageUrl: "https://images.unsplash.com/photo-1591488320449-011701bb6704?w=500&q=80",
-          advanceAmount: 50000,
-          transactionId: "NAGAD-ABC123",
-          notes: "Urgent for my new build.",
-          status: "rejected",
-          createdAt: new Date(Date.now() - 172800000).toISOString(),
-        }
-      ];
-
-      for (const item of dummyData) {
-        await addDoc(collection(db, 'pre_bookings'), item);
-      }
-      toast.success('Dummy pre-books added successfully!', { id: toastId });
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to add dummy data', { id: toastId });
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-  useEffect(() => {
-    const q = query(collection(db, 'pre_bookings'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPreBooks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
+  
   const handleUpdateStatus = async (id: string, status: string) => {
     try {
       await updateDoc(doc(db, 'pre_bookings', id), { status });
@@ -131,14 +62,7 @@ export const EcommercePreBooks: React.FC = () => {
           </h2>
           <p className="text-gray-500 text-sm mt-1">Manage customer pre-booking orders.</p>
         </div>
-        <button 
-          onClick={handleLoadDummyData} 
-          disabled={seeding}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {seeding ? <div className="w-4 h-4 rounded-full border-2 border-gray-400 border-t-transparent animate-spin"></div> : <Database size={16} />}
-          Load Dummy Pre-Books
-        </button>
+        
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

@@ -172,7 +172,7 @@ export default function DomainPricingSection({
                       <span className="text-sm font-medium text-gray-500">Starting at</span>
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
-                      à§³{price.toLocaleString()}
+                      ৳{price.toLocaleString()}
                     </p>
                     <p className="text-xs text-gray-400">/ year (Includes Privacy)</p>
                   </div>

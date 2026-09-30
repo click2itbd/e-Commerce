@@ -183,7 +183,7 @@ export default function CustomHostingBuilder() {
               />
               <div className="flex justify-between text-[11px] text-gray-400 mt-1 font-medium">
                 <span>2 GB</span>
-                <span>Rate: à§³{rates.perGbDisk}/GB</span>
+                <span>Rate: ৳{rates.perGbDisk}/GB</span>
                 <span>100 GB</span>
               </div>
             </div>
@@ -210,7 +210,7 @@ export default function CustomHostingBuilder() {
               />
               <div className="flex justify-between text-[11px] text-gray-400 mt-1 font-medium">
                 <span>1 Website</span>
-                <span>Rate: à§³{rates.perWebsite}/Addon</span>
+                <span>Rate: ৳{rates.perWebsite}/Addon</span>
                 <span>30 Websites</span>
               </div>
             </div>
@@ -237,7 +237,7 @@ export default function CustomHostingBuilder() {
               />
               <div className="flex justify-between text-[11px] text-gray-400 mt-1 font-medium">
                 <span>1 Core</span>
-                <span>Rate: à§³{rates.perCoreCpu}/Core</span>
+                <span>Rate: ৳{rates.perCoreCpu}/Core</span>
                 <span>8 Cores</span>
               </div>
             </div>
@@ -264,7 +264,7 @@ export default function CustomHostingBuilder() {
               />
               <div className="flex justify-between text-[11px] text-gray-400 mt-1 font-medium">
                 <span>1 GB</span>
-                <span>Rate: à§³{rates.perGbRam}/GB</span>
+                <span>Rate: ৳{rates.perGbRam}/GB</span>
                 <span>16 GB</span>
               </div>
             </div>
@@ -323,7 +323,7 @@ export default function CustomHostingBuilder() {
               {/* Price Calculation Display */}
               <div className="pb-6 mb-6 border-b border-gray-800">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl sm:text-5xl font-black text-white">à§³{finalPrice.toLocaleString()}</span>
+                  <span className="text-4xl sm:text-5xl font-black text-white">৳{finalPrice.toLocaleString()}</span>
                   <span className="text-xs text-gray-400 font-medium">{isAnnual ? '/year' : '/month'}</span>
                 </div>
                 {isAnnual && (

@@ -53,7 +53,7 @@ const MenusTab: React.FC<MenusTabProps> = ({
   setIsAddingMenu = () => {},
   editingMenu = null,
   setEditingMenu = () => {},
-  menuFormData = { name: "", slug: "", order: 0, subCategories: [] },
+  menuFormData = { name: "", slug: "", order: 0, subCategories: [], imageUrl: "" },
   setMenuFormData = () => {},
   isAddingSubCategory = false,
   setIsAddingSubCategory = () => {},
@@ -348,7 +348,7 @@ const MenusTab: React.FC<MenusTabProps> = ({
       {isAddingSubCategory && (
         <div className="p-6 bg-gray-50 border-b border-gray-100">
           <form onSubmit={handleSaveSubCategory} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                   Parent Category
@@ -408,6 +408,64 @@ const MenusTab: React.FC<MenusTabProps> = ({
                   className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
                   placeholder="e.g. gaming-laptops"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                  Brands
+                </label>
+                <input
+                  type="text"
+                  value={subCategoryFormData.brands || ''}
+                  onChange={(e) =>
+                    setSubCategoryFormData({
+                      ...subCategoryFormData,
+                      brands: e.target.value,
+                    })
+                  }
+                  className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
+                  placeholder="e.g. Asus, MSI"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                  Sub Category Image
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const storageRef = ref(storage, `subcategories/${Date.now()}_${file.name}`);
+                      const uploadTask = uploadBytesResumable(storageRef, file);
+                      toast.promise(
+                        new Promise((resolve, reject) => {
+                          uploadTask.on(
+                            "state_changed",
+                            null,
+                            (error) => reject(error),
+                            async () => {
+                              const url = await getDownloadURL(uploadTask.snapshot.ref);
+                              setSubCategoryFormData({ ...subCategoryFormData, imageUrl: url });
+                              resolve(url);
+                            }
+                          );
+                        }),
+                        {
+                          loading: "Uploading image...",
+                          success: "Image uploaded successfully!",
+                          error: "Failed to upload image",
+                        }
+                      );
+                    }
+                  }}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-bold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
+                />
+                {subCategoryFormData.imageUrl && (
+                  <div className="mt-2">
+                    <img src={subCategoryFormData.imageUrl} alt="Category" className="w-16 h-16 object-contain bg-gray-100 rounded-md p-1" />
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex gap-4">
@@ -484,6 +542,47 @@ const MenusTab: React.FC<MenusTabProps> = ({
                 className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
               />
             </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                Category Image
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const storageRef = ref(storage, `menus/${Date.now()}_${file.name}`);
+                    const uploadTask = uploadBytesResumable(storageRef, file);
+                    toast.promise(
+                      new Promise((resolve, reject) => {
+                        uploadTask.on(
+                          "state_changed",
+                          null,
+                          (error) => reject(error),
+                          async () => {
+                            const url = await getDownloadURL(uploadTask.snapshot.ref);
+                            setMenuFormData({ ...menuFormData, imageUrl: url });
+                            resolve(url);
+                          }
+                        );
+                      }),
+                      {
+                        loading: "Uploading image...",
+                        success: "Image uploaded successfully!",
+                        error: "Failed to upload image",
+                      }
+                    );
+                  }
+                }}
+                className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {menuFormData.imageUrl && (
+                <div className="mt-2">
+                  <img src={menuFormData.imageUrl} alt="Category" className="w-16 h-16 object-contain bg-gray-100 rounded-md p-1" />
+                </div>
+              )}
+            </div>
           </div>
 
           <div>
@@ -512,12 +611,12 @@ const MenusTab: React.FC<MenusTabProps> = ({
               </button>
             </div>
             <div className="space-y-3">
-              {menuFormData.subCategories.map((sub, idx) => (
+              {menuFormData.subCategories.map((sub: any, idx: number) => (
                 <div
                   key={sub.id}
                   className="flex items-center gap-4 bg-white p-3 rounded-md border border-gray-200"
                 >
-                  <div className="flex-grow grid grid-cols-2 gap-4">
+                  <div className="flex-grow grid grid-cols-4 gap-4">
                     <input
                       type="text"
                       placeholder="Sub Category Name"
@@ -549,6 +648,62 @@ const MenusTab: React.FC<MenusTabProps> = ({
                       }}
                       className="text-sm border-gray-200 rounded-md"
                     />
+                    <input
+                      type="text"
+                      placeholder="Brands (comma separated)"
+                      value={sub.brands ? sub.brands.join(', ') : (sub.brandsString || '')}
+                      onChange={(e) => {
+                        const newSubs = [...menuFormData.subCategories];
+                        newSubs[idx].brandsString = e.target.value;
+                        newSubs[idx].brands = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean);
+                        setMenuFormData({
+                          ...menuFormData,
+                          subCategories: newSubs,
+                        });
+                      }}
+                      className="text-sm border-gray-200 rounded-md"
+                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const storageRef = ref(storage, `subcategories/${Date.now()}_${file.name}`);
+                            const uploadTask = uploadBytesResumable(storageRef, file);
+                            toast.promise(
+                              new Promise((resolve, reject) => {
+                                uploadTask.on(
+                                  "state_changed",
+                                  null,
+                                  (error) => reject(error),
+                                  async () => {
+                                    const url = await getDownloadURL(uploadTask.snapshot.ref);
+                                    const newSubs = [...menuFormData.subCategories];
+                                    newSubs[idx].imageUrl = url;
+                                    setMenuFormData({
+                                      ...menuFormData,
+                                      subCategories: newSubs,
+                                    });
+                                    resolve(url);
+                                  }
+                                );
+                              }),
+                              {
+                                loading: "Uploading...",
+                                success: "Uploaded!",
+                                error: "Failed to upload",
+                              }
+                            );
+                          }
+                        }}
+                        className="w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                      />
+                      {sub.imageUrl && (
+                        <img src={sub.imageUrl} alt="SubCategory" className="w-8 h-8 object-contain bg-gray-50 rounded" />
+                      )}
+                    </div>
                   </div>
                   <button
                     type="button"
