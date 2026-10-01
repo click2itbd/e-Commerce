@@ -4,7 +4,8 @@ import { Sidebar } from './components/Sidebar';
 import { TopNavbar } from './components/TopNavbar';
 import { 
   DashboardTab, DomainSearchListTab, ServerAccountsTab, AllOrdersTab, TicketsTab,
-  DomainOffersTab, DomainRenewalsTab, UsersTab, FinancialTab, SalesTab, ApiSettingsTab, ModuleTabs 
+  DomainOffersTab, DomainRenewalsTab, UsersTab, FinancialTab, SalesTab, ApiSettingsTab, ModuleTabs,
+  BdDomainApplicationsTab, NameserverRequestsTab
 } from './tabs';
 
 export function HostingBillingDashboard() {
@@ -26,6 +27,8 @@ export function HostingBillingDashboard() {
             <TicketsTab state={state} />
             <DomainOffersTab state={state} />
             <DomainRenewalsTab state={state} />
+            <BdDomainApplicationsTab state={state} />
+            <NameserverRequestsTab state={state} />
             <UsersTab state={state} />
             <FinancialTab state={state} />
             <SalesTab state={state} />
@@ -37,3 +40,4 @@ export function HostingBillingDashboard() {
     </div>
   );
 }
+

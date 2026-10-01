@@ -92,6 +92,16 @@ const DEFAULT_DOMAIN_PRICING: DomainPricing[] = [
   { tld: '.io', registerPrice: 5519, renewPrice: 6899, transferPrice: 6899, currency: 'BDT', isActive: true },
   { tld: '.dev', registerPrice: 2069, renewPrice: 2346, transferPrice: 2346, currency: 'BDT', isActive: true },
   { tld: '.tech', registerPrice: 689, renewPrice: 3449, transferPrice: 3449, currency: 'BDT', isActive: true },
+  // BTCL Domains
+  { tld: '.com.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
+  { tld: '.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
+  { tld: '.net.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
+  { tld: '.org.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
+  { tld: '.edu.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
+  { tld: '.gov.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
+  { tld: '.ac.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
+  { tld: '.info.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
+  { tld: '.co.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
 ];
 
 async function checkDomainDnsAvailability(domain: string): Promise<boolean> {
@@ -132,9 +142,7 @@ export async function checkDomainAvailability(domains: string[]): Promise<Domain
   const results = await Promise.all(
     domains.map(async (domain) => {
       const isAvailable = await checkDomainDnsAvailability(domain);
-      const tldMatch = domain.match(/\.[^.]+$/);
-      const tld = tldMatch ? tldMatch[0].toLowerCase() : '.com';
-      const pricing = DEFAULT_DOMAIN_PRICING.find(p => p.tld === tld) || DEFAULT_DOMAIN_PRICING[0];
+      const pricing = DEFAULT_DOMAIN_PRICING.sort((a, b) => b.tld.length - a.tld.length).find(p => domain.toLowerCase().endsWith(p.tld)) || DEFAULT_DOMAIN_PRICING[0];
 
       return {
         domain,
@@ -158,6 +166,24 @@ export async function getDomainSuggestions(domain: string): Promise<string[]> {
 }
 
 export async function getDomainPricing(): Promise<DomainPricing[]> {
+  let finalPricing = [...DEFAULT_DOMAIN_PRICING];
+  try {
+    const snap = await getDocs(query(collection(db, 'domainPricing')));
+    if (!snap.empty) {
+      const fbPricing = snap.docs.map(d => d.data() as DomainPricing);
+      finalPricing = finalPricing.map(dp => {
+        const override = fbPricing.find(fp => fp.tld === dp.tld);
+        return override ? { ...dp, ...override } : dp;
+      });
+      fbPricing.forEach(fp => {
+        if (!finalPricing.some(p => p.tld === fp.tld)) finalPricing.push(fp);
+      });
+      return finalPricing;
+    }
+  } catch (e) {
+    console.error("Firebase pricing fetch failed", e);
+  }
+
   try {
     const response = await apiRequest<{ success: boolean; data: DomainPricing[] }>('/api/domains/pricing');
     if (response.success && Array.isArray(response.data) && response.data.length > 0) {
@@ -166,7 +192,7 @@ export async function getDomainPricing(): Promise<DomainPricing[]> {
   } catch {
     // fallback below
   }
-  return DEFAULT_DOMAIN_PRICING;
+  return finalPricing;
 }
 
 export interface HostingUsageStats {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useLocation, Routes, Route } from 'react-router-dom';
 import { CommunityBuilds } from '../../components/PCBuilder/CommunityBuilds';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Product } from '../../types';
 import { Layout } from '../../components/Layout';
@@ -17,6 +17,7 @@ import { BuilderCategoryRow } from '../../components/PCBuilder/BuilderCategoryRo
 import { BuilderSelectionModal } from '../../components/PCBuilder/BuilderSelectionModal';
 import { BuildVisualizer } from '../../components/PCBuilder/BuildVisualizer';
 import { AIAssistantModal } from '../../components/PCBuilder/AIAssistantModal';
+import { CustomBuildRequestModal } from '../../components/PCBuilder/CustomBuildRequestModal';
 import { SmartBuilderTemplates } from '../../components/PCBuilder/SmartBuilderTemplates';
 import { apiPost } from '../../services/apiClient';
 import { generatePDF } from '../../lib/pdf';
@@ -36,6 +37,38 @@ const itemVariants = {
 };
 
 export const PCBuilder: React.FC = () => {
+  const [dynamicCoreCategories, setDynamicCoreCategories] = useState<BuilderCategory[]>(coreCategories);
+  const [dynamicPeripheralCategories, setDynamicPeripheralCategories] = useState<BuilderCategory[]>(peripheralCategories);
+
+  useEffect(() => {
+    const fetchCats = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'pc_builder_categories'));
+        if (!snap.empty) {
+          const fetched = snap.docs.map(doc => {
+            const data = doc.data();
+            // Map icon string back to component
+            const IconComponent = (Icons as any)[data.iconName] || Icons.Settings;
+            return {
+              id: doc.id,
+              name: data.name,
+              icon: IconComponent,
+              required: data.required,
+              type: data.type,
+              order: data.order
+            } as any;
+          });
+          fetched.sort((a, b) => a.order - b.order);
+          setDynamicCoreCategories(fetched.filter(c => c.type === 'core'));
+          setDynamicPeripheralCategories(fetched.filter(c => c.type === 'peripheral'));
+        }
+      } catch (e) {
+        console.error("Failed to load dynamic categories", e);
+      }
+    };
+    fetchCats();
+  }, []);
+
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedComponents, setSelectedComponents] = useState<Record<string, Product>>({});
   const [loading, setLoading] = useState(true);
@@ -46,15 +79,21 @@ export const PCBuilder: React.FC = () => {
   
   const matchChoose = location.pathname.match(/\/pc-build\/choose\/(.+)/);
   const categoryId = matchChoose ? matchChoose[1] : null;
-  const activeCategoryModal = categoryId ? [...coreCategories, ...peripheralCategories].find(c => c.id === categoryId) || null : null;
+  const activeCategoryModal = categoryId ? [...dynamicCoreCategories, ...dynamicPeripheralCategories].find(c => c.id === categoryId) || null : null;
   const [showAIModal, setShowAIModal] = useState(false);
+  const [showCustomBuildModal, setShowCustomBuildModal] = useState(false);
   const { addToCart } = useCart();
   // searchParams removed
 
   useEffect(() => {
     const handleOpenAI = () => setShowAIModal(true);
     document.addEventListener('open-ai-assistant', handleOpenAI);
-    return () => document.removeEventListener('open-ai-assistant', handleOpenAI);
+    const handleCustomBuild = () => setShowCustomBuildModal(true);
+    document.addEventListener('open-custom-build', handleCustomBuild);
+    return () => {
+      document.removeEventListener('open-ai-assistant', handleOpenAI);
+      document.removeEventListener('open-custom-build', handleCustomBuild);
+    };
   }, []);
 
   useEffect(() => {
@@ -79,27 +118,58 @@ export const PCBuilder: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (products.length === 0) return;
-    const params = new URLSearchParams(location.search);
-    const buildParam = params.get('build');
-    if (buildParam) {
-      try {
-        const decoded = atob(buildParam);
-        const pairs = decoded.split(',');
-        const newSelection: Record<string, Product> = {};
-        pairs.forEach(pair => {
-          const [cat, id] = pair.split(':');
-          const foundProduct = products.find(p => p.id === id);
-          if (foundProduct) {
-            newSelection[cat] = foundProduct;
+      if (products.length === 0) return;
+      const params = new URLSearchParams(location.search);
+      const buildParam = params.get('build');
+      const communityBuildId = params.get('communityBuild');
+
+      const loadCommunityBuild = async () => {
+        try {
+          const { doc, getDoc } = await import('firebase/firestore');
+          const docRef = doc(db, 'community_builds', communityBuildId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const buildData = docSnap.data();
+            if (buildData.components) {
+              const newSelection = {};
+              Object.entries(buildData.components).forEach(([cat, item]) => {
+                if (item && item.id) {
+                  const foundProduct = products.find(p => p.id === item.id);
+                  if (foundProduct) {
+                    newSelection[cat] = foundProduct;
+                  } else {
+                    newSelection[cat] = item;
+                  }
+                }
+              });
+              setSelectedComponents(newSelection);
+            }
           }
-        });
-        setSelectedComponents(newSelection);
-      } catch (e) {
-        console.error('Failed to parse shared build', e);
+        } catch (err) {
+          console.error("Failed to load community build", err);
+        }
+      };
+
+      if (communityBuildId) {
+        loadCommunityBuild();
+      } else if (buildParam) {
+        try {
+          const decoded = atob(buildParam);
+          const pairs = decoded.split(',');
+          const newSelection = {};
+          pairs.forEach(pair => {
+            const [cat, id] = pair.split(':');
+            const foundProduct = products.find(p => p.id === id);
+            if (foundProduct) {
+              newSelection[cat] = foundProduct;
+            }
+          });
+          setSelectedComponents(newSelection);
+        } catch (e) {
+          console.error('Failed to parse shared build', e);
+        }
       }
-    }
-  }, [location.search, products]);
+    }, [location.search, products]);
 
   const handleSelect = (product: Product) => {
     if (!activeCategoryModal) return;
@@ -138,8 +208,54 @@ export const PCBuilder: React.FC = () => {
   };
 
   const handlePrintBuild = () => {
-    window.print();
+    const selectedList = Object.values(selectedComponents).filter(Boolean) as Product[];
+    if (selectedList.length === 0) {
+      toast.error('Add components to your build first');
+      return;
+    }
+    const totalPrice = selectedList.reduce((sum, p) => sum + (p.discountPrice || p.price), 0);
+    const mockOrder: any = {
+      id: `PCB-${Date.now().toString().slice(-6)}`,
+      customerName: "PC Build Quotation",
+      items: selectedList.map(p => ({
+        name: p.name,
+        price: p.discountPrice || p.price,
+        quantity: 1,
+        productId: p.id
+      })),
+      total: totalPrice,
+      discount: 0,
+      shippingFee: 0,
+      createdAt: new Date().toISOString(),
+      _autoPrint: true
+    };
+    generatePDF(mockOrder, 'quotation', settings, 'doc');
   };
+
+  const handleDownloadPDF = () => {
+    const selectedList = Object.values(selectedComponents).filter(Boolean) as Product[];
+    if (selectedList.length === 0) {
+      toast.error('Add components to your build first');
+      return;
+    }
+    const totalPrice = selectedList.reduce((sum, p) => sum + (p.discountPrice || p.price), 0);
+    const mockOrder: any = {
+      id: `PCB-${Date.now().toString().slice(-6)}`,
+      customerName: "PC Build Quotation",
+      items: selectedList.map(p => ({
+        name: p.name,
+        price: p.discountPrice || p.price,
+        quantity: 1,
+        productId: p.id
+      })),
+      total: totalPrice,
+      discount: 0,
+      shippingFee: 0,
+      createdAt: new Date().toISOString()
+    };
+    generatePDF(mockOrder, 'quotation', settings, 'download');
+  };
+
 
   const handleEmailBuild = async () => {
     const selectedList = Object.values(selectedComponents).filter(Boolean) as Product[];
@@ -262,7 +378,8 @@ export const PCBuilder: React.FC = () => {
 
   const builderContent = (
     <Layout fullWidth>
-      <div className="bg-[#f8fafc] min-h-screen pt-8 pb-20 selection:bg-slate-900 selection:text-white print:bg-white print:pt-0">
+      
+        <div className="bg-[#0B0E14] min-h-screen pt-8 pb-20 font-sans selection:bg-violet-500/30 selection:text-violet-200 print:bg-white print:pt-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <div className="print:hidden">
@@ -270,8 +387,8 @@ export const PCBuilder: React.FC = () => {
           </div>
           
           <div className="print:block hidden mb-8">
-            <h1 className="text-3xl font-black text-slate-900">My PC Build</h1>
-            <p className="text-slate-500">Generated on {new Date().toLocaleDateString()}</p>
+            <h1 className="text-3xl font-black text-slate-100">My PC Build</h1>
+            <p className="text-slate-400">Generated on {new Date().toLocaleDateString()}</p>
           </div>
 
           <SmartBuilderTemplates 
@@ -293,8 +410,8 @@ export const PCBuilder: React.FC = () => {
                   initial="hidden"
                   animate="show"
                 >
-                  {renderCategoryGroup("Core Components", coreCategories)}
-                  {renderCategoryGroup("Peripherals & Accessories", peripheralCategories)}
+                  {renderCategoryGroup("Core Components", dynamicCoreCategories)}
+                  {renderCategoryGroup("Peripherals & Accessories", dynamicPeripheralCategories)}
                 </motion.div>
               )}
             </div>
@@ -312,6 +429,7 @@ export const PCBuilder: React.FC = () => {
                   onAddToCart={handleAddToCart}
                   onSaveBuild={handleSaveBuild}
                   onPrintBuild={handlePrintBuild}
+                    onDownloadPDF={handleDownloadPDF}
                   onEmailBuild={handleEmailBuild}
                   onPublishBuild={handlePublishBuild}
                 />
@@ -332,11 +450,15 @@ export const PCBuilder: React.FC = () => {
             onSelect={handleSelect}
           />
         )}
-        <AIAssistantModal 
+                <AIAssistantModal 
           isOpen={showAIModal}
           onClose={() => setShowAIModal(false)}
           products={products}
           onApplyBuild={(build) => setSelectedComponents(build)}
+        />
+        <CustomBuildRequestModal
+          isOpen={showCustomBuildModal}
+          onClose={() => setShowCustomBuildModal(false)}
         />
       </AnimatePresence>
     </Layout>

@@ -56,8 +56,7 @@ const EcommerceDashboard: React.FC = () => {
   const [menus, setMenus] = useState<NavigationMenu[]>([]);
 
   // Inventory Tab State
-  const [isAddingProduct, setIsAddingProduct] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+    const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState<Partial<Product>>({ variants: [] });
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('all');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
@@ -117,8 +116,7 @@ const EcommerceDashboard: React.FC = () => {
   }, []);
 
   // Dummy Handlers (Replace with real implementations from AdminDashboard if fully needed)
-  const handleSaveProduct = async () => { alert("Saved"); setIsAddingProduct(false); fetchData(); };
-  const handleDeleteProduct = async (id: string) => {
+    const handleDeleteProduct = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'products', id));
       setProducts(products.filter(p => p.id !== id));

@@ -531,8 +531,8 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                                   <Download size={14} /> Docs ▾
                                 </button>
                                 <div className="absolute right-0 top-full mt-1 w-28 bg-white rounded-lg shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 flex flex-col overflow-hidden py-1">
-                                  <button onClick={() => generatePDF(order, 'invoice')} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-red-50 hover:text-[#EF4444] transition-colors">Invoice</button>
-                                  <button onClick={() => generatePDF(order, 'challan')} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-green-50 hover:text-green-600 transition-colors">Challan</button>
+                                  <button onClick={(e) => { e.stopPropagation(); generatePDF(order, 'invoice'); }} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-red-50 hover:text-[#EF4444] transition-colors">Invoice</button>
+                                  <button onClick={(e) => { e.stopPropagation(); generatePDF(order, 'challan'); }} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-green-50 hover:text-green-600 transition-colors">Challan</button>
                                 </div>
                               </div>
                             )}

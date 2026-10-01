@@ -25,6 +25,41 @@ export class CompatibilityEngine {
     const gpu = selectedProducts['graphics-card'];
     const cooler = selectedProducts['cpu-cooler'];
     const psu = selectedProducts['power-supply'];
+
+    // Smart Heuristics based on names
+    const nCpu = cpu?.name.toLowerCase() || '';
+    const nMobo = mobo?.name.toLowerCase() || '';
+    const nRam = ram?.name.toLowerCase() || '';
+
+    // CPU vs Mobo Heuristics
+    if (cpu && mobo) {
+      const isIntelCPU = nCpu.includes('intel') || nCpu.includes('core i');
+      const isAMDCPU = nCpu.includes('amd') || nCpu.includes('ryzen');
+      
+      const isIntelMobo = nMobo.includes('h610') || nMobo.includes('b660') || nMobo.includes('b760') || nMobo.includes('z690') || nMobo.includes('z790') || nMobo.includes('intel') || nMobo.includes('lga');
+      const isAMDMobo = nMobo.includes('a320') || nMobo.includes('b450') || nMobo.includes('b550') || nMobo.includes('x570') || nMobo.includes('a620') || nMobo.includes('b650') || nMobo.includes('x670') || nMobo.includes('amd') || nMobo.includes('am4') || nMobo.includes('am5');
+
+      if (isIntelCPU && isAMDMobo) {
+        report.errors.push(`Incompatible: Intel Processor (${cpu.name}) cannot be used with an AMD Motherboard.`);
+      } else if (isAMDCPU && isIntelMobo) {
+        report.errors.push(`Incompatible: AMD Processor (${cpu.name}) cannot be used with an Intel Motherboard.`);
+      }
+    }
+
+    // RAM vs Mobo Heuristics
+    if (ram && mobo) {
+      const isMoboDDR5 = nMobo.includes('d5') || nMobo.includes('ddr5') || nMobo.includes('z790') || nMobo.includes('x670') || nMobo.includes('b650');
+      const isMoboDDR4 = nMobo.includes('d4') || nMobo.includes('ddr4') || nMobo.includes('b450') || nMobo.includes('b550') || nMobo.includes('h610');
+      
+      const isRamDDR5 = nRam.includes('ddr5');
+      const isRamDDR4 = nRam.includes('ddr4');
+
+      if (isMoboDDR5 && isRamDDR4) {
+        report.errors.push(`Incompatible RAM: ${mobo.name} requires DDR5 RAM, but you selected DDR4.`);
+      } else if (isMoboDDR4 && isRamDDR5) {
+        report.errors.push(`Incompatible RAM: ${mobo.name} supports only DDR4 RAM, but you selected DDR5.`);
+      }
+    }
     
     // 1. CPU & Motherboard Socket Check
     if (cpu && mobo) {
@@ -118,24 +153,35 @@ export class CompatibilityEngine {
   }
 
   static calculateTotalTDP(selectedProducts: Record<string, Product>): number {
-    let total = 0;
-    // Base system TDP (fans, SSDs, etc)
-    total += 50; 
+    let total = 50; // Base system TDP (motherboard baseline, fans, peripherals)
 
-    Object.values(selectedProducts).forEach(product => {
+    Object.entries(selectedProducts).forEach(([catId, product]) => {
       if (!product) return;
       if (product.tdp) {
         total += product.tdp;
       } else {
-        // Fallbacks based on category if TDP is not explicitly provided
-        switch(product.category.toLowerCase()) {
-          case 'cpu': total += 65; break; // average 65W
-          case 'graphics card':
-          case 'gpu': total += 200; break; // average 200W
-          case 'motherboard': total += 30; break;
-          case 'ram': total += 10; break;
-          case 'storage': total += 10; break;
+        // Fallbacks based on the builder category ID
+        const cat = catId.toLowerCase();
+        
+        // Smarter heuristic based on product name if TDP is missing
+        const name = product.name.toLowerCase();
+        
+        if (cat.includes('cpu')) {
+          if (name.includes('i9') || name.includes('ryzen 9')) total += 125;
+          else if (name.includes('i7') || name.includes('ryzen 7')) total += 105;
+          else total += 65;
+        } 
+        else if (cat.includes('graphic') || cat.includes('gpu')) {
+          if (name.includes('4090') || name.includes('7900 xtx')) total += 450;
+          else if (name.includes('4080') || name.includes('7900')) total += 320;
+          else if (name.includes('4070') || name.includes('7800')) total += 200;
+          else if (name.includes('3060') || name.includes('4060') || name.includes('7600')) total += 130;
+          else total += 150;
         }
+        else if (cat.includes('motherboard') || cat.includes('mobo')) total += 35;
+        else if (cat.includes('ram') || cat.includes('memory')) total += 15;
+        else if (cat.includes('storage') || cat.includes('ssd') || cat.includes('hdd')) total += 10;
+        else if (cat.includes('cooler') || cat.includes('fan')) total += 10;
       }
     });
 
@@ -158,5 +204,57 @@ export class CompatibilityEngine {
     if (ff.includes('micro') || ff.includes('m-atx')) return 2;
     if (ff.includes('mini') || ff.includes('itx')) return 1;
     return 3; // Default to ATX size
+  }
+
+  static evaluateScore(selectedProducts: Record<string, Product>): { score: number, text: string } {
+    let score = 0;
+    const cpu = selectedProducts['cpu'];
+    const gpu = selectedProducts['graphics-card'];
+    const mobo = selectedProducts['motherboard'];
+    const ram = selectedProducts['ram'];
+
+    if (!cpu && !mobo) return { score: 0, text: "Start adding components to get your AI Build Score!" };
+    if (!cpu || !mobo) return { score: 2.0, text: "Build is incomplete. Add core components (CPU & Motherboard) for a rating." };
+    
+    score += 4; 
+    if (ram) score += 1.5;
+    if (gpu) score += 2;
+    if (selectedProducts['storage']) score += 1;
+    if (selectedProducts['power-supply']) score += 1.5;
+    if (selectedProducts['casing']) score += 0.5;
+
+    const cpuTier = cpu ? this.getTier(cpu.name) : 0;
+    const gpuTier = gpu ? this.getTier(gpu.name) : 0;
+    
+    let text = "";
+    if (cpuTier === 3 && gpuTier === 3) {
+      score = 9.8;
+      text = "Extreme High-End Build! Perfect for 4K Gaming, 3D Rendering, and heavy Video Editing. This is a beast!";
+    } else if (cpuTier >= 2 && gpuTier >= 2) {
+      score = 8.5;
+      text = "Great Mid-to-High Tier Build! Solid for 1440p Gaming, editing, and streaming.";
+    } else if (gpu && gpuTier === 1) {
+      score = 7.5;
+      text = "Balanced Budget Build. Good for 1080p gaming, eSports titles, and normal workloads.";
+    } else if (!gpu) {
+      score -= 1;
+      text = "Office / Basic Build. Missing a dedicated GPU for gaming, but great for everyday tasks.";
+    } 
+    
+    if (cpu && gpu && Math.abs(cpuTier - gpuTier) >= 2) {
+      score -= 1.5;
+      text = "Bottleneck detected! Either your CPU or GPU is significantly more powerful than the other, which wastes performance.";
+    }
+
+    const report = this.evaluate(selectedProducts);
+    if (!report.isCompatible) {
+      score = 0;
+      text = "Incompatible Build! Please fix the red errors to complete this PC.";
+    }
+
+    // Cap score at 10
+    score = Math.min(10, Math.max(0, score));
+
+    return { score, text };
   }
 }

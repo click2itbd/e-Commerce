@@ -59,17 +59,23 @@ export const CampaignLanding: React.FC = () => {
         description="Check out our exclusive products from Facebook posts and promotions."
       />
       
-      {/* Campaign Banner */}
-      <section className="relative overflow-hidden rounded-2xl shadow-lg mb-10 bg-gradient-to-r from-blue-600 to-blue-800">
-        <div className="absolute inset-0 opacity-20">
-            <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 1440 320"><path fill="#ffffff" fillOpacity="1" d="M0,128L48,138.7C96,149,192,171,288,181.3C384,192,480,192,576,170.7C672,149,768,107,864,117.3C960,128,1056,192,1152,202.7C1248,213,1344,171,1392,149.3L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>
-        </div>
-        <div className="relative p-10 md:p-16 flex flex-col items-center text-center z-10 text-white">
-          <h1 className="text-3xl md:text-5xl font-black mb-4 drop-shadow-md">
+      {/* Premium Campaign Banner */}
+      <section className="relative overflow-hidden rounded-3xl mb-12 bg-slate-900 border border-slate-800 shadow-[0_20px_50px_rgba(8,_112,_184,_0.15)] group">
+        {/* Abstract Background Elements */}
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-blue-600/20 blur-3xl group-hover:bg-blue-600/30 transition-all duration-700"></div>
+        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 rounded-full bg-orange-500/10 blur-3xl group-hover:bg-orange-500/20 transition-all duration-700"></div>
+        
+        <div className="relative p-12 md:p-20 flex flex-col items-center text-center z-10 text-white">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-blue-300 font-semibold text-sm mb-6 uppercase tracking-widest backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+            Limited Time Offer
+          </div>
+          <h1 className="text-4xl md:text-6xl font-black mb-6 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-blue-100 to-slate-300 drop-shadow-sm">
             Exclusive Deals
           </h1>
-          <p className="text-lg md:text-xl max-w-2xl text-blue-100 font-medium">
-            Welcome! Explore our special handpicked products. Grab them before stock runs out!
+          <p className="text-lg md:text-xl max-w-2xl text-slate-300 font-medium leading-relaxed">
+            Welcome! Explore our special handpicked products. Premium quality meets unbeatable prices. Grab them before stock runs out!
           </p>
         </div>
       </section>

@@ -26,6 +26,8 @@ import { SiteSettings } from "../../../../types";
 import { useAuth } from "../../../../context/AuthContext";
 import { getApiUrl } from "../../../../services/apiClient";
 import EmailTemplatesManager from "./EmailTemplatesManager";
+import { PagesManager } from "./PagesManager";
+import { PCBuilderCategoriesManager } from "../inventory/PCBuilderCategoriesManager";
 
 export const Settings = () => {
   const { settings, updateSettings } = useSettings();
@@ -204,6 +206,8 @@ export const Settings = () => {
                 label: "Whitelabel Setting",
               },
               { id: "pwa", icon: SettingsIcon, label: "PWA Setting" },
+                { id: "pages", icon: FileText, label: "Pages & Policies" },
+                { id: "pc_builder", icon: Cpu, label: "PC Builder Categories" },
               {
                 id: "crm_integrations",
                 icon: SettingsIcon,
@@ -1111,7 +1115,13 @@ export const Settings = () => {
                 </div>
               </div>
             </div>
-          ) : settingsTab === "pwa" ? (
+          ) : settingsTab === "pages" ? (
+              <PagesManager />
+            ) : settingsTab === "pc_builder" ? (
+              <PCBuilderCategoriesManager />
+            ) : settingsTab === "pc_builder_fake" ? (
+              <PagesManager />
+            ) : settingsTab === "pwa" ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
               <div className="p-4 border-b border-gray-100">
                 <h3 className="text-sm font-bold text-gray-700">PWA Setting</h3>

@@ -1,3 +1,6 @@
+import heroMainImg from '../../public/banners/hero-main.jpg';
+import sideAccImg from '../../public/banners/side-acc.jpg';
+import sideGadgetImg from '../../public/banners/side-gadget.jpg';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -33,13 +36,13 @@ const slideVariants = {
 
 // ─── Default slides when DB is empty ──────────────────────────────
 const defaultSlides = [
-  { id: 'default-1', imageUrl: '/banners/hero-main.jpg', targetUrl: '/category/components', title: 'GAMING SETUPS' },
-  { id: 'default-2', imageUrl: '/banners/hero-main.jpg', targetUrl: '/category/components/monitor', title: 'MONITORS & DISPLAYS' },
+  { id: 'default-1', imageUrl: heroMainImg, targetUrl: '/category/components', title: 'GAMING SETUPS' },
+  { id: 'default-2', imageUrl: heroMainImg, targetUrl: '/category/components/monitor', title: 'MONITORS & DISPLAYS' },
 ];
 
 const defaultSidebanners = [
-  { id: 'side-1', imageUrl: '/banners/side-acc.jpg', targetUrl: '/category/components', title: 'ACCESSORIES' },
-  { id: 'side-2', imageUrl: '/banners/side-gadget.jpg', targetUrl: '/category/components', title: 'GADGETS' },
+  { id: 'side-1', imageUrl: sideAccImg, targetUrl: '/category/components', title: 'ACCESSORIES' },
+  { id: 'side-2', imageUrl: sideGadgetImg, targetUrl: '/category/components', title: 'GADGETS' },
 ];
 
 export const HeroBanner: React.FC = () => {
@@ -83,9 +86,9 @@ export const HeroBanner: React.FC = () => {
   useEffect(() => {
     if (totalSlides <= 1 || isPaused) return;
     const interval = setInterval(() => {
-      setDirection(1);
-      setCurrentSlide(prev => (prev + 1) % totalSlides);
-    }, 5000);
+        setDirection(1);
+        setCurrentSlide(prev => (prev + 1) % totalSlides);
+      }, 8000);
     return () => clearInterval(interval);
   }, [totalSlides, isPaused]);
 

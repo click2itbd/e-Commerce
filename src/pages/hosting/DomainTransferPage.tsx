@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { Layout } from '../../components/Layout';
@@ -99,7 +99,7 @@ const DomainTransferPage = () => {
 
       const transferProduct = {
         id: `domain_transfer_${normalized}`,
-        name: `Domain Transfer â€” ${normalized}`,
+        name: `Domain Transfer — ${normalized}`,
         description: 'Includes 1 Year Extension',
         price: transferPrice,
         category: 'Hosting & Domains',
@@ -110,6 +110,7 @@ const DomainTransferPage = () => {
         domain: normalized,
         domainTld: tld,
         termYears: 1,
+        eppCode: authCode,
       };
       
       addToCart(transferProduct as any);
@@ -384,3 +385,4 @@ const DomainTransferPage = () => {
 };
 
 export default DomainTransferPage;
+

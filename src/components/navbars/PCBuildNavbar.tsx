@@ -1,178 +1,240 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, Cpu, Server } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, X, LogOut, ChevronRight, Zap, Target, Server, Loader2 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
-import { auth } from '../../firebase';
+import { auth, db } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import { setSiteContext } from '../../hooks/useSiteContext';
+import { collection, getDocs, query, limit } from 'firebase/firestore';
+import { Product } from '../../types';
 
 export const PCBuildNavbar: React.FC = () => {
   const { items } = useCart();
-  const { user, canAccessAdmin } = useAuth();
+  const { user } = useAuth();
   const { settings } = useSettings();
-  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  // Live Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  
   const navigate = useNavigate();
 
   useEffect(() => {
     setSiteContext('pc-build');
+    
+    // Fetch all products once for fast client-side searching
+    const fetchProducts = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'products'), limit(500)));
+        const prods = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+        setAllProducts(prods);
+      } catch (err) {
+        console.error("Failed to load products for search", err);
+      }
+    };
+    fetchProducts();
   }, []);
+
+  // Handle outside click for search dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Live search logic
+  useEffect(() => {
+    if (searchQuery.trim().length > 1) {
+      setIsSearching(true);
+      setShowSearchDropdown(true);
+      
+      const delay = setTimeout(() => {
+        const queryLower = searchQuery.toLowerCase();
+        const results = allProducts.filter(p => 
+          p.name?.toLowerCase().includes(queryLower) || 
+          p.category?.toLowerCase().includes(queryLower)
+        ).slice(0, 5); // Max 5 results
+        
+        setSearchResults(results);
+        setIsSearching(false);
+      }, 300); // 300ms debounce
+      
+      return () => clearTimeout(delay);
+    } else {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+    }
+  }, [searchQuery, allProducts]);
 
   const handleLogout = async () => {
     await signOut(auth);
     navigate('/');
   };
 
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      setShowSearchDropdown(false);
+      navigate(`/shop?search=${encodeURIComponent(searchQuery)}`);
+    }
+  };
+
   const cartItemCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
-    <header className="sticky top-0 z-50 w-full text-white shadow-md bg-[#0E2A47]">
-      <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
-        <div className="flex h-16 items-center justify-between gap-4">
+    <header className="sticky top-0 z-[100] w-full text-white bg-[#0B0E14]/80 backdrop-blur-xl border-b border-[#1F2633] shadow-sm">
+      
+      <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px] relative">
+        <div className="flex h-20 items-center justify-between gap-6">
           {/* Logo */}
-          <Link to="/pc-build" className="flex items-center gap-2 shrink-0">
+          <Link to="/pc-build" className="flex items-center gap-2 shrink-0 group relative">
             {settings.logoUrl ? (
-              <img src={settings.logoUrl} alt={settings.brandName} className="h-10 w-auto" referrerPolicy="no-referrer" />
+              <img src={settings.logoUrl} alt={settings.brandName} className="h-12 w-auto relative z-10 transition-transform group-hover:scale-105 duration-300" referrerPolicy="no-referrer" />
             ) : (
-              <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-10 md:h-12 w-auto object-contain" />
+              <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-12 w-auto object-contain relative z-10 transition-transform group-hover:scale-105 duration-300" />
             )}
           </Link>
 
-          {/* Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-xl relative">
-            <input
-              type="text"
-              placeholder="Search components..."
-              className="w-full border-none rounded-md py-2 px-4 focus:ring-2 transition-all bg-[#1a3a5f] text-white placeholder-gray-400"
-            />
-            <button className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
-              <Search size={20} />
-            </button>
+          {/* Nav Links (Desktop) */}
+          <nav className="hidden lg:flex items-center gap-8">
+            <Link to="/shop" className="text-slate-400 hover:text-white font-semibold transition-colors flex items-center gap-1.5 group">
+              <Target size={16} className="text-slate-500 group-hover:text-cyan-400 transition-colors"/> Shop
+            </Link>
+            <Link to="/pc-build" className="text-violet-400 font-bold transition-colors flex items-center gap-1.5 relative group">
+              <Zap size={16} className="fill-violet-400 animate-pulse"/> PC Builder
+              <div className="absolute -bottom-7 left-0 right-0 h-[2px] bg-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.8)] rounded-t-full"></div>
+            </Link>
+            <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white font-semibold transition-colors flex items-center gap-1.5 group">
+              <Server size={16} className="text-slate-500 group-hover:text-amber-400 transition-colors"/> Hosting
+            </a>
+          </nav>
+
+          {/* Search Bar - Live */}
+          <div className="hidden md:flex flex-1 max-w-md relative group z-50" ref={searchRef}>
+            <form onSubmit={handleSearchSubmit} className="relative w-full flex items-center">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onFocus={() => { if(searchQuery.length > 1) setShowSearchDropdown(true) }}
+                placeholder="Search gaming gear..."
+                className="w-full bg-[#151A23] border border-[#1F2633] rounded-xl py-2.5 pl-4 pr-10 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 text-white placeholder-slate-500 transition-all shadow-inner"
+              />
+              <button type="submit" className="absolute right-3 text-slate-400 hover:text-violet-400 transition-colors">
+                {isSearching ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+              </button>
+            </form>
+
+            {/* Live Search Dropdown */}
+            {showSearchDropdown && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-[#151A23] border border-[#1F2633] rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                {searchResults.length > 0 ? (
+                  <div className="flex flex-col">
+                    {searchResults.map(prod => (
+                      <Link 
+                        key={prod.id} 
+                        to={`/product/${prod.id}`}
+                        onClick={() => setShowSearchDropdown(false)}
+                        className="flex items-center gap-3 p-3 hover:bg-[#1F2633] transition-colors border-b border-[#1F2633]/50 last:border-0 group/item"
+                      >
+                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center p-1 shrink-0 group-hover/item:shadow-lg transition-shadow">
+                          <img src={prod.images?.[0] || '/placeholder.png'} className="w-full h-full object-contain mix-blend-multiply" alt={prod.name} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-bold text-slate-200 truncate group-hover/item:text-violet-400 transition-colors">{prod.name}</h4>
+                          <p className="text-xs text-slate-500 capitalize">{prod.category?.replace(/-/g, ' ')}</p>
+                        </div>
+                        <div className="text-sm font-bold text-cyan-400 shrink-0">
+                          ৳{prod.discountPrice || prod.price}
+                        </div>
+                      </Link>
+                    ))}
+                    <Link 
+                      to={`/shop?search=${encodeURIComponent(searchQuery)}`}
+                      onClick={() => setShowSearchDropdown(false)}
+                      className="p-3 text-center text-xs font-bold text-violet-400 hover:text-white hover:bg-violet-600 transition-all"
+                    >
+                      View All Results &rarr;
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-slate-500 text-sm">
+                    No products found for "{searchQuery}"
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-6">
-            <Link to="/cart" className="relative group">
-              <ShoppingCart className="transition-colors" style={{ color: 'white' }} />
+          <div className="flex items-center gap-5 shrink-0">
+            <Link to="/cart" className="relative p-2 text-slate-400 hover:text-white transition-colors group">
+              <ShoppingCart size={22} className="relative z-10 group-hover:scale-110 transition-transform" />
               {cartItemCount > 0 && (
-                <span className="absolute -top-2 -right-2 text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2" style={{ backgroundColor: settings.accentColor, borderColor: settings.primaryColor }}>
+                <span className="absolute -top-1 -right-1 text-white text-[10px] font-black h-5 w-5 rounded-full flex items-center justify-center bg-violet-600 shadow-[0_0_10px_rgba(139,92,246,0.5)] z-20">
                   {cartItemCount}
                 </span>
               )}
             </Link>
 
             {user ? (
-              <div className="flex items-center gap-4">
-                <Link to="/profile" className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
-                  <User size={20} />
-                  <span className="text-sm font-medium">My Profile</span>
+              <div className="hidden sm:flex items-center gap-4 border-l border-[#1F2633] pl-5">
+                <Link to="/profile" className="flex items-center gap-2 text-sm font-bold text-slate-300 hover:text-white transition-colors bg-[#151A23] px-3 py-1.5 rounded-lg border border-[#1F2633] hover:border-violet-500/30">
+                  <User size={16} className="text-violet-400" /> Profile
                 </Link>
-                <button onClick={handleLogout} className="hidden sm:flex items-center gap-1 hover:text-[#EF4444] transition-colors">
-                  <LogOut size={20} />
-                  <span className="text-sm font-medium">Logout</span>
+                <button onClick={handleLogout} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-rose-400 transition-colors">
+                  <LogOut size={18} />
                 </button>
               </div>
             ) : (
-              <Link to="/login" className="flex items-center gap-1 hover:text-[#EF4444] transition-colors">
-                <User size={20} />
-                <span className="hidden sm:block text-sm font-medium">Login</span>
+              <Link to="/login" className="hidden sm:flex items-center gap-2 text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white px-5 py-2.5 rounded-xl transition-all shadow-[0_0_15px_rgba(139,92,246,0.3)] hover:shadow-[0_0_25px_rgba(139,92,246,0.5)]">
+                <User size={18} /> Login
               </Link>
             )}
 
-            <button className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-              {isMenuOpen ? <X /> : <Menu />}
+            <button className="lg:hidden text-slate-300 hover:text-violet-400" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Desktop Navigation */}
-      <nav className="hidden md:block bg-white text-[#081621] border-b border-gray-200">
-        <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
-          <ul className="flex items-center gap-8 h-12">
-            <li className="h-full">
-              <Link 
-                to="/shop" 
-                className="flex items-center gap-1 h-full text-sm font-bold transition-colors"
-                style={{ color: 'inherit' }}
-                onMouseEnter={(e) => e.currentTarget.style.color = settings.accentColor}
-                onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
-              >
-                Home
-              </Link>
-            </li>
-            
-            <li className="h-full">
-              <Link 
-                to="/pc-build" 
-                className="flex items-center gap-2 h-full text-sm font-bold hover:underline" 
-                style={{ color: settings.accentColor }}
-              >
-                <Cpu size={16} /> PC Builder
-              </Link>
-            </li>
-
-            <li className="h-full">
-              <Link 
-                to="/compare" 
-                className="flex items-center gap-1 h-full text-sm font-bold transition-colors"
-                style={{ color: 'inherit' }}
-                onMouseEnter={(e) => e.currentTarget.style.color = settings.accentColor}
-                onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
-              >
-                Compare
-              </Link>
-            </li>
-            <li className="h-full">
-              <Link to="/" className="flex items-center gap-1 h-full text-sm font-bold transition-colors text-gray-500 hover:text-gray-900">
-                 Hosting
-              </Link>
-            </li>
-          </ul>
-        </div>
-      </nav>
-
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="md:hidden border-t border-gray-700 p-4 bg-[#081621]">
-          <div className="flex flex-col gap-4">
-            <div className="relative">
+        <div className="lg:hidden bg-[#151A23] border-t border-[#1F2633] shadow-2xl absolute w-full">
+          <div className="px-4 py-4 space-y-4">
+            <form onSubmit={handleSearchSubmit} className="relative">
               <input
-                type="text"
-                placeholder="Search..."
-                className="w-full border-none rounded-md py-2 px-4 bg-[#0E2A47] text-white"
+                type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search products..."
+                className="w-full bg-[#0B0E14] border border-[#1F2633] rounded-xl py-3 pl-4 pr-10 text-white focus:outline-none focus:border-violet-500"
               />
-              <Search className="absolute right-3 top-2.5 text-gray-400" size={18} />
-            </div>
-            {canAccessAdmin && (
-              <Link to="/admin" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
-                <LayoutDashboard size={20} /> Admin Dashboard
-              </Link>
-            )}
-            
-            {/* Dynamic Menus in Mobile */}
-            <div className="border-t border-gray-700 pt-4">
-              <Link to="/shop" className="block py-2 text-sm font-bold" onClick={() => setIsMenuOpen(false)}>Home</Link>
-              <Link to="/pc-build" className="block py-2 text-sm font-bold" onClick={() => setIsMenuOpen(false)}>PC Builder</Link>
-              <Link to="/compare" className="block py-2 text-sm font-bold" onClick={() => setIsMenuOpen(false)}>Compare</Link>
-              
-            </div>
-
-            {user ? (
-              <div className="flex flex-col gap-2">
-                <Link to="/profile" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
-                  <User size={20} /> My Profile
-                </Link>
-                <button onClick={handleLogout} className="flex items-center gap-2 py-2 text-left">
-                  <LogOut size={20} /> Logout
-                </button>
-              </div>
-            ) : (
-              <Link to="/login" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
-                <User size={20} /> Login / Register
-              </Link>
-            )}
+              <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"><Search size={18}/></button>
+            </form>
+            <nav className="flex flex-col space-y-1">
+              <Link to="/shop" className="text-slate-300 py-3 px-2 border-b border-[#1F2633] flex items-center justify-between hover:bg-[#0B0E14] rounded-lg">Shop <ChevronRight size={16}/></Link>
+              <Link to="/pc-build" className="text-violet-400 py-3 px-2 border-b border-[#1F2633] flex items-center justify-between font-bold bg-violet-500/10 rounded-lg">PC Builder <ChevronRight size={16}/></Link>
+              <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="text-slate-300 py-3 px-2 border-b border-[#1F2633] flex items-center justify-between hover:bg-[#0B0E14] rounded-lg">Hosting <ChevronRight size={16}/></a>
+              {user ? (
+                <>
+                  <Link to="/profile" className="text-slate-300 py-3 px-2 border-b border-[#1F2633] flex items-center justify-between hover:bg-[#0B0E14] rounded-lg">My Profile <User size={16}/></Link>
+                  <button onClick={handleLogout} className="text-rose-400 py-3 px-2 flex items-center justify-between w-full text-left hover:bg-rose-500/10 rounded-lg">Logout <LogOut size={16}/></button>
+                </>
+              ) : (
+                <Link to="/login" className="text-violet-400 py-3 px-2 flex items-center justify-between w-full font-bold mt-2 border border-violet-500/30 rounded-lg bg-violet-500/10">Login <User size={16}/></Link>
+              )}
+            </nav>
           </div>
         </div>
       )}

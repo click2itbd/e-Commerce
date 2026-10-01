@@ -15,6 +15,7 @@ import { useSettings } from '../context/SettingsContext';
 import { formatCurrency } from '../lib/utils';
 import { SupportTicketsClient } from '../components/hosting/SupportTicketsClient';
 import { NameserverModal } from '../components/hosting/NameserverModal';
+import { UserAffiliateTab } from '../components/hosting/UserAffiliateTab';
 import { HostingUpgradeModal } from '../components/hosting/HostingUpgradeModal';
 import { apiPost } from '../services/apiClient';
 
@@ -27,6 +28,14 @@ interface DomainOrder {
   price?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+interface BdDomainApp {
+  id: string;
+  domain: string;
+  status: string;
+  createdAt: string;
+  [key: string]: any;
 }
 
 interface HostingAccount {
@@ -54,13 +63,14 @@ export const MyServices: React.FC = () => {
 
   const [domains, setDomains] = useState<DomainOrder[]>([]);
   const [hosting, setHosting] = useState<HostingAccount[]>([]);
+  const [bdDomains, setBdDomains] = useState<BdDomainApp[]>([]);
   const [orders, setOrders] = useState<HostingOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [domainLoading, setDomainLoading] = useState<string | null>(null);
   const [hostingLoading, setHostingLoading] = useState<string | null>(null);
   const [usageData, setUsageData] = useState<Record<string, HostingUsageStats>>({});
   const [usageLoading, setUsageLoading] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'domains' | 'hosting' | 'billing' | 'support'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'domains' | 'hosting' | 'billing' | 'support' | 'affiliate'>('overview');
   
   const [managingNsDomain, setManagingNsDomain] = useState<DomainOrder | null>(null);
   const [upgradingHosting, setUpgradingHosting] = useState<HostingAccount | null>(null);
@@ -86,6 +96,13 @@ export const MyServices: React.FC = () => {
       setLoading(false);
     });
 
+    const qBdDomains = query(collection(db, 'bd_domain_applications'), where('email', '==', user.email || ''), limit(50));
+    const unsubBdDomains = onSnapshot(qBdDomains, (snap) => {
+      setBdDomains(snap.docs.map(d => ({ id: d.id, ...d.data() } as BdDomainApp)));
+    }, (err) => {
+      console.error('Error loading bd domains:', err);
+    });
+
     const qOrders = query(collection(db, 'orders'), where('userId', '==', user.uid), limit(100));
     const unsubOrders = onSnapshot(qOrders, (snap) => {
       const hostingRelatedOrders = snap.docs
@@ -100,6 +117,7 @@ export const MyServices: React.FC = () => {
     return () => {
       unsubDomains();
       unsubHosting();
+      unsubBdDomains();
       unsubOrders();
     };
   }, [user]);
@@ -466,6 +484,49 @@ export const MyServices: React.FC = () => {
                 </div>
               )}
 
+                  {bdDomains.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-6">
+                      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2"><Globe size={20} className="text-green-700" /> .BD Domain Applications</h2>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-200">
+                            <tr>
+                              <th className="px-6 py-4 font-semibold">Domain</th>
+                              <th className="px-6 py-4 font-semibold">Status</th>
+                              <th className="px-6 py-4 font-semibold">Application Date</th>`n                              <th className="px-6 py-4 font-semibold text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {bdDomains.map(app => (
+                              <tr key={app.id} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-6 py-4 font-bold text-green-800">{app.domain || app.domainName}</td>
+                                <td className="px-6 py-4">
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-700">
+                                    {app.status.replace('_', ' ')}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-600">
+                                  {app.createdAt ? new Date(app.createdAt).toLocaleDateString() : '-'}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  {app.status === 'payment_pending' && (
+                                    <button 
+                                      onClick={() => navigate('/checkout?bd_domain=' + encodeURIComponent(app.domain || app.domainName) + '&app_id=' + app.id)}
+                                      className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-4 rounded transition-colors"
+                                    >
+                                      Pay Now
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
               {/* Hosting Tab */}
               {activeTab === 'hosting' && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -619,3 +680,6 @@ export const MyServices: React.FC = () => {
     </Layout>
   );
 };
+
+
+

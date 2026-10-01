@@ -112,7 +112,7 @@ export const generatePDF = async (
   doc.setTextColor(71, 85, 105);
 
   try {
-    const urlsToTry = [settings?.logoUrl, "/logo.png"].filter(Boolean);
+    const urlsToTry = [settings?.logoUrl, "/logo.png", "/logo.jpeg"].filter(Boolean);
     let dataUrl = "";
     let loadedImg: HTMLImageElement | null = null;
 
@@ -142,15 +142,17 @@ export const generatePDF = async (
       }
     }
 
+    const businessNameText = settings?.businessName || settings?.brandName || "CLICK2IT BD";
+    
     if (loadedImg && dataUrl) {
-      const textWidth = doc.getTextWidth("CLICK 2 IT");
-      const logoHeight = 14;
+      const textWidth = doc.getTextWidth(businessNameText);
+      const logoHeight = 16;
       const logoWidth = (loadedImg.width / loadedImg.height) * logoHeight;
       doc.addImage(
         dataUrl,
         "PNG",
-        pageWidth - 15 - textWidth - logoWidth - 3,
-        currentY - 10,
+        pageWidth - 15 - textWidth - logoWidth - 5,
+        currentY - 11,
         logoWidth,
         logoHeight,
       );
@@ -159,30 +161,35 @@ export const generatePDF = async (
     console.error("Error in logo processing for PDF", err);
   }
 
-  doc.text("CLICK 2 IT", pageWidth - 15, currentY, { align: "right" });
+  doc.text(settings?.businessName || settings?.brandName || "CLICK2IT BD", pageWidth - 15, currentY, { align: "right" });
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(
-    "Shop No. 1072, Level 10, Multiplan Center",
-    pageWidth - 15,
-    currentY + 6,
-    { align: "right" },
-  );
-  doc.text(
-    "69-71, New Elephant Road, Dhaka-1205",
-    pageWidth - 15,
-    currentY + 11,
-    { align: "right" },
-  );
-  doc.text("+8809640887777, +8801729887777", pageWidth - 15, currentY + 16, {
-    align: "right",
-  });
-  doc.text("www.click2itbd.com", pageWidth - 15, currentY + 21, {
-    align: "right",
-  });
+  
+  
+    let finalAddress = settings?.address || "Shop No. 1072, Level 10, Multiplan Center\n69-71, New Elephant Road, Dhaka-1205";
+    if (finalAddress.trim() === 'Dhaka, Bangladesh') {
+      finalAddress = "Shop No. 1072, Level 10, Multiplan Center\n69-71, New Elephant Road, Dhaka-1205";
+    }
+    
+    let finalPhone = settings?.contactPhone || "+8809640887777, +8801729887777";
+    if (finalPhone.trim() === '+8809640887777' || finalPhone.trim() === '+880 123456789') {
+      finalPhone = "+8809640887777, +8801729887777";
+    }
 
-  currentY += 25;
+    const addressLines = doc.splitTextToSize(finalAddress.replace(/\\n/g, '\n'), 80);
+
+  
+  let addrY = currentY + 6;
+  addressLines.forEach((line) => {
+    doc.text(line, pageWidth - 15, addrY, { align: "right" });
+    addrY += 5;
+  });
+  
+  doc.text(finalPhone, pageWidth - 15, addrY, { align: "right" });
+  doc.text(settings.website || "www.click2itbd.com", pageWidth - 15, addrY + 5, { align: "right" });
+
+  currentY = Math.max(currentY + 25, addrY + 15);
 
   if (type === "receipt") {
     const tx = order as Transaction;

@@ -371,9 +371,9 @@ export const EcommerceNavbar: React.FC = () => {
                 <Link to="/pc-build" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
                   <Cpu size={18} /> PC Builder
                 </Link>
-                <Link to="/" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
+                <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
                   Hosting
-                </Link>
+                </a>
               </div>
             </div>
           </div>

@@ -87,6 +87,7 @@ export const HostingNavbar: React.FC = () => {
         { name: "Domain Registration", path: "/domain", icon: Globe },
         { name: "Domain Transfer", path: "/domain/transfer", icon: Globe },
         { name: "Domain Renewal", path: "/domain-renewal", icon: Globe },
+        { name: ".BD Domain Registration", path: "/domain/bd", icon: Globe },
       ],
     },
     { name: "Support", path: "/support" },
@@ -447,3 +448,5 @@ export const HostingNavbar: React.FC = () => {
 };
 
 export default HostingNavbar;
+
+

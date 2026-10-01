@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../../../../firebase';
 import { collection, query, orderBy, getDocs, doc, updateDoc, where, limit } from 'firebase/firestore';
 import { formatCurrency, cn } from '../../../../lib/utils';
@@ -685,8 +685,30 @@ export default function HostingOrders() {
                   </div>
                 </div>
 
+                                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-900 border-b pb-2">Order Items</h4>
+                  <div className="space-y-3">
+                    {selectedOrder.items?.map((item: any, idx: number) => (
+                      <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-bold text-gray-900 text-sm">{item.name}</p>
+                            {item.itemType === 'domain_transfer' && item.eppCode && (
+                              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                                <span className="font-bold text-yellow-800">EPP / Auth Code: </span>
+                                <code className="bg-white px-1 py-0.5 rounded border border-yellow-100 text-yellow-900 select-all">{item.eppCode}</code>
+                              </div>
+                            )}
+                          </div>
+                          <p className="font-bold text-blue-600">BDT {item.price}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900 border-b pb-2">Order Summary & Workflow</h4>
+                  <h4 className="font-semibold text-gray-900 border-b pb-2">Workflow</h4>
                   <div className="text-sm space-y-2 text-gray-600">
                     <p><span className="font-medium text-gray-900">Payment Method:</span> <span className="uppercase font-semibold">{selectedOrder.paymentMethod}</span></p>
                     <p><span className="font-medium text-gray-900">Shipping:</span> {`BDT ${selectedOrder.shippingCost.toLocaleString()}`}</p>
@@ -1127,6 +1149,7 @@ export default function HostingOrders() {
     </div>
   );
 }
+
 
 
 

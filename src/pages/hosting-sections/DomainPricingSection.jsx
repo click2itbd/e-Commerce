@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Globe, ArrowRight, Loader2 } from 'lucide-react';
 import { collection, onSnapshot, doc } from 'firebase/firestore';

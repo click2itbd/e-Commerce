@@ -15,7 +15,12 @@ interface DomainSearchProps {
 export const DomainSearch: React.FC<DomainSearchProps> = ({ onAddToCart }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedTlds, setSelectedTlds] = useState<string[]>(['.com', '.net', '.org', '.com.bd', '.xyz', '.online', '.dev']);
+  const [pricing, setPricing] = useState<DomainPricing[]>([]);
   const { loading, error, results, suggestions, search, fetchSuggestions, reset } = useDomainSearch();
+
+  useEffect(() => {
+    getDomainPricing().then(setPricing).catch(console.error);
+  }, []);
 
   const handleSearch = async () => {
     if (!searchText.trim()) return;

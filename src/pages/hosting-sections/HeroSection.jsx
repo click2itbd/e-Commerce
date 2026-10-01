@@ -6,12 +6,29 @@ const POPULAR_TLDS = ['.com', '.net', '.org', '.com.bd', '.xyz', '.store', '.onl
 
 export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
   const [query, setQuery] = useState('');
-  const [selectedTlds, setSelectedTlds] = useState(['.com', '.net', '.org', '.com.bd', '.xyz']);
+  const [selectedTld, setSelectedTld] = useState('.com');
   const navigate = useNavigate();
 
   const handleSearch = () => {
     if (!query.trim()) return;
-    navigate(`/domain/search?q=${encodeURIComponent(query.trim())}`);
+    let finalQuery = query.trim();
+    if (!finalQuery.includes('.')) {
+      finalQuery += selectedTld;
+    }
+    navigate(`/domain/search?q=${encodeURIComponent(finalQuery)}`);
+  };
+
+  const handlePillClick = (tld) => {
+    setSelectedTld(tld);
+    if (query.trim()) {
+      let finalQuery = query.trim();
+      if (finalQuery.includes('.')) {
+        finalQuery = finalQuery.substring(0, finalQuery.lastIndexOf('.')) + tld;
+      } else {
+        finalQuery += tld;
+      }
+      navigate(`/domain/search?q=${encodeURIComponent(finalQuery)}`);
+    }
   };
 
   return (
@@ -75,6 +92,7 @@ export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
             </div>
             <input
               type="text"
+              id="domainSearchInput"
               value={query}
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
@@ -82,11 +100,13 @@ export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
               className="flex-1 px-4 py-5 text-lg text-gray-800 outline-none bg-transparent placeholder-gray-400"
             />
             <div className="flex items-center gap-2 pr-2">
-              <select className="hidden md:block text-sm text-gray-600 bg-gray-100 border-0 rounded-lg px-3 py-2 outline-none">
-                <option>.com</option>
-                <option>.net</option>
-                <option>.org</option>
-                <option>.xyz</option>
+              <select 
+                value={selectedTld}
+                onChange={e => setSelectedTld(e.target.value)}
+                className="hidden md:block text-sm text-gray-600 bg-gray-100 border-0 rounded-lg px-3 py-2 outline-none cursor-pointer">
+                {POPULAR_TLDS.map(tld => (
+                  <option key={tld} value={tld}>{tld}</option>
+                ))}
               </select>
               <button
                 onClick={handleSearch}
@@ -102,14 +122,12 @@ export default function HeroSection({ hasDomainInCart, bundleDiscount }) {
           {/* TLD selector pills */}
           <div className="flex flex-wrap justify-center gap-2 mb-6">
             {POPULAR_TLDS.slice(0, 7).map((tld, i) => {
-              const selected = selectedTlds.includes(tld);
+              const selected = selectedTld === tld;
               return (
                 <span
                   key={i}
-                  onClick={() => setSelectedTlds(prev =>
-                    prev.includes(tld) ? prev.filter(x => x !== tld) : [...prev, tld]
-                  )}
-                  className="cursor-pointer select-none px-4 py-1.5 rounded-full text-sm font-semibold transition-all border"
+                  onClick={() => handlePillClick(tld)}
+                  className="cursor-pointer select-none px-4 py-1.5 rounded-full text-sm font-semibold transition-all border hover:border-blue-400"
                   style={selected
                     ? { background: 'rgba(255,255,255,0.15)', color: '#fff', borderColor: 'rgba(255,255,255,0.35)' }
                     : { background: 'rgba(255,255,255,0.04)', color: '#94a3b8', borderColor: 'rgba(255,255,255,0.1)' }

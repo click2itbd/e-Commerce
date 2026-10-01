@@ -4,7 +4,7 @@ import { db } from '../../../firebase';
 import { X, CheckCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { generateDocumentNumber } from '../../../lib/numbering';
-import { Vendor, PaymentAccount } from '../../../types';
+import { Vendor, PaymentAccount, NavigationMenu } from '../../../types';
 
 interface CustomProductPurchaseModalProps {
   onClose: () => void;
@@ -16,9 +16,15 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
   const [submitting, setSubmitting] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [accounts, setAccounts] = useState<PaymentAccount[]>([]);
+  const [menus, setMenus] = useState<NavigationMenu[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
+    categoryId: '',
+    subCategory: '',
+    brand: '',
+    model: '',
+    barcode: '',
     vendorId: '',
     costPrice: 0,
     salesPrice: 0,
@@ -30,16 +36,19 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [venSnap, accSnap] = await Promise.all([
+        const [venSnap, accSnap, menuSnap] = await Promise.all([
           getDocs(query(collection(db, 'vendors'), orderBy('name'))),
           getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
+          getDocs(collection(db, 'menus')),
         ]);
         
         const fetchedVendors = venSnap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor));
         const fetchedAccs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
+        const fetchedMenus = menuSnap.docs.map(d => ({ id: d.id, ...d.data() } as NavigationMenu));
         
         setVendors(fetchedVendors);
         setAccounts(fetchedAccs);
+        setMenus(fetchedMenus);
 
         if (fetchedAccs.length > 0) {
           setFormData(prev => ({ ...prev, paymentAccountId: fetchedAccs[0].id }));
@@ -67,13 +76,19 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
       const account = accounts.find(a => a.id === formData.paymentAccountId);
 
       // 1. Create Product
+      const categoryName = menus.find(m => m.id === formData.categoryId)?.title || 'Custom Product';
       const productData = {
         name: formData.name,
         description: 'Custom Product',
         price: formData.salesPrice,
         costPrice: formData.costPrice,
         stock: formData.quantity,
-        category: 'Custom Product',
+        categoryId: formData.categoryId,
+        category: categoryName,
+        subCategory: formData.subCategory,
+        brand: formData.brand,
+        model: formData.model,
+        barcode: formData.barcode,
         images: [],
         vendorId: formData.vendorId,
         createdAt: new Date().toISOString(),
@@ -143,6 +158,8 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
   }
 
   const totalAmount = formData.costPrice * formData.quantity;
+  const selectedMenu = menus.find(m => m.id === formData.categoryId);
+  const availableSubCategories = selectedMenu?.subCategories || [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -165,6 +182,56 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
               className="w-full border border-gray-300 rounded-lg p-2 text-sm"
               placeholder="Enter product name"
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Category</label>
+              <select
+                value={formData.categoryId}
+                onChange={e => setFormData({ ...formData, categoryId: e.target.value, subCategory: '' })}
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white"
+              >
+                <option value="">Select Category</option>
+                {menus.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Sub-Category</label>
+              <select
+                value={formData.subCategory}
+                onChange={e => setFormData({ ...formData, subCategory: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white"
+                disabled={!formData.categoryId || availableSubCategories.length === 0}
+              >
+                <option value="">Select Sub-Category</option>
+                {availableSubCategories.map(sub => (
+                  <option key={sub.slug} value={sub.name}>{sub.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Brand</label>
+              <input
+                type="text"
+                value={formData.brand}
+                onChange={e => setFormData({ ...formData, brand: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                placeholder="e.g. Intel"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Model</label>
+              <input
+                type="text"
+                value={formData.model}
+                onChange={e => setFormData({ ...formData, model: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                placeholder="e.g. Core i9"
+              />
+            </div>
           </div>
 
           <div>
@@ -205,16 +272,28 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Quantity *</label>
-            <input
-              type="number"
-              min="1"
-              required
-              value={formData.quantity || ''}
-              onChange={e => setFormData({ ...formData, quantity: Number(e.target.value) })}
-              className="w-full border border-gray-300 rounded-lg p-2 text-sm"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Quantity *</label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={formData.quantity || ''}
+                onChange={e => setFormData({ ...formData, quantity: Number(e.target.value) })}
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Barcode / SKU</label>
+              <input
+                type="text"
+                value={formData.barcode}
+                onChange={e => setFormData({ ...formData, barcode: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                placeholder="Scan or enter"
+              />
+            </div>
           </div>
 
           <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">

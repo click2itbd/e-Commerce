@@ -43,6 +43,8 @@ export function Sidebar({ state }) {
             { icon: Users, label: 'Active Accounts', id: 'server-accounts' },
             { icon: Tag, label: 'Domain Offer Request', id: 'domain-offers' },
             { icon: RefreshCw, label: 'Domain Renewals', id: 'domain-renewals' },
+            { icon: Globe, label: '.BD Domain Apps', id: 'bd-domain-apps' },
+            { icon: Globe, label: 'NS Requests', id: 'ns-requests' },
             { icon: HeadphonesIcon, label: 'Support Tickets', id: 'tickets' },
           ].map((item, idx) => {
             const isActive = activeTab === item.id;
@@ -137,3 +139,4 @@ export function Sidebar({ state }) {
     </aside>
   );
 }
+

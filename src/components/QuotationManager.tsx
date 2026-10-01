@@ -624,22 +624,27 @@ export const QuotationManager: React.FC = () => {
                       {formData.items.map((item, idx) => (
                         <tr key={idx}>
                           <td className="p-2 text-sm font-medium">
-                            {(item as any).isCustomService ? (
-                              <div>
+                            <div className="mb-1">
+                              {(item as any).isCustomService && (
                                 <span className="bg-purple-100 text-purple-700 text-[10px] px-1 rounded mr-1">Custom</span>
-                                <input 
-                                  type="text"
-                                  className="w-full border p-1 rounded mt-1"
-                                  placeholder="Item name"
-                                  value={item.name}
-                                  onChange={e => updateItem(idx, 'name', e.target.value)}
-                                />
-                              </div>
-                            ) : (
-                              <div>
-                                <div>{item.name}</div>
-                                {item.sku && <div className="text-xs text-gray-400 font-normal">SKU: {item.sku}</div>}
-                              </div>
+                              )}
+                              <input 
+                                type="text"
+                                className="w-full border border-gray-200 p-1.5 rounded font-bold text-gray-800 focus:bg-white bg-gray-50 transition-colors outline-none focus:ring-1 focus:ring-indigo-500"
+                                placeholder="Item name"
+                                value={item.name}
+                                onChange={e => updateItem(idx, 'name', e.target.value)}
+                              />
+                            </div>
+                            <input 
+                              type="text"
+                              className="w-full border border-gray-200 p-1.5 rounded mt-1 text-xs text-gray-600 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-1 focus:ring-indigo-500"
+                              placeholder="Description (Optional)"
+                              value={item.description || ''}
+                              onChange={e => updateItem(idx, 'description', e.target.value)}
+                            />
+                            {!(item as any).isCustomService && item.sku && (
+                               <div className="text-[10px] text-gray-400 font-normal mt-1">SKU: {item.sku}</div>
                             )}
                           </td>
                           <td className="p-2">
@@ -903,16 +908,36 @@ export const QuotationManager: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Quantity</label>
-                  <input 
-                    type="number"
-                    min="1"
-                    className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
-                    value={customItemForm.quantity}
-                    onChange={e => setCustomItemForm({...customItemForm, quantity: Number(e.target.value)})}
-                  />
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Quantity</label>
+                    <input 
+                      type="number"
+                      min="1"
+                      className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
+                      value={customItemForm.quantity}
+                      onChange={e => setCustomItemForm({...customItemForm, quantity: Number(e.target.value)})}
+                    />
+                  </div>
                 </div>
-              </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Brand (optional)</label>
+                    <input 
+                      className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
+                      value={customItemForm.brand}
+                      onChange={e => setCustomItemForm({...customItemForm, brand: e.target.value})}
+                      placeholder="e.g. Asus"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Warranty (optional)</label>
+                    <input 
+                      className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
+                      value={customItemForm.warranty}
+                      onChange={e => setCustomItemForm({...customItemForm, warranty: e.target.value})}
+                      placeholder="e.g. 1 Year"
+                    />
+                  </div>
+                </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Discount (optional)</label>
                 <input 

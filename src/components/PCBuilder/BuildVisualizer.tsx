@@ -1,159 +1,192 @@
-import React, { Suspense, useRef } from 'react';
+﻿import React, { Suspense, useRef } from 'react';
 import { Product } from '../../types';
-import { coreCategories, peripheralCategories } from './constants';
 import { RefreshCw } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Box, Cylinder, Text, Float, Environment, ContactShadows } from '@react-three/drei';
+import { OrbitControls, Box, Cylinder, Text, Plane, Edges } from '@react-three/drei';
 import * as THREE from 'three';
+
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
+  constructor(props: any) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error: any) { return { hasError: true, error }; }
+  render() {
+    if (this.state.hasError) return <div className="p-4 text-red-500">3D Preview Error: {this.state.error?.message}</div>;
+    return this.props.children;
+  }
+}
 
 interface BuildVisualizerProps {
   selectedComponents: Record<string, Product>;
 }
 
-// 3D Component Models (Abstracted as primitives for now)
 const ComponentModel = ({ category, selected }: { category: string, selected: boolean }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<THREE.Group>(null);
   
   useFrame((state) => {
     if (!meshRef.current) return;
-    // Slight floating animation if selected
-    if (selected) {
+    if (selected && category !== 'motherboard' && category !== 'casing') {
       meshRef.current.position.y = Math.sin(state.clock.elapsedTime * 2 + category.length) * 0.1 + (meshRef.current.userData.baseY || 0);
     }
   });
 
-  // Base materials
-  const materialProps = {
-    color: selected ? '#3b82f6' : '#334155', // Blue if selected, slate if placeholder
-    metalness: 0.8,
-    roughness: 0.2,
-    transparent: true,
-    opacity: selected ? 1 : 0.3
-  };
-
+  const wireframeProps = { wireframe: true, color: "#38bdf8", transparent: true, opacity: 0.3 };
+  
   switch (category) {
+    case 'casing':
+      return (
+        <group position={[0, 4, 0]}>
+          <Box args={[14, 16, 12]} position={[0, 0, 1]}>
+            <meshStandardMaterial color="#020617" transparent opacity={0.1} depthWrite={false} />
+            <Edges scale={1.0} color="#334155" />
+          </Box>
+        </group>
+      );
     case 'motherboard':
       return (
-        <Box args={[12, 0.2, 12]} position={[0, -0.5, 0]}>
-          <meshStandardMaterial color={selected ? "#0f172a" : "#1e293b"} metalness={0.5} roughness={0.8} />
-        </Box>
+        <group position={[0, 4, -4.5]}>
+          <Box args={[11, 14, 0.4]}>
+            <meshStandardMaterial color={selected ? "#0f172a" : "#1e293b"} {...(selected ? {} : wireframeProps)} />
+          </Box>
+          {selected && (
+            <>
+              <Box args={[2, 4, 0.6]} position={[-4, 4, 0.5]}>
+                <meshStandardMaterial color="#334155" metalness={0.8} />
+              </Box>
+              <Box args={[8, 2, 0.6]} position={[0, -5, 0.5]}>
+                <meshStandardMaterial color="#334155" metalness={0.8} />
+              </Box>
+            </>
+          )}
+        </group>
       );
     case 'cpu':
       return (
-        <group position={[0, 0, -2]}>
-          <Box ref={meshRef} args={[2, 0.2, 2]} userData={{ baseY: 0 }}>
-            <meshStandardMaterial {...materialProps} color={selected ? "#10b981" : "#334155"} />
+        <group position={[0, 7, -4]} ref={meshRef} userData={{ baseY: 7 }}>
+          <Box args={[2.5, 2.5, 0.4]} position={[0, 0, 0]}>
+            <meshStandardMaterial color={selected ? "#94a3b8" : "#3b82f6"} metalness={selected ? 0.9 : 0} {...(selected ? {} : wireframeProps)} />
           </Box>
-          {selected && <Text position={[0, 0.2, 0]} fontSize={0.5} rotation={[-Math.PI / 2, 0, 0]} color="white">CPU</Text>}
+          {selected && <Text position={[0, 0, 0.25]} fontSize={0.5} color="#0f172a" fontWeight="bold">CPU</Text>}
         </group>
       );
     case 'ram':
       return (
-        <group position={[3, 0.5, -2]}>
-          <Box ref={meshRef} args={[0.3, 1.5, 3]} userData={{ baseY: 0.5 }}>
-            <meshStandardMaterial {...materialProps} color={selected ? "#f59e0b" : "#334155"} />
-          </Box>
-          <Box args={[0.3, 1.5, 3]} position={[0.5, 0, 0]}>
-            <meshStandardMaterial {...materialProps} color={selected ? "#f59e0b" : "#334155"} />
-          </Box>
-          {selected && <Text position={[0.25, 1, 0]} fontSize={0.4} rotation={[0, -Math.PI / 2, 0]} color="white">RAM</Text>}
+        <group position={[3.5, 7, -4]} ref={meshRef} userData={{ baseY: 7 }}>
+          {[0, 0.8, 1.6, 2.4].map((offset, i) => (
+            <group key={i} position={[offset - 1.2, 0, 0.8]}>
+              <Box args={[0.3, 3.5, 1.2]}>
+                <meshStandardMaterial color={selected ? "#1e293b" : "#3b82f6"} metalness={selected ? 0.8 : 0} {...(selected ? {} : wireframeProps)} />
+              </Box>
+              {selected && (
+                <Box args={[0.2, 3.4, 0.1]} position={[0, 0, 0.6]}>
+                  <meshStandardMaterial color="#a855f7" emissive="#a855f7" emissiveIntensity={2} toneMapped={false} />
+                </Box>
+              )}
+            </group>
+          ))}
         </group>
       );
     case 'graphics-card':
       return (
-        <group position={[0, 1, 3]}>
-          <Box ref={meshRef} args={[8, 1, 2]} userData={{ baseY: 1 }}>
-            <meshStandardMaterial {...materialProps} color={selected ? "#ef4444" : "#334155"} />
+        <group position={[0, 1, -2]} ref={meshRef} userData={{ baseY: 1 }}>
+          <Box args={[9.5, 1.8, 4.5]} position={[0, -0.9, 0]}>
+            <meshStandardMaterial color={selected ? "#0f172a" : "#3b82f6"} metalness={selected ? 0.7 : 0} {...(selected ? {} : wireframeProps)} />
           </Box>
-          {selected && <Text position={[0, 0.6, 0]} fontSize={0.5} rotation={[-Math.PI / 2, 0, 0]} color="white">GPU</Text>}
+          {selected && (
+            <group position={[-3, -0.5, 2.3]}>
+              <Box args={[2.5, 0.4, 0.1]}>
+                <meshStandardMaterial color="#10b981" emissive="#10b981" emissiveIntensity={2} toneMapped={false} />
+              </Box>
+              <Text position={[0, 0, 0.1]} fontSize={0.25} color="black" fontWeight="bold">RTX GEFORCE</Text>
+            </group>
+          )}
         </group>
       );
     case 'power-supply':
       return (
-        <group position={[-3, 1, 3]}>
-          <Box ref={meshRef} args={[3, 2, 3]} userData={{ baseY: 1 }}>
-            <meshStandardMaterial {...materialProps} color={selected ? "#8b5cf6" : "#334155"} />
+        <group position={[-3, -2.5, -1]} ref={meshRef} userData={{ baseY: -2.5 }}>
+          <Box args={[4.5, 3.5, 4.5]}>
+            <meshStandardMaterial color={selected ? "#020617" : "#3b82f6"} metalness={selected ? 0.9 : 0} {...(selected ? {} : wireframeProps)} />
           </Box>
-          {selected && <Text position={[0, 1.2, 0]} fontSize={0.5} rotation={[-Math.PI / 2, 0, 0]} color="white">PSU</Text>}
+          {selected && <Text position={[0, 0, 2.3]} fontSize={0.8} color="white">PSU</Text>}
         </group>
       );
     case 'storage':
       return (
-        <group position={[-4, 0.2, -3]}>
-          <Box ref={meshRef} args={[1, 0.3, 2]} userData={{ baseY: 0.2 }}>
-            <meshStandardMaterial {...materialProps} color={selected ? "#06b6d4" : "#334155"} />
+        <group position={[3, -3, -1]} ref={meshRef} userData={{ baseY: -3 }}>
+          <Box args={[3.5, 0.6, 4.5]}>
+            <meshStandardMaterial color={selected ? "#1e293b" : "#3b82f6"} metalness={selected ? 0.8 : 0} {...(selected ? {} : wireframeProps)} />
           </Box>
-          {selected && <Text position={[0, 0.3, 0]} fontSize={0.4} rotation={[-Math.PI / 2, 0, 0]} color="white">SSD</Text>}
+          {selected && <Text position={[0, 0.35, 0]} fontSize={0.6} rotation={[-Math.PI/2, 0, 0]} color="#38bdf8">SSD</Text>}
         </group>
       );
     case 'cpu-cooler':
-      return selected ? (
-        <group position={[0, 1.5, -2]}>
-          <Cylinder ref={meshRef} args={[1.5, 1.5, 1, 32]} rotation={[Math.PI / 2, 0, 0]} userData={{ baseY: 1.5 }}>
-            <meshStandardMaterial {...materialProps} color="#3b82f6" metalness={0.9} />
+      return (
+        <group position={[0, 7, -3]} ref={meshRef} userData={{ baseY: 7 }}>
+          <Cylinder args={[1.5, 1.5, 1.8, 32]} rotation={[Math.PI/2, 0, 0]}>
+            <meshStandardMaterial color={selected ? "#0f172a" : "#3b82f6"} metalness={selected ? 0.8 : 0} {...(selected ? {} : wireframeProps)} />
           </Cylinder>
-          <Text position={[0, 0, 1]} fontSize={0.4} color="white">COOLER</Text>
+          {selected && (
+            <Cylinder args={[1.3, 1.3, 1.85, 32]} rotation={[Math.PI/2, 0, 0]}>
+               <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={1.5} toneMapped={false} />
+            </Cylinder>
+          )}
         </group>
-      ) : null;
+      );
     default:
       return null;
   }
 };
 
 export const BuildVisualizer: React.FC<BuildVisualizerProps> = ({ selectedComponents }) => {
-  const componentsToRender = ['motherboard', 'cpu', 'ram', 'graphics-card', 'power-supply', 'storage', 'cpu-cooler'];
+  const componentsToRender = ['casing', 'motherboard', 'cpu', 'cpu-cooler', 'ram', 'graphics-card', 'storage', 'power-supply'];
 
   return (
-    <div className="bg-slate-900 rounded-2xl p-4 overflow-hidden relative border border-slate-800 shadow-inner flex flex-col h-[400px]">
-      
+    <div className="bg-slate-950 rounded-2xl p-4 overflow-hidden relative border border-slate-800 shadow-inner flex flex-col h-[400px]">
       <div className="flex justify-between items-center mb-2 z-20 absolute top-4 left-4 right-4 pointer-events-none">
-        <h4 className="text-white font-bold text-sm">Real-time 3D Preview</h4>
-        <div className="flex items-center gap-2 text-slate-400 text-xs bg-slate-800/80 px-3 py-1.5 rounded-full backdrop-blur-sm pointer-events-auto">
-          <RefreshCw size={12} className="animate-spin-slow" />
-          Drag to rotate scene
+        <h4 className="text-white font-bold text-sm drop-shadow-md">Realistic 3D Preview</h4>
+        <div className="flex items-center gap-2 text-slate-300 text-xs bg-slate-800/80 px-3 py-1.5 rounded-full backdrop-blur-md pointer-events-auto shadow-lg border border-slate-700">
+          <RefreshCw size={12} className="animate-spin-slow text-indigo-400" />
+          Drag to rotate
         </div>
       </div>
 
-      {Object.keys(selectedComponents).length === 0 && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm pointer-events-none">
-          <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4">
-            <RefreshCw size={24} className="text-slate-400" />
-          </div>
-          <p className="text-slate-300 font-medium text-lg">Select a part to start building your PC</p>
-        </div>
-      )}
+      <div className="flex-1 w-full h-full cursor-grab active:cursor-grabbing relative z-0">
+        <ErrorBoundary>
+          <Canvas camera={{ position: [-15, 12, 25], fov: 40 }}>
+            <color attach="background" args={['#020617']} />
+            <ambientLight intensity={1.5} />
+            <directionalLight position={[10, 20, 15]} intensity={2} color="#ffffff" />
+            <pointLight position={[-10, -10, -10]} intensity={1} color="#3b82f6" />
+            <pointLight position={[10, 10, 10]} intensity={1.5} color="#a855f7" />
+            
+            <Suspense fallback={null}>
+              <group position={[0, -2, 0]}>
+                {componentsToRender.map(cat => (
+                  <ComponentModel 
+                    key={cat} 
+                    category={cat} 
+                    selected={!!selectedComponents[cat]} 
+                  />
+                ))}
+              </group>
+            </Suspense>
 
-      <div className="flex-grow w-full h-full cursor-grab active:cursor-grabbing">
-        <Canvas camera={{ position: [15, 10, 15], fov: 45 }}>
-          <color attach="background" args={['#0f172a']} />
-          <ambientLight intensity={0.5} />
-          <spotLight position={[10, 20, 10]} angle={0.15} penumbra={1} intensity={2} castShadow />
-          <pointLight position={[-10, -10, -10]} intensity={0.5} />
-          
-          <Suspense fallback={null}>
-            <Environment preset="city" />
-            <group position={[0, -1, 0]}>
-              {componentsToRender.map(cat => (
-                <ComponentModel 
-                  key={cat} 
-                  category={cat} 
-                  selected={!!selectedComponents[cat]} 
-                />
-              ))}
-              <ContactShadows position={[0, -1, 0]} opacity={0.4} scale={20} blur={2} far={4} />
-            </group>
-          </Suspense>
-          
-          <OrbitControls 
-            enablePan={false}
-            minPolarAngle={Math.PI / 4}
-            maxPolarAngle={Math.PI / 2.5}
-            minDistance={10}
-            maxDistance={30}
-            autoRotate
-            autoRotateSpeed={0.5}
-          />
-        </Canvas>
+            <Plane args={[60, 60]} rotation={[-Math.PI / 2, 0, 0]} position={[0, -6.5, 0]}>
+              <meshStandardMaterial color="#0f172a" roughness={0.4} metalness={0.2} />
+            </Plane>
+            <gridHelper args={[60, 60, '#1e293b', '#0f172a']} position={[0, -6.49, 0]} />
+
+            <OrbitControls 
+              enablePan={false}
+              enableZoom={true}
+              minPolarAngle={0}
+              maxPolarAngle={Math.PI/2 - 0.05}
+              autoRotate
+              autoRotateSpeed={1.0}
+              minDistance={15}
+              maxDistance={40}
+            />
+          </Canvas>
+        </ErrorBoundary>
       </div>
     </div>
   );

@@ -111,6 +111,7 @@ const InventoryTab = lazy(() =>
     default: m.default,
   })),
 );
+const BuildRequestsTab = lazy(() => import("./admin/tabs/sales/BuildRequests").then((m) => ({ default: m.BuildRequestsTab })));
 const OrdersTab = lazy(() =>
   import("./admin/tabs/sales/Orders").then((m) => ({ default: m.default })),
 );
@@ -4225,18 +4226,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           </div>
 
-          {/* Section 2: Domain & Web Hosting */}
-          {(mode === "all" || mode === "hosting") &&
-            (!isStaff || isAdmin || isManager) && (
-              <div className="px-4 mb-3">
-                {!isSidebarCollapsed && (
-                  <div className="text-[10px] uppercase font-bold text-blue-600 tracking-wider mb-1 px-3 flex items-center gap-1.5">
-                    <Globe size={12} className="text-blue-600" /> Domain & Web
-                    Hosting
-                  </div>
-                )}
-              </div>
-            )}
+          
 
           {/* Section 3: Sale & Customer */}
           <div className="px-4 mb-2">
@@ -5523,7 +5513,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
               ) : activeTab === "quotations" ? (
                 <QuotationManager />
-              ) : activeTab === "orders" ? (
+              ) : activeTab === "build_requests" ? (
+  <BuildRequestsTab />
+) : activeTab === "orders" ? (
                 <OrdersTab
                   orders={orders}
                   customers={customers}
@@ -5549,7 +5541,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   fetchData={fetchData}
                   updateOrderDiscount={updateOrderDiscount}
                   updateOrderStatus={updateOrderStatus}
-                  generatePDF={generatePDF}
+                  generatePDF={(order, type) => generatePDF(order, type, settings, 'download')}
                   handleDeleteOrder={handleDeleteOrder}
                 />
               ) : activeTab === "purchase_return" ? (

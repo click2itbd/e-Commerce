@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { X, Server, Save } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -45,6 +45,24 @@ export const NameserverModal: React.FC<NameserverModalProps> = ({ domain, onClos
 
     setSaving(true);
     try {
+      if (domain.domain.endsWith('.bd')) {
+        await addDoc(collection(db, 'nameserver_requests'), {
+          domainId: domain.id,
+          domainName: domain.domain,
+          requestedNs: activeNs,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        });
+        await updateDoc(doc(db, 'domainOrders', domain.id), {
+          nsUpdatePending: true,
+          requestedNs: activeNs
+        });
+        toast.success('Nameserver update request submitted for BTCL manual approval!');
+        onUpdate();
+        onClose();
+        return;
+      }
+
       // 1. Call Backend to update Dynadot
       const res = await apiPost('/api/domains/manage', {
         command: 'set_ns',
@@ -129,3 +147,4 @@ export const NameserverModal: React.FC<NameserverModalProps> = ({ domain, onClos
     </div>
   );
 };
+

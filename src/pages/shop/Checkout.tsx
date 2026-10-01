@@ -18,7 +18,7 @@ import { apiPost } from '../../services/apiClient';
 
 export const Checkout: React.FC = () => {
   const { user } = useAuth();
-  const { items, subtotal, total, promoDiscount, appliedDiscount, clearCart, isShippingFree } = useCart();
+  const { items, subtotal, total, promoDiscount, appliedDiscount, clearCart, isShippingFree, addToCart } = useCart();
   const { settings } = useSettings();
   const navigate = useNavigate();
 
@@ -64,6 +64,34 @@ export const Checkout: React.FC = () => {
     };
     fetchShipping();
   }, []);
+
+  React.useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const bdDomain = searchParams.get('bd_domain');
+    const appId = searchParams.get('app_id');
+    
+    if (bdDomain && appId) {
+      const exists = items.some(item => item.id === `domain_${bdDomain}`);
+      if (!exists) {
+        const product = {
+          id: `domain_${bdDomain}`,
+          name: `Domain Registration - ${bdDomain}`,
+          description: '2 Years Registration',
+          price: 1840,
+          category: 'Hosting & Domains',
+          stock: 9999,
+          images: [],
+          createdAt: new Date().toISOString(),
+          itemType: 'domain' as const,
+          domainTld: bdDomain.split('.').slice(1).join('.'),
+          termYears: 2,
+          bdAppId: appId
+        };
+        addToCart(product);
+        toast.success(`${bdDomain} added to cart`);
+      }
+    }
+  }, []); // Only run once on mount to prevent infinite re-renders if items change
 
   let shippingCost = 0;
   if (formData.state && formData.city) {
@@ -182,6 +210,19 @@ export const Checkout: React.FC = () => {
       const docType = 'INV'; // default to invoice
       const docNumber = await generateDocumentNumber(docType);
 
+      let affiliateRefId = null;
+      try {
+        const stored = localStorage.getItem('affiliate_ref');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.expiry > Date.now()) {
+            affiliateRefId = parsed.code;
+          } else {
+            localStorage.removeItem('affiliate_ref');
+          }
+        }
+      } catch(e) {}
+
       const orderData = {
         userId: currentUserId,
         items,
@@ -208,7 +249,7 @@ export const Checkout: React.FC = () => {
       const newOrderRef = doc(collection(db, 'orders'));
       batch.set(newOrderRef, orderData);
       
-      const domainItems = items.filter(item => item.itemType === 'domain');
+      const domainItems = items.filter(item => item.itemType === 'domain' || item.itemType === 'domain_transfer');
       const hostingItems = items.filter(item => item.itemType === 'hosting');
 
       for (const domainItem of domainItems) {
@@ -228,6 +269,15 @@ export const Checkout: React.FC = () => {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
+        
+        if ((domainItem as any).bdAppId) {
+          const appRef = doc(db, 'bd_domain_applications', (domainItem as any).bdAppId);
+          batch.update(appRef, {
+            status: 'processing',
+            orderId: newOrderRef.id,
+            updatedAt: new Date().toISOString()
+          });
+        }
       }
 
       for (const hostingItem of hostingItems) {
@@ -529,7 +579,30 @@ export const Checkout: React.FC = () => {
           </div>
           
           
-<div className="mb-12 relative border-t border-slate-200 pt-8">
+          {items.some(item => item.itemType === 'domain' && (item.id.endsWith('.bd') || (item.domainTld && item.domainTld.endsWith('bd')))) && (
+            <div className="mb-12 relative border border-blue-200 bg-blue-50/50 rounded-2xl p-6 md:p-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-600 text-white px-6 py-1 rounded-full text-sm font-bold shadow-md whitespace-nowrap">.BD Domain Requirements</span>
+              <div className="flex gap-4">
+                <div className="shrink-0 text-blue-600 bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-lg mb-2">BTCL Verification Needed</h4>
+                  <p className="text-slate-600 text-sm mb-4">
+                    You are registering a Bangladesh specific domain (e.g. .com.bd). BTCL requires identity verification. Please send the following documents to <strong>info@click2itbd.com</strong> with your Order ID, or upload them in your dashboard after completing this order:
+                  </p>
+                  <ul className="list-disc pl-5 text-sm text-slate-700 space-y-1 font-medium">
+                    <li>Copy of valid Trade License (For businesses)</li>
+                    <li>Copy of NID (National Identity Card)</li>
+                    <li>Authorization Letter (if applicable)</li>
+                  </ul>
+                  <p className="text-xs text-slate-500 mt-4 bg-white/60 p-3 rounded-lg">Your domain will be activated once documents are verified by BTCL.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mb-12 relative border-t border-slate-200 pt-8">
             <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">Additional Notes</span>
             <textarea 
               name="notes"
@@ -563,4 +636,6 @@ export const Checkout: React.FC = () => {
     </Layout>
   );
 };
+
+
 

@@ -1,11 +1,11 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { Layout } from '../../components/Layout';
 import { PageHeader } from '../../components/hosting/PageHeader';
 import { SEO } from '../../components/SEO';
 import DomainPricingSection from '../hosting-sections/DomainPricingSection';
-import { Search, Shield, Settings, RefreshCw, ArrowRight, Loader2, CheckCircle, XCircle, ShoppingCart } from 'lucide-react';
+import { Search, Shield, ShieldCheck, Settings, RefreshCw, ArrowRight, Loader2, CheckCircle, XCircle, ShoppingCart } from 'lucide-react';
 import { checkDomainAvailability } from '../../services/hostingApi';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '../../lib/utils';
@@ -18,8 +18,11 @@ const DomainPage = () => {
   const preselectedTld = searchParams.get('tld') || '';
   
   const [searchQuery, setSearchQuery] = useState(preselectedTld ? `.${preselectedTld.replace(/^\./, '')}` : '');
+  const [selectedTld, setSelectedTld] = useState('.com');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<DomainAvailabilityResponse | null>(null);
+
+  const POPULAR_TLDS = ['.com', '.net', '.org', '.com.bd', '.xyz', '.store', '.online'];
 
   useEffect(() => {
     if (preselectedTld) {
@@ -30,10 +33,14 @@ const DomainPage = () => {
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const query = searchQuery.trim().toLowerCase();
+    let query = searchQuery.trim().toLowerCase();
     if (!query) {
       toast.error('Please enter a domain name');
       return;
+    }
+    
+    if (!query.includes('.')) {
+      query += selectedTld;
     }
     
     navigate(`/domain/search?q=${encodeURIComponent(query)}`);
@@ -72,11 +79,13 @@ const DomainPage = () => {
                 disabled={isSearching}
               />
               <div className="flex items-center gap-2 pr-2">
-                <select className="hidden md:block text-sm text-gray-600 bg-gray-100 border-0 rounded-lg px-3 py-2 outline-none h-[44px]">
-                  <option>.com</option>
-                  <option>.net</option>
-                  <option>.org</option>
-                  <option>.xyz</option>
+                <select 
+                  value={selectedTld}
+                  onChange={(e) => setSelectedTld(e.target.value)}
+                  className="hidden md:block text-sm text-gray-600 bg-gray-100 border-0 rounded-lg px-3 py-2 outline-none h-[44px] cursor-pointer">
+                  {POPULAR_TLDS.map(tld => (
+                    <option key={tld} value={tld}>{tld}</option>
+                  ))}
                 </select>
                 <button 
                   type="submit"
@@ -94,6 +103,13 @@ const DomainPage = () => {
           <p className="mt-4 text-xs md:text-sm text-black/70">
             Popular extensions: <span className="font-medium text-black/70">.com, .net, .org, .io, .co</span>
           </p>
+
+          <div className="mt-8">
+            <Link to="/domain/bd" className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3 rounded-full text-sm font-bold shadow-lg shadow-blue-500/30 hover:scale-105 transition-transform">
+              <ShieldCheck size={18} />
+              Register .BD Domains in Bangladesh
+            </Link>
+          </div>
         </div>
       </section>
 

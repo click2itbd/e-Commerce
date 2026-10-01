@@ -17,19 +17,42 @@ export default function DomainSearchResults() {
   const { addToCart } = useCart();
   
   const [searchInput, setSearchInput] = useState(query);
+  const [selectedTld, setSelectedTld] = useState('.com');
   const [pricing, setPricing] = useState<DomainPricing[]>([]);
   const [offerDomain, setOfferDomain] = useState<string | null>(null);
   const [offerAmount, setOfferAmount] = useState<string>('');
   const [offerEmail, setOfferEmail] = useState('');
   const [offerPhone, setOfferPhone] = useState('');
   const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+  const [infoDomain, setInfoDomain] = useState<any | null>(null);
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    const saved = localStorage.getItem('domainFavorites');
+    return saved ? JSON.parse(saved) : [];
+  });
   
   const { loading, results, search, error } = useDomainSearch();
   
   // A base list of popular TLDs to check
   const popularTlds = ['.com', '.net', '.org', '.co', '.io', '.online', '.dev', '.tech', '.store', '.me'];
 
+  const toggleFavorite = (domain: string) => {
+    setFavorites(prev => {
+      const newFavs = prev.includes(domain) ? prev.filter(d => d !== domain) : [...prev, domain];
+      localStorage.setItem('domainFavorites', JSON.stringify(newFavs));
+      if (newFavs.includes(domain)) toast.success(`${domain} added to favorites`);
+      else toast.success(`${domain} removed from favorites`);
+      return newFavs;
+    });
+  };
+
   const lastSearchRef = React.useRef<string>('');
+
+  useEffect(() => {
+    if (searchInput.includes('.')) {
+      const ext = searchInput.substring(searchInput.indexOf('.'));
+      setSelectedTld(ext);
+    }
+  }, [searchInput]);
 
   useEffect(() => {
     const fetchPricing = async () => {
@@ -93,8 +116,11 @@ export default function DomainSearchResults() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const q = searchInput.trim().toLowerCase();
+    let q = searchInput.trim().toLowerCase();
     if (q) {
+      if (!q.includes('.')) {
+        q += selectedTld;
+      }
       if (pricing.length > 0 && q.includes('.')) {
         const searchedTld = q.substring(q.indexOf('.'));
         const isSupported = pricing.some(p => {
@@ -218,11 +244,19 @@ export default function DomainSearchResults() {
                 </button>
               )}
               <div className="flex items-center gap-2 pr-2">
-                <select className="hidden md:block text-sm text-gray-600 bg-gray-100 border-0 rounded-lg px-3 py-2 outline-none h-[44px]">
-                  <option>.com</option>
-                  <option>.net</option>
-                  <option>.org</option>
-                  <option>.xyz</option>
+                <select 
+                  value={selectedTld}
+                  onChange={(e) => {
+                    const newTld = e.target.value;
+                    setSelectedTld(newTld);
+                    if (searchInput.includes('.')) {
+                      setSearchInput(searchInput.substring(0, searchInput.indexOf('.')) + newTld);
+                    }
+                  }}
+                  className="hidden md:block text-sm text-gray-600 bg-gray-100 border-0 rounded-lg px-3 py-2 outline-none h-[44px] cursor-pointer">
+                  {Array.from(new Set([...popularTlds, selectedTld])).map(tld => (
+                    <option key={tld} value={tld}>{tld}</option>
+                  ))}
                 </select>
                 <button
                   type="submit"
@@ -262,8 +296,8 @@ export default function DomainSearchResults() {
                         Registered
                       </span>
                     )}
-                    <Info size={14} className="text-gray-400 cursor-pointer" />
-                    <Star size={14} className="text-gray-400 cursor-pointer hover:text-yellow-400" />
+                    <Info size={14} onClick={() => setInfoDomain(exactMatch)} className="text-gray-400 cursor-pointer hover:text-blue-500 transition-colors" />
+                    <Star size={14} onClick={() => toggleFavorite(exactMatch.domain)} className={favorites.includes(exactMatch.domain) ? "text-yellow-400 cursor-pointer" : "text-gray-400 cursor-pointer hover:text-yellow-400 transition-colors"} fill={favorites.includes(exactMatch.domain) ? "currentColor" : "none"} />
                   </div>
                 <div>
                   {exactMatch.available ? (
@@ -320,7 +354,8 @@ export default function DomainSearchResults() {
                       </span>
                     )}
                     
-                    <Star size={14} className="text-gray-300 hover:text-yellow-400 cursor-pointer" />
+                    <Info size={14} onClick={() => setInfoDomain(alt)} className="text-gray-300 hover:text-blue-500 cursor-pointer transition-colors" />
+                    <Star size={14} onClick={() => toggleFavorite(alt.domain)} className={favorites.includes(alt.domain) ? "text-yellow-400 cursor-pointer" : "text-gray-300 cursor-pointer hover:text-yellow-400 transition-colors"} fill={favorites.includes(alt.domain) ? "currentColor" : "none"} />
                   </div>
                   
                   <div className="mt-2 sm:mt-0 flex items-center gap-4 md:gap-6">
@@ -420,6 +455,64 @@ export default function DomainSearchResults() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {infoDomain && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-gray-800">Domain Information</h3>
+              <button onClick={() => setInfoDomain(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 md:p-6 space-y-4">
+              <div className="flex justify-between items-center pb-3 border-b border-gray-50">
+                <span className="text-sm text-gray-500 font-medium">Domain Name</span>
+                <span className="font-bold text-gray-800">{infoDomain.domain}</span>
+              </div>
+              <div className="flex justify-between items-center pb-3 border-b border-gray-50">
+                <span className="text-sm text-gray-500 font-medium">Status</span>
+                {infoDomain.available ? (
+                  <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Available</span>
+                ) : (
+                  <span className="bg-[#a4a9ad] text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Registered</span>
+                )}
+              </div>
+              {infoDomain.available && (
+                <>
+                  <div className="flex justify-between items-center pb-3 border-b border-gray-50">
+                    <span className="text-sm text-gray-500 font-medium">Registration Price</span>
+                    <span className="font-bold text-gray-800">{formatPrice(getPrice(infoDomain))}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-3 border-b border-gray-50">
+                    <span className="text-sm text-gray-500 font-medium">Renewal Price</span>
+                    <span className="font-bold text-gray-800">{formatPrice(getPrice(infoDomain) ? Math.round(getPrice(infoDomain)! * 1.2) : null)}/yr</span>
+                  </div>
+                  <div className="pt-2">
+                    <span className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2 block">Included for free:</span>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      <li>✓ WHOIS Privacy Protection</li>
+                      <li>✓ DNS Management</li>
+                      <li>✓ Domain Theft Protection</li>
+                      <li>✓ 24/7 Expert Support</li>
+                    </ul>
+                  </div>
+                </>
+              )}
+              {!infoDomain.available && (
+                <div className="text-sm text-gray-600">
+                  This domain is already registered. If you are interested in acquiring it, you can make an offer and our broker team will help negotiate.
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-100 bg-gray-50">
+              <button onClick={() => setInfoDomain(null)} className="w-full py-2 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300 transition-colors text-sm">
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

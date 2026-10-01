@@ -25,6 +25,34 @@ export function PromoCodesModule() {
   });
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  const [promoSettings, setPromoSettings] = useState({
+    excludeBdDomains: true
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
+  
+  useEffect(() => {
+    import('firebase/firestore').then(({ onSnapshot, doc }) => {
+      onSnapshot(doc(db, 'settings', 'hostingPromos'), (snap) => {
+        if (snap.exists()) {
+          setPromoSettings(prev => ({ ...prev, ...snap.data() }));
+        }
+      });
+    });
+  }, []);
+
+  const saveGlobalSettings = async (newVal: boolean) => {
+    setSavingSettings(true);
+    try {
+      const { setDoc, doc } = await import('firebase/firestore');
+      await setDoc(doc(db, 'settings', 'hostingPromos'), { excludeBdDomains: newVal }, { merge: true });
+      toast.success('Settings updated!');
+    } catch (e) {
+      toast.error('Failed to update settings');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const fetchCodes = async () => {
     try {
@@ -145,6 +173,29 @@ export function PromoCodesModule() {
             <Plus size={18} /> New Coupon
           </button>
         </div>
+      </div>
+
+      {/* Global Promo Settings */}
+      <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h3 className="font-bold text-blue-900 flex items-center gap-2">
+            <ShieldCheck size={18} className="text-blue-600"/> 
+            Strict Margin Protection (.BD Domains)
+          </h3>
+          <p className="text-sm text-blue-700 mt-1 leading-relaxed">
+            When enabled, all .BD domain variants (e.g. .com.bd, .edu.bd) are completely excluded from percentage or fixed discounts in the cart.
+          </p>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+          <input 
+            type="checkbox" 
+            className="sr-only peer" 
+            checked={promoSettings.excludeBdDomains !== false} 
+            onChange={(e) => saveGlobalSettings(e.target.checked)} 
+            disabled={savingSettings} 
+          />
+          <div className="w-14 h-7 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600 opacity-90 peer-disabled:opacity-50"></div>
+        </label>
       </div>
 
       {loading ? (
@@ -298,3 +349,4 @@ export function PromoCodesModule() {
     </div>
   );
 }
+

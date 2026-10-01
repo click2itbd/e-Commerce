@@ -7,13 +7,13 @@ export async function generateChatResponse(message: string): Promise<string> {
     throw new Error('AI service is not configured');
   }
 
-  if (!message || typeof message !== 'string' || message.length > 2000) {
+  if (!message || typeof message !== 'string' || message.length > 100000) {
     throw new Error('Message is required and must be under 2000 characters');
   }
 
   try {
     const response = await aiClient.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: message
     });
     return response.text || '';

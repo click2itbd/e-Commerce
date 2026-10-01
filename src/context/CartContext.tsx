@@ -37,17 +37,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const { settings } = useSettings();
 
-  const [promoSettings, setPromoSettings] = useState<{ isFreeDomainEnabled: boolean; eligibleTlds: string[]; startDate?: string; endDate?: string; eligibleBillingCycles?: string[] }>({
+  const [promoSettings, setPromoSettings] = useState<any>({
     isFreeDomainEnabled: false,
-    eligibleTlds: []
+    eligibleTlds: [],
+    excludeBdDomains: true
   });
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'hostingPromos'), (snap) => {
-      if (snap.exists()) {
-        setPromoSettings(snap.data() as any);
+    const unsub = onSnapshot(
+      doc(db, 'settings', 'hostingPromos'), 
+      (snap) => {
+        if (snap.exists()) {
+          setPromoSettings(snap.data() as any);
+        }
+      },
+      (error) => {
+        console.warn('Could not load promo settings:', error.message);
       }
-    });
+    );
     return () => unsub();
   }, []);
 
@@ -126,13 +133,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const subtotal = processedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  
+  // Exclude .BD domains from promotional discounts based on admin setting
+  const discountableSubtotal = processedItems
+    .filter(item => {
+      const isBdDomain = item.itemType === 'domain' && item.domainTld && item.domainTld.endsWith('.bd');
+      if (isBdDomain && promoSettings.excludeBdDomains !== false) return false;
+      return true;
+    })
+    .reduce((sum, item) => sum + item.price * item.quantity, 0);
+
   let promoDiscount = 0;
   
   if (appliedDiscount) {
     if (appliedDiscount.type === 'fixed' && appliedDiscount.fixedAmount) {
-      promoDiscount = appliedDiscount.fixedAmount;
+      promoDiscount = Math.min(appliedDiscount.fixedAmount, discountableSubtotal);
     } else if (appliedDiscount.type !== 'free_shipping') {
-      promoDiscount = (subtotal * (appliedDiscount.discountPercentage || 0)) / 100;
+      promoDiscount = (discountableSubtotal * (appliedDiscount.discountPercentage || 0)) / 100;
     }
   }
 
@@ -186,3 +203,7 @@ export const useCart = () => {
   if (!context) throw new Error('useCart must be used within a CartProvider');
   return context;
 };
+
+
+
+

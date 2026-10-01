@@ -9,6 +9,7 @@ import { WebsitePopup } from './components/WebsitePopup';
 import { ReviewRewardPopup } from './components/ReviewRewardPopup';
 import { ChatWidget } from './components/ChatWidget';
 import { TrackingScripts } from './components/TrackingScripts';
+import { ReferralTracker } from './components/ReferralTracker';
 import { CompareProvider } from './context/CompareContext';
 import { WishlistProvider } from './context/WishlistContext';
 
@@ -40,6 +41,7 @@ const ServicesPage = lazy(() => import('./pages/hosting/ServicesPage'));
 const PricingPage = lazy(() => import('./pages/hosting/PricingPage'));
 const DomainPage = lazy(() => import('./pages/hosting/DomainPage').then(m => ({ default: m.default || m.DomainPage })));
 const DomainSearchResults = lazy(() => import('./pages/hosting/DomainSearchResults'));
+const BdDomainPage = lazy(() => import('./pages/hosting/BdDomainPage'));
 const SupportPage = lazy(() => import('./pages/hosting/SupportPage'));
 const TermsOfService = lazy(() => import('./pages/policies/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/policies/PrivacyPolicy'));
@@ -84,6 +86,7 @@ export default function App() {
             <CartProvider>
               <Router>
                 <TrackingScripts />
+            <ReferralTracker />
                 <WebsitePopup />
                 <ReviewRewardPopup />
                 <ChatWidget />
@@ -119,6 +122,7 @@ export default function App() {
                       <Route path="/pricing" element={<LazyWrapper><PricingPage /></LazyWrapper>} />
                       <Route path="/domain" element={<LazyWrapper><DomainPage /></LazyWrapper>} />
                       <Route path="/domain/search" element={<LazyWrapper><DomainSearchResults /></LazyWrapper>} />
+                      <Route path="/domain/bd" element={<LazyWrapper><BdDomainPage /></LazyWrapper>} />
                       <Route path="/domain/transfer" element={<LazyWrapper><DomainTransferPage /></LazyWrapper>} />
                       <Route path="/domain-renewal" element={<LazyWrapper><DomainRenewal /></LazyWrapper>} />
                       <Route path="/support" element={<LazyWrapper><SupportPage /></LazyWrapper>} />
@@ -170,6 +174,10 @@ export default function App() {
     </HelmetProvider>
   );
 }
+
+
+
+
 
 
 

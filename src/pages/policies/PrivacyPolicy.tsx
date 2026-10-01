@@ -1,24 +1,8 @@
-﻿import React from 'react';
-import { Layout } from '../../components/Layout';
-import { SEO } from '../../components/SEO';
-import { useSettings } from '../../context/SettingsContext';
+import React from 'react';
+import { DynamicPolicyPage } from '../../components/DynamicPolicyPage';
 
 const PrivacyPolicy = () => {
-  const { settings } = useSettings();
-  const brandName = settings?.brandName || 'Click2IT BD';
-
-  return (
-    <Layout fullWidth>
-      <SEO title={`Privacy Policy - ${brandName}`} description={`Privacy Policy for ${brandName}.`} />
-      <div className="bg-gray-50 py-16">
-        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-4xl">
-          <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-gray-100">
-            <h1 className="text-4xl font-bold text-gray-900 mb-6">Privacy Policy</h1>
-            <p className="text-gray-500 mb-8">Last Updated: {new Date().toLocaleDateString()}</p>
-            
-            <div className="prose prose-blue max-w-none text-gray-700 space-y-8">
-              
-              <section>
+  return <DynamicPolicyPage pageId="privacy-policy" defaultTitle="Privacy Policy" defaultContent={`<section>
                 <p className="text-lg">
                   Welcome to {brandName}. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website or use our services, encompassing our <strong>Tech Shop</strong>, <strong>Custom PC Builder</strong>, and <strong>Domain & Hosting</strong> platforms.
                 </p>
@@ -93,14 +77,7 @@ const PrivacyPolicy = () => {
                 <p>
                   If you have any questions or concerns about this Privacy Policy, your shopping history, PC warranty data, or hosting information, please contact our support team.
                 </p>
-              </section>
-
-            </div>
-          </div>
-        </div>
-      </div>
-    </Layout>
-  );
+              </section>`} />;
 };
 
 export default PrivacyPolicy;
