@@ -5,6 +5,8 @@ import { Order, Product, Customer, CartItem } from '../types';
 import { formatCurrency } from '../lib/utils';
 import { Plus, X, Trash2, FileText, Search, Edit, Eye, Printer, Download, CheckCircle, ArrowLeft, Mail, FileSignature } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { logAudit } from '../lib/audit';
+import { useAuth } from '../context/AuthContext';
 import { generateDocumentNumber } from '../lib/numbering';
 import { generatePDF } from '../lib/pdf';
 
@@ -13,6 +15,7 @@ import { sendEmail } from '../services/emailService';
 import { Pagination } from './common/Pagination';
 
 export const QuotationManager: React.FC = () => {
+  const { profile } = useAuth();
   const [quotations, setQuotations] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -109,6 +112,7 @@ export const QuotationManager: React.FC = () => {
           validUntil: formData.validUntil
         };
         await updateDoc(doc(db, 'orders', editingId), updateData);
+          await logAudit('EDIT', 'Quotation', `Edited quotation #${updateData.documentNumber || editingId}`, profile?.displayName || profile?.email || 'Admin');
         setQuotations(quotations.map(q => q.id === editingId ? { ...q, ...updateData } : q));
         toast.success('Quotation updated successfully!');
       } else {
@@ -148,6 +152,8 @@ export const QuotationManager: React.FC = () => {
     if (!window.confirm('Are you sure you want to delete this quotation permanently?')) return;
     try {
       await deleteDoc(doc(db, 'orders', id));
+      const deletedQuote = quotations.find(q => q.id === id);
+      await logAudit('DELETE', 'Quotation', `Deleted quotation #${deletedQuote?.documentNumber || id}`, profile?.displayName || profile?.email || 'Admin');
       setQuotations(quotations.filter(q => q.id !== id));
       if (editingId === id && viewMode !== 'list') {
          setViewMode('list');

@@ -402,9 +402,13 @@ export const generatePDF = async (
     currentY += boxHeight + 5;
 
     // Table Data
+    const isChallan = type === "challan";
+    const tableHeaders = isChallan
+      ? ["S.N.", "Product Name", "Description", "Brand", "Unit", "Warranty"]
+      : ["S.N.", "Product Name", "Description", "Brand", "Unit", "Unit Price", "Warranty", "Total (TK.)"];
+
     const tableData = o.items.map((item: any, idx: number) => {
       let desc = item.description || "-";
-      // Strip HTML if exists
       desc = desc.replace(/<[^>]+>/g, "").trim();
       if (desc.length > 50) desc = desc.substring(0, 47) + "...";
 
@@ -418,32 +422,30 @@ export const generatePDF = async (
         warranty = item.specs.Warranty;
       }
 
-      return [
+      const row = [
         (idx + 1).toString(),
         item.name,
         desc,
         item.brand || "-",
-        item.quantity.toString(),
-        type === "challan" ? "-" : item.price.toFixed(2),
-        warranty,
-        type === "challan" ? "-" : (item.price * item.quantity).toFixed(2),
+        item.quantity.toString()
       ];
+      
+      if (!isChallan) {
+        row.push(item.price.toFixed(2));
+      }
+      
+      row.push(warranty);
+      
+      if (!isChallan) {
+        row.push((item.price * item.quantity).toFixed(2));
+      }
+
+      return row;
     });
 
     autoTable(doc, {
       startY: currentY,
-      head: [
-        [
-          "S.N.",
-          "Product Name",
-          "Description",
-          "Brand",
-          "Unit",
-          "Unit Price",
-          "Warranty",
-          "Total (TK.)",
-        ],
-      ],
+      head: [tableHeaders],
       body: tableData,
       theme: "plain",
       headStyles: {

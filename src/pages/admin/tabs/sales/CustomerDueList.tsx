@@ -90,7 +90,7 @@ const fetchData = async () => {
         
         if (t.type === 'sale' || t.type === 'opening_balance') {
           balances[t.entityId] += Number(t.amount);
-        } else if (t.type === 'payment_received' || t.type === 'return') {
+        } else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return' || t.type === 'money_receipt') {
           balances[t.entityId] -= Number(t.amount);
         }
       }
@@ -426,7 +426,7 @@ const fetchData = async () => {
           .reverse()
           .map(t => {
             const isDebit = t.type === 'sale' || t.type === 'opening_balance';
-            const isCredit = t.type === 'payment_received' || t.type === 'deposit';
+            const isCredit = t.type === 'payment_received' || t.type === 'deposit' || t.type === 'return' || t.type === 'sale_return' || t.type === 'money_receipt';
             const amt = Number(t.amount) || 0;
             return { ...t, isDebit, isCredit, amt };
           });

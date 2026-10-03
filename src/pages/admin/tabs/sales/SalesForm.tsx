@@ -832,7 +832,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           <form onSubmit={handleCreateSale} className="space-y-6 text-xs">
             {/* Document Type & Customer Selection */}
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block font-bold text-gray-700 uppercase mb-1">Date</label>
                   <input
@@ -853,7 +853,17 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-gray-700 uppercase mb-1">Document Type</label>
+                    <label className="block font-bold text-gray-700 uppercase mb-1">Work Order #</label>
+                    <input
+                      type="text"
+                      placeholder="Optional"
+                      value={saleData.workOrderNumber || ''}
+                      onChange={e => setSaleData({ ...saleData, workOrderNumber: e.target.value })}
+                      className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-700 uppercase mb-1">Document Type</label>
                   <select
                     value={saleData.type}
                     onChange={e => setSaleData({ ...saleData, type: e.target.value as any })}

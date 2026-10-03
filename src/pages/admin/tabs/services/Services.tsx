@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '../../../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, where, limit } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
+import { logAudit } from '../../../../lib/audit';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
@@ -48,7 +49,7 @@ interface ServicesProps {
 }
 
 const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
-  const { isAdmin, hasPermission } = useAuth();
+  const { isAdmin, hasPermission, profile } = useAuth();
   const { settings } = useSettings();
   const navigate = useNavigate();
 
@@ -200,6 +201,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     if (!window.confirm('Are you sure you want to permanently delete this service record?')) return;
     try {
       await deleteDoc(doc(db, 'services', id));
+      const deletedService = services.find(s => s.id === id);
+      await logAudit('DELETE', 'Service', `Deleted service ticket #${deletedService?.serialNumber || id} for ${deletedService?.customerName}`, profile?.displayName || profile?.email || 'Admin');
       toast.success('Service record deleted successfully');
     } catch (err) {
       console.error('Error deleting service:', err);
@@ -490,9 +493,10 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       };
 
       if (editingService) {
-        await updateDoc(doc(db, 'services', editingService.id), serviceData);
-        toast.success('Service updated successfully');
-      } else {
+          await updateDoc(doc(db, 'services', editingService.id), serviceData);
+          await logAudit('EDIT', 'Service', `Edited service ticket #${serviceData.serialNumber || editingService.id} (${serviceData.status})`, profile?.displayName || profile?.email || 'Admin');
+          toast.success('Service updated successfully');
+        } else {
         await addDoc(collection(db, 'services'), serviceData);
         toast.success('Service added successfully');
       }

@@ -99,12 +99,15 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
           data[key] = { date: displayDate, income: 0, expense: 0, balance: 0, details: [] };
         }
 
-        const isIncome = ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return'].includes(tx.type);
-        if (isIncome) {
-          data[key].income += tx.amount;
-        } else {
-          data[key].expense += tx.amount;
-        }
+        const isIncome = ['sale', 'income', 'purchase_return', 'opening_balance'].includes(tx.type);
+          const isExpense = ['purchase', 'expense', 'salary', 'conveyance', 'sale_return'].includes(tx.type);
+          
+          if (isIncome) {
+            data[key].income += tx.amount;
+          }
+          if (isExpense) {
+            data[key].expense += tx.amount;
+          }
 
         data[key].balance = data[key].income - data[key].expense;
         data[key].details.push(tx);
@@ -133,8 +136,8 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
   // Calculate Running Balance
   let runningBal = 0;
   const entityLedgerRows = entityTxList.map(tx => {
-    const isDebit = isCustomer ? ['sale'].includes(tx.type) : ['payment_made', 'purchase_return'].includes(tx.type);
-    const isCredit = isCustomer ? ['payment_received', 'money_receipt', 'sale_return'].includes(tx.type) : ['purchase'].includes(tx.type);
+    const isDebit = isCustomer ? ['sale', 'opening_balance'].includes(tx.type) : ['payment_made', 'purchase_return'].includes(tx.type);
+    const isCredit = isCustomer ? ['payment_received', 'money_receipt', 'sale_return', 'return'].includes(tx.type) : ['purchase', 'opening_balance'].includes(tx.type);
 
     const debitAmt = isDebit ? tx.amount : 0;
     const creditAmt = isCredit ? tx.amount : 0;
@@ -643,7 +646,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
               onClick={() => {
                 const allDetails = getLedgerData().flatMap(item => item.details);
                 setLedgerReportModalData(
-                  allDetails.filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return'].includes(tx.type))
+                  allDetails.filter(tx => ['sale', 'income', 'purchase_return', 'opening_balance'].includes(tx.type))
                 );
                 setLedgerReportType('income');
                 setShowLedgerReportModal(true);

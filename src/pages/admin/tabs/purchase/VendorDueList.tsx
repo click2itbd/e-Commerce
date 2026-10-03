@@ -417,7 +417,7 @@ const fetchData = async () => {
           .reverse()
           .map(t => {
             const isDebit = t.type === 'purchase' || t.type === 'opening_balance';
-            const isCredit = t.type === 'payment_made' || t.type === 'deposit';
+            const isCredit = t.type === 'payment_made' || t.type === 'deposit' || t.type === 'purchase_return' || t.type === 'return';
             const amt = Number(t.amount) || 0;
             return { ...t, isDebit, isCredit, amt };
           });
