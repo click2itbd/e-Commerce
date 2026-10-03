@@ -924,6 +924,7 @@ export const QuotationManager: React.FC = () => {
                              let warranty = "-";
                              if ((item as any).warranty) {
                                warranty = (item as any).warranty;
+                               if (/^\d+$/.test(warranty)) warranty += ' Years';
                              } else if ((item as any).warrantyMonths) {
                                warranty = (item as any).warrantyMonths > 12 ? `${(item as any).warrantyMonths / 12} Yrs` : `${(item as any).warrantyMonths} Mos`;
                              } else if ((item as any).specs?.Warranty) {

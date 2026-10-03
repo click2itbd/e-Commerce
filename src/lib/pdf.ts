@@ -189,7 +189,7 @@ export const generatePDF = async (
   doc.text(finalPhone, pageWidth - 15, addrY, { align: "right" });
   doc.text(settings.website || "www.click2itbd.com", pageWidth - 15, addrY + 5, { align: "right" });
 
-  currentY = Math.max(currentY + 25, addrY + 15);
+  currentY = Math.max(currentY + 15, addrY + 5);
 
   if (type === "receipt") {
       const tx = order as Transaction;
@@ -227,7 +227,7 @@ export const generatePDF = async (
       doc.setFont("helvetica", "normal");
       doc.text(`Date:  ${new Date(tx.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`, rightX, currentY + 25);
 
-      currentY += boxHeight + 12;
+      currentY += boxHeight + 5;
 
       // --- Payment Table (matching Invoice table style) ---
       autoTable(doc, {
@@ -312,10 +312,10 @@ export const generatePDF = async (
     let rightSideLines = 2; // Details No, Date
     if (o.workOrderNumber) rightSideLines++;
     
-    const leftSideHeight = 22 + (splitAddr.length * 5) + 5; // 22 is start of addr, + height, + bottom padding
-    const rightSideHeight = 16 + (rightSideLines * 6) + 5; 
+    const leftSideHeight = 18 + (splitAddr.length * 5) + 3; // 22 is start of addr, + height, + bottom padding
+    const rightSideHeight = 13 + (rightSideLines * 6) + 3; 
     
-    const boxHeight = Math.max(leftSideHeight, rightSideHeight, 32); // minimum 32 height
+    const boxHeight = Math.max(leftSideHeight, rightSideHeight, 26); // minimum 32 height
 
     // Left Box - Bill To
     doc.rect(15, currentY, (pageWidth - 30) / 2, boxHeight, "F");
@@ -342,14 +342,14 @@ export const generatePDF = async (
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42);
-    doc.text(type === "challan" ? "Ship To:" : "Bill To:", 20, currentY + 8);
+    doc.text(type === "challan" ? "Ship To:" : "Bill To:", 20, currentY + 7);
 
-    doc.text(o.customerName || "N/A", 20, currentY + 18);
+      doc.text(o.customerName || "N/A", 20, currentY + 13);
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(71, 85, 105);
-    doc.text(splitAddr, 20, currentY + 24);
+      doc.setFontSize(9.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text(splitAddr, 20, currentY + 18);
 
     // Box 2 (Right) Content
     doc.setFontSize(11);
@@ -361,29 +361,30 @@ export const generatePDF = async (
       currentY + 8,
     );
 
-    doc.setFontSize(10);
-    doc.text(
-      `${type.charAt(0).toUpperCase() + type.slice(1)} No: `,
-      15 + (pageWidth - 30) / 2 + 5,
-      currentY + 18,
-    );
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      `${o.documentNumber || o.id.substring(0, 8).toUpperCase()}`,
-      15 + (pageWidth - 30) / 2 + 30,
-      currentY + 18,
-    );
+    doc.setFontSize(9.5);
+      doc.text(
+        `${type.charAt(0).toUpperCase() + type.slice(1)} No: `,
+        15 + (pageWidth - 30) / 2 + 5,
+        currentY + 13,
+      );
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `${o.documentNumber || o.id.substring(0, 8).toUpperCase()}`,
+        15 + (pageWidth - 30) / 2 + 30,
+        currentY + 13,
+      );
 
-    doc.setFont("helvetica", "bold");
-    doc.text("Date: ", 15 + (pageWidth - 30) / 2 + 5, currentY + 24);
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      `${new Date(o.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
-      15 + (pageWidth - 30) / 2 + 18,
-      currentY + 24,
-    );
-    
-    let currentRightY = currentY + 30;
+      doc.setFontSize(9.5);
+      doc.setFont("helvetica", "bold");
+      doc.text("Date: ", 15 + (pageWidth - 30) / 2 + 5, currentY + 18);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `${new Date(o.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
+        15 + (pageWidth - 30) / 2 + 16,
+        currentY + 18,
+      );
+      
+      let currentRightY = currentY + 23;
 
       doc.setFont("helvetica", "bold");
       doc.text("Prepared By: ", 15 + (pageWidth - 30) / 2 + 5, currentRightY);
@@ -398,7 +399,7 @@ export const generatePDF = async (
           doc.text(o.workOrderNumber, 15 + (pageWidth - 30) / 2 + 28, currentRightY);
       }
 
-    currentY += boxHeight + 10;
+    currentY += boxHeight + 5;
 
     // Table Data
     const tableData = o.items.map((item: any, idx: number) => {
@@ -410,6 +411,7 @@ export const generatePDF = async (
       let warranty = "-";
       if (item.warranty) {
         warranty = item.warranty;
+        if (/^\d+$/.test(warranty)) warranty += ' Years';
       } else if (item.warrantyMonths) {
         warranty = item.warrantyMonths > 12 ? `${item.warrantyMonths / 12} Yrs` : `${item.warrantyMonths} Mos`;
       } else if (item.specs?.Warranty) {
@@ -450,7 +452,7 @@ export const generatePDF = async (
         fontStyle: "bold",
         halign: "center",
       },
-      styles: { fontSize: 8, cellPadding: 2, textColor: [15, 23, 42] },
+      styles: { fontSize: 7.5, cellPadding: 1.5, textColor: [15, 23, 42] },
       columnStyles: {
         0: { halign: "center", cellWidth: 12 },
         1: { halign: "left", cellWidth: 45 },
@@ -477,7 +479,13 @@ export const generatePDF = async (
     });
 
     if (type !== "challan") {
-      let finalY = (doc as any).lastAutoTable.finalY + 15;
+        let finalY = (doc as any).lastAutoTable.finalY + 5;
+        
+        // Ensure enough space for summary, terms, and signatures
+        if (finalY > doc.internal.pageSize.getHeight() - 75) {
+          doc.addPage();
+          finalY = 20;
+        }
 
       const subtotal = o.items.reduce(
         (acc, item) => acc + item.price * item.quantity,
@@ -512,7 +520,7 @@ export const generatePDF = async (
         align: "right",
       });
 
-      finalY += 20;
+      finalY += 12;
 
       // Amount in words Box
       doc.setFillColor(248, 250, 252);
@@ -530,40 +538,36 @@ export const generatePDF = async (
         doc.setFont("helvetica", "normal");
         doc.text(`Taka ${words} Only`, 48, finalY + 8);
       }
-      currentY = finalY + 20; // Update global currentY
+      currentY = finalY + 14; // Update global currentY
     } else {
       currentY = (doc as any).lastAutoTable?.finalY + 20 || currentY + 20;
     }
   }
 
   // Terms and Conditions Section (For Quotations, Invoices, etc.)
-  let signatureY = doc.internal.pageSize.getHeight() - 40;
+  let signatureY = doc.internal.pageSize.getHeight() - 30;
   const ord = order as any;
   if (ord.termsAndConditions || ord.notes) {
     // currentY is already at the correct position from above, just add a small margin
     currentY += 5;
 
-    if (currentY < signatureY - 40) { // If we have space on the page
+    // Draw terms without arbitrarily skipping
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(15, 23, 42);
-      
       const termsTitle = ord.termsAndConditions ? "Terms & Conditions" : "Notes";
       const termsContent = ord.termsAndConditions || ord.notes;
-      
       doc.text(termsTitle + ":", 15, currentY);
-      
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(71, 85, 105);
-      
       const splitTerms = doc.splitTextToSize(termsContent || "", pageWidth - 30);
       doc.text(splitTerms, 15, currentY + 6);
-    }
+      currentY += 6 + (splitTerms.length * 4);
   }
 
   // Footer / Signatures
-  const bottomY = signatureY;
+  const bottomY = Math.max(signatureY, currentY + 15);
 
   doc.setDrawColor(15, 23, 42);
   doc.setLineWidth(0.5);
