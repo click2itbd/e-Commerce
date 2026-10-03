@@ -1,0 +1,70 @@
+const fs = require('fs');
+const lines = fs.readFileSync('src/pages/admin/tabs/services/Services.tsx', 'utf8').split('\n');
+
+// Find the lines to replace (lines 201-222 based on 1-indexed, so 200-221 in 0-indexed)
+const startIdx = 200; // 0-indexed line 201
+const endIdx = 222;   // 0-indexed line 223 (exclusive)
+
+const newLines = [
+`      // Big title (left)`,
+`      doc.setFontSize(28);`,
+`      doc.setFont('helvetica', 'bold');`,
+`      doc.setTextColor(15, 23, 42);`,
+`      doc.text('SERVICE RECEIPT', 15, currentY + 10);`,
+``,
+`      // Company info (right) - with Logo`,
+`      doc.setFontSize(14);`,
+`      doc.setFont('helvetica', 'bold');`,
+`      doc.setTextColor(71, 85, 105);`,
+`      const bizName = settings?.businessName || settings?.brandName || 'CLICK2IT BD';`,
+``,
+`      // Try to load logo`,
+`      try {`,
+`        const urlsToTry = [settings?.logoUrl, '/logo.png', '/logo.jpeg'].filter(Boolean);`,
+`        let dataUrl = '';`,
+`        let loadedImg = null;`,
+`        for (const url of urlsToTry) {`,
+`          if (!url) continue;`,
+`          try {`,
+`            const img = new Image();`,
+`            img.crossOrigin = 'Anonymous';`,
+`            await new Promise((resolve, reject) => { img.onload = () => resolve(true); img.onerror = reject; img.src = url; });`,
+`            const canvas = document.createElement('canvas');`,
+`            canvas.width = img.width; canvas.height = img.height;`,
+`            const ctx = canvas.getContext('2d');`,
+`            if (ctx) { ctx.drawImage(img, 0, 0); dataUrl = canvas.toDataURL('image/png'); loadedImg = img; break; }`,
+`          } catch (e) { /* skip */ }`,
+`        }`,
+`        if (loadedImg && dataUrl) {`,
+`          const textWidth = doc.getTextWidth(bizName);`,
+`          const logoHeight = 16;`,
+`          const logoWidth = (loadedImg.width / loadedImg.height) * logoHeight;`,
+`          doc.addImage(dataUrl, 'PNG', pageWidth - 15 - textWidth - logoWidth - 5, currentY - 11, logoWidth, logoHeight);`,
+`        }`,
+`      } catch (_) { /* no logo */ }`,
+``,
+`      doc.text(bizName, pageWidth - 15, currentY, { align: 'right' });`,
+``,
+`      doc.setFontSize(10);`,
+`      doc.setFont('helvetica', 'normal');`,
+`      let addrY = currentY + 6;`,
+``,
+`      let finalAddress = settings?.address || 'Shop No. 1072, Level 10, Multiplan Center\\n69-71, New Elephant Road, Dhaka-1205';`,
+`      if (finalAddress.trim() === 'Dhaka, Bangladesh') {`,
+`        finalAddress = 'Shop No. 1072, Level 10, Multiplan Center\\n69-71, New Elephant Road, Dhaka-1205';`,
+`      }`,
+`      let finalPhone = settings?.contactPhone || '+8809640887777, +8801729887777';`,
+`      if (finalPhone.trim() === '+8809640887777' || finalPhone.trim() === '+880 123456789') {`,
+`        finalPhone = '+8809640887777, +8801729887777';`,
+`      }`,
+``,
+`      const addrLinesSplit = doc.splitTextToSize(finalAddress.replace(/\\\\n/g, '\\n'), 80);`,
+`      addrLinesSplit.forEach((line) => { doc.text(line, pageWidth - 15, addrY, { align: 'right' }); addrY += 5; });`,
+`      doc.text(finalPhone, pageWidth - 15, addrY, { align: 'right' });`,
+`      doc.text(settings?.website || 'www.click2itbd.com', pageWidth - 15, addrY + 5, { align: 'right' });`,
+`      currentY = Math.max(currentY + 25, addrY + 15);`,
+];
+
+lines.splice(startIdx, endIdx - startIdx, ...newLines);
+fs.writeFileSync('src/pages/admin/tabs/services/Services.tsx', lines.join('\n'), 'utf8');
+console.log("Fixed logo and address in printServiceReceipt");

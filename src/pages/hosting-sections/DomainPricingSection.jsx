@@ -50,7 +50,7 @@ export default function DomainPricingSection({
           domainMarkupPercent: Number(data.domainMarkupPercent) || 15,
         });
       }
-    }, (err) => console.log('public_config listener error:', err));
+    }, (err) => console.error(err));
 
     const unsubSite = onSnapshot(doc(db, 'settings', 'site'), (snap) => {
       if (snap.exists()) {
@@ -63,7 +63,7 @@ export default function DomainPricingSection({
           }));
         }
       }
-    }, (err) => console.log('site settings listener error:', err));
+    }, (err) => console.error(err));
 
     // 2. Real-time listener for Custom Per-TLD Pricing Overrides
     const unsubPricing = onSnapshot(collection(db, 'domainPricing'), (snap) => {
@@ -78,7 +78,7 @@ export default function DomainPricingSection({
       setCustomOverrides(overrides);
       setLoading(false);
     }, (err) => {
-      console.log('domainPricing listener error:', err);
+      
       setLoading(false);
     });
 
@@ -196,3 +196,4 @@ export default function DomainPricingSection({
     </section>
   );
 }
+

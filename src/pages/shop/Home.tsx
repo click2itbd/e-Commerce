@@ -73,7 +73,7 @@ export const Home: React.FC = () => {
         id: doc.id,
         ...doc.data(),
       })) as Product[];
-      setProducts(productsData);
+      setProducts(productsData.filter(p => p.showInStore !== false));
       setLoading(false);
     }, (error) => {
       console.error("Error fetching products:", error);

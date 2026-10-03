@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Zap, Check, ArrowRight, Sparkles, Shield, Rocket, Cpu, Server } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useCart } from '../../context/CartContext';
@@ -71,7 +71,7 @@ const CANONICAL_WP_PLANS = [
     features: [
       '30 GB NVMe SSD Storage',
       'Unlimited Hosted Domains',
-      '2 vCPU &৳  GB RAM',
+      '2 vCPU &?  GB RAM',
       'LiteSpeed + Redis Cache',
       'CloudLinux OS & CageFS',
       'Free SSL Certificate',
@@ -156,7 +156,7 @@ export default function WordPressCloudSection() {
           setPlans(merged);
         }
       }
-    }, (err) => console.log('Firestore WP Plans error:', err));
+    }, (err) => console.error(err));
 
     return () => unsub();
   }, []);
@@ -268,7 +268,7 @@ export default function WordPressCloudSection() {
                   {/* Price Block */}
                   <div className="pb-5 mb-6 border-b border-gray-700/60">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-3xl md:text-4xl font-black text-white">৳ {price.toLocaleString()}</span>
+                        <span className="text-3xl md:text-4xl font-black text-white">? {price.toLocaleString()}</span>
                         <span className="text-xs text-gray-400 font-medium">{isAnnual ? '/year' : '/month'}</span>
                       </div>
                     {isAnnual && (
@@ -324,3 +324,4 @@ export default function WordPressCloudSection() {
     </section>
   );
 }
+

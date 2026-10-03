@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, X } from 'lucide-react';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -169,7 +169,7 @@ export default function ComparePlansSection() {
                   <th key={plan.id} className={`py-5 px-6 font-bold text-gray-900 text-center min-w-[120px] sm:min-w-[160px] ${isPopular ? 'bg-blue-50/70 border-x border-blue-200' : ''}`}>
                     <div className="uppercase tracking-wider">{plan.name}</div>
                     <div className="text-sm font-semibold text-blue-600 mt-1">
-                      {price.monthly > 0 ? `৳${price.monthly.toLocaleString()}/mo` : 'Custom'}
+                      {price.monthly > 0 ? `?${price.monthly.toLocaleString()}/mo` : 'Custom'}
                     </div>
                   </th>
                 );

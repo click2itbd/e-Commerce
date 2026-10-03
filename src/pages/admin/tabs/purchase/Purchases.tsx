@@ -4,6 +4,7 @@ import { db, auth } from '../../../../firebase';
 import { Product, Vendor, Transaction, SiteSettings, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../../../../context/AuthContext';
 import {
   ShoppingBag, Barcode, ScanLine,
   Plus,
@@ -282,13 +283,7 @@ const Purchases: React.FC<PurchasesProps> = ({
       setPurchaseHistory(purs);
       setSavedCategories(cats);
 
-      if (accs.length > 0 && !purchaseForm.paymentAccountId) {
-        setPurchaseForm(prev => ({
-          ...prev,
-          paymentAccountId: accs[0].id,
-          paymentMethod: accs[0].type || 'cash',
-        }));
-      }
+      
     } catch (err) {
       console.error(err);
       toast.error('Failed to load purchases data');
@@ -776,6 +771,7 @@ const Purchases: React.FC<PurchasesProps> = ({
         reference: purchaseForm.reference || '',
         notes: purchaseForm.notes || '',
         createdAt,
+        createdBy: purchaseForm.createdBy || profile?.displayName || profile?.email || 'Admin',
       };
 
       const purchaseDocRef = await addDoc(collection(db, 'purchases'), purchaseRecord);
@@ -795,6 +791,7 @@ const Purchases: React.FC<PurchasesProps> = ({
         paymentAccountId: '', // No payment for the purchase itself
         paymentMethod: '',
         createdAt,
+        createdBy: purchaseForm.createdBy || profile?.displayName || profile?.email || 'Admin',
       });
 
       // If any amount was paid, record the payment transaction
@@ -927,11 +924,12 @@ const Purchases: React.FC<PurchasesProps> = ({
       formatCurrency(p.paidAmount, settings),
       formatCurrency(Math.max(0, p.total - p.paidAmount), settings),
       p.paymentStatus.toUpperCase(),
-    ]);
+        p.createdBy || 'Admin',
+      ]);
 
     autoTable(doc, {
       startY: 36,
-      head: [['Purchase #', 'Date', 'Supplier', 'Items', 'Total Bill', 'Paid', 'Due', 'Status']],
+      head: [['Purchase #', 'Date', 'Supplier', 'Items', 'Total Bill', 'Paid', 'Due', 'Status', 'Prepared By']],
       body: body,
       theme: 'striped',
       headStyles: { fillColor: [8, 22, 33] },
@@ -996,7 +994,19 @@ const Purchases: React.FC<PurchasesProps> = ({
 
               <form onSubmit={handleSavePurchase} className="space-y-6 text-xs">
                 {/* Vendor, Date & Reference */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-bold text-gray-700 uppercase mb-1">
+                      Prepared By (Staff)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Fahad, Atik..."
+                      value={purchaseForm.createdBy || ''}
+                      onChange={e => setPurchaseForm({ ...purchaseForm, createdBy: e.target.value })}
+                      className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-900 focus:ring-[#EF4444]"
+                    />
+                  </div>
                   <div>
                     <label className="block font-bold text-gray-700 uppercase mb-1">
                       Supplier / Vendor <span className="text-red-500">*</span>
@@ -1012,7 +1022,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                           vendorName: ven?.name || '',
                         });
                       }}
-                      className="w-full border border-gray-200 rounded-lg p-2.5 font-bold text-gray-900"
+                      className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-900"
                     >
                       <option value="">-- Select Vendor --</option>
                       {vendors.map(v => (
@@ -1622,17 +1632,18 @@ const Purchases: React.FC<PurchasesProps> = ({
                 <th className="px-6 py-3.5 text-right">Paid Amount</th>
                 <th className="px-6 py-3.5 text-right">Due Balance</th>
                 <th className="px-6 py-3.5 text-center">Status</th>
+                  <th className="px-6 py-3.5 text-center">Prepared By</th>
                 <th className="px-6 py-3.5 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-400">Loading purchase records...</td>
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-400">Loading purchase records...</td>
                 </tr>
               ) : filteredPurchases.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-400 italic">
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-400 italic">
                     No purchase records match the selected filters.
                   </td>
                 </tr>
@@ -1682,6 +1693,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                           {pur.paymentStatus}
                         </span>
                       </td>
+                        <td className="px-6 py-3.5 text-center text-[11px] font-bold text-gray-500 whitespace-nowrap">{pur.createdBy || "Admin"}</td>
                       <td className="px-6 py-3.5 text-center">
                         <button
                           onClick={() => setViewingPurchase(pur)}

@@ -15,7 +15,7 @@ import {
   BarChart2,
   Activity,
   CheckCircle,
-  AlertCircle,
+  AlertCircle, Cpu,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn, formatCurrency } from "../../../../lib/utils";
@@ -49,6 +49,9 @@ export const Settings = () => {
     | "review_integrations"
     | "external_ecommerce"
     | "domain_reseller"
+      | "pages"
+      | "pc_builder"
+      | "pc_builder_fake"
   >("business");
   const [taxCalcAmount, setTaxCalcAmount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
@@ -1238,7 +1241,7 @@ export const Settings = () => {
               </div>
             </div>
           ) : settingsTab === "crm_integrations" ? (
-            <CRMIntegrationsSetting />
+            <div className="p-6 text-center text-gray-500 font-bold">Coming Soon: CRM Integrations</div>
           ) : settingsTab === "review_integrations" ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div className="p-4 border-b border-gray-100 bg-gray-50">
@@ -1920,13 +1923,13 @@ export const Settings = () => {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div className="p-4 border-b border-gray-100">
                 <h3 className="text-sm font-bold text-gray-700 capitalize">
-                  {settingsTab.replace(/([A-Z])/g, " $1").trim()} Setting
+                  {String(settingsTab).replace(/([A-Z])/g, " $1").trim()} Setting
                 </h3>
               </div>
               <div className="p-6 text-center py-12 text-gray-400">
                 <SettingsIcon size={48} className="mx-auto mb-4 opacity-50" />
                 <p className="font-bold text-lg capitalize">
-                  {settingsTab.replace(/([A-Z])/g, " $1").trim()} Module
+                  {String(settingsTab).replace(/([A-Z])/g, " $1").trim()} Module
                 </p>
                 <p className="text-sm">
                   Configuring options for {settingsTab} are under development.

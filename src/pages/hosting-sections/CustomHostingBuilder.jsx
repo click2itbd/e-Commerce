@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
@@ -60,7 +60,7 @@ export default function CustomHostingBuilder() {
           annualDiscountPercent: Number(data.annualDiscountPercent) || 20
         });
       }
-    }, (err) => console.log('Custom pricing listener error:', err));
+    }, (err) => console.error(err));
 
     return () => unsub();
   }, []);
@@ -140,7 +140,7 @@ export default function CustomHostingBuilder() {
                   : "text-gray-600 hover:text-gray-900"
               )}
             >
-              Yearly Plan (Save {rates.annualDiscountPercent}%) ðŸ”¥
+              Yearly Plan (Save {rates.annualDiscountPercent}%) 🔥
             </button>
             <button
               onClick={() => setBillingCycle('monthly')}
@@ -183,7 +183,7 @@ export default function CustomHostingBuilder() {
               />
               <div className="flex justify-between text-[11px] text-gray-400 mt-1 font-medium">
                 <span>2 GB</span>
-                <span>Rate: ৳{rates.perGbDisk}/GB</span>
+                <span>Rate: ?{rates.perGbDisk}/GB</span>
                 <span>100 GB</span>
               </div>
             </div>
@@ -210,7 +210,7 @@ export default function CustomHostingBuilder() {
               />
               <div className="flex justify-between text-[11px] text-gray-400 mt-1 font-medium">
                 <span>1 Website</span>
-                <span>Rate: ৳{rates.perWebsite}/Addon</span>
+                <span>Rate: ?{rates.perWebsite}/Addon</span>
                 <span>30 Websites</span>
               </div>
             </div>
@@ -237,7 +237,7 @@ export default function CustomHostingBuilder() {
               />
               <div className="flex justify-between text-[11px] text-gray-400 mt-1 font-medium">
                 <span>1 Core</span>
-                <span>Rate: ৳{rates.perCoreCpu}/Core</span>
+                <span>Rate: ?{rates.perCoreCpu}/Core</span>
                 <span>8 Cores</span>
               </div>
             </div>
@@ -264,7 +264,7 @@ export default function CustomHostingBuilder() {
               />
               <div className="flex justify-between text-[11px] text-gray-400 mt-1 font-medium">
                 <span>1 GB</span>
-                <span>Rate: ৳{rates.perGbRam}/GB</span>
+                <span>Rate: ?{rates.perGbRam}/GB</span>
                 <span>16 GB</span>
               </div>
             </div>
@@ -323,7 +323,7 @@ export default function CustomHostingBuilder() {
               {/* Price Calculation Display */}
               <div className="pb-6 mb-6 border-b border-gray-800">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl sm:text-5xl font-black text-white">৳{finalPrice.toLocaleString()}</span>
+                  <span className="text-4xl sm:text-5xl font-black text-white">?{finalPrice.toLocaleString()}</span>
                   <span className="text-xs text-gray-400 font-medium">{isAnnual ? '/year' : '/month'}</span>
                 </div>
                 {isAnnual && (
@@ -375,3 +375,4 @@ export default function CustomHostingBuilder() {
     </section>
   );
 }
+

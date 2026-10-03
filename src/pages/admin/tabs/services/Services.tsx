@@ -6,7 +6,7 @@ import { toast } from 'react-hot-toast';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
-import { ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle, Clock, AlertCircle, Package, MessageCircle, ShoppingCart } from 'lucide-react';
+import {  ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle, Clock, AlertCircle, Package, MessageCircle, ShoppingCart , Trash2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -55,6 +55,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   const [soldSerials, setSoldSerials] = useState<SoldSerial[]>([]);
   const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
   const [vendors, setVendors] = useState<{id: string; name: string}[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [isAddingService, setIsAddingService] = useState(false);
@@ -148,6 +150,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
         // 4. Fetch Vendors
         const vendorsSnap = await getDocs(query(collection(db, 'vendors'), orderBy('name')));
         setVendors(vendorsSnap.docs.map(v => ({ id: v.id, name: v.data().name })));
+        const custSnap = await getDocs(query(collection(db, 'customers')));
+        setCustomers(custSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
       } catch (err) {
         console.error(err);
@@ -198,62 +202,192 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       const pageWidth = doc.internal.pageSize.getWidth();
       let currentY = 20;
 
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.text(settings?.brandName || 'CLICK2IT', 14, currentY);
+      // TOP LEFT: SERVICE RECEIPT
+      doc.setFontSize(26);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text("SERVICE RECEIPT", 14, currentY + 10);
+
+      // TOP RIGHT: COMPANY INFO
+      try {
+        const urlsToTry = [settings?.logoUrl, "/logo.png", "/logo.jpeg"].filter(Boolean);
+        let dataUrl = "";
+        let loadedImg: any = null;
+
+        for (const url of urlsToTry) {
+          if (!url) continue;
+          try {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            await new Promise((resolve, reject) => {
+              img.onload = () => resolve(true);
+              img.onerror = () => reject(new Error("Load failed"));
+              img.src = url as string;
+            });
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              dataUrl = canvas.toDataURL("image/png");
+              loadedImg = img;
+              break; 
+            }
+          } catch (e) {
+            console.warn(`Failed to load logo from ${url}`);
+          }
+        }
+
+        const businessNameText = settings?.businessName || settings?.brandName || "CLICK2IT BD";
+        
+        if (loadedImg && dataUrl) {
+          const textWidth = doc.getTextWidth(businessNameText);
+          const logoHeight = 16;
+          const logoWidth = (loadedImg.width / loadedImg.height) * logoHeight;
+          doc.addImage(
+            dataUrl,
+            "PNG",
+            pageWidth - 14 - textWidth - logoWidth - 5,
+            currentY - 11,
+            logoWidth,
+            logoHeight,
+          );
+        }
+      } catch (err) {
+        console.error("Error in logo processing for PDF", err);
+      }
+
+      doc.setFontSize(14);
+      doc.text(settings?.businessName || settings?.brandName || "CLICK2IT BD", pageWidth - 14, currentY, { align: "right" });
       
       doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100);
-      currentY += 6;
-      doc.text(settings?.contactEmail || '', 14, currentY);
-      currentY += 5;
-      doc.text(settings?.contactPhone || '', 14, currentY);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105); // slate-600
       
-      doc.setFontSize(24);
-      doc.setTextColor(0);
-      doc.text('SERVICE RECEIPT', pageWidth - 14, 25, { align: 'right' });
+      let finalAddress = settings?.address || "Shop No. 1072, Level 10, Multiplan Center\n69-71, New Elephant Road, Dhaka-1205";
+      if (finalAddress.trim() === 'Dhaka, Bangladesh') {
+         finalAddress = "Shop No. 1072, Level 10, Multiplan Center\n69-71, New Elephant Road, Dhaka-1205";
+      }
+      const addressLines = doc.splitTextToSize(finalAddress, 80);
+      addressLines.forEach((line: string) => {
+        currentY += 5;
+        doc.text(line, pageWidth - 14, currentY, { align: "right" });
+      });
+      
+      const finalPhones = settings?.contactPhone ? (settings.contactPhone.includes('+880') ? settings.contactPhone : `+8809640887777, +8801729887777`) : "+8809640887777, +8801729887777";
+      currentY += 5;
+      doc.text(finalPhones, pageWidth - 14, currentY, { align: "right" });
+      
+      currentY += 5;
+      doc.text("www.click2itbd.com", pageWidth - 14, currentY, { align: "right" });
 
-      currentY += 10;
+      currentY += 15;
+
+      // CUSTOMER & TICKET DETAILS BOX
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.rect(14, currentY, pageWidth - 28, 35, "F");
+      
+      // Vertical separator line
+      doc.setDrawColor(226, 232, 240); // slate-200
       doc.setLineWidth(0.5);
-      doc.line(14, currentY, pageWidth - 14, currentY);
-      currentY += 10;
+      doc.line(pageWidth / 2, currentY + 5, pageWidth / 2, currentY + 30);
 
       doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Customer Information:', 14, currentY);
-      doc.setFont('helvetica', 'normal');
-      currentY += 6;
-      doc.text(`Name: ${record.customerName}`, 14, currentY);
-      currentY += 5;
-      doc.text(`Phone: ${record.customerPhone}`, 14, currentY);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(100, 116, 139); // slate-500
+      
+      let boxY = currentY + 8;
+      doc.text("Customer Information:", 20, boxY);
+      doc.text("Ticket Details:", (pageWidth / 2) + 6, boxY);
 
-      let rightColY = currentY - 11;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Ticket Details:', pageWidth - 60, rightColY);
-      doc.setFont('helvetica', 'normal');
-      rightColY += 6;
-      doc.text(`Ticket No: ${record.id.slice(-6).toUpperCase()}`, pageWidth - 60, rightColY);
-      rightColY += 5;
-      doc.text(`Date: ${new Date(record.receivedAt).toLocaleDateString()}`, pageWidth - 60, rightColY);
-      rightColY += 5;
-      doc.text(`Status: ${record.status.toUpperCase()}`, pageWidth - 60, rightColY);
+      boxY += 8;
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text(record.customerName || "Walk-in Customer", 20, boxY);
+      
+      doc.setFontSize(10);
+      doc.text(`Ticket No: `, (pageWidth / 2) + 6, boxY);
+      doc.text(record.id.slice(-6).toUpperCase(), (pageWidth / 2) + 26, boxY);
 
-      currentY = Math.max(currentY, rightColY) + 15;
+      boxY += 7;
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105); // slate-600
+      doc.text(`Phone: ${record.customerPhone || "N/A"}`, 20, boxY);
+      doc.text(`Date: ${new Date(record.receivedAt).toLocaleDateString("en-US", { month: 'long', day: 'numeric', year: 'numeric' })}`, (pageWidth / 2) + 6, boxY);
 
+      boxY += 7;
+      doc.text(`Status: ${record.status.toUpperCase()}`, (pageWidth / 2) + 6, boxY);
+
+      currentY += 45;
+
+      // TABLE
       autoTable(doc, {
         startY: currentY,
-        head: [['Product Details', 'Information']],
+        head: [['S.N.', 'Product Details', 'Information']],
         body: [
-          ['Product Name', record.productName],
-          ['Serial Number', record.serialNumber],
-          ['Equipment Type', record.equipmentType || 'N/A'],
-          ['Service Type', record.isWarranty ? 'Warranty Service' : 'Paid Service'],
-          ['Issue Description', record.issueDescription]
+          ['1', 'Product Name', record.productName || ''],
+          ['2', 'Serial / IMEI', record.serialNumber || ''],
+          ['3', 'Equipment Type', record.equipmentType || 'Laptop'],
+          ['4', 'Service Type', record.isWarranty ? 'Warranty Service' : 'Paid Service'],
+          ['5', 'Issue Description', record.issueDescription || '']
         ],
-        theme: 'grid',
-        headStyles: { fillColor: [239, 68, 68] }
+        theme: 'plain',
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: 255,
+          fontStyle: 'bold',
+          cellPadding: 4
+        },
+        bodyStyles: {
+          textColor: [15, 23, 42],
+          cellPadding: 6,
+          fontSize: 10
+        },
+        columnStyles: {
+          0: { cellWidth: 15, fontStyle: 'normal' },
+          1: { cellWidth: 70 },
+          2: { cellWidth: 'auto' }
+        },
+        alternateRowStyles: {
+          fillColor: [255, 255, 255]
+        }
       });
+
+      let finalY = (doc as any).lastAutoTable.finalY + 40;
+      
+      if (finalY > 260) {
+        doc.addPage();
+        finalY = 40;
+      }
+
+      // SIGNATURES
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(15, 23, 42);
+      
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.5);
+      
+      // Authorized Signature
+      doc.line(14, finalY, 70, finalY);
+      doc.text("Authorized Signature", 14, finalY + 5);
+      
+      // Customer Signature
+      doc.line(pageWidth - 70, finalY, pageWidth - 14, finalY);
+      doc.text("Customer Signature", pageWidth - 14, finalY + 5, { align: "right" });
+
+      finalY += 15;
+      
+      // Note
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text("* Note: There is no warranty in case of Burning or Physical Damages.", 14, finalY);
+
+      finalY += 15;
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text("THANK YOU FOR YOUR BUSINESS", pageWidth / 2, finalY, { align: "center" });
 
       doc.save(`Service_Receipt_${record.id.slice(-6)}.pdf`);
       toast.success('Receipt generated successfully');
@@ -524,16 +658,55 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Customer Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={serviceFormData.customerName}
-                    onChange={e => setServiceFormData({ ...serviceFormData, customerName: e.target.value })}
-                    className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                  />
-                </div>
+                  <div className="relative">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Customer Name</label>
+                    <input
+                      type="text"
+                      required
+                      autoComplete="off"
+                      value={serviceFormData.customerName}
+                      onFocus={() => setShowCustomerDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                      onChange={e => {
+                        const cName = e.target.value;
+                        const c = customers.find((x: any) => x.name === cName);
+                        setServiceFormData({ 
+                          ...serviceFormData, 
+                          customerName: cName,
+                          customerPhone: c ? c.phone : serviceFormData.customerPhone
+                        });
+                      }}
+                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
+                      placeholder="Type to search or add new..."
+                    />
+                    {showCustomerDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        {customers.filter((c: any) => c.name.toLowerCase().includes(serviceFormData.customerName.toLowerCase())).length > 0 ? (
+                          customers.filter((c: any) => c.name.toLowerCase().includes(serviceFormData.customerName.toLowerCase())).map((c: any) => (
+                            <div 
+                              key={c.id} 
+                              className="px-3 py-2 cursor-pointer hover:bg-gray-100 border-b border-gray-50 last:border-0"
+                              onClick={() => {
+                                setServiceFormData({
+                                  ...serviceFormData, 
+                                  customerName: c.name, 
+                                  customerPhone: c.phone || serviceFormData.customerPhone
+                                });
+                                setShowCustomerDropdown(false);
+                              }}
+                            >
+                              <div className="font-bold text-sm text-gray-800">{c.name}</div>
+                              {c.phone && <div className="text-xs text-gray-500">{c.phone}</div>}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-xs text-gray-500 italic">
+                            No match found. Will be saved as new.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Product Name</label>
                   <input
@@ -575,6 +748,25 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
                   />
                 </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Prepared By</label>
+                    <input
+                      type="text"
+                      value={serviceFormData.preparedBy || ''}
+                      onChange={e => setServiceFormData({ ...serviceFormData, preparedBy: e.target.value })}
+                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
+                      placeholder="Staff name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={serviceFormData.receivedAt?.split('T')[0] || ''}
+                      onChange={e => setServiceFormData({ ...serviceFormData, receivedAt: e.target.value })}
+                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
+                    />
+                  </div>
                 <div className="flex gap-4">
                   <button
                     type="submit"
@@ -962,9 +1154,12 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                              <ShoppingCart size={14} />
                            </button>
                          )}
-                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, serviceType: record.serviceType || 'in_house', vendorId: record.vendorId || '', rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || 'Laptop', paymentMethod: record.paymentMethod || 'cash', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || ''}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
+                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, receivedAt: record.receivedAt ? record.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0], serviceType: record.serviceType || 'in_house', vendorId: record.vendorId || '', rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || 'Laptop', paymentMethod: record.paymentMethod || 'cash', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || ''}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
                            <Edit2 size={14} />
                          </button>
+                          <button onClick={() => handleDeleteService(record.id)} className="text-gray-500 hover:text-red-700 bg-gray-50 hover:bg-red-50 p-1.5 rounded shadow-sm transition-all" title="Delete Service">
+                            <Trash2 size={14} />
+                          </button>
                        </div>
                     </td>
                   </tr>

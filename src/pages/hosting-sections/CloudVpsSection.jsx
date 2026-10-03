@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Terminal, Shield, Cpu, HardDrive, Zap, Check, ArrowRight, Server, Monitor, Sparkles } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +13,7 @@ const OS_OPTIONS = [
     name: 'Ubuntu 22.04', 
     fullName: 'Ubuntu 22.04 LTS',
     type: 'Linux', 
-    icon: 'ðŸ§', 
+    icon: '🐧', 
     tag: 'Recommended for Node/Python/Docker',
     accessType: 'Full Root SSH Access' 
   },
@@ -22,7 +22,7 @@ const OS_OPTIONS = [
     name: 'Debian 12', 
     fullName: 'Debian 12 Bookworm',
     type: 'Linux', 
-    icon: 'ðŸŒ€', 
+    icon: '🌀', 
     tag: 'Ultra Stable & Lightweight',
     accessType: 'Full Root SSH Access' 
   },
@@ -31,7 +31,7 @@ const OS_OPTIONS = [
     name: 'AlmaLinux 9', 
     fullName: 'AlmaLinux 9',
     type: 'Linux', 
-    icon: 'âš¡', 
+    icon: '⚡', 
     tag: 'Best for cPanel & Enterprise',
     accessType: 'Full Root SSH Access' 
   },
@@ -40,7 +40,7 @@ const OS_OPTIONS = [
     name: 'Windows 2022', 
     fullName: 'Windows Server 2022',
     type: 'Windows', 
-    icon: 'ðŸªŸ', 
+    icon: '🪟', 
     tag: 'Remote Desktop (RDP) & IIS',
     accessType: 'Remote Desktop (RDP) Access' 
   }
@@ -178,7 +178,7 @@ export default function CloudVpsSection() {
           setPlans(merged);
         }
       }
-    }, (err) => console.log('Firestore VPS Plans error:', err));
+    }, (err) => console.error(err));
 
     return () => unsub();
   }, []);
@@ -259,7 +259,7 @@ export default function CloudVpsSection() {
             {/* Current Active OS Tagline */}
             <div className="mt-3 inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100 px-4 py-1.5 rounded-full text-xs font-semibold text-indigo-900">
               <Sparkles size={13} className="text-indigo-600" />
-              <span>Active Template: <strong>{currentOSObj.fullName}</strong> â€” {currentOSObj.accessType}</span>
+              <span>Active Template: <strong>{currentOSObj.fullName}</strong> — {currentOSObj.accessType}</span>
             </div>
           </div>
         </div>
@@ -288,7 +288,7 @@ export default function CloudVpsSection() {
               <div>
                 <h3 className="text-xl font-bold text-gray-900 mb-1">{plan.name}</h3>
                 <div className="flex items-baseline gap-1 pb-4 mb-4 border-b border-gray-100">
-                  <span className="text-3xl md:text-4xl font-black text-gray-900">৳{plan.monthlyPrice.toLocaleString()}</span>
+                  <span className="text-3xl md:text-4xl font-black text-gray-900">?{plan.monthlyPrice.toLocaleString()}</span>
                   <span className="text-xs text-gray-500 font-medium">/ month</span>
                 </div>
 
@@ -363,3 +363,4 @@ export default function CloudVpsSection() {
     </section>
   );
 }
+

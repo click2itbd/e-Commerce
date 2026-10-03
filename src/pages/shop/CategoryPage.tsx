@@ -105,7 +105,7 @@ export const CategoryPage: React.FC = () => {
           });
         }
 
-        setProducts(productsData);
+        setProducts(productsData.filter(p => p.showInStore !== false));
       } catch (error) {
         console.error('Error fetching category products:', error);
       } finally {

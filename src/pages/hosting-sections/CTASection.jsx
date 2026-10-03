@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Search as SearchIcon, ArrowRight } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 

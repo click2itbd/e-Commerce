@@ -149,7 +149,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
         }
       });
       rebuildList();
-    }, (err) => console.log('Notif orders error:', err));
+    }, (err) => console.error(err));
 
     // 2. Domain Offers
     const unsubOffers = onSnapshot(collection(db, 'domain_offers'), (snap) => {
@@ -174,7 +174,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
         }
       });
       rebuildList();
-    }, (err) => console.log('Notif offers error:', err));
+    }, (err) => console.error(err));
 
     // 3. Hosting Orders
     const unsubHosting = onSnapshot(collection(db, 'hostingOrders'), (snap) => {
@@ -226,7 +226,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
         }
       });
       rebuildList();
-    }, (err) => console.log('Notif tickets error:', err));
+    }, (err) => console.error(err));
 
     // 5. Low Stock / Out of Stock
     const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
@@ -267,7 +267,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
         }
       });
       rebuildList();
-    }, (err) => console.log('Notif stock error:', err));
+    }, (err) => console.error(err));
 
     const rebuildList = () => {
       const arr = Array.from(itemsMap.values()).sort((a, b) => {
@@ -622,3 +622,4 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     </div>
   );
 };
+

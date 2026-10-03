@@ -1,10 +1,11 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from './Layout';
 import { SEO } from './SEO';
 import { useSettings } from '../context/SettingsContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Loader2 } from 'lucide-react';
+import DOMPurify from 'dompurify';
 
 export const DynamicPolicyPage: React.FC<{ pageId: string, defaultTitle: string, defaultContent: string }> = ({ pageId, defaultTitle, defaultContent }) => {
   const { settings } = useSettings();
@@ -44,7 +45,7 @@ export const DynamicPolicyPage: React.FC<{ pageId: string, defaultTitle: string,
             ) : (
                <>
                  <h1 className="text-4xl font-bold text-gray-900 mb-6">{title}</h1>
-                 <div className="prose prose-blue max-w-none text-gray-700 space-y-6" dangerouslySetInnerHTML={{ __html: content.replace(/{brandName}/g, brandName) }} />
+                 <div className="prose prose-blue max-w-none text-gray-700 space-y-6" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content.replace(/{brandName}/g, brandName)) }} />
                </>
             )}
           </div>

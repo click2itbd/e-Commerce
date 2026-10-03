@@ -81,7 +81,7 @@ export interface PaymentAccount {
   createdAt: string;
 }
 
-export type TransactionType = 'sale' | 'purchase' | 'expense' | 'income' | 'payment_received' | 'payment_made' | 'money_receipt' | 'return';
+export type TransactionType = 'sale' | 'purchase' | 'expense' | 'income' | 'payment_received' | 'payment_made' | 'money_receipt' | 'return' | 'opening_balance' | 'purchase_return' | 'deposit';
 
 export interface Transaction {
   id: string;
@@ -91,11 +91,16 @@ export interface Transaction {
   description: string;
   entityId: string; // Customer ID or Vendor ID
   entityName: string;
+  entityType?: 'customer' | 'vendor';
+  documentNumber?: string;
   referenceId?: string; // Order ID or Invoice ID
   categoryId?: string;
   categoryName?: string;
   createdAt: string;
   paymentMethod?: string;
+  paymentAccountId?: string;
+  previousDue?: number;
+  currentBalance?: number;
 }
 
 export interface TransactionCategory {
@@ -130,6 +135,8 @@ export interface Customer {
 }
 
 export interface Order {
+  createdBy?: string;
+  preparedBy?: string;
   saleSource?: 'in_store' | 'online';
   id: string;
   userId: string;
@@ -222,12 +229,16 @@ export interface ServiceRecord {
   issueDescription: string;
   isWarranty: boolean;
   serviceCharge: number;
-  status: 'received' | 'in_progress' | 'ready' | 'delivered';
+  status: 'received' | 'in_progress' | 'sent_to_rma' | 'ready' | 'delivered';
   paymentStatus?: 'pending' | 'paid';
   paymentMethod?: string;
   medeaPayment?: string; // Additional field for Medea Payment track
   receivedAt: string;
   deliveredAt?: string;
+  supplierName?: string;
+  supplierRmaDate?: string;
+  supplierReturnDate?: string;
+  supplierRmaStatus?: 'not_sent' | 'sent_to_supplier' | 'received_from_supplier';
 }
 
 export interface ApiSettings {
@@ -599,3 +610,17 @@ export interface InternalNote {
 
 
 
+
+export interface CashRegister {
+  id?: string;
+  openedAt: string;
+  openedBy: string; // user displayName
+  openingBalance: number;
+  status: 'open' | 'closed';
+  closedAt?: string;
+  closedBy?: string;
+  closingBalance?: number; // actual counted cash
+  expectedBalance?: number; // calculated cash
+  discrepancy?: number; // closingBalance - expectedBalance
+  notes?: string;
+}

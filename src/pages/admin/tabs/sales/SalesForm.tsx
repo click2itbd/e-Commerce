@@ -4,6 +4,7 @@ import { db, auth } from '../../../../firebase';
 import { Product, Customer, DiscountCode, SiteSettings, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../../../../context/AuthContext';
 import { generatePDF } from '../../../../lib/pdf';
 import {
   Plus,
@@ -29,6 +30,7 @@ import { sendEmail } from '../../../../services/emailService';
 interface SalesFormProps {
   products: Product[];
   customers: Customer[];
+  transactions?: any[];
   discountCodes: DiscountCode[];
   settings: SiteSettings;
   formatCurrency: (amount: number, settings?: SiteSettings) => string;
@@ -51,7 +53,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   fetchData,
   checkLowStock,
   setActiveTab,
-}) => {
+    transactions = [],
+  }) => {
+  const { profile } = useAuth();
+
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [isAddingNewCustomer, setIsAddingNewCustomer] = useState(false);
@@ -62,27 +67,64 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     address: '',
   });
 
-  const [saleData, setSaleData] = useState({
-    customerId: '',
-    customerName: '',
-    workOrderNumber: '',
-    customerPhone: '',
-    customerEmail: '',
-    shippingAddress: '',
-    items: [] as any[],
-    type: 'invoice' as 'invoice' | 'challan' | 'quotation',
-    saleSource: 'in_store' as 'in_store' | 'online',
-    paymentMethod: 'cash',
-    paymentAccountId: '',
-    paidAmount: 0,
-    discountAmount: 0,
-    appliedDiscountPercentage: 0,
-    appliedDiscountCode: '',
-    notes: '',
+    const [saleData, setSaleData] = useState(() => {
+    const saved = localStorage.getItem('sales_form_draft');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed) return parsed;
+      } catch (e) {}
+    }
+    return {
+      customerId: '',
+      customerName: '',
+      workOrderNumber: '',
+      customerPhone: '',
+      customerEmail: '',
+      shippingAddress: '',
+      createdBy: '',
+      date: new Date().toISOString().split('T')[0],
+      items: [] as any[],
+      type: 'invoice' as 'invoice' | 'challan' | 'quotation',
+      paymentMethod: '',
+      paymentAccountId: '',
+      saleSource: 'in_store' as 'in_store' | 'online',
+      paidAmount: 0,
+      discountAmount: 0,
+      appliedDiscountPercentage: 0,
+      appliedDiscountCode: '',
+      notes: '',
+    };
   });
+
+  useEffect(() => {
+    localStorage.setItem('sales_form_draft', JSON.stringify(saleData));
+  }, [saleData]);
 
   const [saleDiscountCodeInput, setSaleDiscountCodeInput] = useState('');
   const [showPCBuilderModal, setShowPCBuilderModal] = useState(false);
+  const [servicePresets, setServicePresets] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('service_presets');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return [
+      'Motherboard Problem Fix',
+      'Power Supply Fix',
+      'Screen / Display Repair',
+      'Keyboard Repair',
+      'OS Installation / Reinstall',
+      'Data Recovery',
+      'Cooling Fan Replacement',
+      'RAM Upgrade',
+      'Battery Replacement',
+      'Charging Port Fix',
+      'Virus Removal',
+      'Repair / Servicing',
+    ];
+  });
+  const [editingPresets, setEditingPresets] = useState(false);
+  const [newPresetText, setNewPresetText] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [submitting, setSubmitting] = useState(false);
@@ -100,13 +142,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
       const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(accs);
-      if (accs.length > 0 && !saleData.paymentAccountId) {
-        setSaleData(prev => ({
-          ...prev,
-          paymentAccountId: accs[0].id,
-          paymentMethod: accs[0].type || 'cash',
-        }));
-      }
+      
     } catch (err) {
       console.error(err);
     }
@@ -461,6 +497,11 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const handleCreateSale = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (saleData.type !== 'quotation' && saleData.paidAmount > 0 && !saleData.paymentAccountId) {
+      toast.error('Please select a payment account to receive the paid amount');
+      return;
+    }
+
     // MUST HAVE A REGISTERED CUSTOMER SELECTED
     if (!saleData.customerId || !saleData.customerName) {
       toast.error('Please select a registered customer for this sale');
@@ -523,12 +564,13 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
       const paid = saleData.type === 'quotation' ? 0 : Math.min(netTotal, Number(saleData.paidAmount) || 0);
       const paymentStatus = paid >= netTotal ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
-      const createdAt = new Date().toISOString();
+      const createdAt = new Date(saleData.date || new Date()).toISOString();
 
       const orderData = {
         documentNumber: docNumber,
         type: saleData.type,
         saleSource: saleData.saleSource,
+          createdBy: saleData.createdBy || profile?.displayName || profile?.email || 'Admin',
         customerId: saleData.customerId,
         customerName: saleData.customerName,
         workOrderNumber: saleData.workOrderNumber,
@@ -722,8 +764,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         shippingAddress: '',
         items: [],
         type: 'invoice',
-        paymentMethod: paymentAccounts[0]?.type || 'cash',
-        paymentAccountId: paymentAccounts[0]?.id || '',
+        paymentMethod: '',
+        paymentAccountId: '',
         saleSource: 'in_store',
         paidAmount: 0,
         discountAmount: 0,
@@ -732,6 +774,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         notes: '',
       });
       setSaleDiscountCodeInput('');
+        localStorage.removeItem('sales_form_draft');
       fetchData();
     } catch (error) {
       console.error('Error creating sale:', error);
@@ -788,30 +831,68 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
           <form onSubmit={handleCreateSale} className="space-y-6 text-xs">
             {/* Document Type & Customer Selection */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block font-bold text-gray-700 uppercase mb-1">Document Type</label>
-                <select
-                  value={saleData.type}
-                  onChange={e => setSaleData({ ...saleData, type: e.target.value as any })}
-                  className="w-full border border-gray-200 rounded-lg p-2.5 font-bold text-gray-800"
-                >
-                  <option value="invoice">Invoice</option>
-                  <option value="challan">Challan</option>
-                  <option value="quotation">Quotation</option>
-                </select>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-bold text-gray-700 uppercase mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={saleData.date || ''}
+                    onChange={e => setSaleData({ ...saleData, date: e.target.value })}
+                    className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-gray-700 uppercase mb-1">Prepared By</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Fahad, Atik..."
+                    value={saleData.createdBy || ''}
+                    onChange={e => setSaleData({ ...saleData, createdBy: e.target.value })}
+                    className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-gray-700 uppercase mb-1">Document Type</label>
+                  <select
+                    value={saleData.type}
+                    onChange={e => setSaleData({ ...saleData, type: e.target.value as any })}
+                    className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-800"
+                  >
+                    <option value="invoice">Invoice</option>
+                    <option value="challan">Challan</option>
+                    <option value="quotation">Quotation</option>
+                  </select>
+                </div>
               </div>
-
               <div>
-                <label className="block font-bold text-gray-700 uppercase mb-1">
-                  Customer <span className="text-red-500">*</span> (Must Select)
-                </label>
+                {(() => {
+                    let due = 0;
+                    if (saleData.customerId && transactions) {
+                        transactions.forEach(t => {
+                            if (t.entityId === saleData.customerId) {
+                                if (t.type === 'sale') due += Number(t.amount);
+                                else if (t.type === 'payment_received' || t.type === 'return') due -= Number(t.amount);
+                            }
+                        });
+                    }
+                    return (
+                      <label className="block font-bold text-gray-700 uppercase mb-1 flex justify-between">
+                        <span>Customer <span className="text-red-500">*</span></span>
+                        {saleData.customerId && due > 0 && (
+                          <span className="text-red-600 font-black text-xs px-2 py-0.5 bg-red-50 border border-red-200 rounded-full">
+                            Previous Due: {formatCurrency(due, settings)}
+                          </span>
+                        )}
+                      </label>
+                    );
+                })()}
                 <div className="flex gap-2">
                   <select
                     required
                     value={saleData.customerId}
                     onChange={e => handleCustomerChange(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg p-2.5 font-bold text-gray-900 bg-white"
+                    className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-900 bg-white"
                   >
                     <option value="">-- Select Customer --</option>
                     {customers.map(c => (
@@ -823,47 +904,16 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsAddingNewCustomer(true)}
-                    className="bg-[#081621] hover:bg-[#EF4444] text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1 transition-all shrink-0"
+                    className="bg-[#081621] hover:bg-[#EF4444] text-white px-4 h-[42px] rounded-lg font-bold flex items-center gap-1.5 transition-all shrink-0"
                     title="Add New Customer"
                   >
-                    <Plus size={16} /> New
+                    <Plus size={16} /> New Customer
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Selected Customer Details Card */}
-            {saleData.customerId ? (
-              <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-full shrink-0">
-                    <UserCheck size={18} />
-                  </div>
-                  <div>
-                    <span className="font-bold text-sm text-emerald-950 block">{saleData.customerName}</span>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-emerald-800 mt-0.5">
-                      {saleData.customerPhone && (
-                        <span className="flex items-center gap-1"><Phone size={10} /> {saleData.customerPhone}</span>
-                      )}
-                      {saleData.customerEmail && (
-                        <span className="flex items-center gap-1"><Mail size={10} /> {saleData.customerEmail}</span>
-                      )}
-                      {saleData.shippingAddress && (
-                        <span className="flex items-center gap-1"><MapPin size={10} /> {saleData.shippingAddress}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleCustomerChange('')}
-                  className="text-xs font-bold text-red-600 hover:underline shrink-0"
-                >
-                  Change
-                </button>
-              </div>
-            ) : (
+            {!saleData.customerId && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center gap-2.5 text-amber-800 text-xs">
                 <AlertCircle size={16} className="shrink-0 text-amber-600" />
                 <span>
@@ -904,15 +954,80 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex-1">
                             {item.isCustomService ? (
-                              <div className="flex flex-col gap-1 w-full max-w-sm mb-1">
-                                <label className="text-[10px] uppercase font-bold text-indigo-500">Service Description</label>
+                              <div className="flex flex-col gap-1 w-full mb-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <label className="text-[10px] uppercase font-bold text-indigo-500">Service Description</label>
+                                  <button type="button" onClick={() => setEditingPresets(ep => !ep)} className="text-[9px] text-indigo-400 hover:text-indigo-600 underline">{editingPresets ? 'Done' : 'Edit Options'}</button>
+                                </div>
+                                <div className="flex gap-1">
+                                  <select
+                                    value={servicePresets.includes(item.name) ? item.name : '__custom__'}
+                                    onChange={e => {
+                                      if (e.target.value !== '__custom__') updateItemName(item.id, e.target.value);
+                                    }}
+                                    className="border border-indigo-200 bg-indigo-50/30 rounded py-1 px-2 font-semibold text-xs focus:ring-indigo-500 flex-1"
+                                  >
+                                    {servicePresets.map(p => <option key={p} value={p}>{p}</option>)}
+                                    {!servicePresets.includes(item.name) && <option value="__custom__">{item.name || 'Custom...'}</option>}
+                                  </select>
+                                </div>
                                 <input 
                                   type="text" 
                                   value={item.name} 
                                   onChange={e => updateItemName(item.id, e.target.value)}
-                                  placeholder="e.g. OS Installation, Keyboard Repair..."
-                                  className="w-full border border-indigo-200 bg-indigo-50/30 rounded py-1 px-2 font-semibold text-xs focus:ring-indigo-500"
+                                  placeholder="Or type custom description..."
+                                  className="w-full border border-indigo-100 bg-white rounded py-1 px-2 text-xs text-gray-600 focus:ring-indigo-500 mt-1"
                                 />
+                                {editingPresets && (
+                                  <div className="mt-2 p-2 bg-indigo-50 rounded-lg border border-indigo-200 space-y-1">
+                                    <p className="text-[10px] font-bold text-indigo-600 uppercase">Manage Presets</p>
+                                    {servicePresets.map((p, pi) => (
+                                      <div key={pi} className="flex items-center gap-1">
+                                        <input
+                                          type="text"
+                                          value={p}
+                                          onChange={e => {
+                                            const updated = [...servicePresets];
+                                            updated[pi] = e.target.value;
+                                            setServicePresets(updated);
+                                            localStorage.setItem('service_presets', JSON.stringify(updated));
+                                          }}
+                                          className="flex-1 border border-indigo-200 rounded px-2 py-0.5 text-xs"
+                                        />
+                                        <button type="button" onClick={() => {
+                                          const updated = servicePresets.filter((_, i) => i !== pi);
+                                          setServicePresets(updated);
+                                          localStorage.setItem('service_presets', JSON.stringify(updated));
+                                        }} className="text-red-400 hover:text-red-600 text-xs px-1">?</button>
+                                      </div>
+                                    ))}
+                                    <div className="flex gap-1 mt-1">
+                                      <input
+                                        type="text"
+                                        value={newPresetText}
+                                        onChange={e => setNewPresetText(e.target.value)}
+                                        placeholder="Add new option..."
+                                        className="flex-1 border border-indigo-300 rounded px-2 py-0.5 text-xs"
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter' && newPresetText.trim()) {
+                                            const updated = [...servicePresets, newPresetText.trim()];
+                                            setServicePresets(updated);
+                                            localStorage.setItem('service_presets', JSON.stringify(updated));
+                                            setNewPresetText('');
+                                          }
+                                        }}
+                                      />
+                                      <button type="button" onClick={() => {
+                                        if (newPresetText.trim()) {
+                                          const updated = [...servicePresets, newPresetText.trim()];
+                                          setServicePresets(updated);
+                                          localStorage.setItem('service_presets', JSON.stringify(updated));
+                                          setNewPresetText('');
+                                        }
+                                      }} className="bg-indigo-600 text-white rounded px-2 py-0.5 text-xs">+ Add</button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <span className="font-bold text-gray-900 block text-xs">{item.name}{(item as any).variantName ? " - " + (item as any).variantName : ""}</span>

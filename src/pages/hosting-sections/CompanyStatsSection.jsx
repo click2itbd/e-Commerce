@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import Eyebrow from '../../components/hosting-ui/Eyebrow';
 import StatCounter from '../../components/hosting-ui/StatCounter';
 import { Globe, Users, Ticket, Server } from 'lucide-react';

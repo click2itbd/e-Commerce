@@ -1,4 +1,4 @@
-﻿import { generatePDF } from "../lib/pdf";
+import { generatePDF } from "../lib/pdf";
 import { logoBase64 } from "../lib/logoBase64";
 import { BannersManagerTab } from "./admin/tabs/marketing/BannersManagerTab";
 import React, {
@@ -57,7 +57,7 @@ const CRMPage = lazy(() =>
   import("./CRMPage").then((m) => ({ default: m.CRMPage })),
 );
 const TaskManager = lazy(() =>
-  import("../components/TaskManager").then((m) => ({ default: m.TaskManager })),
+  import("./admin/tabs/hr/TaskManager").then((m) => ({ default: m.default })),
 );
 const SupportTicketManager = lazy(() =>
   import("../components/SupportTicketManager").then((m) => ({
@@ -121,9 +121,8 @@ const SettingsTab = lazy(() =>
 const MenusTab = lazy(() =>
   import("./admin/tabs/menus/Menus").then((m) => ({ default: m.default })),
 );
-const EmployeesTab = lazy(() =>
-  import("./admin/tabs/hr/Employees").then((m) => ({ default: m.default })),
-);
+const EmployeesTab = lazy(() => import("./admin/tabs/hr/Employees").then((m) => ({ default: m.default })));
+const StaffPerformanceTab = lazy(() => import("./admin/tabs/hr/StaffPerformance").then((m) => ({ default: m.StaffPerformanceTab })));
 const LeaveTab = lazy(() =>
   import("./admin/tabs/hr/Leave").then((m) => ({ default: m.default })),
 );
@@ -228,6 +227,10 @@ const PaymentAccountsTab = lazy(() =>
     default: m.default,
   })),
 );
+
+const ProfitLossTab = lazy(() =>
+  import("./admin/tabs/finance/ProfitLoss").then((m) => ({ default: m.default }))
+);
 const SalesReportTab = lazy(() =>
   import("./admin/tabs/finance/SalesReport").then((m) => ({
     default: m.default,
@@ -244,6 +247,7 @@ const TxCategoriesTab = lazy(() =>
   })),
 );
 import ConveyanceTab from "./admin/tabs/finance/Conveyance";
+const DayBookTab = lazy(() => import("./admin/tabs/finance/DayBook").then(m => ({ default: m.default })));
 const PurchaseReturnTab = lazy(() =>
   import("./admin/tabs/sales/PurchaseReturn").then((m) => ({
     default: m.default,
@@ -319,7 +323,7 @@ const AuditLogsTab = lazy(() =>
   })),
 );
 import { useAuth } from "../context/AuthContext";
-import {
+import { Trophy, 
   Plus,
   Edit2,
   Trash2,
@@ -346,7 +350,7 @@ import {
   Phone,
   MessageCircle,
   Send,
-  List,
+  List, PieChart,
   Ticket,
   ShieldAlert,
   Receipt,
@@ -361,6 +365,7 @@ import {
   LogOut,
   User,
   Book,
+  Wallet,
   CheckSquare,
   ArrowLeft,
   LifeBuoy,
@@ -386,7 +391,7 @@ import {
   RefreshCw,
   DollarSign,
   ExternalLink,
-} from "lucide-react";
+ } from "lucide-react";
 import { formatCurrency, cn } from "../lib/utils";
 import { useSettings } from "../context/SettingsContext";
 import { toast } from "react-hot-toast";
@@ -682,7 +687,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ticketFormData: {},
   });
 
-  const { isAdmin, isManager, isStaff, hasPermission } = useAuth();
+  const { profile, isAdmin, isManager, isStaff, hasPermission } = useAuth();
   const OFFLINE_SHOP_TABS = [
     "dashboard",
     "analytics",
@@ -691,10 +696,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     "sale_return",
     "orders",
     "customers",
+    "customer_due_list",
     "quotations",
     "purchases",
     "purchase_return",
     "vendors",
+    "vendor_due_list",
     "menus",
     "services",
     "payment_accounts",
@@ -1277,9 +1284,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
           <div className="p-6 bg-gray-50 flex justify-end gap-3">
             <button
-              onClick={() =>
-                setConfirmModal({ ...confirmModal, isOpen: false })
-              }
+              onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
               disabled={isConfirming}
               className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-all font-medium disabled:opacity-50"
             >
@@ -1422,7 +1427,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           ),
         );
       } catch (e) {
-        console.log("Vendors collection access denied");
+        
       }
 
       try {
@@ -1434,7 +1439,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           ),
         );
       } catch (e) {
-        console.log("Users collection access denied");
+        
       }
 
       try {
@@ -1446,7 +1451,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           ),
         );
       } catch (e) {
-        console.log("Campaigns collection access denied");
+        
       }
 
       try {
@@ -1484,7 +1489,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           })),
         );
       } catch (e) {
-        console.log("HR collections might not exist yet");
+        
       }
 
       setProducts(
@@ -2327,7 +2332,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           }
 
           // 4. Finally delete the order itself
-          await deleteDoc(doc(db, "orders", order.id));
+          await deleteDoc(doc(db, 'orders', order.id));
+          await logAudit('DELETE', 'Order', `Deleted order #${order.documentNumber || order.id}`, profile?.displayName || profile?.email || 'Unknown Admin');
           toast.success(`Order deleted and reverted successfully`);
           debouncedFetchData();
         } catch (error) {
@@ -2671,6 +2677,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   };
 
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [paymentFormData, setPaymentFormData] = useState({
     amount: 0,
@@ -4908,6 +4915,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     )}
                   </button>
                 )}
+
+                  {(hasPermission("manage_finances") || hasPermission("manage_orders")) && (
+                    <button
+                      onClick={() => setActiveTab("day_book")}
+                      className={cn(
+                        "w-full flex items-center rounded-md text-[13px] transition-colors",
+                        isSidebarCollapsed
+                          ? "justify-center py-2"
+                          : "gap-3 px-3 py-2",
+                        activeTab === "day_book"
+                          ? "text-blue-600 font-bold bg-blue-50"
+                          : "text-gray-600 hover:bg-gray-50",
+                      )}
+                    >
+                      <Wallet
+                        size={16}
+                        className={
+                          activeTab === "day_book"
+                            ? "text-blue-600"
+                            : "text-gray-400"
+                        }
+                      />{" "}
+                      {!isSidebarCollapsed && (
+                        <span className="truncate">Day Book</span>
+                      )}
+                    </button>
+                  )}
                 {hasPermission("manage_finances") && (
                   <button
                     onClick={() => setActiveTab("transaction_history")}
@@ -4932,6 +4966,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {!isSidebarCollapsed && (
                       <span className="truncate">Transaction History</span>
                     )}
+                  </button>
+                )}
+                {hasPermission("manage_finances") && (
+                  <button
+                    onClick={() => setActiveTab("profit_loss")}
+                    className={cn(
+                      "w-full flex items-center rounded-md text-[13px] transition-colors",
+                      isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
+                      activeTab === "profit_loss" ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    <PieChart size={16} className={activeTab === "profit_loss" ? "text-blue-600" : "text-gray-400"} />
+                    {!isSidebarCollapsed && <span className="truncate">Profit & Loss</span>}
                   </button>
                 )}
                 {hasPermission("all_reports") && (
@@ -5114,6 +5161,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <span className="truncate">Employees</span>
                         )}
                       </button>
+
+                      {isAdmin && (
+                        <button
+                          onClick={() => setActiveTab("staff_performance")}
+                          className={cn(
+                            "w-full flex items-center rounded-md text-[13px] transition-colors",
+                            isSidebarCollapsed
+                              ? "justify-center py-2"
+                              : "gap-3 px-3 py-2",
+                            activeTab === "staff_performance"
+                              ? "text-blue-600 font-bold bg-blue-50"
+                              : "text-gray-600 hover:bg-gray-50",
+                          )}
+                          title={isSidebarCollapsed ? "Performance" : undefined}
+                        >
+                          <Trophy
+                            size={16}
+                            className={
+                              activeTab === "staff_performance"
+                                ? "text-blue-600"
+                                : "text-gray-400"
+                            }
+                          />{" "}
+                          {!isSidebarCollapsed && (
+                            <span className="truncate">Performance</span>
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() => setActiveTab("leave")}
                         className={cn(
@@ -5396,11 +5471,85 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className={loading ? "animate-spin text-blue-600" : ""}
               />
             </button>
-            <User
-              size={18}
-              className="hover:text-gray-800 cursor-pointer"
-              onClick={() => toast("Coming Soon: Admin Profile Settings")}
-            />
+            <div className="relative">
+                <button 
+                  onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                  className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-full text-gray-600 transition-colors flex items-center justify-center focus:outline-none"
+                  title="Profile"
+                >
+                  <User size={18} className={isProfileDropdownOpen ? "text-blue-600" : "text-gray-600"} />
+                </button>
+                
+                {isProfileDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsProfileDropdownOpen(false)}></div>
+                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden">
+                      
+                      {/* Dark header with avatar */}
+                      <div className="bg-gradient-to-br from-[#081621] to-[#0f2744] px-5 py-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-[#EF4444] flex items-center justify-center text-white font-black text-lg shadow-lg flex-shrink-0">
+                            {(profile?.displayName || profile?.email || 'A').charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black text-white truncate">{profile?.displayName || profile?.email?.split('@')[0] || 'Admin User'}</p>
+                            <p className="text-xs text-blue-300 truncate mt-0.5">{profile?.email || 'admin@click2it.com.bd'}</p>
+                            <span className="mt-1.5 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-[#EF4444] text-white uppercase tracking-wider">
+                              {profile?.role || 'Admin'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 mt-4">
+                          <div className="bg-white/10 rounded-lg px-2 py-2 text-center">
+                            <p className="text-white font-black text-sm">{orders?.length || 0}</p>
+                            <p className="text-blue-300 text-[10px]">Orders</p>
+                          </div>
+                          <div className="bg-white/10 rounded-lg px-2 py-2 text-center">
+                            <p className="text-white font-black text-sm">{customers?.length || 0}</p>
+                            <p className="text-blue-300 text-[10px]">Customers</p>
+                          </div>
+                          <div className="bg-white/10 rounded-lg px-2 py-2 text-center">
+                            <p className="text-white font-black text-sm">{products?.length || 0}</p>
+                            <p className="text-blue-300 text-[10px]">Products</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick links */}
+                      <div className="p-2">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider px-3 py-1.5">Quick Access</p>
+                        {[
+                          { icon: '??', label: 'Dashboard', tab: 'dashboard' },
+                          { icon: '??', label: 'New Sale', tab: 'sales' },
+                          { icon: '??', label: 'Inventory', tab: 'inventory' },
+                          { icon: '??', label: 'Customer Due List', tab: 'customer_due_list' },
+                          { icon: '??', label: 'Sales Report', tab: 'reports' },
+                          { icon: '??', label: 'Settings', tab: 'settings' },
+                        ].map(item => (
+                          <button
+                            key={item.tab}
+                            onClick={() => { setIsProfileDropdownOpen(false); setActiveTab(item.tab); }}
+                            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-[#EF4444] transition-colors flex items-center gap-3 rounded-lg"
+                          >
+                            <span className="text-base">{item.icon}</span>
+                            <span className="font-semibold text-sm">{item.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Sign out */}
+                      <div className="border-t border-gray-100 p-2">
+                        <button
+                          onClick={() => { setIsProfileDropdownOpen(false); navigate('/'); }}
+                          className="w-full text-left px-3 py-2.5 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors flex items-center gap-3 rounded-lg"
+                        >
+                          <span className="text-base">??</span> Sign Out
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             <LogOut
               size={18}
               className="hover:text-red-600 cursor-pointer"
@@ -5575,6 +5724,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   setSelectedLedgerEntity={setSelectedLedgerEntity}
                   setActiveTab={setActiveTab}
                 />
+              ) : activeTab === "profit_loss" ? (
+                <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+                  <ProfitLossTab />
+                </Suspense>
               ) : activeTab === "transaction_history" &&
                 hasPermission("transactions") ? (
                 <TransactionHistoryTab
@@ -5593,6 +5746,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   setSelectedLedgerEntity={setSelectedLedgerEntity}
                   setActiveTab={setActiveTab}
                 />
+              ) : activeTab === "day_book" ? (
+                <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+                  <DayBookTab />
+                </Suspense>
               ) : activeTab === "stock_accounting" &&
                 hasPermission("stock_accounting") ? (
                 <StockAccountingTab
@@ -5657,6 +5814,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <ServicesTab setActiveTab={setActiveTab} />
               ) : activeTab === "employees" ? (
                 <EmployeesTab />
+              ) : activeTab === "staff_performance" && isAdmin ? (
+                <StaffPerformanceTab orders={orders} />
               ) : activeTab === "leave" ? (
                 <LeaveTab />
               ) : activeTab === "salary" ? (
@@ -5718,8 +5877,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <VendorDueListTab />
               ) : activeTab === "sales" ? (
                 <SalesForm
-                  products={products}
-                  customers={customers}
+                    products={products}
+                    customers={customers}
+                    transactions={transactions}
                   discountCodes={discountCodes}
                   settings={settings}
                   formatCurrency={formatCurrency}
@@ -5999,13 +6159,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         {o.documentNumber || o.id}
                                       </div>
                                       <div className="text-xs text-gray-500">
-                                        {o.customerName} • {o.customerPhone}
+                                        {o.customerName} � {o.customerPhone}
                                       </div>
                                     </div>
                                   </div>
                                   <div className="text-right">
                                     <div className="font-bold text-gray-900">
-                                      ৳{Number(o.total || 0).toLocaleString()}
+                                      ?{Number(o.total || 0).toLocaleString()}
                                     </div>
                                     <div className="text-[10px] font-semibold uppercase text-gray-400">
                                       {o.status}
@@ -6043,13 +6203,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         {p.name}
                                       </div>
                                       <div className="text-xs text-gray-500">
-                                        SKU: {p.sku || "N/A"} • {p.category}
+                                        SKU: {p.sku || "N/A"} � {p.category}
                                       </div>
                                     </div>
                                   </div>
                                   <div className="text-right">
                                     <div className="font-bold text-gray-900">
-                                      ৳{Number(p.price || 0).toLocaleString()}
+                                      ?{Number(p.price || 0).toLocaleString()}
                                     </div>
                                     <div
                                       className={`text-[10px] font-semibold uppercase ${p.stock > 0 ? "text-green-500" : "text-red-500"}`}
@@ -6090,7 +6250,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       {c.name || "Unknown"}
                                     </div>
                                     <div className="text-xs text-gray-500">
-                                      {c.phone} {c.email ? `• ${c.email}` : ""}
+                                      {c.phone} {c.email ? `� ${c.email}` : ""}
                                     </div>
                                   </div>
                                   <ChevronRight

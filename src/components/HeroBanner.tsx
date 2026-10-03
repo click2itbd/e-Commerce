@@ -45,6 +45,13 @@ const defaultSidebanners = [
   { id: 'side-2', imageUrl: sideGadgetImg, targetUrl: '/category/components', title: 'GADGETS' },
 ];
 
+const resolveImageUrl = (url: string) => {
+  if (url === '/banners/hero-main.jpg') return heroMainImg;
+  if (url === '/banners/side-acc.jpg') return sideAccImg;
+  if (url === '/banners/side-gadget.jpg') return sideGadgetImg;
+  return url;
+};
+
 export const HeroBanner: React.FC = () => {
   const [heroSlides, setHeroSlides] = useState<Banner[]>([]);
   const [sidebarAds, setSidebarAds] = useState<Banner[]>([]);
@@ -160,7 +167,7 @@ export const HeroBanner: React.FC = () => {
             >
               <BannerLink url={currentSlideData?.targetUrl} className="block w-full h-full relative">
                 <img
-                  src={currentSlideData?.imageUrl}
+                  src={currentSlideData?.imageUrl ? resolveImageUrl(currentSlideData.imageUrl) : ''}
                   alt={currentSlideData?.title || 'Banner'}
                   className="w-full h-full object-cover"
                   loading="eager"
@@ -249,7 +256,7 @@ export const HeroBanner: React.FC = () => {
               style={{ height: '231.5px' }}
             >
               <img
-                src={banner.imageUrl}
+                src={resolveImageUrl(banner.imageUrl)}
                 alt={banner.title}
                 className="w-full h-full object-cover group-hover/side:scale-[1.05] transition-transform duration-700"
                 loading="lazy"

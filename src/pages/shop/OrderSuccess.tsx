@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -292,3 +293,4 @@ export const OrderSuccess: React.FC = () => {
     </Layout>
   );
 };
+

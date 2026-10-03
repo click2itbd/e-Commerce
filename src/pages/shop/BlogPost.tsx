@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Calendar, User, ArrowLeft, Tag, Share2, Facebook, Twitter, Linkedin } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import { Helmet } from 'react-helmet-async';
 
 interface BlogPost {
@@ -107,7 +108,7 @@ export default function BlogPost() {
             <div className="prose prose-lg max-w-none text-gray-700">
               {/* For simple text content with line breaks. For actual HTML content, we'd use dangerouslySetInnerHTML */}
               {post.content.includes('<') && post.content.includes('>') ? (
-                <div dangerouslySetInnerHTML={{ __html: post.content }} />
+                <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }} />
               ) : (
                 renderContent()
               )}

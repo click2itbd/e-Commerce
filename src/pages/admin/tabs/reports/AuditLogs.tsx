@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, getDocs, limit, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../../../firebase';
-import { Loader2, ShieldAlert, Trash2, Clock, User, Filter } from 'lucide-react';
+import { Loader2, ShieldAlert, Trash2, Clock, User, Filter, Edit2 } from 'lucide-react';
 import { format, isSameMonth, isSameDay } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -84,8 +84,8 @@ export const AuditLogs: React.FC = () => {
             <ShieldAlert size={20} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-800">Admin Audit Logs (Delete History)</h2>
-            <p className="text-sm text-gray-500">Record of all permanent deletions performed by Administrators.</p>
+            <h2 className="text-xl font-bold text-gray-800">Admin Audit Logs (Edit & Delete History)</h2>
+            <p className="text-sm text-gray-500">Record of edits and deletions performed by Administrators.</p>
           </div>
         </div>
         
@@ -132,7 +132,7 @@ export const AuditLogs: React.FC = () => {
       {filteredLogs.length === 0 ? (
         <div className="p-10 text-center text-gray-400">
           <Trash2 size={40} className="mx-auto mb-3 opacity-20" />
-          <p>No deletion logs found for the selected criteria.</p>
+          <p>No audit logs found for the selected criteria.</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -151,9 +151,15 @@ export const AuditLogs: React.FC = () => {
               {filteredLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                   <td className="p-4">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 uppercase tracking-wider">
-                      <Trash2 size={12} /> {log.action}
-                    </span>
+                    {log.action === 'DELETE' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 uppercase tracking-wider">
+                        <Trash2 size={12} /> {log.action}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 uppercase tracking-wider">
+                        <Edit2 size={12} /> {log.action}
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 font-semibold text-gray-700">{log.entityType}</td>
                   <td className="p-4 text-sm text-gray-600">{log.details}</td>

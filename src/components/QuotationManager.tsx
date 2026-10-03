@@ -16,6 +16,7 @@ export const QuotationManager: React.FC = () => {
   const [quotations, setQuotations] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
   
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'view'>('list');
@@ -298,7 +299,7 @@ export const QuotationManager: React.FC = () => {
         </table>
         
         <div style="text-align: right; margin-bottom: 20px;">
-          <p><strong>Discount:</strong> ${q.discountAmount || 0}</p>
+          <p><strong>Discount:</strong> ${(q.discountAmount || 0) + (q.items?.reduce((sum, item) => sum + (item.discount || 0), 0) || 0)}</p>
           <h3 style="color: #4f46e5; margin: 5px 0;">Grand Total: BDT ${q.total}</h3>
         </div>
         
@@ -482,30 +483,58 @@ export const QuotationManager: React.FC = () => {
           <form onSubmit={handleSaveQuotation} className="space-y-6">
             {/* Customer Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Customer Name *</label>
-                <input 
-                  required 
-                  list="customer-list"
-                  className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
-                  value={formData.customerName}
-                  onChange={e => {
-                    const cName = e.target.value;
-                    const c = customers.find(x => x.name === cName);
-                    setFormData({
-                      ...formData, 
-                      customerName: cName,
-                      customerPhone: c ? c.phone : formData.customerPhone,
-                      customerEmail: c ? c.email : formData.customerEmail,
-                      shippingAddress: c ? c.address : formData.shippingAddress
-                    });
-                  }}
-                  placeholder="Select or enter customer"
-                />
-                <datalist id="customer-list">
-                  {customers.map(c => <option key={c.id} value={c.name} />)}
-                </datalist>
-              </div>
+                <div className="relative">
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Customer Name *</label>
+                  <input 
+                    required 
+                    autoComplete="off"
+                    className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
+                    value={formData.customerName}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                    onChange={e => {
+                      const cName = e.target.value;
+                      const c = customers.find(x => x.name === cName);
+                      setFormData({
+                        ...formData, 
+                        customerName: cName,
+                        customerPhone: c ? c.phone : formData.customerPhone,
+                        customerEmail: c ? c.email : formData.customerEmail,
+                        shippingAddress: c ? c.address : formData.shippingAddress
+                      });
+                    }}
+                    placeholder="Type to search or add new..."
+                  />
+                  {showCustomerDropdown && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {customers.filter((c: any) => c.name.toLowerCase().includes(formData.customerName.toLowerCase())).length > 0 ? (
+                        customers.filter((c: any) => c.name.toLowerCase().includes(formData.customerName.toLowerCase())).map((c: any) => (
+                          <div 
+                            key={c.id} 
+                            className="px-3 py-2 cursor-pointer hover:bg-gray-100 border-b border-gray-50 last:border-0"
+                            onClick={() => {
+                              setFormData({
+                                ...formData, 
+                                customerName: c.name, 
+                                customerPhone: c.phone || formData.customerPhone,
+                                customerEmail: c.email || formData.customerEmail,
+                                shippingAddress: c.address || formData.shippingAddress
+                              });
+                              setShowCustomerDropdown(false);
+                            }}
+                          >
+                            <div className="font-bold text-sm text-gray-800">{c.name}</div>
+                            {c.phone && <div className="text-xs text-gray-500">{c.phone}</div>}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-xs text-gray-500 italic">
+                          No match found. Will be saved as new.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Phone</label>
                 <input 
@@ -548,6 +577,16 @@ export const QuotationManager: React.FC = () => {
                   className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
                   value={formData.validUntil?.split('T')[0] || ''}
                   onChange={e => setFormData({ ...formData, validUntil: e.target.value ? new Date(e.target.value).toISOString() : '' })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Prepared By</label>
+                <input 
+                  type="text"
+                  placeholder="Staff name"
+                  className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
+                  value={(formData as any).preparedBy || ''}
+                  onChange={e => setFormData({ ...formData, preparedBy: e.target.value } as any)}
                 />
               </div>
               <div className="lg:col-span-4">
@@ -643,6 +682,22 @@ export const QuotationManager: React.FC = () => {
                               value={item.description || ''}
                               onChange={e => updateItem(idx, 'description', e.target.value)}
                             />
+                              <div className="grid grid-cols-2 gap-2 mt-1">
+                                <input 
+                                  type="text"
+                                  className="w-full border border-gray-200 p-1.5 rounded text-xs text-gray-600 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-1 focus:ring-indigo-500"
+                                  placeholder="Brand (Optional)"
+                                  value={item.brand || ''}
+                                  onChange={e => updateItem(idx, 'brand', e.target.value)}
+                                />
+                                <input 
+                                  type="text"
+                                  className="w-full border border-gray-200 p-1.5 rounded text-xs text-gray-600 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-1 focus:ring-indigo-500"
+                                  placeholder="Warranty (Optional)"
+                                  value={(item as any).warranty || (item as any).specs?.Warranty || ((item as any).warrantyMonths ? ((item as any).warrantyMonths > 12 ? `${(item as any).warrantyMonths / 12} Yrs` : `${(item as any).warrantyMonths} Mos`) : '') || ''}
+                                  onChange={e => updateItem(idx, 'warranty', e.target.value)}
+                                />
+                              </div>
                             {!(item as any).isCustomService && item.sku && (
                                <div className="text-[10px] text-gray-400 font-normal mt-1">SKU: {item.sku}</div>
                             )}
@@ -798,7 +853,8 @@ export const QuotationManager: React.FC = () => {
                        <h1 className="text-3xl font-black text-indigo-600 mb-1">QUOTATION</h1>
                        <div className="text-sm text-gray-500 font-medium">Quote No: {formData.documentNumber}</div>
                        <div className="text-sm text-gray-500 font-medium">Date: {new Date(formData.createdAt).toLocaleDateString()}</div>
-                       <div className="mt-2">
+                                                {(formData as any).preparedBy && <div className="text-sm text-gray-500 font-medium">Prepared By: {(formData as any).preparedBy}</div>}
+                         <div className="mt-2">
                           <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full tracking-wider ${formData.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
                             {formData.status}
                           </span>
@@ -813,41 +869,61 @@ export const QuotationManager: React.FC = () => {
                    </div>
                </div>
 
-               <table className="w-full text-left mb-8 border-collapse">
-                   <thead className="bg-indigo-50 border-b border-indigo-100 text-indigo-900 text-sm">
-                       <tr>
-                           <th className="py-3 px-4 font-bold">Description</th>
-                           <th className="py-3 px-4 font-bold text-center">Qty</th>
-                           <th className="py-3 px-4 font-bold text-right">Unit Price</th>
-                           <th className="py-3 px-4 font-bold text-right">Discount</th>
-                           <th className="py-3 px-4 font-bold text-right">Total</th>
-                       </tr>
-                   </thead>
-                   <tbody className="divide-y divide-gray-100 text-sm">
-                       {formData.items.map((item, idx) => (
-                           <tr key={idx}>
-                               <td className="py-3 px-4">
-                                  <div className="font-medium text-gray-900">{item.name}</div>
-                                  {(item as any).isCustomService && <span className="text-[10px] bg-purple-100 text-purple-700 px-1 rounded">Custom</span>}
-                               </td>
-                               <td className="py-3 px-4 text-center">{item.quantity}</td>
-                               <td className="py-3 px-4 text-right font-mono">{formatCurrency(item.price, {})}</td>
-                               <td className="py-3 px-4 text-right font-mono">{formatCurrency(item.discount || 0, {})}</td>
-                               <td className="py-3 px-4 text-right font-mono font-bold text-gray-700">{formatCurrency((item.price * item.quantity) - (item.discount || 0), {})}</td>
-                           </tr>
-                       ))}
-                   </tbody>
-               </table>
+                                <table className="w-full text-left mb-8 border-collapse">
+                     <thead className="bg-indigo-50 border-b border-indigo-100 text-indigo-900 text-xs">
+                         <tr>
+                             <th className="py-3 px-2 font-bold text-center">S.N.</th>
+                             <th className="py-3 px-2 font-bold">Item</th>
+                             <th className="py-3 px-2 font-bold">Description</th>
+                             <th className="py-3 px-2 font-bold text-center">Brand</th>
+                             <th className="py-3 px-2 font-bold text-center">Warranty</th>
+                             <th className="py-3 px-2 font-bold text-center">Quantity</th>
+                             <th className="py-3 px-2 font-bold text-center">Unit</th>
+                             <th className="py-3 px-2 font-bold text-right">Discount</th>
+                             <th className="py-3 px-2 font-bold text-right">Price</th>
+                             <th className="py-3 px-2 font-bold text-right">Total</th>
+                         </tr>
+                     </thead>
+                     <tbody className="divide-y divide-gray-100 text-xs">
+                         {formData.items.map((item, idx) => {
+                             let warranty = "-";
+                             if ((item as any).warranty) {
+                               warranty = (item as any).warranty;
+                             } else if ((item as any).warrantyMonths) {
+                               warranty = (item as any).warrantyMonths > 12 ? `${(item as any).warrantyMonths / 12} Yrs` : `${(item as any).warrantyMonths} Mos`;
+                             } else if ((item as any).specs?.Warranty) {
+                               warranty = (item as any).specs.Warranty;
+                             }
+                             
+                             return (
+                             <tr key={idx}>
+                                 <td className="py-3 px-2 text-center text-gray-600">{idx + 1}</td>
+                                 <td className="py-3 px-2">
+                                    <div className="font-medium text-gray-900">{item.name}</div>
+                                    {(item as any).isCustomService && <span className="text-[10px] bg-purple-100 text-purple-700 px-1 rounded">Custom</span>}
+                                 </td>
+                                 <td className="py-3 px-2 text-gray-600">{item.description || "-"}</td>
+                                 <td className="py-3 px-2 text-center text-gray-600">{(item as any).brand || "-"}</td>
+                                 <td className="py-3 px-2 text-center text-gray-600">{warranty}</td>
+                                 <td className="py-3 px-2 text-center font-mono">{item.quantity}</td>
+                                 <td className="py-3 px-2 text-center text-gray-600">pcs</td>
+                                 <td className="py-3 px-2 text-right font-mono">{formatCurrency(item.discount || 0, {})}</td>
+                                 <td className="py-3 px-2 text-right font-mono">{formatCurrency(item.price, {})}</td>
+                                 <td className="py-3 px-2 text-right font-mono font-bold text-gray-700">{formatCurrency((item.price * item.quantity), {})}</td>
+                             </tr>
+                         )})}
+                     </tbody>
+                 </table>
 
                <div className="flex justify-end mb-8">
                    <div className="w-64 space-y-3">
                        <div className="flex justify-between text-sm text-gray-600">
                            <span>Subtotal:</span>
-                           <span className="font-mono">{formatCurrency(calculateSubtotal(), {})}</span>
+                           <span className="font-mono">{formatCurrency(formData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0), {})}</span>
                        </div>
                        <div className="flex justify-between text-sm text-gray-600 border-b pb-3">
                            <span>Discount:</span>
-                           <span className="font-mono">{formatCurrency(formData.discountAmount || 0, {})}</span>
+                           <span className="font-mono">{formatCurrency((formData.discountAmount || 0) + formData.items.reduce((sum, item) => sum + (Number(item.discount) || 0), 0), {})}</span>
                        </div>
                        <div className="flex justify-between font-bold text-lg text-gray-900">
                            <span>Grand Total:</span>

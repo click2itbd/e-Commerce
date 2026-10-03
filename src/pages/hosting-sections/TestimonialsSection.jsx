@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { SectionHeading } from '../../components/ui/SectionHeading';
 
 const DEFAULT_TESTIMONIALS = [
@@ -74,7 +74,7 @@ export default function TestimonialsSection({ testimonials = DEFAULT_TESTIMONIAL
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-[var(--c2i-ink)]">{item.name}</p>
                     <p className="truncate text-xs text-[var(--c2i-ink-soft)]">
-                      {item.role}{item.company ? ` Â· ${item.company}` : ''}
+                      {item.role}{item.company ? ` · ${item.company}` : ''}
                     </p>
                   </div>
                 </div>

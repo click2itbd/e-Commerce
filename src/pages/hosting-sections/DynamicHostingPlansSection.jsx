@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, ArrowRight, X, Server, Database, Activity } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useCart } from '../../context/CartContext';
@@ -111,7 +111,7 @@ export default function DynamicHostingPlansSection({
               <div className="mb-6">
                 {price > 0 ? (
                   <div className="flex items-baseline font-bold text-gray-900">
-                    <span className="text-lg mr-1">৳</span>
+                    <span className="text-lg mr-1">?</span>
                     <span className="text-4xl tracking-tighter">{price}</span>
                     <span className="text-gray-500 ml-1 text-sm font-normal">/{billingCycle === 'annually' ? 'yr' : 'mo'}</span>
                   </div>

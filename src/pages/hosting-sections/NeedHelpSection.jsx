@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Phone, MessageCircle, Ticket } from 'lucide-react';
 
 export default function NeedHelpSection({
@@ -27,7 +27,7 @@ export default function NeedHelpSection({
               Need Help? We're Here For You
             </h2>
             <p className="mt-1 text-sm text-[var(--c2i-ink-soft)]">
-              Our team replies within minutes â€” pick the channel that works best for you.
+              Our team replies within minutes — pick the channel that works best for you.
             </p>
           </div>
 

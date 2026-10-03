@@ -48,7 +48,7 @@ export const EcommerceWishlistAnalytics: React.FC = () => {
       // If we had real data, we'd process it here...
       
     } catch (error) {
-      console.log('Error fetching wishlist data', error);
+      
       setWishlistProducts([]);
       setStats({
         totalWishlistedProducts: 0,

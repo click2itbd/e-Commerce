@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { CheckCircle2, ArrowRight, Globe, ShieldCheck } from 'lucide-react';
 import GlassPanel from '../../components/hosting-ui/GlassPanel';
 

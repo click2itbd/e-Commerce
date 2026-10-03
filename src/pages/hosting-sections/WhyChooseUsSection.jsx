@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { FastForward, Shield, HeadphonesIcon } from 'lucide-react';
 
 export default function WhyChooseUsSection() {

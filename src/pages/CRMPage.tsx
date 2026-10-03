@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, query, orderBy, addDoc, updateDoc, deleteDoc, doc, limit } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Audience, Lead } from '../types';
@@ -446,7 +446,7 @@ export const CRMPage: React.FC = () => {
                      const selectedLeadObjs = leads.filter(l => selectedLeads.has(l.id));
                      selectedLeadObjs.forEach(lead => {
                          const message = template.content.replace(/{name}/g, `${lead.firstName} ${lead.lastName}`);
-                         console.log(`Sending to ${lead.email}: ${message}`);
+                         
                      });
                      toast.success(`Campaign sent to ${selectedLeads.size} leads.`);
                      setShowCampaign(false);
@@ -489,7 +489,7 @@ export const CRMPage: React.FC = () => {
                  }
                  const selectedLeadObjs = leads.filter(l => selectedLeads.has(l.id));
                  selectedLeadObjs.forEach(lead => {
-                     console.log(`Broadcasting to ${lead.phone || lead.email}: ${broadcastMessage}`);
+                     
                  });
                  toast.success(`Broadcast message sent to ${selectedLeads.size} contacts.`);
                  setShowBroadcast(false);
@@ -512,7 +512,7 @@ export const CRMPage: React.FC = () => {
               </h3>
               <div className="flex gap-2">
                 <button onClick={() => {
-                   console.log('Toggling upcomingView, currently:', upcomingView);
+                   
                    setUpcomingView(upcomingView === 'list' ? 'settings' : 'list')
                 }}>
                    {upcomingView === 'list' ? <Settings size={20} /> : <X size={20} />}
@@ -874,7 +874,7 @@ export const CRMPage: React.FC = () => {
                 {leads.filter(l => l.status === status).map(lead => (
                   <div key={lead.id} className="bg-white p-3 rounded shadow-sm border border-gray-200 cursor-pointer hover:border-indigo-300 transition-colors group">
                     <div className="font-bold text-sm">{lead.firstName} {lead.lastName}</div>
-                    <div className="text-xs text-gray-500 mb-2">{lead.company} â€¢ <span className="capitalize">{lead.source.replace('_', ' ')}</span></div>
+                    <div className="text-xs text-gray-500 mb-2">{lead.company} • <span className="capitalize">{lead.source.replace('_', ' ')}</span></div>
                     <div className="flex items-center gap-2">
                        <select 
                            value={lead.status} 
@@ -1018,7 +1018,7 @@ export const CRMPage: React.FC = () => {
                    <button 
                        onClick={() => {
                            toast.success('Your Webhook URL is accessible at /api/webhook/whatsapp', { style: { minWidth: '400px' } });
-                           console.log("Configure in WhatsApp Meta Developer portal: Webhook URL = /api/webhook/whatsapp");
+                           
                        }}
                        className="text-emerald-600 font-bold text-sm hover:underline"
                    >

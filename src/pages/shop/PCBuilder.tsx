@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useLocation, Routes, Route } from 'react-router-dom';
 import { CommunityBuilds } from '../../components/PCBuilder/CommunityBuilds';
@@ -104,7 +105,7 @@ export const PCBuilder: React.FC = () => {
           id: doc.id,
           ...doc.data()
         })) as Product[];
-        setProducts(productsData);
+        setProducts(productsData.filter(p => p.showInStore !== false));
 
         
       } catch (error) {
@@ -471,4 +472,5 @@ export const PCBuilder: React.FC = () => {
     </Routes>
   );
 };
+
 

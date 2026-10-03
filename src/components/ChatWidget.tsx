@@ -76,10 +76,7 @@ export const ChatWidget: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Hide widget on Admin Panel and POS routes
-  if (location.pathname.startsWith('/admin') || location.pathname.startsWith('/pos')) {
-    return null;
-  }
+
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -285,7 +282,12 @@ export const ChatWidget: React.FC = () => {
                 <div className="grid grid-cols-1 gap-1.5">
                   {starterPrompts.map((prompt, idx) => {
                     const Icon = prompt.icon;
-                    return (
+                    // Hide widget on Admin Panel and POS routes
+  if (location.pathname.startsWith('/admin') || location.pathname.startsWith('/pos')) {
+    return null;
+  }
+
+  return (
                       <button
                         key={idx}
                         onClick={() => handleSendMessage(prompt.text)}

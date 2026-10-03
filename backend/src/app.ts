@@ -74,30 +74,21 @@ export function createApp(): Express {
     }),
   );
 
+  const envOrigins = process.env.CORS_ALLOWED_ORIGINS 
+    ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim()) 
+    : [];
+
   const allowedOrigins = [
     "https://click2itbd.com",
     "https://www.click2itbd.com",
-    "http://click2itbd.com",
-    "http://103.49.202.200:4000",
-    "http://103.49.202.200",
-    "https://103.49.202.200",
-    "http://localhost:3000",
-    "http://localhost:4000",
-    "http://localhost:5173",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:4000",
-    "http://127.0.0.1:5173",
+    ...envOrigins,
     ...(config.cors?.origins || []),
   ];
 
   const corsOptions: cors.CorsOptions = {
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, Postman) or matched origins
-      if (
-        !origin ||
-        allowedOrigins.includes(origin) ||
-        process.env.NODE_ENV !== "production"
-      ) {
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));

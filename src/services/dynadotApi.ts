@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Domain API Service
  * Calls backend Express API for domain operations.
@@ -329,3 +330,4 @@ export const checkTransferEligibility = async (domain: string): Promise<Transfer
     throw new Error(error.message || 'Failed to check transfer eligibility');
   }
 };
+

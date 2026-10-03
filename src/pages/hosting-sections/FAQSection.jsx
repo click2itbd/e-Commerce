@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { SectionHeading } from '../../components/ui/SectionHeading';
 import { Button } from '../../components/ui/Button';

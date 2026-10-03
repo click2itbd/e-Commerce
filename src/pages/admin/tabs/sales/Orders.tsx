@@ -8,6 +8,8 @@ import { useSettings } from '../../../../context/SettingsContext';
 export type OrderStatus = string;
 export const DEFAULT_ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
 import { Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X } from 'lucide-react';
+import EditOrderModal from '../../modals/EditOrderModal';
+import { Edit2 } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
 export type OrderCategory = 'all' | 'ecommerce' | 'pc_build' | 'domain' | 'hosting';
@@ -47,6 +49,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [orderCategoryFilter, setOrderCategoryFilter] = useState<OrderCategory>('all');
   const [shippingModalOrder, setShippingModalOrder] = useState<any | null>(null);
+  const [editingOrder, setEditingOrder] = useState<any | null>(null);
   const [viewingOrder, setViewingOrder] = useState<any | null>(null);
   const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(new Set());
 
@@ -373,6 +376,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                     <th className="px-6 py-4">Total & Payment</th>
                     <th className="px-6 py-4">Discount</th>
                     <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Prepared By</th>
                     <th className="px-6 py-4 text-right">Generate Docs</th>
                   </tr>
                 </thead>
@@ -451,33 +455,33 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex flex-col gap-1 items-start">
-                            <span className="text-sm font-bold text-[#EF4444]">{formatCurrency(order.total, settings)}</span>
-                            {order.paymentMethod && (
-                              <div className="flex flex-col gap-0.5">
-                                <span className="px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold uppercase bg-gray-100 text-gray-600 inline-block w-fit">
+                            <div className="flex flex-col gap-1 items-start">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-black text-gray-900">{formatCurrency(order.total, settings)}</span>
+                                {order.paymentStatus === 'paid' && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase tracking-wider border border-green-200">Paid</span>}
+                                {order.paymentStatus === 'partial' && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-bold uppercase tracking-wider border border-amber-200">Partial</span>}
+                                {(order.paymentStatus === 'unpaid' || !order.paymentStatus) && <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px] font-bold uppercase tracking-wider border border-red-200">Due</span>}
+                              </div>
+                              <div className="text-[10.5px] text-gray-500 font-bold -mt-0.5">
+                                Paid: <span className="text-gray-700">{formatCurrency(order.paidAmount || 0, settings)}</span>
+                              </div>
+                              {order.paymentMethod && (
+                                <span className="px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold uppercase bg-gray-100 text-gray-600 inline-block w-fit mt-0.5">
                                   {order.paymentMethod === 'cod' ? 'Cash on Delivery' : 
                                    order.paymentMethod === 'bkash' ? 'bKash' : 
                                    order.paymentMethod === 'nagad' ? 'Nagad' : 
                                    order.paymentMethod === 'rocket' ? 'Rocket' : 
-                                   order.paymentMethod === 'cellfin' ? 'Cellfin' : 
-                                   order.paymentMethod === 'card' ? 'Visa/Mastercard' : 
-                                   order.paymentMethod === 'bank' ? 'Bank Transfer' : 'Other Gateway'}
+                                   order.paymentMethod === 'bank' ? 'Bank Transfer' : 
+                                   order.paymentMethod === 'pos' ? 'POS' : 'Other Gateway'}
                                 </span>
-                                {order.paymentReference && (
-                                  <span className="text-[10px] text-gray-500 max-w-[120px] truncate" title={order.paymentReference}>
-                                    Ref: {order.paymentReference}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            {order.discountAmount && order.discountAmount > 0 && order.items?.length ? (
-                              <div className="text-[10px] text-gray-400 line-through">
-                                {formatCurrency(order.items.reduce((acc: number, item: any) => acc + (item.price || 0) * (item.quantity || 1), 0), settings)}
-                              </div>
-                            ) : null}
-                          </div>
-                        </td>
+                              )}
+                              {order.discountAmount && order.discountAmount > 0 && order.items?.length ? (
+                                <div className="text-[10px] text-gray-400 line-through">
+                                  {formatCurrency(order.items.reduce((acc: number, item: any) => acc + (item.price || 0) * (item.quantity || 1), 0), settings)}
+                                </div>
+                              ) : null}
+                            </div>
+                          </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <input
@@ -506,10 +510,19 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                               <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
                             ))}
                           </select>
-                        </td>
-                        <td className="px-6 py-4 text-right">
+                          </td>
+                          <td className="px-6 py-4 text-xs font-bold text-gray-500 whitespace-nowrap">{order.createdBy || "Admin"}</td>
+                          <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button
+                            
+                              <button
+                                 onClick={(e) => { e.stopPropagation(); setEditingOrder(order); }}
+                                 className="p-1.5 px-3 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold border border-gray-200 bg-white shadow-sm"
+                                 title="Edit Order"
+                               >
+                                 <Edit2 size={14} /> Edit
+                               </button>
+                              <button
                                onClick={(e) => { e.stopPropagation(); setViewingOrder(order); }}
                                className="p-1.5 px-3 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold border border-gray-200 bg-white shadow-sm"
                                title="View Order"
@@ -634,6 +647,17 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
       </div>
 
       {/* Shipping Details Modal */}
+      
+      {editingOrder && (
+        <EditOrderModal
+          order={editingOrder}
+          onClose={() => setEditingOrder(null)}
+          onSuccess={() => {
+            setEditingOrder(null);
+            fetchData();
+          }}
+        />
+      )}
       {shippingModalOrder && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShippingModalOrder(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>

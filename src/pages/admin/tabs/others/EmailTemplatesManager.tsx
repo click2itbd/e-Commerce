@@ -3,6 +3,7 @@ import { Mail, Save, RefreshCw, Send, Sparkles, Eye } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import toast from 'react-hot-toast';
+import DOMPurify from 'dompurify';
 import { sendEmail } from '../../../../services/emailService';
 import { useAuth } from '../../../../context/AuthContext';
 
@@ -592,7 +593,7 @@ export const EmailTemplatesManager: React.FC = () => {
             {/* HTML Preview Box */}
             <div 
               className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-inner max-h-[380px] overflow-y-auto"
-              dangerouslySetInnerHTML={{ __html: renderPreviewHtml(currentTemplate) }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderPreviewHtml(currentTemplate)) }}
             />
           </div>
 
