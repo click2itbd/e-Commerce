@@ -196,6 +196,17 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     };
   }, []);
 
+  const handleDeleteService = async (id: string) => {
+    if (!window.confirm('Are you sure you want to permanently delete this service record?')) return;
+    try {
+      await deleteDoc(doc(db, 'services', id));
+      toast.success('Service record deleted successfully');
+    } catch (err) {
+      console.error('Error deleting service:', err);
+      toast.error('Failed to delete service record');
+    }
+  };
+
   const printServiceReceipt = async (record: ServiceRecord) => {
     try {
       const doc = new jsPDF('p', 'mm', 'a4');
