@@ -181,7 +181,7 @@ export const QuotationManager: React.FC = () => {
       name: customItemForm.name,
       description: customItemForm.description,
         brand: (customItemForm as any).brand || '',
-        warranty: (customItemForm as any).warranty || '',
+        warranty: ((customItemForm as any).warrantyUnit === 'Life Time') ? 'Life Time' : ((customItemForm as any).warrantyValue ? `${(customItemForm as any).warrantyValue} ${(customItemForm as any).warrantyUnit || 'Years'}` : ''),
       price: Number(customItemForm.price),
       quantity: Number(customItemForm.quantity),
       discount: Number(customItemForm.discount),
@@ -692,13 +692,46 @@ export const QuotationManager: React.FC = () => {
                                   value={item.brand || ''}
                                   onChange={e => updateItem(idx, 'brand', e.target.value)}
                                 />
-                                <input 
-                                  type="text"
-                                  className="w-full border border-gray-200 p-1.5 rounded text-xs text-gray-600 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-1 focus:ring-indigo-500"
-                                  placeholder="Warranty (Optional)"
-                                  value={(item as any).warranty || (item as any).specs?.Warranty || ((item as any).warrantyMonths ? ((item as any).warrantyMonths > 12 ? `${(item as any).warrantyMonths / 12} Yrs` : `${(item as any).warrantyMonths} Mos`) : '') || ''}
-                                  onChange={e => updateItem(idx, 'warranty', e.target.value)}
-                                />
+                                                                  {(() => {
+                                    const currentWarranty = ((item as any).warranty || (item as any).specs?.Warranty || ((item as any).warrantyMonths ? ((item as any).warrantyMonths > 12 ? `${(item as any).warrantyMonths / 12} Years` : `${(item as any).warrantyMonths} Months`) : '') || '').toString();
+                                    const isLifeTime = currentWarranty.toLowerCase().includes('life');
+                                    const numPart = isLifeTime ? '' : (currentWarranty.match(/\d+/) || [''])[0];
+                                    const textPart = isLifeTime ? 'Life Time' : (currentWarranty.toLowerCase().includes('year') || currentWarranty.toLowerCase().includes('yr') ? 'Years' : currentWarranty.toLowerCase().includes('month') || currentWarranty.toLowerCase().includes('mo') ? 'Months' : currentWarranty.toLowerCase().includes('day') ? 'Days' : 'Years');
+                                    
+                                    return (
+                                      <div className="flex gap-1">
+                                        <input 
+                                          type="number"
+                                          min="1"
+                                          className="w-1/2 border border-gray-200 p-1 rounded text-xs text-gray-600 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-400"
+                                          placeholder="1"
+                                          disabled={isLifeTime}
+                                          value={numPart}
+                                          onChange={e => {
+                                            const val = e.target.value;
+                                            updateItem(idx, 'warranty', val ? `${val} ${textPart}` : '');
+                                          }}
+                                        />
+                                        <select
+                                          className="w-1/2 border border-gray-200 p-1 rounded text-xs text-gray-600 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-1 focus:ring-indigo-500"
+                                          value={textPart}
+                                          onChange={e => {
+                                            const val = e.target.value;
+                                            if (val === 'Life Time') {
+                                              updateItem(idx, 'warranty', 'Life Time');
+                                            } else {
+                                              updateItem(idx, 'warranty', numPart ? `${numPart} ${val}` : '');
+                                            }
+                                          }}
+                                        >
+                                          <option value="Days">Days</option>
+                                          <option value="Months">Months</option>
+                                          <option value="Years">Years</option>
+                                          <option value="Life Time">Life</option>
+                                        </select>
+                                      </div>
+                                    );
+                                  })()}
                               </div>
                             {!(item as any).isCustomService && item.sku && (
                                <div className="text-[10px] text-gray-400 font-normal mt-1">SKU: {item.sku}</div>
@@ -950,7 +983,7 @@ export const QuotationManager: React.FC = () => {
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold">Add Custom Item</h3>
-              <button onClick={() => setShowCustomModal(false)} className="text-gray-400 hover:text-red-500 transition">
+              <button onClick={() => { setShowCustomModal(false); setCustomItemForm({ name: '', description: '', quantity: 1, price: 0, discount: 0, brand: '', warrantyValue: '', warrantyUnit: 'Years' } as any); }} className="text-gray-400 hover:text-red-500 transition">
                 <X size={20} />
               </button>
             </div>
@@ -1006,15 +1039,35 @@ export const QuotationManager: React.FC = () => {
                       placeholder="e.g. Asus"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Warranty (optional)</label>
-                    <input 
-                      className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
-                      value={customItemForm.warranty}
-                      onChange={e => setCustomItemForm({...customItemForm, warranty: e.target.value})}
-                      placeholder="e.g. 1 Year"
-                    />
-                  </div>
+                                      <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Warranty (optional)</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="number"
+                          min="1"
+                          className="w-1/2 border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none disabled:bg-gray-100 disabled:text-gray-400" 
+                          value={(customItemForm as any).warrantyValue || ''}
+                          onChange={e => setCustomItemForm({...customItemForm, warrantyValue: e.target.value} as any)}
+                          placeholder="e.g. 1"
+                          disabled={(customItemForm as any).warrantyUnit === 'Life Time'}
+                        />
+                        <select
+                          className="w-1/2 border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
+                          value={(customItemForm as any).warrantyUnit || 'Years'}
+                          onChange={e => {
+                             const unit = e.target.value;
+                             const updates: any = { warrantyUnit: unit };
+                             if (unit === 'Life Time') updates.warrantyValue = '';
+                             setCustomItemForm({...customItemForm, ...updates} as any);
+                          }}
+                        >
+                          <option value="Days">Days</option>
+                          <option value="Months">Months</option>
+                          <option value="Years">Years</option>
+                          <option value="Life Time">Life Time</option>
+                        </select>
+                      </div>
+                    </div>
                 </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Discount (optional)</label>
