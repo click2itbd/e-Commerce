@@ -180,6 +180,8 @@ export const QuotationManager: React.FC = () => {
       productId: `custom-${Date.now()}`,
       name: customItemForm.name,
       description: customItemForm.description,
+        brand: (customItemForm as any).brand || '',
+        warranty: (customItemForm as any).warranty || '',
       price: Number(customItemForm.price),
       quantity: Number(customItemForm.quantity),
       discount: Number(customItemForm.discount),
@@ -192,7 +194,7 @@ export const QuotationManager: React.FC = () => {
       items: [...formData.items, newItem]
     });
     setShowCustomModal(false);
-    setCustomItemForm({ name: '', description: '', quantity: 1, price: 0, discount: 0 });
+    setCustomItemForm({ name: '', description: '', quantity: 1, price: 0, discount: 0, brand: '', warranty: '' } as any);
   };
 
   const updateItem = (idx: number, field: string, value: any) => {

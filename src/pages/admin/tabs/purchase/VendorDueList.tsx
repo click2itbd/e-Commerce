@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { printMoneyReceipt } from '../../../lib/pdf';
 import { collection, getDocs, addDoc, doc, updateDoc, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { toast } from 'react-hot-toast';
