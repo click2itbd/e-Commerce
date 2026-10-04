@@ -36,6 +36,7 @@ const EcommerceAnalytics = lazy(() => import('./EcommerceAnalytics').then(m => (
 const EcommerceCategories = lazy(() => import('./EcommerceCategories').then(m => ({ default: m.EcommerceCategories })));
 const EcommerceWishlistAnalytics = lazy(() => import('./EcommerceWishlistAnalytics').then(m => ({ default: m.EcommerceWishlistAnalytics })));
 const EcommerceBlog = lazy(() => import('./EcommerceBlog').then(m => ({ default: m.EcommerceBlog })));
+const EcommerceProjects = lazy(() => import('./EcommerceProjects').then(m => ({ default: m.EcommerceProjects })));
 
 const EcommerceDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -272,6 +273,7 @@ const EcommerceDashboard: React.FC = () => {
           <NavGroup title="Operations">
             {renderNavBtn('reviews', 'Reviews', MessageCircle)}
             {renderNavBtn('inquiries', 'Inquiries', HelpCircle)}
+              {renderNavBtn('projects', 'Projects & Quotes', FileText)}
             {renderNavBtn('returns', 'Returns', RefreshCcw)}
             {renderNavBtn('shipping', 'Shipping', Truck)}
           </NavGroup>
@@ -385,7 +387,9 @@ const EcommerceDashboard: React.FC = () => {
                 <EcommerceReturns />
               ) : activeTab === 'shipping' ? (
                 <EcommerceShipping />
-              ) : activeTab === 'abandonedCarts' ? (
+              ) : activeTab === 'projects' ? (
+                  <EcommerceProjects />
+                ) : activeTab === 'abandonedCarts' ? (
                 <EcommerceAbandonedCarts />
               ) : (
                 <div className="text-center p-8 text-gray-500">Select an item from the menu</div>

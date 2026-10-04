@@ -2,7 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../../../../firebase';
 import { Product, Vendor, Transaction, SiteSettings, PaymentAccount } from '../../../../types';
-import { formatCurrency, cn } from '../../../../lib/utils';
+import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, type WarrantyUnit } from '../../../../lib/utils';
+
+const itemWarrantyMonths = (i: any): number =>
+  i.warrantyValue !== undefined
+    ? warrantyToMonths(Number(i.warrantyValue) || 0, (i.warrantyUnit || 'months') as WarrantyUnit)
+    : (Number(i.warrantyYears) || 0) * 12;
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import {
@@ -33,6 +38,8 @@ interface PurchaseItem {
   quantity: number;
   hasWarranty?: boolean;
   warrantyYears?: number;
+  warrantyValue?: number;
+  warrantyUnit?: 'days' | 'months' | 'years';
   hasSerialTracking?: boolean;
   newSerials?: string | string[];
   sku?: string;
@@ -108,7 +115,16 @@ const Purchases: React.FC<PurchasesProps> = ({
   const [savingBrand, setSavingBrand] = useState(false);
 
   // Purchase Form State
-  const [isCreatingPurchase, setIsCreatingPurchase] = useState(false);
+  const [isCreatingPurchase, setIsCreatingPurchase] = useState(() => {
+    try {
+      const draft = localStorage.getItem('draft_purchase_form');
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed && (parsed.vendorId || parsed.items?.length > 0)) return true;
+      }
+    } catch(e) {}
+    return false;
+  });
   const [submitting, setSubmitting] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [productCatalogSearch, setProductCatalogSearch] = useState<string>('');
@@ -117,18 +133,37 @@ const Purchases: React.FC<PurchasesProps> = ({
   const [isQuickAddingProduct, setIsQuickAddingProduct] = useState(false);
   const [quickProductData, setQuickProductData] = useState({ name: '', sku: '', model: '', category: '', costPrice: 0, price: 0, stock: 0, hasWarranty: false, warrantyMonths: 0 });
 
-  const [purchaseForm, setPurchaseForm] = useState({
-    vendorId: '',
-    vendorName: '',
-    date: new Date().toISOString().split('T')[0],
-    reference: '',
-    items: [] as PurchaseItem[],
-    paymentAccountId: '',
-    paymentMethod: 'cash',
-    paidAmount: 0,
-    shippingCost: 0,
-    notes: '',
+    const [purchaseForm, setPurchaseForm] = useState(() => {
+    try {
+      const draft = localStorage.getItem('draft_purchase_form');
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed && (parsed.vendorId || parsed.items?.length > 0)) {
+          setTimeout(() => toast('Loaded unsaved purchase draft', { icon: '📝' }), 1000);
+          return parsed;
+        }
+      }
+    } catch(e) {}
+    return {
+      vendorId: '',
+      vendorName: '',
+      date: new Date().toISOString().split('T')[0],
+      reference: '',
+      items: [] as PurchaseItem[],
+      paymentAccountId: '',
+      paymentMethod: 'cash',
+      paidAmount: 0,
+      shippingCost: 0,
+      notes: '',
+      createdBy: ''
+    };
   });
+
+  useEffect(() => {
+    if (purchaseForm.vendorId || purchaseForm.items.length > 0) {
+      localStorage.setItem('draft_purchase_form', JSON.stringify(purchaseForm));
+    }
+  }, [purchaseForm]);
 
   // Table Filters & Pagination
   const [startDate, setStartDate] = useState(
@@ -207,7 +242,8 @@ const Purchases: React.FC<PurchasesProps> = ({
                      price: Number(item.salesPrice) || 0,
                      stock: Number(item.quantity) || 0,
                      hasWarranty: Boolean(item.hasWarranty),
-                     warrantyMonths: item.hasWarranty && item.warrantyYears ? Number(item.warrantyYears) * 12 : 0,
+                     warrantyMonths: item.hasWarranty ? itemWarrantyMonths(item) : 0,
+                     warrantyUnit: item.warrantyUnit || 'months',
                      hasSerialTracking: Boolean(item.hasSerialTracking),
                      availableSerials: addedSerials,
                      createdAt: new Date().toISOString()
@@ -458,7 +494,9 @@ const Purchases: React.FC<PurchasesProps> = ({
             discount: 0,
             tax: 0,
             total: existingProduct.costPrice || Number(costPrice) || 0,
-            warrantyYears: existingProduct.warrantyMonths ? existingProduct.warrantyMonths / 12 : 0,
+            hasWarranty: Boolean(existingProduct.warrantyMonths && existingProduct.warrantyMonths > 0),
+            warrantyUnit: existingProduct.warrantyUnit || 'months',
+            warrantyValue: existingProduct.warrantyMonths ? monthsToWarrantyValue(existingProduct.warrantyMonths, (existingProduct.warrantyUnit || 'months') as WarrantyUnit) : 12,
             hasSerialTracking: Boolean(existingProduct.hasSerialTracking),
             sku: existingProduct.sku || scannedCode,
             newSerials: scannedCode !== existingProduct.sku ? [scannedCode] : [],
@@ -484,7 +522,9 @@ const Purchases: React.FC<PurchasesProps> = ({
         discount: 0,
         tax: 0,
         total: Number(costPrice) || 0,
-        warrantyYears: 0,
+        hasWarranty: false,
+        warrantyUnit: 'months',
+        warrantyValue: 12,
         hasSerialTracking: true,
         sku: scannedCode,
         newSerials: [scannedCode],
@@ -572,7 +612,8 @@ const Purchases: React.FC<PurchasesProps> = ({
             salesPrice: Number(product.price) || 0,
             quantity: 1,
             hasWarranty: Boolean(product.warrantyMonths && product.warrantyMonths > 0),
-            warrantyYears: product.warrantyMonths ? Math.round(product.warrantyMonths / 12) : 1,
+            warrantyUnit: product.warrantyUnit || 'months',
+            warrantyValue: product.warrantyMonths ? monthsToWarrantyValue(product.warrantyMonths, (product.warrantyUnit || 'months') as WarrantyUnit) : 12,
             hasSerialTracking: Boolean(product.hasSerialTracking),
               sku: product.sku || '',
             newSerials: '',
@@ -688,8 +729,9 @@ const Purchases: React.FC<PurchasesProps> = ({
              if (item.sku && !currentProduct.sku) updates.sku = item.sku;
           }
 
-          if (item.hasWarranty && item.warrantyYears) {
-            updates.warrantyMonths = Number(item.warrantyYears) * 12;
+          if (item.hasWarranty && itemWarrantyMonths(item) > 0) {
+            updates.warrantyMonths = itemWarrantyMonths(item);
+            updates.warrantyUnit = item.warrantyUnit || 'months';
           }
 
           if (currentProduct.hasSerialTracking && item.newSerials) {
@@ -731,7 +773,8 @@ const Purchases: React.FC<PurchasesProps> = ({
              price: Number(item.salesPrice) || 0,
              stock: Number(item.quantity) || 0,
              hasWarranty: Boolean(item.hasWarranty),
-             warrantyMonths: item.hasWarranty && item.warrantyYears ? Number(item.warrantyYears) * 12 : 0,
+             warrantyMonths: item.hasWarranty ? itemWarrantyMonths(item) : 0,
+                     warrantyUnit: item.warrantyUnit || 'months',
              hasSerialTracking: Boolean(item.hasSerialTracking),
              availableSerials: addedSerials,
              createdAt: new Date().toISOString()
@@ -989,7 +1032,21 @@ const Purchases: React.FC<PurchasesProps> = ({
                 <h3 className="font-bold text-base text-gray-900 flex items-center gap-2">
                   <Boxes className="text-[#EF4444]" /> Purchase Voucher & Supplier Bill
                 </h3>
-                <span className="text-xs text-gray-400">Restocks Inventory on Save</span>
+                <div className="flex items-center gap-4">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if(window.confirm('Clear all drafted data?')) {
+                        localStorage.removeItem('draft_purchase_form');
+                        setPurchaseForm({ vendorId: '', vendorName: '', date: new Date().toISOString().split('T')[0], reference: '', items: [], paymentAccountId: '', paymentMethod: 'cash', paidAmount: 0, shippingCost: 0, notes: '', createdBy: '' });
+                      }
+                    }}
+                    className="text-xs text-red-500 hover:text-red-700 font-bold"
+                  >
+                    Clear Draft
+                  </button>
+                  <span className="text-xs text-gray-400">Restocks Inventory on Save</span>
+                </div>
               </div>
 
               <form onSubmit={handleSavePurchase} className="space-y-6 text-xs">
@@ -1141,6 +1198,39 @@ const Purchases: React.FC<PurchasesProps> = ({
                                   </select>
                                 </div>
                               </div>
+
+                            {/* Warranty */}
+                            <div>
+                              <label className="flex items-center gap-1 text-[9px] font-bold text-gray-500 uppercase cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(item.hasWarranty)}
+                                  onChange={e => updateItem(item.id, 'hasWarranty', e.target.checked)}
+                                  className="rounded border-gray-300 text-blue-600 w-3 h-3"
+                                />
+                                Warranty
+                              </label>
+                              <div className="flex">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  disabled={!item.hasWarranty}
+                                  value={item.warrantyValue ?? 12}
+                                  onChange={e => updateItem(item.id, 'warrantyValue', Math.max(1, Number(e.target.value)))}
+                                  className="w-14 text-center border border-gray-200 rounded-l p-1 font-bold focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                                />
+                                <select
+                                  disabled={!item.hasWarranty}
+                                  value={item.warrantyUnit || 'months'}
+                                  onChange={e => updateItem(item.id, 'warrantyUnit', e.target.value)}
+                                  className="w-[4.5rem] border-y border-r border-gray-200 rounded-r p-1 text-xs font-bold text-gray-700 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer disabled:bg-gray-100 disabled:text-gray-400"
+                                >
+                                  <option value="days">Days</option>
+                                  <option value="months">Months</option>
+                                  <option value="years">Years</option>
+                                </select>
+                              </div>
+                            </div>
 
                             {/* Total for item */}
                             <div className="text-right min-w-20">

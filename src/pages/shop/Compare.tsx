@@ -2,7 +2,7 @@ import React from 'react';
 import { useCompare } from '../../context/CompareContext';
 import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency, cn, formatWarranty } from '../../lib/utils';
 import { useState } from 'react';
 import { X, ShoppingCart, Info, Activity, Shield, Cpu, Scale, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -211,7 +211,7 @@ export const ComparePage: React.FC = () => {
                   )}
                   {(!hideSimilar || isDifferent('warrantyMonths', true)) && (
                     <div className={cn("p-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-gray-700 text-sm text-center transition-colors", isDifferent('warrantyMonths', true) && highlightDiff ? "bg-yellow-50/50" : "bg-white")}>
-                      <span className="font-medium">{product.warrantyMonths ? `${product.warrantyMonths} Months` : 'No Warranty'}</span>
+                      <span className="font-medium">{product.warrantyMonths ? `${formatWarranty(product.warrantyMonths, product.warrantyUnit)}` : 'No Warranty'}</span>
                     </div>
                   )}
 

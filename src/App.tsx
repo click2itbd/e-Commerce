@@ -21,6 +21,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ 
 const EcommerceDashboard = lazy(() => import('./pages/ecommerceDashboard/EcommerceDashboard'));
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
 const PCBuilder = lazy(() => import('./pages/shop/PCBuilder').then(m => ({ default: m.PCBuilder })));
+const Projects = lazy(() => import('./pages/shop/Projects').then(m => ({ default: m.Projects })));
 const ComparePage = lazy(() => import('./pages/shop/Compare').then(m => ({ default: m.ComparePage })));
 const CategoryPage = lazy(() => import('./pages/shop/CategoryPage').then(m => ({ default: m.CategoryPage })));
 const WishlistPage = lazy(() => import('./pages/shop/WishlistPage').then(m => ({ default: m.WishlistPage })));
@@ -137,6 +138,7 @@ export default function App() {
                       <Route path="/" element={<LazyWrapper><Home /></LazyWrapper>} />
                       <Route path="/shop" element={<Navigate to="/" replace />} />
                       <Route path="/deals" element={<LazyWrapper><CampaignLanding /></LazyWrapper>} />
+                      <Route path="/projects" element={<LazyWrapper><Projects /></LazyWrapper>} />
                       <Route path="/product/:id" element={<LazyWrapper><ProductDetails /></LazyWrapper>} />
                       <Route path="/cart" element={<LazyWrapper><Cart /></LazyWrapper>} />
                       <Route path="/checkout" element={<LazyWrapper><Checkout /></LazyWrapper>} />

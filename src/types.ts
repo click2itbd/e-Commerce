@@ -44,6 +44,7 @@ export interface Product {
   hasSerialTracking?: boolean;
   availableSerials?: string[];
   warrantyMonths?: number;
+  warrantyUnit?: 'days' | 'months' | 'years';
   isAccessory?: boolean;
   showInStore?: boolean;
   isFeatured?: boolean;

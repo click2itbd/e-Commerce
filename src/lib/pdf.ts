@@ -1,5 +1,7 @@
+import { doc as fsDoc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Order, Transaction, SiteSettings } from "../types";
-import { formatCurrency } from "./utils";
+import { formatCurrency, formatWarranty } from "./utils";
 
 function amountToWords(num: number): string {
   const a = [
@@ -407,6 +409,31 @@ export const generatePDF = async (
       ? ["S.N.", "Product Name", "Description", "Brand", "Unit", "Warranty"]
       : ["S.N.", "Product Name", "Description", "Brand", "Unit", "Unit Price", "Warranty", "Total (TK.)"];
 
+        // Enrich items with brand and warranty from DB if missing
+    if (o.items && Array.isArray(o.items)) {
+      const enrichedItems: any[] = [];
+      for (let i = 0; i < o.items.length; i++) {
+        let item: any = { ...o.items[i] };
+        const pId = item.productId || item.id;
+        if (pId && (!item.brand || (!item.warranty && !item.warrantyMonths && !item.specs?.Warranty))) {
+          try {
+            const pDoc = await getDoc(fsDoc(db, 'products', pId));
+            if (pDoc.exists()) {
+              const pData: any = pDoc.data();
+              if (!item.brand && pData.brand) item.brand = pData.brand;
+              if (!item.brand && !pData.brand) item.brand = pData.category || pData.vendorName || '-';
+              if (!item.warranty && !item.warrantyMonths && !item.specs?.Warranty) {
+                if (pData.specs?.Warranty) item.warranty = pData.specs.Warranty;
+                else if (pData.warrantyMonths) { item.warrantyMonths = pData.warrantyMonths; item.warrantyUnit = item.warrantyUnit || pData.warrantyUnit; }
+              }
+            }
+          } catch(e) {}
+        }
+        enrichedItems.push(item);
+      }
+      o.items = enrichedItems;
+    }
+
     const tableData = o.items.map((item: any, idx: number) => {
       let desc = item.description || "-";
       desc = desc.replace(/<[^>]+>/g, "").trim();
@@ -417,7 +444,7 @@ export const generatePDF = async (
         warranty = item.warranty;
         if (/^\d+$/.test(warranty)) warranty += ' Years';
       } else if (item.warrantyMonths) {
-        warranty = item.warrantyMonths > 12 ? `${item.warrantyMonths / 12} Yrs` : `${item.warrantyMonths} Mos`;
+        warranty = formatWarranty(item.warrantyMonths, item.warrantyUnit);
       } else if (item.specs?.Warranty) {
         warranty = item.specs.Warranty;
       }

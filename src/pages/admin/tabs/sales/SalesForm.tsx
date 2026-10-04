@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, query, getDocs, orderBy } from 'firebase/firestore';
 import { db, auth } from '../../../../firebase';
 import { Product, Customer, DiscountCode, SiteSettings, PaymentAccount } from '../../../../types';
-import { formatCurrency, cn } from '../../../../lib/utils';
+import { formatCurrency, cn, addWarranty, formatWarranty } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { generatePDF } from '../../../../lib/pdf';
@@ -612,6 +612,9 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             unit: item.unit || currentProduct?.unit || 'pcs',
           hasWarranty: Boolean(item.hasWarranty),
             warrantyMonths: wMonths,
+            warrantyUnit: currentProduct?.warrantyUnit || 'months',
+            brand: currentProduct?.brand || (item as any).brand || '',
+            warranty: wMonths > 0 ? formatWarranty(wMonths, currentProduct?.warrantyUnit) : '',
           selectedSerials: item.selectedSerials || [],
         };
       });
@@ -684,7 +687,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
               const warrantyEndDate = new Date();
               const wMonths = item.hasWarranty ? (item.warrantyMonths || currentProduct.warrantyMonths || 0) : (currentProduct.warrantyMonths || 0);
-              warrantyEndDate.setMonth(warrantyEndDate.getMonth() + wMonths);
+              warrantyEndDate.setTime(addWarranty(warrantyEndDate, wMonths).getTime());
 
               for (const serial of item.selectedSerials) {
                 await addDoc(collection(db, 'sold_serials'), {

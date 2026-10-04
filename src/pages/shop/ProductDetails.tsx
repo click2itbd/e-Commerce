@@ -6,7 +6,7 @@ import { Product, Review } from '../../types';
 import { useSettings } from '../../context/SettingsContext';
 import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency, cn, formatWarranty } from '../../lib/utils';
 import { ShoppingCart, Truck, ChevronRight, ChevronDown, GitCompare, Minus, Plus, Share2, Facebook, Twitter, MessageCircle, Star, ShieldCheck, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useCompare } from '../../context/CompareContext';
@@ -428,7 +428,7 @@ export const ProductDetails: React.FC = () => {
                      </div>
                      <div>
                        <p className="text-sm font-bold text-gray-900">
-                         {product.warrantyMonths ? `${product.warrantyMonths} Months Official Warranty` : '7 Days Replacement Warranty'}
+                         {product.warrantyMonths ? `${formatWarranty(product.warrantyMonths, product.warrantyUnit)} Official Warranty` : '7 Days Replacement Warranty'}
                        </p>
                        <p className="text-xs text-gray-500">100% Authentic Brand Guarantee</p>
                      </div>
@@ -545,7 +545,7 @@ export const ProductDetails: React.FC = () => {
                 <div>
                   <h3 className="text-xl font-bold text-[#081621] mb-4">Warranty</h3>
                   <p className="font-bold text-sm text-gray-800">
-                    {product.warrantyMonths ? `${product.warrantyMonths} Months Warranty` : 'No Warranty'}
+                    {product.warrantyMonths ? `${formatWarranty(product.warrantyMonths, product.warrantyUnit)} Warranty` : 'No Warranty'}
                   </p>
                   <p className="text-sm text-gray-500 mt-1">Explore our <Link to="/warranty-policy" className="text-[#F97316] underline">Warranty Policy</Link> page for detailed information about our warranty coverage.</p>
                 </div>

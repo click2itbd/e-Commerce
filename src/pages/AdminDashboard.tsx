@@ -392,7 +392,7 @@ import { Trophy,
   DollarSign,
   ExternalLink,
  } from "lucide-react";
-import { formatCurrency, cn } from "../lib/utils";
+import { formatCurrency, cn, addWarranty, formatWarranty } from "../lib/utils";
 import { useSettings } from "../context/SettingsContext";
 import { toast } from "react-hot-toast";
 import { generateDocumentNumber } from "../lib/numbering";
@@ -2182,8 +2182,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           // Add to sold_serials
           const warrantyEndDate = new Date();
-          warrantyEndDate.setMonth(
-            warrantyEndDate.getMonth() + modalItem.warrantyMonths,
+          warrantyEndDate.setTime(
+            addWarranty(warrantyEndDate, modalItem.warrantyMonths).getTime(),
           );
 
           for (const serial of modalItem.selectedSerials) {
@@ -3567,7 +3567,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               const wMonths = item.hasWarranty
                 ? (item.warrantyYears || 0) * 12
                 : currentProduct.warrantyMonths || 0;
-              warrantyEndDate.setMonth(warrantyEndDate.getMonth() + wMonths);
+              warrantyEndDate.setTime(addWarranty(warrantyEndDate, wMonths).getTime());
 
               for (const serial of item.selectedSerials) {
                 await addDoc(collection(db, "sold_serials"), {
@@ -5691,7 +5691,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   fetchData={fetchData}
                   updateOrderDiscount={updateOrderDiscount}
                   updateOrderStatus={updateOrderStatus}
-                  generatePDF={(order, type) => generatePDF(order, type, settings, 'download')}
+                  generatePDF={(order, type) => {
+                    const enrichedOrder = { ...order };
+                    if (enrichedOrder.items) {
+                      enrichedOrder.items = enrichedOrder.items.map(item => {
+                        const pId = item.id || item.productId;
+                        const p = products.find(p => p.id === pId);
+                        let w = item.warranty;
+                        if (!w && !item.warrantyMonths && !item.specs?.Warranty) {
+                          if (p?.specs?.Warranty) w = p.specs.Warranty;
+                          else if (p?.warrantyMonths) w = formatWarranty(p.warrantyMonths, p.warrantyUnit);
+                        } else if (!w && item.warrantyMonths) {
+                           w = formatWarranty(item.warrantyMonths, item.warrantyUnit || p?.warrantyUnit);
+                        }
+                        
+                        return {
+                          ...item,
+                          brand: item.brand || p?.brand || p?.category || p?.vendorName || "",
+                          warranty: w || ""
+                        };
+                      });
+                    }
+                    generatePDF(enrichedOrder, type, settings, 'download');
+                  }}
                   handleDeleteOrder={handleDeleteOrder}
                 />
               ) : activeTab === "purchase_return" ? (

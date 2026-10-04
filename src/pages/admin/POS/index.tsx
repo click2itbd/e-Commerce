@@ -1,6 +1,6 @@
 import { logoBase64 } from "../../../lib/logoBase64";
 import React, { useState, useEffect } from "react";
-import { formatCurrency, cn } from "../../../lib/utils";
+import { formatCurrency, cn, addWarranty, formatWarranty } from "../../../lib/utils";
 import { generateDocumentNumber } from "../../../lib/numbering";
 import { db } from "../../../firebase";
 import {
@@ -531,6 +531,9 @@ export const RetailPOS = () => {
           selectedSerials: c.selectedSerials || [],
           hasWarranty: c.hasWarranty || false,
           warrantyMonths: c.warrantyMonths || c.product.warrantyMonths || 0,
+          warrantyUnit: c.product.warrantyUnit || 'months',
+          brand: c.product.brand || '',
+          warranty: (c.warrantyMonths || c.product.warrantyMonths) ? formatWarranty(c.warrantyMonths || c.product.warrantyMonths || 0, c.product.warrantyUnit) : '',
         };
       });
 
@@ -615,7 +618,7 @@ export const RetailPOS = () => {
           const wMonths = item.hasWarranty
             ? item.warrantyMonths || item.product.warrantyMonths || 0
             : item.product.warrantyMonths || 0;
-          warrantyEndDate.setMonth(warrantyEndDate.getMonth() + wMonths);
+          warrantyEndDate.setTime(addWarranty(warrantyEndDate, wMonths).getTime());
 
           for (const serial of serialsToUse) {
             try {
@@ -772,7 +775,7 @@ export const RetailPOS = () => {
             <td>
               <strong>${item.name}</strong>
               ${item.selectedSerials?.length > 0 ? `<br><span style="color: #666; font-size: 12px;">Serial Numbers: ${item.selectedSerials.join(", ")}</span>` : ""}
-              ${item.hasWarranty ? `<br><span style="color: #666; font-size: 12px;">Warranty: ${item.warrantyMonths || item.product.warrantyMonths || 0} Months</span>` : ""}
+              ${item.hasWarranty ? `<br><span style="color: #666; font-size: 12px;">Warranty: ${formatWarranty(item.warrantyMonths || item.product.warrantyMonths || 0, item.product.warrantyUnit) || '0 Months'}</span>` : ""}
             </td>
             <td style="text-align: center;">${item.quantity}</td>
             <td style="text-align: right;">${formatCurrency(item.price, settings)}</td>

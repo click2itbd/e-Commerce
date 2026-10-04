@@ -3,7 +3,7 @@ import { db, storage } from '../../../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
-import { formatCurrency, cn } from '../../../../lib/utils';
+import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, formatWarranty, type WarrantyUnit } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { BulkEditForm } from '../../../../components/BulkEditForm';
@@ -83,6 +83,25 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
               </div>
             </div>
 
+            {/* Top Summary Dashboard */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 bg-gray-50 border-b border-gray-100">
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                <span className="text-gray-500 text-xs font-bold uppercase mb-1">Total Products</span>
+                <span className="text-2xl font-black text-gray-900">{products.length}</span>
+              </div>
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                <span className="text-gray-500 text-xs font-bold uppercase mb-1">Inventory Value</span>
+                <span className="text-2xl font-black text-blue-600">{formatCurrency(products.reduce((acc, p) => acc + ((p.stock || 0) * (p.costPrice || p.price || 0)), 0), settings)}</span>
+              </div>
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                <span className="text-amber-500 text-xs font-bold uppercase mb-1">Low Stock Items</span>
+                <span className="text-2xl font-black text-amber-600">{products.filter(p => p.stock > 0 && p.stock < 10).length}</span>
+              </div>
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                <span className="text-red-500 text-xs font-bold uppercase mb-1">Out of Stock</span>
+                <span className="text-2xl font-black text-red-600">{products.filter(p => (p.stock || 0) === 0).length}</span>
+              </div>
+            </div>
             
             <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex flex-col gap-4">
               <div className="relative max-w-md w-full">
@@ -95,35 +114,34 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                 />
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               </div>
-              <div className="flex flex-wrap gap-2 items-center">
-
-              <span className="text-xs font-bold text-gray-400 uppercase mr-2">Filter by Category:</span>
-              <button
-                onClick={() => setInventoryCategoryFilter('all')}
-                className={cn(
-                  "px-3 py-1 rounded-full text-xs font-bold transition-all border",
-                  inventoryCategoryFilter === 'all' 
-                    ? "bg-[#EF4444] text-white border-[#EF4444]" 
-                    : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
-                )}
-              >
-                All
-              </button>
-              {Array.from(new Set(products.map(p => p.category))).sort().map(category => (
+              <div className="flex items-center gap-3 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <span className="text-xs font-bold text-gray-400 uppercase whitespace-nowrap shrink-0">Filter by Category:</span>
                 <button
-                  key={category}
-                  onClick={() => setInventoryCategoryFilter(category)}
+                  onClick={() => setInventoryCategoryFilter('all')}
                   className={cn(
-                    "px-3 py-1 rounded-full text-xs font-bold transition-all border",
-                    inventoryCategoryFilter === category 
-                      ? "bg-[#EF4444] text-white border-[#EF4444]" 
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                    "px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0",
+                    inventoryCategoryFilter === 'all' 
+                      ? "bg-gray-900 text-white shadow-md" 
+                      : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                   )}
                 >
-                  {category}
+                  All
                 </button>
-              ))}
-            </div>
+                {Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort().map(category => (
+                  <button
+                    key={category as string}
+                    onClick={() => setInventoryCategoryFilter(category as string)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0",
+                      inventoryCategoryFilter === category 
+                        ? "bg-gray-900 text-white shadow-md" 
+                        : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    )}
+                  >
+                    {category as string}
+                  </button>
+                ))}
+              </div>
 
             </div>
             {isAddingProduct || editingProduct ? (
@@ -442,7 +460,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                             <input 
                                 type="checkbox" 
                                 checked={(formData.warrantyMonths || 0) > 0} 
-                                onChange={(e) => setFormData({...formData, warrantyMonths: e.target.checked ? (formData.warrantyMonths || 12) : 0})}
+                                onChange={(e) => setFormData({...formData, warrantyMonths: e.target.checked ? (formData.warrantyMonths || 12) : 0, warrantyUnit: (formData as any).warrantyUnit || 'months'} as any)}
                                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
                             />
                             <span className="block text-sm font-bold text-slate-800">Warranty Included</span>
@@ -453,11 +471,24 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                               <input
                                   type="number"
                                   min="1"
-                                  value={formData.warrantyMonths || 0}
-                                  onChange={e => setFormData({ ...formData, warrantyMonths: Math.max(1, Number(e.target.value)) })}
+                                  value={monthsToWarrantyValue(formData.warrantyMonths || 0, (formData as any).warrantyUnit || 'months')}
+                                  onChange={e => setFormData({ ...formData, warrantyMonths: Math.max(1 / 30, warrantyToMonths(Number(e.target.value), (formData as any).warrantyUnit || 'months')) })}
                                   className="w-20 font-black text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-center"
                               />
-                              <span className="text-xs font-bold text-slate-500 uppercase">Months</span>
+                              <select
+                                  value={(formData as any).warrantyUnit || 'months'}
+                                  onChange={e => {
+                                    const newUnit = e.target.value as WarrantyUnit;
+                                    const oldUnit = ((formData as any).warrantyUnit || 'months') as WarrantyUnit;
+                                    const shown = monthsToWarrantyValue(formData.warrantyMonths || 0, oldUnit);
+                                    setFormData({ ...formData, warrantyUnit: newUnit, warrantyMonths: warrantyToMonths(shown || 1, newUnit) } as any);
+                                  }}
+                                  className="text-xs font-bold text-slate-600 uppercase border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                              >
+                                <option value="days">Days</option>
+                                <option value="months">Months</option>
+                                <option value="years">Years</option>
+                              </select>
                             </div>
                           )}
                         </div>
@@ -799,95 +830,92 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 bg-gray-100 rounded-md flex items-center justify-center overflow-hidden">
-                            <img src={product.images?.[0] || undefined} alt="" className="object-contain" referrerPolicy="no-referrer" />
+                          <div className="h-10 w-10 bg-gray-50 border border-gray-100 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+                            {product.images?.[0] ? (
+                              <img src={product.images[0]} alt="" className="object-cover w-full h-full" referrerPolicy="no-referrer" />
+                            ) : (
+                              <Package className="text-gray-300" size={20} />
+                            )}
                           </div>
                           <div className="flex flex-col">
-                            <span className="font-medium text-sm text-[#081621]">{product.name}</span>
-                            <span className="text-[10px] text-gray-400 font-medium uppercase">ID: {product.id.slice(0, 8)}</span>
+                            <span className="font-bold text-sm text-gray-900">{product.name}</span>
+                            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">ID: {product.id.slice(0, 8)}</span>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-xs font-bold text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                        <span className="text-[11px] font-bold text-gray-600 bg-gray-100 px-2.5 py-1 rounded-md">
                           {vendors.find(v => v.id === product.vendorId)?.name || 'N/A'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{product.category}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-[#EF4444]">{formatCurrency(product.price, settings)}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-600">{product.category}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-gray-900">{formatCurrency(product.price, settings)}</td>
                       <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1.5 items-start">
                           <span className={cn(
-                            "px-2 py-1 rounded-full text-[10px] font-bold uppercase w-fit",
-                            product.stock >= 10 ? "bg-green-100 text-green-700" : 
-                            product.stock > 0 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                            "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border",
+                            product.stock >= 10 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
+                            product.stock > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-red-50 text-red-700 border-red-200"
                           )}>
-                            {product.stock} {product.stock > 0 ? 'in stock' : 'stock out'}
+                            {product.stock > 0 ? `${product.stock} IN STOCK` : 'OUT OF STOCK'}
                           </span>
-                          {product.stock < 10 && (
-                            <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 animate-pulse">
-                              <AlertTriangle size={12} /> LOW STOCK
+                          {product.stock > 0 && product.stock < 10 && (
+                            <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600">
+                              <AlertTriangle size={12} /> Low Stock
                             </span>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
                           {settings.externalStoreEnabled && (
                             <button
                               onClick={async () => {
                                 try {
                                   toast.loading(`Pushing ${product.name} to ${settings.externalStoreType}...`, { id: 'sync' });
-                                  
-                                  // Simulation of external API call
                                   if (settings.externalStoreType === 'webhook' && settings.externalStoreUrl) {
-                                     // In a real app, this would be a fetch() call
                                      console.log('Pushing to Webhook:', {
                                        url: settings.externalStoreUrl,
-                                       product: {
-                                         id: product.id,
-                                         name: product.name,
-                                         price: product.price,
-                                         stock: product.stock
-                                       }
+                                       product: { id: product.id, name: product.name, price: product.price, stock: product.stock }
                                      });
                                   }
-                                  
                                   await new Promise(resolve => setTimeout(resolve, 1500));
                                   toast.success(`Product synced successfully to ${settings.externalStoreType || 'external store'}`, { id: 'sync' });
                                 } catch (error) {
                                   toast.error('Failed to sync product', { id: 'sync' });
                                 }
                               }}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-md transition-all"
+                              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-all"
                               title="Push to External Store"
                             >
-                              <ArrowRight size={18} />
+                              <ArrowRight size={16} />
                             </button>
                           )}
                           {hasPermission('manage_inventory') && (
                             <button
                               onClick={() => setViewingProduct(product)}
-                              className="p-2 text-gray-500 hover:bg-gray-50 rounded-md transition-all"
+                              className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 rounded-md transition-all"
                               title="View Details"
                             >
-                              <Eye size={18} />
+                              <Eye size={16} />
                             </button>
                           )}
                           {hasPermission('manage_inventory') && (
                             <button
                               onClick={() => { setEditingProduct(product); setFormData({ ...product, variants: product.variants || [], specs: product.specs || {} }); setIsAddingProduct(true); }}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-all"
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-all"
+                              title="Edit Product"
                             >
-                              <Edit2 size={18} />
+                              <Edit2 size={16} />
                             </button>
                           )}
                           {isAdmin && (
                             <button
                               onClick={() => handleDeleteProduct(product.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-all"
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-all"
+                              title="Delete Product"
                             >
-                              <Trash2 size={18} />
+                              <Trash2 size={16} />
                             </button>
                           )}
                         </div>
@@ -963,7 +991,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                     </div>
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <span className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Warranty</span>
-                      <span className="font-bold text-gray-900">{viewingProduct.warrantyMonths ? viewingProduct.warrantyMonths + ' months' : 'No'}</span>
+                      <span className="font-bold text-gray-900">{viewingProduct.warrantyMonths ? formatWarranty(viewingProduct.warrantyMonths, viewingProduct.warrantyUnit) : 'No'}</span>
                     </div>
                   </div>
                   {viewingProduct.variants && viewingProduct.variants.length > 0 && (

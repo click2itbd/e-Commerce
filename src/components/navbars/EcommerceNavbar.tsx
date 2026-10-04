@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, Cpu, Server, CalendarDays, GitCompare, Heart, Trash2 } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, Cpu, Server, CalendarDays, GitCompare, Heart, Trash2 , Camera } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useCompare } from '../../context/CompareContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -272,9 +272,10 @@ export const EcommerceNavbar: React.FC = () => {
           {/* Actions */}
           <div className="flex items-center gap-6">
             
-            <Link to="/pre-book" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden sm:flex" title="Pre-Book a Product">
-              <CalendarDays size={24} />
-            </Link>
+            <Link to="/pre-book" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden sm:flex items-center gap-1.5" title="Pre-Book a Product">
+                <CalendarDays size={24} />
+                <span className="text-sm font-bold hidden md:block">Pre-Book</span>
+              </Link>
 
             <Link to="/compare" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden sm:flex">
               <GitCompare size={24} />
@@ -371,6 +372,9 @@ export const EcommerceNavbar: React.FC = () => {
                 <Link to="/pc-build" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
                   <Cpu size={18} /> PC Builder
                 </Link>
+                  <Link to="/projects" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
+                    <Camera size={18} /> Our Projects
+                  </Link>
                 <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
                   Hosting
                 </a>
@@ -398,8 +402,11 @@ export const EcommerceNavbar: React.FC = () => {
             {canAccessAdmin && (
               <Link to="/admin" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
                 <LayoutDashboard size={20} /> Admin Dashboard
+                </Link>
+              )}
+              <Link to="/projects" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
+                <Camera size={20} /> Our Projects
               </Link>
-            )}
             
             {/* Dynamic Menus in Mobile */}
             <div className="border-t border-gray-700 pt-4">

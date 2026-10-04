@@ -41,6 +41,7 @@ function NavbarSelector() {
     pathname.startsWith('/pre-book') ||
     pathname.startsWith('/track-order') ||
     pathname.startsWith('/deals') ||
+    pathname.startsWith('/projects') ||
     (!isHostingDomain && pathname === '/')
   ) {
     return <EcommerceNavbar />;

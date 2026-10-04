@@ -7,7 +7,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 export type OrderStatus = string;
 export const DEFAULT_ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
-import { Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X } from 'lucide-react';
+import { Phone, Mail, MapPin,  Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X  } from 'lucide-react';
 import EditOrderModal from '../../modals/EditOrderModal';
 import { Edit2 } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
@@ -380,7 +380,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                       />
                     </th>
                     <th className="px-6 py-4">Order ID</th>
-                    <th className="px-6 py-4">Category</th>
+                    
                     <th className="px-6 py-4">Date</th>
                     <th className="px-6 py-4">Customer</th>
                     <th className="px-6 py-4">Total & Payment</th>
@@ -424,28 +424,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                             )}
                             </div>
                           </td>
-                        <td className="px-6 py-4">
-                          {cat === 'domain' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-50 text-cyan-700 border border-cyan-200 whitespace-nowrap">
-                              <Globe size={13} /> Domain
-                            </span>
-                          )}
-                          {cat === 'hosting' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
-                              <Server size={13} /> Hosting
-                            </span>
-                          )}
-                          {cat === 'pc_build' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap">
-                              <Cpu size={13} /> PC Build
-                            </span>
-                          )}
-                          {cat === 'ecommerce' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
-                              <ShoppingBag size={13} /> E-Com
-                            </span>
-                          )}
-                        </td>
+                        
                         <td className="px-6 py-4 text-xs text-gray-500">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
@@ -574,7 +553,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
 
                       {expandedOrderIds.has(order.id) && (
                         <tr className="bg-gray-50/30 border-b-2 border-gray-100">
-                          <td colSpan={8} className="p-0">
+                          <td colSpan={7} className="p-0">
                             <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-8 shadow-inner bg-white/60 m-2 rounded-xl border border-gray-200">
                               <div>
                                 <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2"><ShoppingBag size={14}/> Ordered Items</h4>
@@ -636,7 +615,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                   })}
                   {processedOrders.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center text-gray-400 italic">
+                      <td colSpan={7} className="px-6 py-12 text-center text-gray-400 italic">
                         No orders found matching the selected category and filters.
                       </td>
                     </tr>
