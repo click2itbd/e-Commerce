@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { ShoppingCart, List, Trash2, Search } from 'lucide-react';
 import { cn, formatCurrency } from '../../../../lib/utils';
 import toast from 'react-hot-toast';
@@ -164,7 +164,7 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
                         <div className="flex flex-col">
                           <span className="font-bold text-slate-800">{p.name}</span>
                           <span className="text-[10px] uppercase font-bold text-slate-400 mt-1">
-                            {p.category} â€¢ Stock: {isAvailable ? p.stock : 'OUT'}
+                            {p.category} • Stock: {isAvailable ? p.stock : 'OUT'}
                           </span>
                         </div>
                         <div className="font-black text-blue-600">{formatCurrency(p.price, settings)}</div>

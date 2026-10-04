@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Review, Product } from '../../types';

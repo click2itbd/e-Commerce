@@ -1082,13 +1082,14 @@ const Purchases: React.FC<PurchasesProps> = ({
                     <div className="space-y-3">
                       {purchaseForm.items.map((item, idx) => (
                         <div key={idx} className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-2">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0 w-full break-words">
                               <span className="font-bold text-gray-900 block text-xs">{item.name}{item.variantName ? ` - ${item.variantName}` : ""}</span>
                               <span className="text-[10px] text-gray-400">Category: {item.category}</span>
                             </div>
 
-                            {/* Purchase Cost Price */}
+                            <div className="flex flex-wrap items-center justify-end gap-3 shrink-0">
+{/* Purchase Cost Price */}
                             <div>
                               <label className="block text-[9px] font-bold text-gray-500 uppercase">Cost Price (৳)</label>
                               <input
@@ -1112,17 +1113,34 @@ const Purchases: React.FC<PurchasesProps> = ({
                               />
                             </div>
 
-                            {/* Quantity */}
-                            <div>
-                              <label className="block text-[9px] font-bold text-gray-500 uppercase">Qty</label>
-                              <input
-                                type="number"
-                                min={1}
-                                value={item.quantity}
-                                onChange={e => updateItem(item.id, 'quantity', Math.max(1, Number(e.target.value)))}
-                                className="w-16 text-center border border-gray-200 rounded p-1 font-bold"
-                              />
-                            </div>
+                                                          {/* Quantity & Unit */}
+                              <div>
+                                <label className="block text-[9px] font-bold text-gray-500 uppercase">Qty & Unit</label>
+                                <div className="flex">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={item.quantity}
+                                    onChange={e => updateItem(item.id, 'quantity', Math.max(1, Number(e.target.value)))}
+                                    className="w-16 text-center border border-gray-200 rounded-l p-1 font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                                  />
+                                  <select
+                                    value={item.unit || 'pcs'}
+                                    onChange={e => updateItem(item.id, 'unit', e.target.value)}
+                                    className="w-16 border-y border-r border-gray-200 rounded-r p-1 text-xs font-bold text-gray-700 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                                  >
+                                    <option value="pcs">pcs</option>
+                                    <option value="nos">nos</option>
+                                    <option value="meter">meter</option>
+                                    <option value="kg">kg</option>
+                                    <option value="gm">gm</option>
+                                    <option value="litre">litre</option>
+                                    <option value="box">box</option>
+                                    <option value="pack">pack</option>
+                                    <option value="chop">chop</option>
+                                  </select>
+                                </div>
+                              </div>
 
                             {/* Total for item */}
                             <div className="text-right min-w-20">
@@ -1139,6 +1157,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                             >
                               <Trash2 size={14} />
                             </button>
+</div>
                           </div>
 
                           {/* Serial Numbers Input if serial tracking enabled */}
@@ -1757,7 +1776,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                       <tr key={i}>
                         <td className="px-4 py-2 font-bold text-gray-900">{item.name}</td>
                         <td className="px-4 py-2 text-right">{formatCurrency(item.purchasePrice, settings)}</td>
-                        <td className="px-4 py-2 text-center font-bold">{item.quantity}</td>
+                        <td className="px-4 py-2 text-center font-bold">{item.quantity} {item.unit || 'pcs'}</td>
                         <td className="px-4 py-2 text-right font-black text-gray-900">
                           {formatCurrency(item.purchasePrice * item.quantity, settings)}
                         </td>

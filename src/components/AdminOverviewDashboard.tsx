@@ -3,6 +3,7 @@ import { Product, Order, Customer, Transaction, Lead } from '../types';
 import { formatCurrency } from '../lib/utils';
 import { useSettings } from '../context/SettingsContext';
 import {
+  Wrench,
   Package,
   ShoppingCart,
   Users,
@@ -42,6 +43,7 @@ interface AdminOverviewDashboardProps {
   orders: Order[];
   customers: Customer[];
   transactions: Transaction[];
+  serviceRecords?: any[];
   setActiveTab: (tab: any) => void;
 }
 
@@ -50,6 +52,7 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
   orders,
   customers,
   transactions,
+  serviceRecords = [],
   setActiveTab
 }) => {
   const { settings } = useSettings();
@@ -73,7 +76,49 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
      return transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   }, [transactions]);
 
-  const netProfit = totalRevenueTransactions - totalExpenseTransactions;
+  const netProfit = useMemo(() => {
+    const billedServiceIds = new Set();
+    orders.filter(o => o.status !== 'cancelled' && o.type !== 'quotation').forEach(o => {
+        o.items?.forEach(item => {
+            if (item.id && String(item.id).startsWith('svc-')) {
+                billedServiceIds.add(String(item.id).replace('svc-', ''));
+            }
+        });
+    });
+
+    const standaloneService = serviceRecords
+      .filter(s => !billedServiceIds.has(String(s.id)) && s.serviceCharge > 0 && (s.status === 'delivered' || s.status === 'ready' || s.status === 'repaired'))
+      .reduce((sum, s) => sum + (Number(s.serviceCharge) || 0), 0);
+    return totalRevenue + standaloneService + totalRevenueTransactions - totalExpenseTransactions;
+  }, [totalRevenue, totalRevenueTransactions, totalExpenseTransactions, serviceRecords, orders]);
+
+  const { serviceRevenue, ordersServiceRevenue } = useMemo(() => {
+    const billedServiceIds = new Set();
+    
+    const ordersService = orders
+      .filter(o => o.status !== 'cancelled' && o.type !== 'quotation')
+      .reduce((sum, o) => {
+        let orderServiceTotal = 0;
+        o.items?.forEach(item => {
+          if (item.id && String(item.id).startsWith('svc-')) {
+            billedServiceIds.add(String(item.id).replace('svc-', ''));
+          }
+          if (item.itemType === 'service' || item.isCustomService) {
+            orderServiceTotal += (Number(item.price) || 0) * (Number(item.quantity) || 1);
+          }
+        });
+        return sum + orderServiceTotal;
+      }, 0);
+
+    const standaloneService = serviceRecords
+      .filter(s => !billedServiceIds.has(String(s.id)) && s.serviceCharge > 0 && (s.status === 'delivered' || s.status === 'ready' || s.status === 'repaired'))
+      .reduce((sum, s) => sum + (Number(s.serviceCharge) || 0), 0);
+
+    return { 
+      serviceRevenue: ordersService + standaloneService, 
+      ordersServiceRevenue: ordersService 
+    };
+  }, [orders, serviceRecords]);
 
   // Hosting & Domain Specific Metrics
   const pendingHostingOrders = useMemo(() => {
@@ -199,10 +244,29 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
                       <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center text-green-600">
                          <ArrowUpRight size={16} />
                       </div>
-                      <span className="text-sm font-medium text-gray-600">Income</span>
-                   </div>
-                   <span className="font-bold text-gray-800">{formatCurrency(totalRevenueTransactions, settings)}</span>
-                </div>
+                      <span className="text-sm font-medium text-gray-600">Sales Revenue</span>
+                     </div>
+                     <span className="font-bold text-gray-800">{formatCurrency(totalRevenue - ordersServiceRevenue, settings)}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                     <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center text-green-600">
+                           <ArrowUpRight size={16} />
+                        </div>
+                        <span className="text-sm font-medium text-gray-600">Other Income</span>
+                     </div>
+                     <span className="font-bold text-gray-800">{formatCurrency(totalRevenueTransactions, settings)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                     <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                           <Wrench size={16} />
+                        </div>
+                        <span className="text-sm font-medium text-gray-600">Service Revenue</span>
+                     </div>
+                     <span className="font-bold text-gray-800">{formatCurrency(serviceRevenue, settings)}</span>
+                  </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-50">
                    <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-600">

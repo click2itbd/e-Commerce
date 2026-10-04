@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Layout } from '../../components/Layout';
 import { CalendarPlus, Send } from 'lucide-react';
 import { addDoc, collection } from 'firebase/firestore';

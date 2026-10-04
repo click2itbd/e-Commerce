@@ -38,7 +38,7 @@ export const FPSPredictor: React.FC<FPSPredictorProps> = ({ cpu, gpu }) => {
   const games = ['Valorant', 'Cyberpunk 2077', 'GTA V'];
 
   return (
-    <div className="bg-slate-900 text-white rounded-xl p-4 mt-6">
+    <div className="bg-slate-900 text-slate-900 rounded-xl p-4 mt-6">
       <div className="flex items-center gap-2 mb-4">
         <Target className="text-emerald-400" size={18} />
         <h4 className="font-bold text-sm">Estimated Gaming Performance</h4>
@@ -48,12 +48,12 @@ export const FPSPredictor: React.FC<FPSPredictorProps> = ({ cpu, gpu }) => {
         {games.map(game => (
           <div key={game} className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <MonitorPlay size={14} className="text-slate-400" />
-              <span className="text-xs text-slate-300">{game} (1080p High)</span>
+              <MonitorPlay size={14} className="text-slate-500" />
+              <span className="text-xs text-slate-600">{game} (1080p High)</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="font-bold text-emerald-400">{calculateFPS(game)}</span>
-              <span className="text-[10px] text-slate-400">FPS</span>
+              <span className="text-[10px] text-slate-500">FPS</span>
             </div>
           </div>
         ))}
@@ -61,7 +61,7 @@ export const FPSPredictor: React.FC<FPSPredictorProps> = ({ cpu, gpu }) => {
       
       <div className="mt-4 pt-3 border-t border-slate-700/50 flex items-start gap-2">
         <Zap size={14} className="text-amber-400 shrink-0 mt-0.5" />
-        <p className="text-[10px] text-slate-400 leading-tight">
+        <p className="text-[10px] text-slate-500 leading-tight">
           Estimates are based on selected CPU & GPU combinations and may vary depending on RAM, resolution, and cooling.
         </p>
       </div>

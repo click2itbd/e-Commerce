@@ -5597,12 +5597,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               ) : activeTab === "dashboard" ? (
                 <AdminOverviewDashboard
-                  products={products}
-                  orders={orders}
-                  customers={customers}
-                  transactions={transactions}
-                  setActiveTab={setActiveTab}
-                />
+                    products={products}
+                    orders={orders}
+                    customers={customers}
+                    transactions={transactions}
+                    serviceRecords={serviceRecords}
+                    setActiveTab={setActiveTab}
+                  />
               ) : activeTab === "analytics" ? (
                 <AnalyticsDashboard
                   products={products}

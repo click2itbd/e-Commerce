@@ -1,1 +1,0 @@
-import{addDoc as c,collection as e}from"./firebase-core-Cm5yDKb8.js";import{d}from"./index-D3pwFuf1.js";const s=async(o,t,a,r)=>{try{await c(e(d,"audit_logs"),{action:o,entityType:t,details:a,performedBy:r,timestamp:new Date().toISOString()})}catch(i){console.error("Failed to log audit action",i)}};export{s as l};

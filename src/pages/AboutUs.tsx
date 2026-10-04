@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Layout } from '../components/Layout';
 import { SEO } from '../components/SEO';
 import { useSettings } from '../context/SettingsContext';

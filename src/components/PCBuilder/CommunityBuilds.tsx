@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, limit, updateDoc, doc, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Layout } from '../../components/Layout';
@@ -76,15 +76,15 @@ export const CommunityBuilds: React.FC = () => {
   return (
     <Layout fullWidth>
       {/* Hero Section */}
-      <div className="relative bg-[#0B0E14] border-b border-[#1F2633] overflow-hidden min-h-[400px] flex items-center justify-center">
+      <div className="relative bg-slate-50 border-b border-slate-200 overflow-hidden min-h-[400px] flex items-center justify-center">
         {/* Background Image */}
         <div 
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30 mix-blend-luminosity"
           style={{ backgroundImage: "url('https://images.unsplash.com/photo-1587202372775-e229f172b9d7?q=80&w=2000&auto=format&fit=crop')" }}
         ></div>
         {/* Gradients to blend with background */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14] via-[#0B0E14]/70 to-transparent"></div>
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0B0E14] via-transparent to-[#0B0E14]"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-50 via-slate-50/70 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-50 via-transparent to-slate-50"></div>
         
         {/* Glowing accents */}
         <div className="absolute inset-y-0 right-0 w-1/3 bg-gradient-to-l from-violet-600/30 to-transparent blur-3xl rounded-full translate-x-1/2"></div>
@@ -94,29 +94,29 @@ export const CommunityBuilds: React.FC = () => {
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-20 h-20 bg-violet-500/20 text-violet-400 rounded-2xl flex items-center justify-center mb-6 shadow-lg border border-violet-500/30 backdrop-blur-sm">
               <Users size={40} />
             </motion.div>
-            <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-4xl md:text-6xl font-black text-white mb-6 tracking-tight">
+            <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-4xl md:text-6xl font-black text-slate-900 mb-6 tracking-tight">
               Community <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-cyan-400">Builds</span>
             </motion.h1>
-            <motion.p initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="text-slate-400 text-lg md:text-xl max-w-2xl font-medium">
+            <motion.p initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="text-slate-500 text-lg md:text-xl max-w-2xl font-medium">
               Explore the most epic PC configurations created by our community. Discover, get inspired, and share your ultimate dream setup.
             </motion.p>
           </div>
         </div>
       </div>
 
-      <div className="min-h-screen bg-[#0B0E14] py-12">
+      <div className="min-h-screen bg-slate-50 py-12">
         <div className="container mx-auto px-2 sm:px-4 max-w-7xl">
           
           {/* Controls Bar */}
-          <div className="bg-[#151A23]/80 backdrop-blur-md p-4 rounded-xl border border-[#1F2633] shadow-sm mb-8 flex flex-col md:flex-row gap-4 items-center justify-between sticky top-4 z-20">
+          <div className="bg-slate-100/80 backdrop-blur-md p-4 rounded-xl border border-slate-200 shadow-sm mb-8 flex flex-col md:flex-row gap-4 items-center justify-between sticky top-4 z-20">
             <div className="relative w-full md:w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
               <input 
                 type="text" 
                 placeholder="Search builds by name..." 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-[#0B0E14] border border-[#1F2633] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all"
               />
             </div>
             
@@ -133,7 +133,7 @@ export const CommunityBuilds: React.FC = () => {
                   className={`px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
                     filter === f.id 
                     ? 'bg-violet-600 text-white shadow-[0_0_15px_rgba(139,92,246,0.3)]' 
-                    : 'bg-[#1F2633] text-slate-400 hover:text-white hover:bg-[#2A3441]'
+                    : 'bg-slate-200 text-slate-500 hover:text-slate-900 hover:bg-[#2A3441]'
                   }`}
                 >
                   {f.label}
@@ -146,15 +146,15 @@ export const CommunityBuilds: React.FC = () => {
           {loading ? (
             <div className="flex flex-col justify-center items-center h-64 gap-4">
               <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600"></div>
-              <p className="text-slate-400 font-medium animate-pulse">Loading amazing builds...</p>
+              <p className="text-slate-500 font-medium animate-pulse">Loading amazing builds...</p>
             </div>
           ) : filteredBuilds.length === 0 ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20 bg-[#151A23] rounded-3xl border border-[#1F2633] shadow-sm max-w-2xl mx-auto">
-              <div className="w-24 h-24 bg-[#1F2633] rounded-full flex items-center justify-center mx-auto mb-6">
-                <Cpu size={48} className="text-slate-300" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20 bg-slate-100 rounded-3xl border border-slate-200 shadow-sm max-w-2xl mx-auto">
+              <div className="w-24 h-24 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Cpu size={48} className="text-slate-600" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-3">No Builds Found</h3>
-              <p className="text-slate-400 text-lg">We couldn't find any builds matching your criteria. Try adjusting your filters!</p>
+              <h3 className="text-2xl font-bold text-slate-900 mb-3">No Builds Found</h3>
+              <p className="text-slate-500 text-lg">We couldn't find any builds matching your criteria. Try adjusting your filters!</p>
             </motion.div>
           ) : (
             <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -173,12 +173,12 @@ export const CommunityBuilds: React.FC = () => {
                       exit={{ opacity: 0, scale: 0.9 }}
                       transition={{ duration: 0.3, delay: idx * 0.05 }}
                       key={build.id} 
-                      className="group bg-[#151A23] rounded-3xl border border-[#1F2633] shadow-sm hover:shadow-xl hover:border-violet-500/50 overflow-hidden transition-all flex flex-col h-full"
+                      className="group bg-slate-100 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-violet-500/50 overflow-hidden transition-all flex flex-col h-full"
                     >
-                      <div className="p-6 pb-4 border-b border-[#1F2633] flex-1">
+                      <div className="p-6 pb-4 border-b border-slate-200 flex-1">
                         <div className="flex justify-between items-start mb-4 gap-4">
                           <div>
-                            <h3 className="text-xl font-black text-white line-clamp-2 leading-tight mb-2 group-hover:text-blue-600 transition-colors">
+                            <h3 className="text-xl font-black text-slate-900 line-clamp-2 leading-tight mb-2 group-hover:text-blue-600 transition-colors">
                               {build.name || 'Untitled Masterpiece'}
                             </h3>
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${tier.color}`}>
@@ -186,14 +186,14 @@ export const CommunityBuilds: React.FC = () => {
                             </span>
                           </div>
                           <div className="text-right shrink-0">
-                            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Build</span>
-                            <span className="block bg-[#0B0E14] border border-[#1F2633] text-white px-3 py-1.5 rounded-lg text-sm font-black whitespace-nowrap shadow-sm">
+                            <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Total Build</span>
+                            <span className="block bg-slate-50 border border-slate-200 text-slate-900 px-3 py-1.5 rounded-lg text-sm font-black whitespace-nowrap shadow-sm">
                               BDT {build.totalPrice?.toLocaleString()}
                             </span>
                           </div>
                         </div>
                         
-                        <div className="flex items-center gap-4 text-xs font-medium text-slate-400 mt-4 bg-[#0B0E14] p-2.5 rounded-xl border border-[#1F2633]">
+                        <div className="flex items-center gap-4 text-xs font-medium text-slate-500 mt-4 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                           <span className="flex items-center gap-1.5">
                             <Users size={14} className="text-blue-500" /> {build.author || 'Anonymous Builder'}
                           </span>
@@ -213,7 +213,7 @@ export const CommunityBuilds: React.FC = () => {
                               <div className="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center shrink-0">
                                 <Cpu size={16} className="text-indigo-500" />
                               </div>
-                              <div className="text-sm font-semibold text-white line-clamp-1">{processor}</div>
+                              <div className="text-sm font-semibold text-slate-900 line-clamp-1">{processor}</div>
                             </div>
                           )}
                           {gpu && (
@@ -221,28 +221,28 @@ export const CommunityBuilds: React.FC = () => {
                               <div className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center shrink-0">
                                 <Monitor size={16} className="text-orange-500" />
                               </div>
-                              <div className="text-sm font-semibold text-white line-clamp-1">{gpu}</div>
+                              <div className="text-sm font-semibold text-slate-900 line-clamp-1">{gpu}</div>
                             </div>
                           )}
                         </div>
                         
                         {Object.keys(build.components || {}).length > (processor && gpu ? 2 : 0) && (
-                          <div className="mt-4 pt-4 border-t border-[#1F2633]">
-                            <p className="text-xs text-slate-400 font-medium">
+                          <div className="mt-4 pt-4 border-t border-slate-200">
+                            <p className="text-xs text-slate-500 font-medium">
                               Includes {Object.keys(build.components || {}).length} selected components total (RAM, Motherboard, Storage, etc.)
                             </p>
                           </div>
                         )}
                       </div>
                       
-                      <div className="p-4 bg-[#0B0E14] border-t border-[#1F2633] flex justify-between items-center mt-auto">
+                      <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center mt-auto">
                         <button 
                           onClick={() => handleUpvote(build.id, build.upvotes || 0)}
                           disabled={upvotedBuilds.has(build.id)}
                           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
                             upvotedBuilds.has(build.id)
                             ? 'bg-violet-500/20 text-violet-400'
-                            : 'bg-[#151A23] text-slate-400 border border-[#1F2633] hover:border-violet-500/50 hover:bg-violet-500/10 hover:text-violet-400 shadow-sm'
+                            : 'bg-slate-100 text-slate-500 border border-slate-200 hover:border-violet-500/50 hover:bg-violet-500/10 hover:text-violet-400 shadow-sm'
                           }`}
                         >
                           <Flame size={18} className={upvotedBuilds.has(build.id) ? 'fill-current' : ''} />

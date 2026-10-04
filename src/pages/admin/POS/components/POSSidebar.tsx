@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { User, UserPlus, Trash2, ArrowRight, CheckCircle2, ShoppingCart } from 'lucide-react';
 import { cn, formatCurrency } from '../../../../lib/utils';
 import { Customer, PaymentAccount } from '../../../../types';

@@ -133,9 +133,26 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                       <td className="p-2">
                         <textarea value={item.description || ''} onChange={e => updateItem(idx, 'description', e.target.value)} className="w-full border-gray-300 rounded-md text-sm" rows={1} />
                       </td>
-                      <td className="p-2 text-center">
-                        <input type="number" readOnly title="Quantity cannot be edited to maintain correct inventory logs" value={item.quantity || 1} className="w-full border-gray-200 rounded-md text-sm bg-gray-50 text-center cursor-not-allowed" />
-                      </td>
+                      <td className="p-2">
+                          <div className="flex">
+                            <input type="number" readOnly title="Quantity cannot be edited to maintain correct inventory logs" value={item.quantity || 1} className="w-10 border-gray-200 rounded-l-md text-sm bg-gray-50 text-center cursor-not-allowed px-1" />
+                            <select
+                              value={item.unit || 'pcs'}
+                              onChange={e => updateItem(idx, 'unit', e.target.value)}
+                              className="w-16 border-y border-r border-gray-300 rounded-r-md text-xs bg-white text-gray-700 px-1"
+                            >
+                                  <option value="pcs">pcs</option>
+                                  <option value="nos">nos</option>
+                                  <option value="meter">meter</option>
+                                  <option value="kg">kg</option>
+                                  <option value="gm">gm</option>
+                                  <option value="litre">litre</option>
+                                  <option value="box">box</option>
+                                  <option value="pack">pack</option>
+                                  <option value="chop">chop</option>
+                            </select>
+                          </div>
+                        </td>
                       <td className="p-2">
                         <input type="number" value={item.price || 0} onChange={e => updateItem(idx, 'price', Number(e.target.value))} className="w-full border-gray-300 rounded-md text-sm text-right" />
                       </td>

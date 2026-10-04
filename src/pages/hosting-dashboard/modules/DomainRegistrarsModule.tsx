@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { Modal, StatusBadge, EmptyState, slugify } from '../components/SharedUI';
+import { BtclSettingsCard } from './BtclSettingsCard';
 
 const REGISTRAR_DOC_PATH = ['hosting_config', 'registrar_settings'];
 
@@ -117,6 +118,8 @@ export function DomainRegistrarsModule() {
         <Globe className="text-blue-500" /> Domain Registrars
       </h3>
       <p className="text-sm text-slate-500 mb-6">Configure the registrar APIs used to automatically register, transfer, and renew domains.</p>
+
+      <BtclSettingsCard />
 
       <div className="space-y-6">
         {registrars.map(reg => {

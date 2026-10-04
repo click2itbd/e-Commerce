@@ -1,4 +1,4 @@
-﻿import React, { Suspense, useRef } from 'react';
+import React, { Suspense, useRef } from 'react';
 import { Product } from '../../types';
 import { RefreshCw } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -140,7 +140,7 @@ export const BuildVisualizer: React.FC<BuildVisualizerProps> = ({ selectedCompon
   const componentsToRender = ['casing', 'motherboard', 'cpu', 'cpu-cooler', 'ram', 'graphics-card', 'storage', 'power-supply'];
 
   return (
-    <div className="bg-slate-950 rounded-2xl p-4 overflow-hidden relative border border-slate-800 shadow-inner flex flex-col h-[400px]">
+    <div className="bg-slate-950 rounded-3xl p-4 overflow-hidden relative border border-slate-200 shadow-[0_8px_30px_rgba(15,23,42,0.12)] flex flex-col h-[400px]">
       <div className="flex justify-between items-center mb-2 z-20 absolute top-4 left-4 right-4 pointer-events-none">
         <h4 className="text-white font-bold text-sm drop-shadow-md">Realistic 3D Preview</h4>
         <div className="flex items-center gap-2 text-slate-300 text-xs bg-slate-800/80 px-3 py-1.5 rounded-full backdrop-blur-md pointer-events-auto shadow-lg border border-slate-700">

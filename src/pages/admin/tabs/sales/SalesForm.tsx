@@ -130,6 +130,61 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [showCustomProductModal, setShowCustomProductModal] = useState(false);
 
+  const [heldSales, setHeldSales] = useState<{ id: string; time: string; saleData: any }[]>(() => {
+    try {
+      const saved = localStorage.getItem('sales_form_held');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
+
+  const holdCurrentSale = () => {
+    if (saleData.items.length === 0) {
+      toast.error('Cart is empty!');
+      return;
+    }
+    const newHold = {
+      id: Date.now().toString(),
+      time: new Date().toLocaleTimeString(),
+      saleData,
+    };
+    const updated = [newHold, ...heldSales];
+    setHeldSales(updated);
+    localStorage.setItem('sales_form_held', JSON.stringify(updated));
+    setSaleData({
+      ...saleData,
+      customerId: '',
+      customerName: '',
+      workOrderNumber: '',
+      customerPhone: '',
+      customerEmail: '',
+      shippingAddress: '',
+      items: [],
+      type: 'invoice',
+      paymentMethod: '',
+      paymentAccountId: '',
+      paidAmount: 0,
+      discountAmount: 0,
+    });
+    setSaleDiscountCodeInput('');
+    toast.success('Sale put on hold!');
+  };
+
+  const restoreSale = (id) => {
+    const toRestore = heldSales.find(h => h.id === id);
+    if (toRestore) {
+      if (saleData.items.length > 0) {
+        holdCurrentSale(); // Auto-hold current if non-empty
+      }
+      setSaleData(toRestore.saleData);
+      const updated = heldSales.filter(h => h.id !== id);
+      setHeldSales(updated);
+      localStorage.setItem('sales_form_held', JSON.stringify(updated));
+      toast.success('Sale restored!');
+    }
+  };
+
+
   // Sync customers and fetch accounts
   const loadData = async () => {
     try {
@@ -538,6 +593,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             price: Number(item.price),
             costPrice: 0,
             quantity: Number(item.quantity),
+            unit: item.unit || currentProduct?.unit || 'pcs',
             hasWarranty: false,
             warrantyMonths: 0,
             selectedSerials: [],
@@ -553,20 +609,32 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           price: Number(item.price),
           costPrice: Number(currentProduct?.costPrice) || 0,
           quantity: Number(item.quantity),
+            unit: item.unit || currentProduct?.unit || 'pcs',
           hasWarranty: Boolean(item.hasWarranty),
             warrantyMonths: wMonths,
           selectedSerials: item.selectedSerials || [],
         };
       });
 
+            let previousDue = 0;
+      if (saleData.customerId && transactions) {
+          transactions.forEach(t => {
+              if (t.entityId === saleData.customerId) {
+                  if (t.type === 'sale' || t.type === 'opening_balance') previousDue += Number(t.amount);
+                  else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') previousDue -= Number(t.amount);
+              }
+          });
+      }
+
       const totalCost = processedItems.reduce((acc, i) => acc + (i.costPrice * i.quantity), 0);
       const profit = netTotal - totalCost;
 
-      const paid = saleData.type === 'quotation' ? 0 : Math.min(netTotal, Number(saleData.paidAmount) || 0);
-      const paymentStatus = paid >= netTotal ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
+      const paid = saleData.type === 'quotation' ? 0 : (Number(saleData.paidAmount) || 0);
+      const paymentStatus = paid >= (netTotal + previousDue) ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
       const createdAt = new Date(saleData.date || new Date()).toISOString();
 
       const orderData = {
+        previousDue: previousDue > 0 ? previousDue : 0,
         documentNumber: docNumber,
         type: saleData.type,
         saleSource: saleData.saleSource,
@@ -881,8 +949,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     if (saleData.customerId && transactions) {
                         transactions.forEach(t => {
                             if (t.entityId === saleData.customerId) {
-                                if (t.type === 'sale') due += Number(t.amount);
-                                else if (t.type === 'payment_received' || t.type === 'return') due -= Number(t.amount);
+                                if (t.type === 'sale' || t.type === 'opening_balance') due += Number(t.amount);
+                                  else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') due -= Number(t.amount);
                             }
                         });
                     }
@@ -961,8 +1029,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     const originalProd = products.find(p => p.id === item.id);
                     return (
                       <div key={idx} className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-2">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div className="flex-1 min-w-[280px] break-words">
                             {item.isCustomService ? (
                               <div className="flex flex-col gap-1 w-full mb-1">
                                 <div className="flex items-center gap-2 mb-1">
@@ -981,13 +1049,13 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                                     {!servicePresets.includes(item.name) && <option value="__custom__">{item.name || 'Custom...'}</option>}
                                   </select>
                                 </div>
-                                <input 
-                                  type="text" 
-                                  value={item.name} 
-                                  onChange={e => updateItemName(item.id, e.target.value)}
-                                  placeholder="Or type custom description..."
-                                  className="w-full border border-indigo-100 bg-white rounded py-1 px-2 text-xs text-gray-600 focus:ring-indigo-500 mt-1"
-                                />
+                                <textarea 
+                                    value={item.name} 
+                                    onChange={e => updateItemName(item.id, e.target.value)}
+                                    placeholder="Or type custom description..."
+                                    rows={2}
+                                    className="w-full border border-indigo-200 bg-white rounded py-1.5 px-2 text-xs text-gray-900 focus:ring-indigo-500 mt-1 shadow-sm resize-y"
+                                  />
                                 {editingPresets && (
                                   <div className="mt-2 p-2 bg-indigo-50 rounded-lg border border-indigo-200 space-y-1">
                                     <p className="text-[10px] font-bold text-indigo-600 uppercase">Manage Presets</p>
@@ -1050,7 +1118,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                             )}
                           </div>
 
-                          {/* Editable Sale Price */}
+                          <div className="flex flex-wrap items-center justify-end gap-4 shrink-0">
+{/* Editable Sale Price */}
                           <div className="flex flex-col items-center">
                             <label className="text-[9px] font-bold text-blue-500 uppercase">Sale Price</label>
                             <input
@@ -1063,35 +1132,55 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                           </div>
 
                           {/* Quantity Controls */}
-                          <div className="flex flex-col items-center gap-1">
-                            <label className="text-[9px] font-bold text-gray-500 uppercase">Qty</label>
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => updateItemQty(item.id, item.quantity - 1)}
-                                className="p-1 bg-white border border-gray-200 rounded hover:bg-gray-100"
-                              >
-                                <Minus size={12} />
-                              </button>
-                            <input
-                              type="number"
-                              min={1}
-                              max={originalProd?.stock || 9999}
-                              value={item.quantity}
-                              onChange={e => updateItemQty(item.id, Number(e.target.value))}
-                              className="w-12 text-center border border-gray-200 rounded py-0.5 font-bold"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => updateItemQty(item.id, item.quantity + 1)}
-                              className="p-1 bg-white border border-gray-200 rounded hover:bg-gray-100"
-                            >
-                              <Plus size={12} />
-                            </button>
+                            <div className="flex flex-col items-center gap-1">
+                              <label className="text-[9px] font-bold text-gray-500 uppercase">Qty & Unit</label>
+                              <div className="flex items-stretch">
+                                <button
+                                  type="button"
+                                  onClick={() => updateItemQty(item.id, item.quantity - 1)}
+                                  className="px-1.5 bg-white border border-gray-200 rounded-l hover:bg-gray-100 flex items-center justify-center"
+                                >
+                                  <Minus size={12} />
+                                </button>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={originalProd?.stock || 9999}
+                                  value={item.quantity}
+                                  onChange={e => updateItemQty(item.id, Number(e.target.value))}
+                                  className="w-10 text-center border-y border-x-0 border-gray-200 py-0.5 font-bold text-xs focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => updateItemQty(item.id, item.quantity + 1)}
+                                  className="px-1.5 bg-white border border-gray-200 hover:bg-gray-100 flex items-center justify-center"
+                                >
+                                  <Plus size={12} />
+                                </button>
+                                <select
+                                  value={item.unit || originalProd?.unit || 'pcs'}
+                                  onChange={e => {
+                                    setSaleData(prev => ({
+                                      ...prev,
+                                      items: prev.items.map(i => i.id === item.id ? { ...i, unit: e.target.value } : i)
+                                    }));
+                                  }}
+                                  className="w-16 border-y border-r border-l border-gray-200 rounded-r py-0.5 px-0.5 text-[10px] font-bold bg-gray-50 text-gray-700 outline-none cursor-pointer"
+                                >
+                                  <option value="pcs">pcs</option>
+                                  <option value="nos">nos</option>
+                                  <option value="meter">meter</option>
+                                  <option value="kg">kg</option>
+                                  <option value="gm">gm</option>
+                                  <option value="litre">litre</option>
+                                  <option value="box">box</option>
+                                  <option value="pack">pack</option>
+                                  <option value="chop">chop</option>
+                                </select>
+                              </div>
                             </div>
-                          </div>
 
-                          {/* Item Total */}
+                            {/* Item Total */}
                           <div className="text-right min-w-20">
                             <span className="font-black text-gray-900 text-sm block">
                               {formatCurrency(item.price * item.quantity, settings)}
@@ -1109,6 +1198,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                           >
                             <Trash2 size={14} />
                           </button>
+</div>
                         </div>
 
                         {/* Serial Numbers (if applicable) */}
@@ -1276,12 +1366,27 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   </div>
 
                   {/* Due preview */}
-                  {netTotal > (saleData.paidAmount || 0) && (
-                    <div className="flex justify-between items-center text-xs font-bold text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                      <span>Customer Due Balance:</span>
-                      <span>{formatCurrency(netTotal - (saleData.paidAmount || 0), settings)}</span>
-                    </div>
-                  )}
+                    {(() => {
+                        let prevDue = 0;
+                        if (saleData.customerId && transactions) {
+                            transactions.forEach(t => {
+                                if (t.entityId === saleData.customerId) {
+                                    if (t.type === 'sale' || t.type === 'opening_balance') prevDue += Number(t.amount);
+                                    else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') prevDue -= Number(t.amount);
+                                }
+                            });
+                        }
+                        const totalDueNow = netTotal + (prevDue > 0 ? prevDue : 0) - (Number(saleData.paidAmount) || 0);
+                        if (totalDueNow > 0) {
+                            return (
+                              <div className="flex justify-between items-center text-xs font-bold text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                                <span>Remaining Due Balance:</span>
+                                <span>{formatCurrency(totalDueNow, settings)}</span>
+                              </div>
+                            );
+                        }
+                        return null;
+                    })()}
                 </div>
               )}
             </div>
@@ -1299,20 +1404,63 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 </div>
               )}
               <div className="flex justify-between text-base font-black text-gray-900 pt-2 border-t border-gray-200">
-                <span>Net Total Payable</span>
-                <span className="text-xl text-[#EF4444]">{formatCurrency(netTotal, settings)}</span>
-              </div>
+                  <span>Current Bill Total</span>
+                  <span className="text-xl text-gray-800">{formatCurrency(netTotal, settings)}</span>
+                </div>
+                {(() => {
+                  let prevDue = 0;
+                  if (saleData.customerId && transactions) {
+                      transactions.forEach(t => {
+                          if (t.entityId === saleData.customerId) {
+                              if (t.type === 'sale' || t.type === 'opening_balance') prevDue += Number(t.amount);
+                              else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') prevDue -= Number(t.amount);
+                          }
+                      });
+                  }
+                  if (prevDue > 0) {
+                      return (
+                        <>
+                          <div className="flex justify-between text-red-500 font-bold pt-1">
+                            <span>Previous Due</span>
+                            <span>+ {formatCurrency(prevDue, settings)}</span>
+                          </div>
+                          <div className="flex justify-between text-xl font-black text-gray-900 pt-2 border-t border-gray-300">
+                            <span>Grand Total Payable</span>
+                            <span className="text-2xl text-[#EF4444]">{formatCurrency(netTotal + prevDue, settings)}</span>
+                          </div>
+                        </>
+                      );
+                  } else {
+                      return (
+                          <div className="flex justify-between text-xl font-black text-gray-900 pt-2 border-t border-transparent hidden">
+                            <span>Grand Total Payable</span>
+                            <span className="text-2xl text-[#EF4444]">{formatCurrency(netTotal, settings)}</span>
+                          </div>
+                      );
+                  }
+                })()}
             </div>
 
-            {/* Submit Button */}
-            <button
+            {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={holdCurrentSale}
+                  disabled={saleData.items.length === 0}
+                  className="w-full bg-amber-100 hover:bg-amber-200 text-amber-900 disabled:opacity-50 py-3.5 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2 border border-amber-300"
+                >
+                  <Plus size={18} />
+                  Hold Sale
+                </button>
+                <button
               type="submit"
               disabled={submitting || saleData.items.length === 0 || !saleData.customerId}
               className="w-full bg-[#081621] hover:bg-[#EF4444] disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm transition-all shadow-md flex items-center justify-center gap-2"
             >
               <CheckCircle size={18} />
               {submitting ? 'Generating Document...' : `Confirm & Save ${saleData.type.toUpperCase()}`}
-            </button>
+                </button>
+              </div>
           </form>
         </div>
       </div>
@@ -1320,6 +1468,29 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       {/* --- RIGHT: PRODUCT CATALOG & QUICK SELECT (5 COLS) --- */}
       <div className="lg:col-span-5 space-y-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 space-y-4">
+            {heldSales.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                <h4 className="text-xs font-bold text-amber-800 uppercase mb-2 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  Held Sales ({heldSales.length})
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {heldSales.map(hold => (
+                    <button
+                      key={hold.id}
+                      type="button"
+                      onClick={() => restoreSale(hold.id)}
+                      className="bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+                    >
+                      {hold.saleData.customerName || 'Walk-in'} � {hold.time}
+                      <span className="bg-amber-200 text-amber-800 px-1.5 rounded-md text-[10px]">
+                        {hold.saleData.items.length} items
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-sm text-gray-900 uppercase tracking-wider">Product Catalog</h3>
             <span className="text-xs text-gray-500">{filteredProducts.length} Items</span>

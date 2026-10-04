@@ -2,6 +2,7 @@ import { getAdminDb, getAdminDocument, isUserAdmin } from '../firebase/admin.js'
 import { sendEmail } from './email.js';
 import { getDomainProvider, getHostingProvider } from '../providers/providerFactory.js';
 import { getDomainPricingSettings } from './domainPricing.js';
+import { resolveDomainProvider } from './btclConfig.js';
 import { ProviderError } from '../providers/domain/DynadotDomainProvider.js';
 import { classifyHostingError } from './hosting.js';
 import { config } from '../config/index.js';
@@ -204,7 +205,7 @@ async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorU
   }
 
   const config = await getDomainConfig();
-  const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+  const { provider } = await resolveDomainProvider(domainData.domain, { domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
 
   let result: any;
   let action: 'register' | 'renew' | 'transfer' = 'register';

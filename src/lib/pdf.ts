@@ -516,13 +516,46 @@ export const generatePDF = async (
         finalY += 7;
       }
 
-      doc.setFont("helvetica", "bold");
-      doc.text("Total TK.", pageWidth - 60, finalY);
-      doc.text(Number(o.total).toFixed(2), alignRightX, finalY, {
-        align: "right",
-      });
+      const prevDue = Number(o.previousDue || 0);
+        if (prevDue > 0) {
+          doc.setFont("helvetica", "bold");
+          doc.text("Current Bill:", pageWidth - 60, finalY);
+          doc.text(Number(o.total).toFixed(2), alignRightX, finalY, { align: "right" });
+          finalY += 7;
 
-      finalY += 12;
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(220, 38, 38);
+          doc.text("Previous Due:", pageWidth - 60, finalY);
+          doc.text(prevDue.toFixed(2), alignRightX, finalY, { align: "right" });
+          doc.setTextColor(15, 23, 42);
+          finalY += 7;
+
+          doc.setFont("helvetica", "bold");
+          doc.text("Grand Total:", pageWidth - 60, finalY);
+          doc.text((Number(o.total) + prevDue).toFixed(2), alignRightX, finalY, { align: "right" });
+          finalY += 7;
+        } else {
+          doc.setFont("helvetica", "bold");
+          doc.text("Total TK.", pageWidth - 60, finalY);
+          doc.text(Number(o.total).toFixed(2), alignRightX, finalY, { align: "right" });
+          finalY += 7;
+        }
+
+        if (Number(o.paidAmount) > 0 || prevDue > 0) {
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(22, 163, 74);
+          doc.text("Paid Amount:", pageWidth - 60, finalY);
+          doc.text(Number(o.paidAmount || 0).toFixed(2), alignRightX, finalY, { align: "right" });
+          doc.setTextColor(15, 23, 42);
+          finalY += 7;
+
+          const remainingDue = (Number(o.total) + prevDue) - Number(o.paidAmount || 0);
+          doc.setFont("helvetica", "bold");
+          doc.text("Remaining Due:", pageWidth - 60, finalY);
+          doc.text(Math.max(0, remainingDue).toFixed(2), alignRightX, finalY, { align: "right" });
+        }
+        
+        finalY += 12;
 
       // Amount in words Box
       doc.setFillColor(248, 250, 252);

@@ -60,7 +60,13 @@ export default function ProfitLoss() {
     let cogs = 0;
     let totalExpenses = 0;
 
+    const billedServiceIds = new Set();
     orders.forEach(order => {
+      order.items?.forEach(item => {
+        if (item.id && String(item.id).startsWith('svc-')) {
+          billedServiceIds.add(String(item.id).replace('svc-', ''));
+        }
+      });
       const orderDate = new Date(order.createdAt);
       if (orderDate >= start && orderDate <= end) {
         if (order.status !== 'cancelled' && order.status !== 'returned') {
@@ -75,7 +81,8 @@ export default function ProfitLoss() {
     });
 
     services.forEach(service => {
-      const serviceDate = new Date(service.receivedAt);
+      if (billedServiceIds.has(String(service.id))) return;
+      const serviceDate = service.receivedAt || service.createdAt ? new Date(service.receivedAt || service.createdAt) : new Date(0);
       if (serviceDate >= start && serviceDate <= end) {
         totalRevenue += (service.serviceCharge || 0);
       }

@@ -1,12 +1,14 @@
 import { IDomainProvider } from './domain/IDomainProvider.js';
 import { IHostingProvider } from './hosting/IHostingProvider.js';
 import { DynadotDomainProvider } from './domain/DynadotDomainProvider.js';
+import { OpenproviderDomainProvider } from './domain/OpenproviderDomainProvider.js';
 import { CpanelHostingProvider } from './hosting/CpanelHostingProvider.js';
 import { ResellerClubHostingProvider } from './hosting/ResellerClubHostingProvider.js';
 
-export function getDomainProvider(config?: { domainApiType?: string; domainApiKey?: string }): IDomainProvider {
-  const domainApiKey = config?.domainApiKey || process.env.DYNADOT_API_KEY || '';
-  const domainApiType = config?.domainApiType || (domainApiKey ? 'dynadot' : 'dummy');
+export function getDomainProvider(config?: { domainApiType?: string; domainApiKey?: string; openproviderPassword?: string }): IDomainProvider {
+  const domainApiKey = config?.domainApiKey || process.env.DYNADOT_API_KEY || process.env.OPENPROVIDER_USERNAME || '';
+  const openproviderPassword = config?.openproviderPassword || process.env.OPENPROVIDER_PASSWORD || '';
+  const domainApiType = config?.domainApiType || (process.env.OPENPROVIDER_USERNAME ? 'openprovider' : (domainApiKey ? 'dynadot' : 'dummy'));
 
   if (domainApiType === 'dummy' || !domainApiType) {
     return {
@@ -23,13 +25,25 @@ export function getDomainProvider(config?: { domainApiType?: string; domainApiKe
       if (!domainApiKey) {
         return {
           checkAvailability: async () => { throw new Error('Dynadot API key not configured. Set DYNADOT_API_KEY in backend/.env'); },
-          getSuggestions: async () => { throw new Error('Dynadot API key not configured. Set DYNADOT_API_KEY in backend/.env'); },
-          registerDomain: async () => ({ success: false, domain: '', error: 'Dynadot API key not configured. Set DYNADOT_API_KEY in backend/.env' }),
-          renewDomain: async () => ({ success: false, domain: '', error: 'Dynadot API key not configured. Set DYNADOT_API_KEY in backend/.env' }),
-          getWhois: async () => ({ domain: '', error: 'Dynadot API key not configured. Set DYNADOT_API_KEY in backend/.env' })
+          getSuggestions: async () => { throw new Error('Dynadot API key not configured.'); },
+          registerDomain: async () => ({ success: false, domain: '', error: 'Dynadot API key not configured.' }),
+          renewDomain: async () => ({ success: false, domain: '', error: 'Dynadot API key not configured.' }),
+          getWhois: async () => ({ domain: '', error: 'Dynadot API key not configured.' })
         };
       }
       return new DynadotDomainProvider(domainApiKey);
+    case 'openprovider':
+      if (!domainApiKey || !openproviderPassword) {
+         return {
+          checkAvailability: async () => { throw new Error('Openprovider credentials not configured.'); },
+          getSuggestions: async () => { throw new Error('Openprovider credentials not configured.'); },
+          registerDomain: async () => ({ success: false, domain: '', error: 'Openprovider credentials not configured.' }),
+          renewDomain: async () => ({ success: false, domain: '', error: 'Openprovider credentials not configured.' }),
+          getWhois: async () => ({ domain: '', error: 'Openprovider credentials not configured.' })
+        };
+      }
+      // true = isSandbox
+      return new OpenproviderDomainProvider(domainApiKey, openproviderPassword, true);
     default:
       return {
         checkAvailability: async () => { throw new Error(`Unsupported domain provider: ${domainApiType}`); },

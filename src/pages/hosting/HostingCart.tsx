@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
@@ -168,9 +168,9 @@ export const HostingCart: React.FC = () => {
                             >
                               <option value={1}>1 Year (Regular)</option>
                               <option value={2}>2 Years (Save 5%)</option>
-                              <option value={3}>3 Years (Save 10%) ðŸ”¥</option>
+                              <option value={3}>3 Years (Save 10%) 🔥</option>
                               <option value={4}>4 Years (Save 12%)</option>
-                              <option value={5}>5 Years (Save 15%) â­</option>
+                              <option value={5}>5 Years (Save 15%) ⭐</option>
                             </select>
                           </div>
                         )}
@@ -186,10 +186,10 @@ export const HostingCart: React.FC = () => {
                               className="text-xs font-bold bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-2.5 py-1 outline-none cursor-pointer hover:border-blue-400"
                             >
                               <option value="monthly">1 Month</option>
-                              <option value="1">1 Year (Save 20%) ðŸ”¥</option>
+                              <option value="1">1 Year (Save 20%) 🔥</option>
                               <option value="2">2 Years (Save 25%)</option>
-                              <option value="3">3 Years (Save 30%) â­</option>
-                              <option value="5">5 Years (Save 35%) ðŸš€</option>
+                              <option value="3">3 Years (Save 30%) ⭐</option>
+                              <option value="5">5 Years (Save 35%) 🚀</option>
                             </select>
                           </div>
                         )}

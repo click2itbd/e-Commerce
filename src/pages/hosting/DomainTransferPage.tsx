@@ -6,7 +6,7 @@ import { PageHeader } from '../../components/hosting/PageHeader';
 import { SEO } from '../../components/SEO';
 import { ArrowRight, Lock, Unlock, Key, RefreshCw, Shield, HelpCircle, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { checkTransferEligibility, getTldPricing } from '../../services/dynadotApi';
+import { checkTransferEligibility, getTldPricing } from '../../services/domainApi';
 import { getDomainPricing } from '../../services/hostingApi';
 
 const DomainTransferPage = () => {

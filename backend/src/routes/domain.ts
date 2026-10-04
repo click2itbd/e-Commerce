@@ -6,6 +6,8 @@ import { sendEmail } from '../services/email';
 import { getAdminDocument, isUserAdmin } from '../firebase/admin';
 import { getDomainPricingSettings, calculateCustomerPriceBdt } from '../services/domainPricing';
 import { ProviderError } from '../providers/domain/DynadotDomainProvider';
+import { BtclDomainProvider, isBdDomain } from '../providers/domain/BtclDomainProvider';
+import { resolveDomainProvider, getBtclConfig, saveBtclConfig, maskBtclConfig } from '../services/btclConfig';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth';
 import { config } from '../config';
 
@@ -925,10 +927,15 @@ domainRouter.post('/manage', requireFirebaseAuth, async (req: any, res: Response
     }
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const { provider, viaBtcl } = await resolveDomainProvider(domain, { domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+
+    if (isBdDomain(domain) && !viaBtcl) {
+      // No BTCL API configured -> client should fall back to the manual admin approval queue
+      return res.json({ success: false, manualRequired: true, error: 'BTCL API is not enabled. Request queued for manual update.' });
+    }
     
     if (command === 'set_ns') {
-      const result = await (provider as any).setNameservers(domain, extraParams?.ns0, extraParams?.ns1);
+      const result = await (provider as any).setNameservers(domain, extraParams?.ns0, extraParams?.ns1, extraParams?.ns2, extraParams?.ns3);
       if (result.success) {
         // Update Firestore
         try {
@@ -938,8 +945,8 @@ domainRouter.post('/manage', requireFirebaseAuth, async (req: any, res: Response
           
           if (!snap.empty) {
             const doc = snap.docs[0];
-            const newNs = [extraParams?.ns0, extraParams?.ns1].filter(Boolean);
-            await doc.ref.update({ nameServers: newNs, updatedAt: new Date() });
+            const newNs = [extraParams?.ns0, extraParams?.ns1, extraParams?.ns2, extraParams?.ns3].filter(Boolean);
+            await doc.ref.update({ nameServers: newNs, nameservers: newNs, updatedAt: new Date() });
           }
         } catch (dbErr) {
           console.error('Failed to update Firestore after set_ns:', dbErr);
@@ -957,6 +964,56 @@ domainRouter.post('/manage', requireFirebaseAuth, async (req: any, res: Response
   } catch (error: any) {
     console.error('Domain manage error:', error);
     return res.status(500).json({ success: false, error: error?.message || 'Internal server error' });
+  }
+});
+
+async function requireAdmin(req: any, res: Response): Promise<boolean> {
+  const ok = await isUserAdmin(req.user?.uid).catch(() => false);
+  if (!ok) {
+    res.status(403).json({ success: false, error: 'Admin access required' });
+    return false;
+  }
+  return true;
+}
+
+domainRouter.get('/btcl/settings', requireFirebaseAuth, async (req: any, res: Response) => {
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    return res.json({ success: true, data: maskBtclConfig(await getBtclConfig()) });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error?.message || 'Failed to load BTCL settings' });
+  }
+});
+
+domainRouter.post('/btcl/settings', requireFirebaseAuth, async (req: any, res: Response) => {
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const b = req.body || {};
+    await saveBtclConfig({
+      enabled: !!b.enabled,
+      baseUrl: String(b.baseUrl || '').trim(),
+      authType: ['bearer', 'basic', 'header'].includes(b.authType) ? b.authType : 'bearer',
+      apiKey: b.apiKey ? String(b.apiKey) : undefined,
+      username: b.username != null ? String(b.username) : undefined,
+      password: b.password ? String(b.password) : undefined,
+      apiKeyHeader: b.apiKeyHeader ? String(b.apiKeyHeader) : undefined,
+      endpoints: b.endpoints || undefined,
+    });
+    return res.json({ success: true, data: maskBtclConfig(await getBtclConfig()) });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error?.message || 'Failed to save BTCL settings' });
+  }
+});
+
+domainRouter.post('/btcl/test', requireFirebaseAuth, async (req: any, res: Response) => {
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const cfg = await getBtclConfig();
+    if (!cfg.baseUrl) return res.json({ success: false, message: 'BTCL base URL is not configured' });
+    const result = await new BtclDomainProvider(cfg).testConnection();
+    return res.json(result);
+  } catch (error: any) {
+    return res.json({ success: false, message: error?.message || 'BTCL test failed' });
   }
 });
 

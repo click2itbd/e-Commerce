@@ -1,5 +1,5 @@
 import React from 'react';
-import { RotateCcw, Sparkles, ClipboardList } from 'lucide-react';
+import { RotateCcw, Sparkles, ClipboardList, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface BuilderHeaderProps {
@@ -8,62 +8,63 @@ interface BuilderHeaderProps {
 
 export const BuilderHeader: React.FC<BuilderHeaderProps> = ({ onReset }) => {
   return (
-    
-    <div className="relative rounded-3xl overflow-hidden shadow-2xl mb-10 border border-slate-800">
-      {/* Hero Background Image */}
-      <div className="absolute inset-0">
-        <img 
-          src="https://images.unsplash.com/photo-1587202372634-32705e3bf49c?q=80&w=2070&auto=format&fit=crop" 
-          alt="PC Build Setup" 
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-900/90 to-transparent"></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent"></div>
-      </div>
+    <div className="relative rounded-[2rem] overflow-hidden mb-8 bg-gradient-to-br from-violet-50 via-white to-cyan-50 border border-slate-200/80 shadow-[0_8px_40px_rgba(15,23,42,0.06)]">
+      {/* Soft decorative blobs */}
+      <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-violet-200/40 blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 left-1/3 w-72 h-72 rounded-full bg-cyan-200/40 blur-3xl pointer-events-none" />
 
-      <div className="relative p-8 md:p-12 lg:p-16 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 z-10">
-        <div className="max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 text-sm font-bold mb-6 backdrop-blur-md">
-            <Sparkles size={14} /> Next-Gen PC Builder
+      <div className="relative grid md:grid-cols-5 items-center gap-8 p-8 md:p-12">
+        <div className="md:col-span-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white text-violet-600 border border-violet-100 text-xs font-bold mb-5 shadow-sm">
+            <Sparkles size={13} /> Smart PC Builder
           </div>
-          <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white mb-4 drop-shadow-lg">
-            Build Your Ultimate <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-cyan-400">Dream Rig</span>
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-4 leading-[1.1]">
+            Build your perfect PC,{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-cyan-600">step by step</span>
           </h1>
-          <p className="text-lg text-slate-300 font-medium max-w-xl">
-            Select your components with our smart compatibility engine. From budget setups to extreme gaming battlestations.
+          <p className="text-base text-slate-500 max-w-lg mb-7">
+            Pick each part one at a time. Our compatibility engine hides anything that won't fit, so every build just works.
           </p>
-        </div>
-        
-        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 shrink-0">
-          <button 
-            onClick={() => document.dispatchEvent(new CustomEvent('open-ai-assistant'))}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold bg-violet-600 text-white hover:bg-violet-500 rounded-xl transition-all shadow-lg shadow-violet-500/20"
-          >
-            <Sparkles size={18} />
-            Build for Me (AI)
-          </button>
-          <button 
-            onClick={() => document.dispatchEvent(new CustomEvent('open-custom-build'))}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold bg-slate-900/80 text-white hover:bg-slate-800 border border-slate-700 rounded-xl transition-all backdrop-blur-md"
-          >
-            <ClipboardList size={18} />
-            Request Custom Build
-          </button>
-          <div className="flex gap-4 w-full sm:w-auto mt-2 sm:mt-0">
-            <Link to="/pc-build/community-builds" className="flex-1 flex justify-center items-center gap-2 px-6 py-3.5 text-sm font-bold bg-slate-900/80 text-white hover:bg-slate-800 border border-slate-700 rounded-xl transition-all backdrop-blur-md">
-              Community
-            </Link>
-            <button 
-              onClick={onReset}
-              className="flex items-center justify-center p-3.5 text-slate-400 hover:text-white hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 rounded-xl transition-all"
-              title="Start Over"
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => document.dispatchEvent(new CustomEvent('open-ai-assistant'))}
+              className="flex items-center gap-2 px-5 py-3 text-sm font-bold bg-slate-900 text-white hover:bg-violet-600 rounded-2xl transition-colors shadow-lg shadow-slate-900/10"
             >
-              <RotateCcw size={20} />
+              <Sparkles size={16} /> Build for me (AI)
             </button>
+            <button
+              onClick={() => document.dispatchEvent(new CustomEvent('open-custom-build'))}
+              className="flex items-center gap-2 px-5 py-3 text-sm font-bold bg-white text-slate-800 hover:bg-slate-50 border border-slate-200 rounded-2xl transition-colors"
+            >
+              <ClipboardList size={16} /> Request custom build
+            </button>
+            <Link
+              to="/pc-build/community-builds"
+              className="flex items-center gap-2 px-5 py-3 text-sm font-bold bg-white text-slate-800 hover:bg-slate-50 border border-slate-200 rounded-2xl transition-colors"
+            >
+              <Users size={16} /> Community
+            </Link>
+            <button
+              onClick={onReset}
+              title="Start over"
+              className="h-11 w-11 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-colors"
+            >
+              <RotateCcw size={18} />
+            </button>
+          </div>
+        </div>
+
+        <div className="hidden md:block md:col-span-2">
+          <div className="relative rounded-3xl overflow-hidden shadow-2xl shadow-violet-500/10 border-4 border-white rotate-2">
+            <img
+              src="https://images.unsplash.com/photo-1587202372634-32705e3bf49c?q=80&w=1200&auto=format&fit=crop"
+              alt="PC Build Setup"
+              className="w-full h-64 object-cover"
+            />
           </div>
         </div>
       </div>
     </div>
-
   );
 };

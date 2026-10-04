@@ -86,26 +86,26 @@ export const SmartBuilderTemplates: React.FC<SmartBuilderTemplatesProps> = ({ pr
   };
 
   return (
-    <div className="bg-[#151A23] rounded-2xl border border-[#1F2633] p-6 mb-10 shadow-lg">
+    <div className="bg-slate-100 rounded-2xl border border-slate-200 p-6 mb-10 shadow-lg">
       <div className="flex items-center gap-2 mb-6">
         <div className="bg-violet-600 p-1.5 rounded-lg">
-          <Zap className="text-white" size={18} fill="currentColor" />
+          <Zap className="text-slate-900" size={18} fill="currentColor" />
         </div>
-        <h2 className="text-xl font-bold text-white">Smart Build Generator</h2>
+        <h2 className="text-xl font-bold text-slate-900">Smart Build Generator</h2>
       </div>
 
       <div className="flex flex-col lg:flex-row items-start lg:items-center gap-8">
         
         {/* Budget Input & Slider */}
         <div className="w-full lg:w-1/3 flex flex-col gap-3">
-          <label className="text-sm font-semibold text-slate-400">Target Budget (BDT)</label>
+          <label className="text-sm font-semibold text-slate-500">Target Budget (BDT)</label>
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">BDT</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">BDT</span>
             <input 
               type="text" 
               value={budget.toLocaleString()} 
               onChange={handleBudgetChange}
-              className="w-full bg-[#0B0E14] border border-[#1F2633] rounded-xl py-3 pl-14 pr-4 text-white font-bold focus:outline-none focus:border-violet-500 transition-colors"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-14 pr-4 text-slate-900 font-bold focus:outline-none focus:border-violet-500 transition-colors"
             />
           </div>
           <input 
@@ -115,7 +115,7 @@ export const SmartBuilderTemplates: React.FC<SmartBuilderTemplatesProps> = ({ pr
             step="5000"
             value={budget}
             onChange={(e) => setBudget(Number(e.target.value))}
-            className="w-full h-2 bg-[#1F2633] rounded-full appearance-none cursor-pointer accent-violet-500"
+            className="w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-violet-500"
           />
           <div className="flex justify-between text-xs text-slate-500 font-medium">
             <span>20K</span>
@@ -125,7 +125,7 @@ export const SmartBuilderTemplates: React.FC<SmartBuilderTemplatesProps> = ({ pr
 
         {/* Use Case Selection */}
         <div className="w-full lg:w-[45%] flex flex-col gap-3">
-          <label className="text-sm font-semibold text-slate-400">Primary Use Case</label>
+          <label className="text-sm font-semibold text-slate-500">Primary Use Case</label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {templates.map(t => {
               const Icon = t.icon;
@@ -137,7 +137,7 @@ export const SmartBuilderTemplates: React.FC<SmartBuilderTemplatesProps> = ({ pr
                   className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-200 ${
                     isActive 
                       ? 'border-violet-500 bg-violet-500/10 text-violet-400' 
-                      : 'border-[#1F2633] bg-[#0B0E14] text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                      : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-600 hover:text-slate-700'
                   }`}
                 >
                   <Icon size={20} className="mb-2" />

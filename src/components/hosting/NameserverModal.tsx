@@ -46,6 +46,38 @@ export const NameserverModal: React.FC<NameserverModalProps> = ({ domain, onClos
     setSaving(true);
     try {
       if (domain.domain.endsWith('.bd')) {
+        // Try the BTCL API first (backend decides if it's enabled)
+        let apiHandled = false;
+        try {
+          const btclRes: any = await apiPost('/api/domains/manage', {
+            command: 'set_ns',
+            domain: domain.domain,
+            extraParams: { 
+              ns0: activeNs[0], 
+              ns1: activeNs[1],
+              ns2: activeNs[2] || '',
+              ns3: activeNs[3] || ''
+            }
+          });
+          if (btclRes?.success) {
+            apiHandled = true;
+          }
+        } catch (apiErr) {
+          console.warn('BTCL API nameserver update unavailable, falling back to manual queue:', apiErr);
+        }
+
+        if (apiHandled) {
+          await updateDoc(doc(db, 'domainOrders', domain.id), {
+            nameServers: activeNs,
+            nameservers: activeNs,
+            nsUpdatePending: false
+          });
+          toast.success('Nameservers updated successfully at BTCL!');
+          onUpdate();
+          onClose();
+          return;
+        }
+
         await addDoc(collection(db, 'nameserver_requests'), {
           domainId: domain.id,
           domainName: domain.domain,
@@ -63,13 +95,15 @@ export const NameserverModal: React.FC<NameserverModalProps> = ({ domain, onClos
         return;
       }
 
-      // 1. Call Backend to update Dynadot
-      const res = await apiPost('/api/domains/manage', {
+      // 1. Call Backend to update registrar
+      const res: any = await apiPost('/api/domains/manage', {
         command: 'set_ns',
         domain: domain.domain,
         extraParams: {
           ns0: activeNs[0],
-          ns1: activeNs[1]
+          ns1: activeNs[1],
+          ns2: activeNs[2] || '',
+          ns3: activeNs[3] || ''
         }
       });
 

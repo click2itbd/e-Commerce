@@ -7,7 +7,7 @@ import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { Search, RefreshCw, CheckCircle, XCircle, Loader2, Shield, Clock, ArrowRight, Mail, Phone, User, CreditCard, Landmark, Wallet, HelpCircle } from 'lucide-react';
-import { getDomainRenewalPrice, DomainRenewalPriceResponse } from '../../services/dynadotApi';
+import { getDomainRenewalPrice, DomainRenewalPriceResponse } from '../../services/domainApi';
 import { getDomainPricing } from '../../services/hostingApi';
 
 const DomainRenewal = () => {
@@ -120,7 +120,7 @@ const DomainRenewal = () => {
     setIsSubmitting(true);
 
     try {
-      const { createDomainRenewalOrder } = await import('../../services/dynadotApi');
+      const { createDomainRenewalOrder } = await import('../../services/domainApi');
       
       const result = await createDomainRenewalOrder({
         domain: renewalData.domain,

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { X, CheckCircle } from 'lucide-react';
@@ -185,33 +185,7 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Category</label>
-              <select
-                value={formData.categoryId}
-                onChange={e => setFormData({ ...formData, categoryId: e.target.value, subCategory: '' })}
-                className="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white"
-              >
-                <option value="">Select Category</option>
-                {menus.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Sub-Category</label>
-              <select
-                value={formData.subCategory}
-                onChange={e => setFormData({ ...formData, subCategory: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white"
-                disabled={!formData.categoryId || availableSubCategories.length === 0}
-              >
-                <option value="">Select Sub-Category</option>
-                {availableSubCategories.map(sub => (
-                  <option key={sub.slug} value={sub.name}>{sub.name}</option>
-                ))}
-              </select>
-            </div>
+            
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Brand</label>
               <input

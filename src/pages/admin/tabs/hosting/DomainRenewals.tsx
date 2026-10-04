@@ -4,7 +4,7 @@ import { collection, query, orderBy, getDocs, updateDoc, doc, where } from 'fire
 import { toast } from 'react-hot-toast';
 import { Loader2, Mail, Phone, Clock, CheckCircle, XCircle, Eye, RefreshCw, X } from 'lucide-react';
 import { formatCurrency, cn } from '../../../../lib/utils';
-import { getDomainRenewalPriceBreakdown } from '../../../../services/dynadotApi';
+import { getDomainRenewalPriceBreakdown } from '../../../../services/domainApi';
 import { Pagination } from '../../../../components/common/Pagination';
 
 interface DomainRenewal {

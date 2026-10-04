@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { MyServicesTab } from '../components/MyServicesTab';
 import { CustomerTicketsTab } from '../components/CustomerTicketsTab';
+import { SavedBuildsTab } from '../components/SavedBuildsTab';
 import { useAuth } from '../context/AuthContext';
 import { db, storage, auth } from '../firebase';
 import { updateProfile, sendPasswordResetEmail } from 'firebase/auth';
@@ -348,12 +349,14 @@ export const Profile: React.FC = () => {
                      const isHostingContext = ctx === 'hosting';
                      
                      const baseTabs = [
+    { id: 'saved-builds', label: 'Saved PC Builds', icon: Save },
                        { id: 'dashboard', label: 'Dashboard', icon: Globe },
                        { id: 'profile', label: 'My Profile', icon: User },
                        { id: 'orders', label: 'My Orders', icon: ShoppingBag },
                      ];
                      if (!isHostingContext) {
                         baseTabs.push({ id: 'pre-orders', label: 'My Pre-Orders', icon: CalendarPlus });
+    // 'saved-builds' is in baseTabs already
                         baseTabs.push({ id: 'wishlist', label: 'My Wishlist', icon: Heart });
                      }
                      const hostingTabs = [

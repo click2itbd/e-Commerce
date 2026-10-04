@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, getDocs, limit, where } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { Loader2, Search, Medal, User } from 'lucide-react';
@@ -97,7 +97,7 @@ export const LoyaltyPointsReport: React.FC = () => {
                     </span>
                   </td>
                   <td className="p-4 text-right font-black text-slate-800">
-                    ৳ {Math.floor(c.loyaltyPoints / 100) * 40}
+                    ? {Math.floor(c.loyaltyPoints / 100) * 40}
                   </td>
                 </tr>
               ))

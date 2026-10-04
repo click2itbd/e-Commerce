@@ -312,33 +312,50 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Base Stock</label>
-                          <input
-                            type="number"
-                            required
-                            value={formData.stock}
-                            onChange={e => {
-                              const newStock = Math.max(0, parseInt(e.target.value) || 0);
-                              if (formData.hasSerialTracking && !editingProduct) {
-                                const currentSerials = formData.availableSerials || [];
-                                let newSerials = [...currentSerials];
-                                if (newStock > currentSerials.length) {
-                                  const diff = newStock - currentSerials.length;
-                                  const prefix = Date.now().toString(36).toUpperCase().slice(-4);
-                                  for(let i=0; i<diff; i++) {
-                                    const seq = String(currentSerials.length + i + 1).padStart(3, '0');
-                                    newSerials.push(`SN-${prefix}-${seq}`);
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Base Stock & Unit</label>
+                            <div className="flex">
+                              <input
+                                type="number"
+                                required
+                                value={formData.stock}
+                                onChange={e => {
+                                  const newStock = Math.max(0, parseInt(e.target.value) || 0);
+                                  if (formData.hasSerialTracking && !editingProduct) {
+                                    const currentSerials = formData.availableSerials || [];
+                                    let newSerials = [...currentSerials];
+                                    if (newStock > currentSerials.length) {
+                                      const diff = newStock - currentSerials.length;
+                                      const prefix = Date.now().toString(36).toUpperCase().slice(-4);
+                                      for(let i=0; i<diff; i++) {
+                                        const seq = String(currentSerials.length + i + 1).padStart(3, '0');
+                                        newSerials.push(`SN-${prefix}-${seq}`);
+                                      }
+                                    } else if (newStock < currentSerials.length) {
+                                      newSerials = newSerials.slice(0, newStock);
+                                    }
+                                    setFormData({ ...formData, stock: newStock, availableSerials: newSerials });
+                                  } else {
+                                    setFormData({ ...formData, stock: newStock });
                                   }
-                                } else if (newStock < currentSerials.length) {
-                                  newSerials = newSerials.slice(0, newStock);
-                                }
-                                setFormData({ ...formData, stock: newStock, availableSerials: newSerials });
-                              } else {
-                                setFormData({ ...formData, stock: newStock });
-                              }
-                            }}
-                            className={`w-full font-black text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-slate-800`}
-                          />
+                                }}
+                                className={`w-full font-black text-sm border-slate-300 rounded-l-lg focus:ring-blue-500 focus:border-blue-500 text-slate-800`}
+                              />
+                              <select
+                                value={formData.unit || 'pcs'}
+                                onChange={e => setFormData({ ...formData, unit: e.target.value })}
+                                className="w-24 border-y border-r border-slate-300 rounded-r-lg p-2 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                              >
+                                <option value="pcs">pcs</option>
+                                <option value="nos">nos</option>
+                                <option value="meter">meter</option>
+                                <option value="kg">kg</option>
+                                <option value="gm">gm</option>
+                                <option value="litre">litre</option>
+                                <option value="box">box</option>
+                                <option value="pack">pack</option>
+                                <option value="chop">chop</option>
+                              </select>
+                            </div>
                         </div>
                       </div>
 

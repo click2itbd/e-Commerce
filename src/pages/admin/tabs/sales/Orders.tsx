@@ -84,12 +84,22 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
     const matchesEndDate = !orderEndDate || orderDate <= orderEndDate;
     return matchesCategory && matchesStatus && matchesSearch && matchesStartDate && matchesEndDate;
   }).sort((a, b) => {
-    if (orderSort === 'date_desc') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    if (orderSort === 'date_asc') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    if (orderSort === 'total_desc') return (b.total || 0) - (a.total || 0);
-    if (orderSort === 'total_asc') return (a.total || 0) - (b.total || 0);
-    return 0;
-  });
+      const getNum = (obj) => {
+        const str = obj.documentNumber || obj.id || '';
+        const match = str.match(/\d+/);
+        return match ? parseInt(match[0], 10) : 0;
+      };
+
+      if (orderSort === 'date_desc') {
+        return getNum(b) - getNum(a);
+      }
+      if (orderSort === 'date_asc') {
+        return getNum(a) - getNum(b);
+      }
+      if (orderSort === 'total_desc') return (b.total || 0) - (a.total || 0);
+      if (orderSort === 'total_asc') return (a.total || 0) - (b.total || 0);
+      return 0;
+    });
 
   const totalPages = Math.ceil(processedOrders.length / itemsPerPage);
   const currentOrders = processedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);

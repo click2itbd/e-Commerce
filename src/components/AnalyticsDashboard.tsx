@@ -5,7 +5,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   LineChart, Line, AreaChart, Area, PieChart, Pie, Cell
 } from 'recharts';
-import { 
+import {
+  Wrench,
   Users, DollarSign, ShoppingBag, Activity, TrendingUp, TrendingDown, 
   Calendar, AlertCircle, Server, Globe, Download, PieChart as PieIcon, 
   ArrowUpRight, ArrowDownRight, Layers, Percent, Wallet, FileText, RefreshCw,
@@ -27,7 +28,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   orders: initialOrders = [], 
   products: initialProducts = [], 
   customers: initialCustomers = [], 
-  transactions: initialTransactions = [] 
+  transactions: initialTransactions = [],
+  serviceRecords = []
 }) => {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [products, setProducts] = useState<Product[]>(initialProducts);
@@ -121,7 +123,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       if (txDate < startDate || txDate > endDate) return false;
       return true;
     });
-  }, [transactions, startDate, endDate]);
+  }, [transactions, serviceRecords, startDate, endDate]);
 
   // Comprehensive Real Financial Breakdown
   const financialMetrics = useMemo(() => {
@@ -134,6 +136,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     let hardwareCOGS = 0;
     let hostingUpstreamCost = 0;
     let domainUpstreamCost = 0;
+      const billedServiceIds = new Set();
+      const serviceBreakdown = [];
 
     filteredOrders.forEach(order => {
       const orderTotal = Number(order.total) || 0;
@@ -150,6 +154,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             itemDiscount = orderDiscount * (rawItemTotal / orderSubtotal);
           }
           const itemPrice = rawItemTotal - itemDiscount; // Net revenue for this item
+            if (item.id && String(item.id).startsWith('svc-')) billedServiceIds.add(String(item.id).replace('svc-', ''));
 
           const itemType = (item as any).itemType || '';
           const itemCat = ((item as any).category || '').toLowerCase();
@@ -163,8 +168,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             domainRevenue += itemPrice;
             const wholesaleDomainCost = 1150 * (Number((item as any).termYears) || 1) * (Number(item.quantity) || 1);
             domainUpstreamCost += Math.min(wholesaleDomainCost, rawItemTotal * 0.92);
-          } else if (itemCat.includes('service') || itemCat.includes('repair')) {
+          } else if (itemType === 'service' || item.isCustomService) {
             servicesRevenue += itemPrice;
+              serviceBreakdown.push({ source: 'Order ' + order.documentNumber, name: item.name || 'Custom Service', amount: itemPrice, date: order.createdAt });
           } else {
             hardwareRevenue += itemPrice;
             const savedCostPrice = (item as any).costPrice;
@@ -174,6 +180,17 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             hardwareCOGS += knownCost * (Number(item.quantity) || 1);
           }
         });
+      // Process Standalone Services
+      serviceRecords.forEach(service => {
+        if (billedServiceIds.has(String(service.id))) return;
+        const d = service.receivedAt || service.createdAt ? new Date(service.receivedAt || service.createdAt) : new Date(0);
+        if (d >= startDate && d <= endDate && service.serviceCharge > 0 && (service.status === 'delivered' || service.status === 'ready' || service.status === 'repaired')) {
+          totalRevenue += Number(service.serviceCharge) || 0;
+          servicesRevenue += Number(service.serviceCharge) || 0;
+            serviceBreakdown.push({ source: 'Service Tracking', name: service.productName || 'Repair', amount: Number(service.serviceCharge) || 0, date: service.receivedAt || service.createdAt });
+        }
+      });
+
       } else {
         hardwareRevenue += orderTotal;
         hardwareCOGS += (order as any).totalCost || (orderTotal * 0.82);
@@ -199,7 +216,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     const grossMarginPercent = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
     return {
-      totalRevenue,
+      serviceBreakdown,
+        manualIncome,
+        totalRevenue,
       hardwareRevenue,
       hostingRevenue,
       domainRevenue,
@@ -225,6 +244,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
     const current = new Date(startDate);
     const step = timeframe === '1y' || timeframe === 'all' ? 'month' : 'day';
+      const chartBilledServiceIds = new Set();
 
     while (current <= endDate) {
       const key = step === 'month' 
@@ -261,7 +281,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         let cost = 0;
         if (o.items && o.items.length > 0) {
           o.items.forEach(i => {
-            const iType = (i as any).itemType || '';
+            if (i.id && String(i.id).startsWith('svc-')) chartBilledServiceIds.add(String(i.id).replace('svc-', ''));
+              const iType = (i as any).itemType || '';
             const iQty = Number(i.quantity) || 1;
             if (iType === 'hosting') {
               cost += 100 * iQty;
@@ -282,7 +303,21 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       }
     });
 
-    filteredTransactions.forEach(t => {
+    
+      serviceRecords.forEach(s => {
+        if (!s.receivedAt && !s.createdAt) return;
+        const d = s.receivedAt || s.createdAt ? new Date(s.receivedAt || s.createdAt) : new Date(0);
+        const key = step === 'month' 
+          ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+          : d.toISOString().split('T')[0];
+          
+        const entry = dataMap.get(key);
+        if (entry && !chartBilledServiceIds.has(String(s.id)) && s.serviceCharge > 0 && (s.status === 'delivered' || s.status === 'ready' || s.status === 'repaired')) {
+          entry.revenue += Number(s.serviceCharge);
+        }
+      });
+      
+      filteredTransactions.forEach(t => {
       const dateVal = t.date || (t as any).createdAt;
       if (!dateVal) return;
       const d = new Date(dateVal);
@@ -308,7 +343,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       cogs: Math.round(item.cogs),
       expense: Math.round(item.expense),
     }));
-  }, [filteredOrders, filteredTransactions, startDate, endDate, timeframe, productCostMap]);
+  }, [filteredOrders, filteredTransactions, serviceRecords, startDate, endDate, timeframe, productCostMap]);
 
   // Category Distribution
   const categoryDistribution = useMemo(() => {
@@ -481,49 +516,103 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       </div>
 
       {/* Revenue Streams Breakdown Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mb-1">
-            <ShoppingBag size={14} className="text-blue-500" />
-            Hardware & PC Sales
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mb-1">
+                <ShoppingBag size={14} className="text-blue-500" />
+                Product Sales
+              </div>
+              <p className="text-lg font-bold text-gray-900">{formatCurrency(financialMetrics.hardwareRevenue)}</p>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-2 border-t pt-2">
+              Est. Cost: {formatCurrency(financialMetrics.hardwareCOGS)}
+            </p>
           </div>
-          <p className="text-lg font-bold text-gray-900">{formatCurrency(financialMetrics.hardwareRevenue)}</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">Est. Cost: {formatCurrency(financialMetrics.hardwareCOGS)}</p>
+
+          <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mb-1">
+                <Wrench size={14} className="text-indigo-500" />
+                Service & Repairs
+              </div>
+              <p className="text-lg font-bold text-gray-900">{formatCurrency(financialMetrics.servicesRevenue)}</p>
+            </div>
+            <p className="text-[11px] text-indigo-500 font-medium mt-2 border-t pt-2">
+              100% Profit Margin
+            </p>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mb-1">
+                <Globe size={14} className="text-purple-500" />
+                Web & Digital Sales
+              </div>
+              <p className="text-lg font-bold text-gray-900">{formatCurrency(financialMetrics.hostingRevenue + financialMetrics.domainRevenue)}</p>
+            </div>
+            <p className="text-[11px] text-purple-600 font-medium mt-2 border-t pt-2">
+              Profit: {formatCurrency((financialMetrics.hostingRevenue + financialMetrics.domainRevenue) - (financialMetrics.hostingUpstreamCost + financialMetrics.domainUpstreamCost))}
+            </p>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mb-1">
+                <ArrowUpRight size={14} className="text-emerald-500" />
+                Other Income
+              </div>
+              <p className="text-lg font-bold text-gray-900">{formatCurrency(financialMetrics.manualIncome)}</p>
+            </div>
+            <p className="text-[11px] text-emerald-600 font-medium mt-2 border-t pt-2">
+              Manual Transactions
+            </p>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mb-1">
+                <ArrowDownRight size={14} className="text-red-500" />
+                OpEx & Expenses
+              </div>
+              <p className="text-lg font-bold text-gray-900">{formatCurrency(financialMetrics.operationalExpenses)}</p>
+            </div>
+            <p className="text-[11px] text-red-500 font-medium mt-2 border-t pt-2">
+              Operating Overhead
+            </p>
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mb-1">
-            <Server size={14} className="text-emerald-500" />
-            cPanel Hosting
+        {/* Main Charts: Profit & Loss Trend + Revenue Distribution */}
+        
+        <div className="bg-white p-4 rounded-xl border border-red-200 mb-6 shadow-sm">
+          <h3 className="font-bold text-red-600 mb-2">Diagnostic: Service Revenue Breakdown</h3>
+          <p className="text-xs text-gray-500 mb-4">You are seeing this temporary box to understand why Service Revenue is {formatCurrency(financialMetrics.servicesRevenue)}.</p>
+          <div className="max-h-60 overflow-y-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-gray-50 text-gray-500 sticky top-0">
+                <tr>
+                  <th className="py-2 px-3">Date</th>
+                  <th className="py-2 px-3">Source</th>
+                  <th className="py-2 px-3">Item Name</th>
+                  <th className="py-2 px-3 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {financialMetrics.serviceBreakdown && financialMetrics.serviceBreakdown.map((row, idx) => (
+                  <tr key={idx}>
+                    <td className="py-2 px-3">{new Date(row.date).toLocaleDateString()}</td>
+                    <td className="py-2 px-3">{row.source}</td>
+                    <td className="py-2 px-3 font-medium">{row.name}</td>
+                    <td className="py-2 px-3 text-right text-indigo-600 font-bold">{formatCurrency(row.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <p className="text-lg font-bold text-gray-900">{formatCurrency(financialMetrics.hostingRevenue)}</p>
-          <p className="text-[11px] text-emerald-600 font-medium mt-0.5">
-            Profit: {formatCurrency(financialMetrics.hostingRevenue - financialMetrics.hostingUpstreamCost)}
-          </p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mb-1">
-            <Globe size={14} className="text-purple-500" />
-            Domain Sales
-          </div>
-          <p className="text-lg font-bold text-gray-900">{formatCurrency(financialMetrics.domainRevenue)}</p>
-          <p className="text-[11px] text-purple-600 font-medium mt-0.5">
-            Profit: {formatCurrency(financialMetrics.domainRevenue - financialMetrics.domainUpstreamCost)}
-          </p>
-        </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mb-1">
-            <Layers size={14} className="text-amber-500" />
-            OpEx & Salaries
-          </div>
-          <p className="text-lg font-bold text-gray-900">{formatCurrency(financialMetrics.operationalExpenses)}</p>
-          <p className="text-[11px] text-amber-600 font-medium mt-0.5">Operating Overhead</p>
-        </div>
-      </div>
-
-      {/* Main Charts: Profit & Loss Trend + Revenue Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Trend Area Chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">

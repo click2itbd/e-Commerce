@@ -1,12 +1,14 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
+import '../../styles/pc-builder-theme.css';
 import { Navigate, useNavigate, useLocation, Routes, Route } from 'react-router-dom';
 import { CommunityBuilds } from '../../components/PCBuilder/CommunityBuilds';
-import { collection, getDocs, query, orderBy, limit, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Product } from '../../types';
 import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -15,6 +17,7 @@ import { getCompatibility } from '../../components/PCBuilder/utils';
 import { BuilderHeader } from '../../components/PCBuilder/BuilderHeader';
 import { BuilderSidebar } from '../../components/PCBuilder/BuilderSidebar';
 import { BuilderCategoryRow } from '../../components/PCBuilder/BuilderCategoryRow';
+import { BuilderProgress } from '../../components/PCBuilder/BuilderProgress';
 import { BuilderSelectionModal } from '../../components/PCBuilder/BuilderSelectionModal';
 import { BuildVisualizer } from '../../components/PCBuilder/BuildVisualizer';
 import { AIAssistantModal } from '../../components/PCBuilder/AIAssistantModal';
@@ -83,6 +86,19 @@ export const PCBuilder: React.FC = () => {
   const activeCategoryModal = categoryId ? [...dynamicCoreCategories, ...dynamicPeripheralCategories].find(c => c.id === categoryId) || null : null;
   const [showAIModal, setShowAIModal] = useState(false);
   const [showCustomBuildModal, setShowCustomBuildModal] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('pcb-theme') === 'dark');
+
+  useEffect(() => {
+    localStorage.setItem('pcb-theme', isDarkMode ? 'dark' : 'light');
+    const event = new CustomEvent('pcb-theme-change', { detail: isDarkMode });
+    window.dispatchEvent(event);
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    const handler = (e) => setIsDarkMode(e.detail);
+    window.addEventListener('pcb-theme-toggle', handler);
+    return () => window.removeEventListener('pcb-theme-toggle', handler);
+  }, []);
   const { addToCart } = useCart();
   // searchParams removed
 
@@ -123,6 +139,16 @@ export const PCBuilder: React.FC = () => {
       const params = new URLSearchParams(location.search);
       const buildParam = params.get('build');
       const communityBuildId = params.get('communityBuild');
+      if (!buildParam && !communityBuildId) {
+        const savedLocal = localStorage.getItem('savedPcBuild');
+        if (savedLocal) {
+          try {
+            setSelectedComponents(JSON.parse(savedLocal));
+            toast.success('Restored your saved build');
+          } catch(e) {}
+        }
+      }
+
 
       const loadCommunityBuild = async () => {
         try {
@@ -154,6 +180,7 @@ export const PCBuilder: React.FC = () => {
       if (communityBuildId) {
         loadCommunityBuild();
       } else if (buildParam) {
+
         try {
           const decoded = atob(buildParam);
           const pairs = decoded.split(',');
@@ -199,13 +226,37 @@ export const PCBuilder: React.FC = () => {
     toast.success('Components added to cart!');
   };
 
-  const handleSaveBuild = () => {
+  const handleSaveBuild = async () => {
     if (Object.keys(selectedComponents).length === 0) {
       toast.error('Add some components to save your build');
       return;
     }
-    localStorage.setItem('savedPcBuild', JSON.stringify(selectedComponents));
-    toast.success('Build saved locally!');
+    
+    if (!user) {
+      localStorage.setItem('savedPcBuild', JSON.stringify(selectedComponents));
+      toast.success('Build saved locally! Log in to save to your profile.', { duration: 4000 });
+      return;
+    }
+
+    const buildName = window.prompt("Enter a name for this build:", "My PC Build");
+    if (!buildName) return;
+
+    try {
+      const selectedList = Object.values(selectedComponents).filter(Boolean) as Product[];
+      const totalPrice = selectedList.reduce((sum, p) => sum + p.price, 0);
+
+      await addDoc(collection(db, 'saved_builds'), {
+        userId: user.uid,
+        name: buildName,
+        components: selectedComponents,
+        totalPrice,
+        createdAt: serverTimestamp()
+      });
+      toast.success('Build saved to your profile!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to save build');
+    }
   };
 
   const handlePrintBuild = () => {
@@ -352,11 +403,14 @@ export const PCBuilder: React.FC = () => {
     }
   };
 
-  const renderCategoryGroup = (title: string, groupCategories: BuilderCategory[]) => (
-    <motion.div variants={itemVariants} className="mb-10">
-      <h2 className="text-xl font-black text-[#0E2A47] mb-4 px-2">{title}</h2>
-      <div className="space-y-4">
-        {groupCategories.map((cat) => {
+  const renderCategoryGroup = (title: string, groupCategories: BuilderCategory[], startStep: number) => (
+    <motion.div variants={itemVariants} className="mb-12">
+      <div className="flex items-end justify-between mb-5 px-1">
+        <h2 className="text-2xl font-black tracking-tight text-slate-900">{title}</h2>
+        <span className="text-xs font-semibold text-slate-400">{groupCategories.length} parts</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        {groupCategories.map((cat, idx) => {
           const selected = selectedComponents[cat.id];
           const compatibility = selected 
             ? getCompatibility(cat.id, selected, selectedComponents) 
@@ -365,6 +419,7 @@ export const PCBuilder: React.FC = () => {
           return (
             <BuilderCategoryRow
               key={cat.id}
+              step={startStep + idx + 1}
               category={cat}
               selectedProduct={selected}
               compatibility={compatibility}
@@ -379,8 +434,9 @@ export const PCBuilder: React.FC = () => {
 
   const builderContent = (
     <Layout fullWidth>
+      <div className={isDarkMode ? 'dark-builder' : ''}>
       
-        <div className="bg-[#0B0E14] min-h-screen pt-8 pb-20 font-sans selection:bg-violet-500/30 selection:text-violet-200 print:bg-white print:pt-0">
+        <div className="bg-slate-50 min-h-screen pt-8 pb-20 font-sans selection:bg-violet-500/30 selection:text-violet-200 print:bg-white print:pt-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <div className="print:hidden">
@@ -388,8 +444,8 @@ export const PCBuilder: React.FC = () => {
           </div>
           
           <div className="print:block hidden mb-8">
-            <h1 className="text-3xl font-black text-slate-100">My PC Build</h1>
-            <p className="text-slate-400">Generated on {new Date().toLocaleDateString()}</p>
+            <h1 className="text-3xl font-black text-slate-900">My PC Build</h1>
+            <p className="text-slate-500">Generated on {new Date().toLocaleDateString()}</p>
           </div>
 
           <SmartBuilderTemplates 
@@ -411,8 +467,9 @@ export const PCBuilder: React.FC = () => {
                   initial="hidden"
                   animate="show"
                 >
-                  {renderCategoryGroup("Core Components", dynamicCoreCategories)}
-                  {renderCategoryGroup("Peripherals & Accessories", dynamicPeripheralCategories)}
+                  <BuilderProgress categories={dynamicCoreCategories} selectedComponents={selectedComponents} />
+                  {renderCategoryGroup("Core Components", dynamicCoreCategories, 0)}
+                  {renderCategoryGroup("Peripherals & Accessories", dynamicPeripheralCategories, dynamicCoreCategories.length)}
                 </motion.div>
               )}
             </div>
@@ -462,6 +519,7 @@ export const PCBuilder: React.FC = () => {
           onClose={() => setShowCustomBuildModal(false)}
         />
       </AnimatePresence>
+      </div>
     </Layout>
   );
 

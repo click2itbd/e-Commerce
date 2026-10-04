@@ -88,7 +88,7 @@ export const Settings = () => {
 
   const buildApiKeysPayload = () => {
     const secretFields = [
-      'dynadotApiKey',
+      'domainApiKey',
       'resendApiKey',
       'bkashAppKey',
       'bkashAppSecret',
