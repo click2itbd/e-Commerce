@@ -31,30 +31,38 @@ export const EcommerceWishlistAnalytics: React.FC = () => {
   const fetchWishlistData = async () => {
     setLoading(true);
     try {
-      // In a real app, this would read from the 'wishlists' collection.
-      // E.g., wishlists/{userId}/items/{productId}
-      
-      const wishlistsSnap = await getDocs(collection(db, 'wishlists'));
-      
-      const productCounts: Record<string, { count: number; name: string; price: number; img: string }> = {};
-      let usersCount = 0;
+      const snap = await getDocs(collection(db, 'wishlists'));
+      const counts: Record<string, { count: number; recent: number; name: string; price: number; img: string }> = {};
+      let users = 0;
+      const weekAgo = Date.now() - 7 * 86400000;
 
-      // Simulate parsing wishlists if it existed:
-      // But since we might not have real data, we provide fallback data for the dashboard demo.
-      if (wishlistsSnap.empty) {
-        throw new Error('No real data');
-      }
-
-      // If we had real data, we'd process it here...
-      
-    } catch (error) {
-      
-      setWishlistProducts([]);
-      setStats({
-        totalWishlistedProducts: 0,
-        totalUsersWithWishlist: 0,
-        mostWishlisted: 'None'
+      snap.docs.forEach(d => {
+        const data: any = d.data();
+        const items: any[] = data.items || [];
+        if (items.length > 0) users++;
+        const isRecent = data.updatedAt && new Date(data.updatedAt).getTime() >= weekAgo;
+        items.forEach(it => {
+          if (!it.productId) return;
+          if (!counts[it.productId]) counts[it.productId] = { count: 0, recent: 0, name: it.name || 'Unknown', price: it.price || 0, img: it.imageUrl || '' };
+          counts[it.productId].count++;
+          if (isRecent) counts[it.productId].recent++;
+        });
       });
+
+      const list: WishlistItem[] = Object.entries(counts)
+        .map(([productId, v]) => ({ productId, name: v.name, imageUrl: v.img, price: v.price, wishlistCount: v.count, recentAdds: v.recent }))
+        .sort((a, b) => b.wishlistCount - a.wishlistCount);
+
+      setWishlistProducts(list);
+      setStats({
+        totalWishlistedProducts: list.reduce((s, p) => s + p.wishlistCount, 0),
+        totalUsersWithWishlist: users,
+        mostWishlisted: list[0]?.name || 'None'
+      });
+    } catch (error) {
+      console.error('Wishlist analytics error', error);
+      setWishlistProducts([]);
+      setStats({ totalWishlistedProducts: 0, totalUsersWithWishlist: 0, mostWishlisted: 'None' });
     } finally {
       setLoading(false);
     }
@@ -137,7 +145,7 @@ export const EcommerceWishlistAnalytics: React.FC = () => {
                   <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <img src={product.imageUrl} alt={product.name} className="w-10 h-10 rounded border border-gray-200 object-cover" />
+                        <img src={product.imageUrl || "https://placehold.co/80x80?text=No+Img"} alt={product.name} className="w-10 h-10 rounded border border-gray-200 object-cover" />
                         <span className="font-medium text-gray-900">{product.name}</span>
                       </div>
                     </td>
@@ -153,7 +161,7 @@ export const EcommerceWishlistAnalytics: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Link to={`/admin/ecommerce`} className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-medium text-xs bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors">
+                      <Link to={`/admin/e-commerce?tab=inventory&edit=${product.productId}`} className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-medium text-xs bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors">
                         <ExternalLink size={14} /> Set Discount
                       </Link>
                     </td>
@@ -163,7 +171,7 @@ export const EcommerceWishlistAnalytics: React.FC = () => {
                 {filteredProducts.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                      No wishlisted products match your search.
+                      No wishlisted products yet. Data appears when logged-in customers add items to their wishlist.
                     </td>
                   </tr>
                 )}

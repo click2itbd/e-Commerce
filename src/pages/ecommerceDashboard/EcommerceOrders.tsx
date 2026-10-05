@@ -14,13 +14,15 @@ interface EcommerceOrdersProps {
   customers: Customer[];
   updateOrderStatus: (orderId: string, newStatus: string) => Promise<void>;
   handleDeleteOrder: (id: string) => Promise<void>;
+  updateOrderPaymentStatus?: (orderId: string, paymentStatus: string) => Promise<void>;
 }
 
 export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
   orders,
   customers,
   updateOrderStatus,
-  handleDeleteOrder
+  handleDeleteOrder,
+  updateOrderPaymentStatus
 }) => {
   const { settings } = useSettings();
   const [searchQuery, setSearchQuery] = useState('');
@@ -28,6 +30,11 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkStatus, setBulkStatus] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   
   const storeOrders = useMemo(() => {
@@ -46,9 +53,58 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
       const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
       const matchesCategory = categoryFilter === 'all' || getOrderCategory(order) === categoryFilter;
       
-      return matchesSearch && matchesStatus && matchesCategory;
+      const t = new Date(order.createdAt).getTime();
+      const matchesFrom = !startDate || t >= new Date(startDate + 'T00:00:00').getTime();
+      const matchesTo = !endDate || t <= new Date(endDate + 'T23:59:59').getTime();
+
+      return matchesSearch && matchesStatus && matchesCategory && matchesFrom && matchesTo;
     });
-  }, [storeOrders, searchQuery, statusFilter, categoryFilter]);
+  }, [storeOrders, searchQuery, statusFilter, categoryFilter, startDate, endDate]);
+
+  const allSelected = filteredOrders.length > 0 && filteredOrders.every(o => selectedIds.includes(o.id));
+  const toggleAll = () => setSelectedIds(allSelected ? [] : filteredOrders.map(o => o.id));
+  const toggleOne = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const handleBulkStatus = async () => {
+    if (!bulkStatus || selectedIds.length === 0) return;
+    if (!window.confirm(`Change ${selectedIds.length} order(s) to "${bulkStatus}"?`)) return;
+    setBulkBusy(true);
+    for (const id of selectedIds) {
+      const o = orders.find(x => x.id === id);
+      if (o && o.status !== bulkStatus) await updateOrderStatus(id, bulkStatus);
+    }
+    setBulkBusy(false);
+    setSelectedIds([]);
+    setBulkStatus('');
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Permanently delete ${selectedIds.length} order(s)? This cannot be undone.`)) return;
+    setBulkBusy(true);
+    for (const id of selectedIds) await handleDeleteOrder(id);
+    setBulkBusy(false);
+    setSelectedIds([]);
+    toast.success('Selected orders deleted');
+  };
+
+  const handleExportCSV = () => {
+    const list = selectedIds.length > 0 ? filteredOrders.filter(o => selectedIds.includes(o.id)) : filteredOrders;
+    if (list.length === 0) { toast.error('No orders to export'); return; }
+    const esc = (v: any) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const rows = [['Order ID', 'Date', 'Customer', 'Phone', 'Email', 'Address', 'Type', 'Status', 'Payment', 'Items', 'Total']];
+    list.forEach(o => rows.push([
+      o.documentNumber || o.id, new Date(o.createdAt).toLocaleDateString('en-GB'), o.customerName, o.customerPhone, o.customerEmail,
+      o.shippingAddress, getOrderCategory(o) === 'pc_build' ? 'PC Build' : 'E-Commerce', o.status, (o as any).paymentStatus || '',
+      (o.items || []).map((i: any) => i.name + ' x' + i.quantity).join('; '), String(o.total || 0)
+    ]));
+    const blob = new Blob(['\uFEFF' + rows.map(r => r.map(esc).join(',')).join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'store-orders-' + new Date().toISOString().split('T')[0] + '.csv';
+    a.click();
+    toast.success('Exported ' + list.length + ' orders');
+  };
 
   const handlePrint = (order: Order) => {
     try {
@@ -159,6 +215,9 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Store Orders</h2>
           <p className="text-gray-500 text-sm mt-1">Manage e-commerce and PC build orders.</p>
         </div>
+        <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          <Download size={16} /> Export CSV{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
+        </button>
         
       </div>
 
@@ -194,13 +253,34 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
           <option value="delivered">Delivered</option>
           <option value="cancelled">Cancelled</option>
         </select>
+        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} title="From date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700" />
+        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} title="To date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700" />
+        {(startDate || endDate) && <button onClick={() => { setStartDate(''); setEndDate(''); }} className="text-xs text-blue-600 font-semibold">Clear dates</button>}
       </div>
+
+      {selectedIds.length > 0 && (
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex flex-wrap items-center gap-3">
+          <span className="text-sm font-bold text-blue-800">{selectedIds.length} selected</span>
+          <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="border border-blue-200 rounded-lg px-3 py-1.5 text-sm bg-white">
+            <option value="">Change status to...</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="shipped">Shipped</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <button disabled={!bulkStatus || bulkBusy} onClick={handleBulkStatus} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">{bulkBusy ? 'Working...' : 'Apply'}</button>
+          <button disabled={bulkBusy} onClick={handleBulkDelete} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">Delete</button>
+          <button onClick={() => setSelectedIds([])} className="text-sm text-gray-600 ml-auto">Clear</button>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-100">
+                <th className="px-4 py-4 w-10"><input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded" /></th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Customer</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
@@ -215,6 +295,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
                 const cat = getOrderCategory(order);
                 return (
                   <tr key={order.id} className="hover:bg-blue-50/30 transition-colors group">
+                    <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.includes(order.id)} onChange={() => toggleOne(order.id)} className="rounded" /></td>
                     <td className="px-6 py-4">
                       <span className="text-sm font-semibold text-gray-900">{order.documentNumber || order.id.substring(0,8)}</span>
                     </td>
@@ -259,12 +340,10 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
                           value={order.paymentStatus}
                           onChange={async (e) => {
                             const newPaymentStatus = e.target.value;
+                            if (updateOrderPaymentStatus) { await updateOrderPaymentStatus(order.id, newPaymentStatus); return; }
                             try {
                               await updateDoc(doc(db, 'orders', order.id), { paymentStatus: newPaymentStatus });
                               toast.success('Payment status updated!');
-                              // This will not auto-refresh local state in EcommerceDashboard because we don't have setOrders here
-                              // But wait, I can just reload the page or rely on the user to reload since I don't have the updateOrderPaymentStatus prop
-                              setTimeout(() => window.location.reload(), 1000);
                             } catch (err: any) {
                               toast.error(`Error: ${err.message}`);
                             }
@@ -299,7 +378,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
               })}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                     No orders found matching your filters.
                   </td>
                 </tr>

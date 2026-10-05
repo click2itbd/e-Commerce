@@ -140,6 +140,15 @@ const EcommerceDashboard: React.FC = () => {
   const handleBulkExportOrders = () => {};
   const handleBulkDeleteOrders = async () => {};
   const updateOrderDiscount = async () => {};
+  const updateOrderPaymentStatus = async (orderId: string, paymentStatus: string) => {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), { paymentStatus });
+      setOrders(prev => prev.map(o => o.id === orderId ? ({ ...o, paymentStatus } as any) : o));
+      toast.success('Payment status updated!');
+    } catch (error: any) {
+      toast.error('Error: ' + error.message);
+    }
+  };
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
       const toastId = toast.loading('Updating status...');
@@ -346,6 +355,7 @@ const EcommerceDashboard: React.FC = () => {
                   orders={orders}
                   customers={customers}
                   updateOrderStatus={updateOrderStatus}
+                    updateOrderPaymentStatus={updateOrderPaymentStatus}
                   handleDeleteOrder={handleDeleteOrder}
                 />
               ) : activeTab === 'customers' ? (

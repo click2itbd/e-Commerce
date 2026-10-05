@@ -967,6 +967,86 @@ domainRouter.post('/manage', requireFirebaseAuth, async (req: any, res: Response
   }
 });
 
+domainRouter.get('/balance', requireFirebaseAuth, async (req: any, res: Response) => {
+  try {
+    const isAdminUser = await isUserAdmin(req.user?.uid);
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const config = await getDomainConfig();
+    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    
+    if (provider.getBalance) {
+      const result = await provider.getBalance();
+      return res.json(result);
+    }
+    return res.json({ success: false, error: 'Balance check not supported by provider' });
+  } catch (error: any) {
+    console.error('Domain balance error:', error);
+    return res.status(500).json({ success: false, error: error?.message || 'Internal server error' });
+  }
+});
+
+domainRouter.post('/sync-pricing', requireFirebaseAuth, async (req: any, res: Response) => {
+  try {
+    const isAdminUser = await isUserAdmin(req.user?.uid);
+    if (!isAdminUser) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const config = await getDomainConfig();
+    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    
+    if (!provider.getTldPricing) {
+      return res.json({ success: false, error: 'Pricing sync not supported by provider' });
+    }
+
+    const { tlds } = req.body;
+    if (!tlds || !Array.isArray(tlds)) {
+      return res.json({ success: false, error: 'tlds array required' });
+    }
+
+    const synced = [];
+    const db = getAdminDb();
+    const pricingSettings = await getDomainPricingSettings();
+    const markup = pricingSettings.markupPercent || 0;
+
+    for (const tld of tlds) {
+      try {
+        const result = await provider.getTldPricing(tld.replace('.', ''));
+        if (result && result.registrationPrice) {
+          const cost = result.registrationPrice;
+          const price = cost * (1 + markup / 100);
+          
+          const tldStr = tld.startsWith('.') ? tld : `.${tld}`;
+          const ref = db.collection('domainPricing').doc(tldStr.replace('.', ''));
+          
+          await ref.set({
+            tld: tldStr,
+            registerPrice: price,
+            renewPrice: price, // assuming same for simplicity
+            transferPrice: price,
+            currency: 'BDT', // Assuming system converts to BDT
+            isActive: true,
+            supplierPriceUsd: cost,
+            updatedAt: new Date()
+          }, { merge: true });
+
+          synced.push({ tld: tldStr, cost, price });
+        }
+      } catch (e: any) {
+        console.warn(`Failed to sync ${tld}:`, e.message);
+      }
+    }
+
+    return res.json({ success: true, synced });
+  } catch (error: any) {
+    console.error('Domain sync error:', error);
+    return res.status(500).json({ success: false, error: error?.message || 'Internal server error' });
+  }
+});
+
 async function requireAdmin(req: any, res: Response): Promise<boolean> {
   const ok = await isUserAdmin(req.user?.uid).catch(() => false);
   if (!ok) {

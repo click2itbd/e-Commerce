@@ -7,7 +7,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 export type OrderStatus = string;
 export const DEFAULT_ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
-import { Phone, Mail, MapPin,  Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X  } from 'lucide-react';
+import { Phone, Mail, MapPin,  Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X , ShieldCheck } from 'lucide-react';
 import EditOrderModal from '../../modals/EditOrderModal';
 import { Edit2 } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
@@ -722,10 +722,172 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
           </div>
         </div>
       )}
+      {/* Viewing Order Modal */}
+      {viewingOrder && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 sm:p-8">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200 ring-1 ring-black/5">
+            {/* Premium Header */}
+            <div className="p-5 md:px-8 flex justify-between items-center bg-gradient-to-r from-slate-900 to-slate-800 border-b border-slate-700">
+              <div className="flex items-center gap-4">
+                <div className="p-2.5 bg-white/10 text-white rounded-xl backdrop-blur-md border border-white/10 shadow-inner">
+                  <FileText size={24} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-white tracking-wide uppercase">
+                    {viewingOrder.type === 'quotation' ? 'Quotation' : (viewingOrder.type === 'challan' ? 'Challan' : 'Invoice')}
+                  </h2>
+                  <p className="text-sm text-slate-300 font-medium tracking-wider">#{viewingOrder.documentNumber || viewingOrder.id}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => { generatePDF(viewingOrder, viewingOrder.type || 'invoice'); }} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm">
+                  <Download size={16}/> Download PDF
+                </button>
+                <button onClick={() => setViewingOrder(null)} className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-full transition-all">
+                  <X size={24}/>
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 md:p-8 overflow-y-auto flex-1 bg-white">
+              <div className="flex flex-col md:flex-row justify-between gap-8 mb-8">
+                <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 flex-1 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-2xl"></div>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Billed To</h3>
+                  <div className="text-slate-900 font-black text-xl mb-3">{viewingOrder.customerName || 'Walk-in Customer'}</div>
+                  <div className="space-y-1.5">
+                    {viewingOrder.customerPhone && <div className="text-sm text-slate-600 flex items-center gap-2"><Phone size={14} className="text-slate-400"/> {viewingOrder.customerPhone}</div>}
+                    {viewingOrder.customerEmail && <div className="text-sm text-slate-600 flex items-center gap-2"><Mail size={14} className="text-slate-400"/> {viewingOrder.customerEmail}</div>}
+                    {viewingOrder.customerAddress && <div className="text-sm text-slate-600 flex items-start gap-2"><MapPin size={14} className="text-slate-400 shrink-0 mt-0.5"/> <span className="max-w-[250px] leading-snug">{viewingOrder.customerAddress}</span></div>}
+                  </div>
+                </div>
+                
+                <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 flex-1 md:max-w-xs relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-1 h-full bg-indigo-500 rounded-r-2xl"></div>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Document Details</h3>
+                  <div className="grid grid-cols-2 gap-y-3">
+                    <div className="text-sm font-semibold text-slate-500">Date:</div>
+                    <div className="text-sm font-bold text-slate-900 text-right">{new Date(viewingOrder.createdAt).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'})}</div>
+                    
+                    <div className="text-sm font-semibold text-slate-500">Status:</div>
+                    <div className="text-right flex justify-end">
+                      <span className={cn(
+                        "px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase border",
+                        viewingOrder.status === 'delivered' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                        viewingOrder.status === 'pending' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                        "bg-blue-50 text-blue-700 border-blue-200"
+                      )}>
+                        {viewingOrder.status}
+                      </span>
+                    </div>
+                    
+                    <div className="text-sm font-semibold text-slate-500">Prepared By:</div>
+                    <div className="text-sm font-bold text-slate-900 text-right">{viewingOrder.userId || 'Admin'}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border border-slate-200 rounded-2xl overflow-hidden mb-8 shadow-sm">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                      <th className="py-4 px-4 w-12 text-center">#</th>
+                      <th className="py-4 px-4">Item Description</th>
+                      <th className="py-4 px-4 text-center">Qty</th>
+                      <th className="py-4 px-4 text-right">Price</th>
+                      <th className="py-4 px-5 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm">
+                    {viewingOrder.items?.map((item: any, i: number) => (
+                      <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
+                        <td className="py-4 px-4 text-center text-slate-400 font-bold">{i + 1}</td>
+                        <td className="py-4 px-4">
+                          <div className="font-bold text-slate-900">{item.name}</div>
+                          {item.selectedSerials?.length > 0 && (
+                            <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap gap-1">
+                              {item.selectedSerials.map((s: string) => (
+                                <span key={s} className="bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm font-medium">{s}</span>
+                              ))}
+                            </div>
+                          )}
+                          {item.warrantyMonths > 0 && (
+                            <div className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold mt-2 border border-emerald-100">
+                              <ShieldCheck size={10}/> Warranty: {item.warrantyMonths} Mos
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-4 px-4 text-center font-bold text-slate-700">
+                          <span className="text-base">{item.quantity}</span>
+                          <span className="text-[10px] text-slate-400 ml-1 uppercase">{item.unit || 'pcs'}</span>
+                        </td>
+                        <td className="py-4 px-4 text-right font-medium text-slate-600">{formatCurrency(item.price, settings)}</td>
+                        <td className="py-4 px-5 text-right font-black text-slate-900">{formatCurrency(item.price * item.quantity, settings)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-col md:flex-row justify-between gap-8">
+                <div className="flex-1 space-y-4">
+                  {viewingOrder.notes && (
+                    <div className="bg-amber-50/60 border border-amber-200/60 p-5 rounded-2xl relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
+                      <h4 className="text-[10px] font-black text-amber-800/60 uppercase tracking-widest mb-2">Order Notes</h4>
+                      <p className="text-sm font-medium text-amber-900/80 whitespace-pre-wrap leading-relaxed">{viewingOrder.notes}</p>
+                    </div>
+                  )}
+                  {viewingOrder.courierName && (
+                    <div className="bg-indigo-50/60 border border-indigo-200/60 p-5 rounded-2xl relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                      <h4 className="text-[10px] font-black text-indigo-800/60 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Truck size={12}/> Shipping Details</h4>
+                      <div className="text-sm font-medium text-indigo-900/80 space-y-1">
+                        <div><span className="text-indigo-800/60 font-bold uppercase text-[10px] tracking-wider w-16 inline-block">Courier:</span> {viewingOrder.courierName}</div>
+                        {viewingOrder.trackingNumber && <div><span className="text-indigo-800/60 font-bold uppercase text-[10px] tracking-wider w-16 inline-block">Tracking:</span> {viewingOrder.trackingNumber}</div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="w-full md:w-[340px] bg-white p-6 rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] h-fit relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+                  <div className="space-y-4 text-sm">
+                    <div className="flex justify-between text-slate-500 font-medium">
+                      <span>Subtotal</span>
+                      <span className="text-slate-900">{formatCurrency((viewingOrder.total || 0) + (viewingOrder.discount || 0), settings)}</span>
+                    </div>
+                    {(viewingOrder.discount > 0) && (
+                      <div className="flex justify-between font-bold text-red-500 bg-red-50 px-2 py-1 -mx-2 rounded-lg">
+                        <span>Discount</span>
+                        <span>-{formatCurrency(viewingOrder.discount, settings)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-black text-slate-900 text-lg pt-4 border-t border-slate-100">
+                      <span>Net Total</span>
+                      <span>{formatCurrency(viewingOrder.total || 0, settings)}</span>
+                    </div>
+                    {viewingOrder.type !== 'quotation' && (
+                      <div className="pt-2 space-y-2">
+                        <div className="flex justify-between text-emerald-600 bg-emerald-50 px-3 py-2 -mx-3 rounded-xl border border-emerald-100">
+                          <span className="font-bold text-xs uppercase tracking-wider self-center">Paid</span>
+                          <span className="font-black text-base">{formatCurrency(viewingOrder.amountPaid || 0, settings)}</span>
+                        </div>
+                        <div className="flex justify-between text-rose-600 bg-rose-50 px-3 py-2 -mx-3 rounded-xl border border-rose-100">
+                          <span className="font-bold text-xs uppercase tracking-wider self-center">Due</span>
+                          <span className="font-black text-base">{formatCurrency(Math.max(0, (viewingOrder.total || 0) - (viewingOrder.amountPaid || 0)), settings)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
 
 export default OrdersTab;
-
-

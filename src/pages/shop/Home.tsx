@@ -24,7 +24,7 @@ import {
 import { useSettings } from "../../context/SettingsContext";
 import { SEO } from "../../components/SEO";
 import { formatCurrency } from "../../lib/utils";
-import { ChevronLeft } from "lucide-react";
+import { ServerCog, Globe, Cctv, Smartphone, Code, Briefcase, ChevronLeft, Truck, ShieldCheck, Award, HeadphonesIcon } from "lucide-react";
 import {
   FlashSale,
   ProductCarousel,
@@ -126,6 +126,36 @@ export const Home: React.FC = () => {
       />
       {/* Hero Section */}
       <HeroBanner />
+
+      {/* Core Business Services */}
+      <section className="mb-12 mt-8">
+        <div className="flex items-center justify-between mb-6 border-b border-gray-200 pb-2">
+          <h2 className="text-xl md:text-2xl font-bold text-[#081621] relative after:content-[''] after:absolute after:-bottom-[11px] after:left-0 after:w-16 after:h-1 after:bg-[#F97316]">
+            Our Core Services
+          </h2>
+        </div>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+          {[
+            { title: "IT Service", icon: <ServerCog size={28} className="text-indigo-500" />, link: "/services", bg: "bg-indigo-50" },
+            { title: "Domain/Hosting", icon: <Globe size={28} className="text-blue-500" />, link: "/hosting", bg: "bg-blue-50" },
+            { title: "CCTV Service", icon: <Cctv size={28} className="text-red-500" />, link: "/services", bg: "bg-red-50" },
+            { title: "Electronics", icon: <Smartphone size={28} className="text-cyan-500" />, link: "/shop", bg: "bg-cyan-50" },
+            { title: "PC Build", icon: <Monitor size={28} className="text-orange-500" />, link: "/pc-builder", bg: "bg-orange-50" },
+            { title: "Web Dev", icon: <Code size={28} className="text-emerald-500" />, link: "/services", bg: "bg-emerald-50" },
+            { title: "Office Setup", icon: <Briefcase size={28} className="text-purple-500" />, link: "/services", bg: "bg-purple-50" },
+          ].map((service, index) => (
+            <Link key={index} to={service.link} className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm border border-slate-100 hover:shadow-md hover:border-slate-200 transition-all group">
+              <div className={`w-14 h-14 ${service.bg} rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                {service.icon}
+              </div>
+              <h3 className="font-bold text-slate-800 text-sm text-center">{service.title}</h3>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      
 
       {/* Categories */}
       <section className="mb-12">
@@ -256,6 +286,51 @@ export const Home: React.FC = () => {
           </div>
         </div>
       </section>
+      {/* Features Section (Moved to Bottom) */}
+      <section className="mb-10 px-4 md:px-0">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
+          <div className="flex items-center gap-4 group">
+            <div className="w-14 h-14 bg-orange-50 rounded-full flex items-center justify-center text-[#F97316] group-hover:scale-110 group-hover:bg-[#F97316] group-hover:text-white transition-all duration-300">
+              <Truck size={28} />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-900 text-base mb-0.5">Fast Delivery</h4>
+              <p className="text-xs text-slate-500">All over Bangladesh</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4 group lg:border-l border-slate-100 lg:pl-6">
+            <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center text-blue-500 group-hover:scale-110 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
+              <ShieldCheck size={28} />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-900 text-base mb-0.5">Secure Payment</h4>
+              <p className="text-xs text-slate-500">100% secure checkout</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4 group lg:border-l border-slate-100 lg:pl-6">
+            <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
+              <Award size={28} />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-900 text-base mb-0.5">Genuine Products</h4>
+              <p className="text-xs text-slate-500">Brand warranty</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4 group lg:border-l border-slate-100 lg:pl-6">
+            <div className="w-14 h-14 bg-purple-50 rounded-full flex items-center justify-center text-purple-500 group-hover:scale-110 group-hover:bg-purple-500 group-hover:text-white transition-all duration-300">
+              <HeadphonesIcon size={28} />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-900 text-base mb-0.5">24/7 Support</h4>
+              <p className="text-xs text-slate-500">Dedicated help desk</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </Layout>
   );
 };

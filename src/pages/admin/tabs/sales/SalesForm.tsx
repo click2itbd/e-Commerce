@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, addDoc, updateDoc, doc, query, getDocs, orderBy } from 'firebase/firestore';
 import { db, auth } from '../../../../firebase';
 import { Product, Customer, DiscountCode, SiteSettings, PaymentAccount } from '../../../../types';
@@ -60,6 +60,22 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [isAddingNewCustomer, setIsAddingNewCustomer] = useState(false);
+  // Searchable customer picker state
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [isCustomerOpen, setIsCustomerOpen] = useState(false);
+  const [customerHighlight, setCustomerHighlight] = useState(0);
+  const customerBoxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (customerBoxRef.current && !customerBoxRef.current.contains(e.target as Node)) {
+        setIsCustomerOpen(false);
+        setCustomerQuery('');
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
   const [newCustomerForm, setNewCustomerForm] = useState({
     name: '',
     phone: '',
@@ -521,6 +537,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     }));
   };
 
+  const updateItemCostPrice = (productId: string, newCostPrice: number) => {
+    if (newCostPrice < 0) return;
+    setSaleData(prev => ({
+      ...prev,
+      items: prev.items.map(i => i.id === productId ? { ...i, costPrice: newCostPrice } : i),
+    }));
+  };
+
   const updateItemName = (productId: string, newName: string) => {
     setSaleData(prev => ({
       ...prev,
@@ -969,19 +993,94 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     );
                 })()}
                 <div className="flex gap-2">
-                  <select
-                    required
-                    value={saleData.customerId}
-                    onChange={e => handleCustomerChange(e.target.value)}
-                    className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-900 bg-white"
-                  >
-                    <option value="">-- Select Customer --</option>
-                    {customers.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.phone ? `(${c.phone})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  {(() => {
+                    const q = customerQuery.trim().toLowerCase();
+                    const qDigits = q.replace(/\D/g, '');
+                    const matches = customers
+                      .filter((cu: any) => {
+                        if (!q) return true;
+                        return (
+                          (cu.name || '').toLowerCase().includes(q) ||
+                          (cu.email || '').toLowerCase().includes(q) ||
+                          (qDigits.length > 0 && String(cu.phone || '').replace(/\D/g, '').includes(qDigits))
+                        );
+                      })
+                      .slice(0, 50);
+                    const selectCustomer = (id: string) => {
+                      handleCustomerChange(id);
+                      setCustomerQuery('');
+                      setIsCustomerOpen(false);
+                    };
+                    return (
+                      <div className="relative w-full" ref={customerBoxRef}>
+                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          autoComplete="off"
+                          value={isCustomerOpen ? customerQuery : (saleData.customerId ? `${saleData.customerName}${saleData.customerPhone ? ` (${saleData.customerPhone})` : ''}` : '')}
+                          placeholder="Type customer name or phone number..."
+                          onFocus={() => { setIsCustomerOpen(true); setCustomerQuery(''); setCustomerHighlight(0); }}
+                          onChange={e => { setCustomerQuery(e.target.value); setIsCustomerOpen(true); setCustomerHighlight(0); }}
+                          onKeyDown={e => {
+                            if (e.key === 'ArrowDown') { e.preventDefault(); setIsCustomerOpen(true); setCustomerHighlight(h => Math.min(h + 1, matches.length - 1)); }
+                            else if (e.key === 'ArrowUp') { e.preventDefault(); setCustomerHighlight(h => Math.max(h - 1, 0)); }
+                            else if (e.key === 'Enter') { if (isCustomerOpen) { e.preventDefault(); if (matches[customerHighlight]) selectCustomer(matches[customerHighlight].id); } }
+                            else if (e.key === 'Escape') { setIsCustomerOpen(false); setCustomerQuery(''); }
+                          }}
+                          className={cn(
+                            "w-full h-[42px] border rounded-lg pl-9 pr-9 font-bold text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                            saleData.customerId ? "border-green-300 bg-green-50/40" : "border-gray-200"
+                          )}
+                        />
+                        {saleData.customerId && (
+                          <button
+                            type="button"
+                            title="Clear customer"
+                            onClick={() => { handleCustomerChange(''); setCustomerQuery(''); }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-500 rounded"
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
+                        {isCustomerOpen && (
+                          <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-72 overflow-y-auto">
+                            {matches.length === 0 ? (
+                              <div className="p-4 text-center text-sm text-gray-500">
+                                No customer found{customerQuery ? ` for "${customerQuery}"` : ''}.
+                                <button
+                                  type="button"
+                                  onClick={() => { setIsCustomerOpen(false); setIsAddingNewCustomer(true); }}
+                                  className="block mx-auto mt-2 text-blue-600 font-bold hover:underline"
+                                >
+                                  + Add as new customer
+                                </button>
+                              </div>
+                            ) : (
+                              matches.map((cu: any, idx: number) => (
+                                <button
+                                  key={cu.id}
+                                  type="button"
+                                  onMouseEnter={() => setCustomerHighlight(idx)}
+                                  onClick={() => selectCustomer(cu.id)}
+                                  className={cn(
+                                    "w-full text-left px-3 py-2 flex items-center justify-between gap-3 border-b border-gray-50 last:border-0",
+                                    idx === customerHighlight ? "bg-blue-50" : "bg-white",
+                                    cu.id === saleData.customerId && "font-black"
+                                  )}
+                                >
+                                  <span className="text-sm font-bold text-gray-900 truncate">{cu.name}</span>
+                                  <span className="text-xs text-gray-500 shrink-0">{cu.phone || cu.email || ''}</span>
+                                </button>
+                              ))
+                            )}
+                            {customers.length > matches.length && matches.length === 50 && (
+                              <div className="px-3 py-1.5 text-[11px] text-gray-400 text-center bg-gray-50">Showing first 50 � keep typing to narrow down</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <button
                     type="button"
                     onClick={() => setIsAddingNewCustomer(true)}
@@ -1122,7 +1221,23 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                           </div>
 
                           <div className="flex flex-wrap items-center justify-end gap-4 shrink-0">
-{/* Editable Sale Price */}
+{/* Editable Cost Price (Custom Service Only) */}
+                          {item.isCustomService && (
+                            <div className="flex flex-col items-center">
+                              <label className="text-[9px] font-bold text-amber-500 uppercase">Cost Price</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={item.costPrice || 0}
+                                onChange={e => updateItemCostPrice(item.id, Number(e.target.value))}
+                                className="w-24 text-center border border-amber-200 bg-amber-50/50 rounded py-0.5 font-bold text-amber-900 focus:ring-amber-500"
+                                placeholder="0"
+                                title="Not visible to customer. Used for profit calculation."
+                              />
+                            </div>
+                          )}
+                          
+                          {/* Editable Sale Price */}
                           <div className="flex flex-col items-center">
                             <label className="text-[9px] font-bold text-blue-500 uppercase">Sale Price</label>
                             <input

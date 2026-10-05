@@ -38,29 +38,42 @@ export const FPSPredictor: React.FC<FPSPredictorProps> = ({ cpu, gpu }) => {
   const games = ['Valorant', 'Cyberpunk 2077', 'GTA V'];
 
   return (
-    <div className="bg-slate-900 text-slate-900 rounded-xl p-4 mt-6">
+    <div className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
       <div className="flex items-center gap-2 mb-4">
-        <Target className="text-emerald-400" size={18} />
-        <h4 className="font-bold text-sm">Estimated Gaming Performance</h4>
+        <Target className="text-indigo-500" size={16} />
+        <h4 className="text-sm font-bold text-slate-800">Gaming Performance (Est.)</h4>
       </div>
       
-      <div className="space-y-3">
-        {games.map(game => (
-          <div key={game} className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MonitorPlay size={14} className="text-slate-500" />
-              <span className="text-xs text-slate-600">{game} (1080p High)</span>
+      <div className="space-y-4">
+        {games.map(game => {
+          const fps = calculateFPS(game);
+          const maxFps = game === 'Valorant' ? 500 : game === 'GTA V' ? 200 : 120;
+          const percentage = Math.min(100, Math.max(5, (fps / maxFps) * 100));
+          const colorClass = game === 'Valorant' ? 'from-green-500 to-green-400' : game === 'GTA V' ? 'from-blue-500 to-blue-400' : 'from-purple-500 to-purple-400';
+          const textClass = game === 'Valorant' ? 'text-green-600' : game === 'GTA V' ? 'text-blue-600' : 'text-purple-600';
+          
+          return (
+            <div key={game} className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MonitorPlay size={12} className="text-slate-400" />
+                  <span className="text-xs font-medium text-slate-600">{game} <span className="text-slate-400 font-normal">(1080p High)</span></span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className={`font-bold ${textClass}`}>{fps}</span>
+                  <span className="text-[10px] text-slate-500 font-medium">FPS</span>
+                </div>
+              </div>
+              <div className="w-full bg-slate-200/70 rounded-full h-1.5 overflow-hidden">
+                <div className={`bg-gradient-to-r ${colorClass} h-1.5 rounded-full transition-all duration-1000`} style={{ width: `${percentage}%` }}></div>
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="font-bold text-emerald-400">{calculateFPS(game)}</span>
-              <span className="text-[10px] text-slate-500">FPS</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       
-      <div className="mt-4 pt-3 border-t border-slate-700/50 flex items-start gap-2">
-        <Zap size={14} className="text-amber-400 shrink-0 mt-0.5" />
+      <div className="mt-4 pt-3 border-t border-slate-200 flex items-start gap-2">
+        <Zap size={12} className="text-amber-500 shrink-0 mt-0.5" />
         <p className="text-[10px] text-slate-500 leading-tight">
           Estimates are based on selected CPU & GPU combinations and may vary depending on RAM, resolution, and cooling.
         </p>

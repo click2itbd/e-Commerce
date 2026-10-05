@@ -58,31 +58,6 @@ export const EcommerceProjects = () => {
   };
 
   
-  const handleSeed = async () => {
-    setLoading(true);
-    const demoProjects = [
-      {
-        title: 'Corporate Office CCTV Setup', category: 'Security & Surveillance', client: 'TechNova Solutions',
-        image: 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&q=80&w=800',
-        description: 'Complete 32-channel IP camera installation with NVR, remote monitoring setup.',
-        features: ['32 IP Cameras (4K)', '2-Month Storage NVR', 'Mobile App Access', 'VLAN Networking'],
-        iconName: 'Camera'
-      },
-      {
-        title: 'IT Agency Network & Workstation Setup', category: 'Office Setup', client: 'PixelCrafters Media',
-        image: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&q=80&w=800',
-        description: 'Provided and installed 25 high-performance workstations, dual-monitor setups, managed switches.',
-        features: ['25 Custom Workstations', 'Ubiquiti Wi-Fi 6', 'Server Rack Installation', 'Cable Management'],
-        iconName: 'Briefcase'
-      }
-    ];
-    for(const p of demoProjects) {
-      await addDoc(collection(db, 'showcase_projects'), { ...p, createdAt: serverTimestamp() });
-    }
-    toast.success('Demo projects added!');
-    fetchData();
-  };
-
   const handleSaveProject = async () => {
     try {
       const payload = {
@@ -306,7 +281,7 @@ export const EcommerceProjects = () => {
             ))}
             {projects.length === 0 && (
               <div className="col-span-full text-center py-12 text-slate-500 bg-slate-100 rounded-3xl border border-dashed border-slate-300">
-                No projects added yet. Click "Add Project" to showcase your work.<br/><br/><button onClick={handleSeed} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold">Load Demo Projects</button>
+                No projects added yet. Click "Add Project" to showcase your work.
               </div>
             )}
           </div>

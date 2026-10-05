@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, FileEdit, Folder, Package, PlusSquare, Tag, Server, Settings, Globe, LogOut, Users, DollarSign, HardDrive, RefreshCw, HeadphonesIcon, LayoutDashboard, ShoppingCart } from 'lucide-react';
+import { X, FileEdit, Folder, Package, PlusSquare, Tag, Server, Settings, Globe, LogOut, Users, DollarSign, HardDrive, RefreshCw, HeadphonesIcon, LayoutDashboard, ShoppingCart, Shield } from 'lucide-react';
 import { auth } from '../../../firebase';
 import { cn } from '../../../lib/utils';
 
@@ -46,6 +46,7 @@ export function Sidebar({ state }) {
             { icon: Globe, label: '.BD Domain Apps', id: 'bd-domain-apps' },
             { icon: Globe, label: 'NS Requests', id: 'ns-requests' },
             { icon: HeadphonesIcon, label: 'Support Tickets', id: 'tickets' },
+              { icon: Shield, label: 'SSL Certificates', id: 'ssl-certificates' },
           ].map((item, idx) => {
             const isActive = activeTab === item.id;
             return (
@@ -139,4 +140,5 @@ export function Sidebar({ state }) {
     </aside>
   );
 }
+
 

@@ -107,9 +107,14 @@ export const Checkout: React.FC = () => {
     shippingCost = 0;
   }
   
+  // If payment is COD and advance delivery is checked, the customer only pays the delivery charge right now
+  const isAdvanceCOD = paymentType === 'cod' && advanceDelivery && shippingCost > 0;
+  const payNowAmount = isAdvanceCOD ? shippingCost : (total + shippingCost);
+  const dueOnDelivery = isAdvanceCOD ? total : 0;
   const grandTotal = total + shippingCost;
 
   const [paymentType, setPaymentType] = useState<'cod' | 'pay_now'>('cod');
+  const [advanceDelivery, setAdvanceDelivery] = useState(false);
   const [geoData, setGeoData] = useState({ divisions: [], districts: [], upazilas: [], unions: [] });
   const [activeGeo, setActiveGeo] = useState({ districts: [], upazilas: [], unions: [] });
 
@@ -240,7 +245,8 @@ export const Checkout: React.FC = () => {
         company: formData.company,
         discountCode: appliedDiscount ? appliedDiscount.code : null,
         discountAmount: promoDiscount,
-        paymentMethod: paymentType === 'cod' ? 'cod' : formData.paymentMethod,
+        paymentMethod: paymentType === 'cod' ? (advanceDelivery ? 'cod_advance_paid' : 'cod') : formData.paymentMethod,
+        advancePaidAmount: isAdvanceCOD ? shippingCost : 0,
         notes: formData.notes,
         createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -331,36 +337,47 @@ export const Checkout: React.FC = () => {
       const docRef = newOrderRef;
       // Only clear cart and show success if not redirecting to a payment gateway
         const selectedPayment = paymentType === 'cod' ? 'cod' : formData.paymentMethod;
-        if (selectedPayment === 'bkash') {
-        const res = await initiateBkashPayment(docRef.id, grandTotal, formData.email, `${formData.firstName} ${formData.lastName}`, formData.phone);
-        if (res.success && res.paymentUrl) {
-          window.location.href = res.paymentUrl;
-          return;
-        } else {
-          throw new Error(res.errorMessage || 'Failed to initiate bKash payment');
+        if (selectedPayment === 'bkash' || selectedPayment === 'card' || selectedPayment === 'nagad' || isAdvanceCOD) {
+        // Online payments or Advance COD route to a gateway
+        const gateway = isAdvanceCOD ? (formData.paymentMethod || 'bkash') : selectedPayment;
+        
+        if (gateway === 'bkash') {
+          const res = await initiateBkashPayment(docRef.id, payNowAmount, formData.email, `${formData.firstName} ${formData.lastName}`, formData.phone);
+          if (res.success && res.paymentUrl) {
+            window.location.href = res.paymentUrl;
+            return;
+          } else {
+            throw new Error(res.errorMessage || 'Failed to initiate bKash payment');
+          }
+        } else if (gateway === 'card') {
+          const res = await initiateSSLCommerzPayment(
+            docRef.id, 
+            payNowAmount, 
+            formData.email, 
+            `${formData.firstName} ${formData.lastName}`, 
+            formData.phone
+          );
+          if (res.success && res.paymentUrl) {
+            window.location.href = res.paymentUrl;
+            return;
+          } else {
+            throw new Error(res.errorMessage || 'Failed to initiate Card payment');
+          }
+        } else if (gateway === 'nagad') {
+          const res = await initiateNagadPayment(docRef.id, payNowAmount, formData.phone);
+          if (res.success && res.paymentUrl) {
+            window.location.href = res.paymentUrl;
+            return;
+          } else {
+            throw new Error(res.errorMessage || 'Failed to initiate Nagad payment');
+          }
         }
-      } else if (selectedPayment === 'card') {
-        const res = await initiateSSLCommerzPayment(
-          docRef.id, 
-          grandTotal, 
-          formData.email, 
-          `${formData.firstName} ${formData.lastName}`, 
-          formData.phone
-        );
-        if (res.success && res.paymentUrl) {
-          window.location.href = res.paymentUrl;
-          return;
-        } else {
-          throw new Error(res.errorMessage || 'Failed to initiate Card payment');
-        }
-      } else if (selectedPayment === 'nagad') {
-        const res = await initiateNagadPayment(docRef.id, grandTotal, formData.phone);
-        if (res.success && res.paymentUrl) {
-          window.location.href = res.paymentUrl;
-          return;
-        } else {
-          throw new Error(res.errorMessage || 'Failed to initiate Nagad payment');
-        }
+      } else {
+        // Pure COD without advance
+        clearCart();
+        navigate(`/order-success/${docRef.id}`);
+        toast.success('Order placed successfully!');
+        return;
       }
 
       // For manual methods (bank transfer, etc), proceed directly
@@ -542,13 +559,25 @@ export const Checkout: React.FC = () => {
             <p className="text-center text-slate-600 font-medium mb-6">Select Payment Method</p>
             
             <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-lg mx-auto mb-8">
-              <label className={`flex-1 cursor-pointer border-2 rounded-xl p-5 flex items-center justify-center gap-3 transition-all ${paymentType === 'cod' ? 'border-[#6EC72A] bg-[#6EC72A]/5 text-[#6EC72A]' : 'border-slate-200 hover:border-slate-300 text-slate-600'}`}>
-                <input type="radio" name="paymentType" value="cod" checked={paymentType === 'cod'} onChange={() => setPaymentType('cod')} className="hidden" />
-                <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center border-current">
-                  {paymentType === 'cod' && <div className="w-2.5 h-2.5 rounded-full bg-current" />}
-                </div>
-                <span className="font-bold">Cash on Delivery</span>
-              </label>
+              <div className={`flex-1 border-2 rounded-xl p-5 flex flex-col gap-3 transition-all ${paymentType === 'cod' ? 'border-[#6EC72A] bg-[#6EC72A]/5' : 'border-slate-200 hover:border-slate-300'}`}>
+                <label className="cursor-pointer flex items-center justify-center gap-3" onClick={() => setPaymentType('cod')}>
+                  <input type="radio" name="paymentType" value="cod" checked={paymentType === 'cod'} onChange={() => {}} className="hidden" />
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${paymentType === 'cod' ? 'border-[#6EC72A]' : 'border-slate-400'}`}>
+                    {paymentType === 'cod' && <div className="w-2.5 h-2.5 rounded-full bg-[#6EC72A]" />}
+                  </div>
+                  <span className={`font-bold ${paymentType === 'cod' ? 'text-[#6EC72A]' : 'text-slate-600'}`}>Cash on Delivery</span>
+                </label>
+                {paymentType === 'cod' && shippingCost > 0 && (
+                  <div className="mt-2 pt-3 border-t border-[#6EC72A]/20">
+                    <label className="flex items-start gap-2 cursor-pointer group">
+                      <div className="relative flex items-start pt-0.5">
+                        <input type="checkbox" checked={advanceDelivery} onChange={(e) => setAdvanceDelivery(e.target.checked)} className="w-4 h-4 text-[#6EC72A] border-gray-300 rounded focus:ring-[#6EC72A]" />
+                      </div>
+                      <span className="text-xs text-slate-700 leading-tight">Pay only delivery charge (৳{shippingCost}) in advance. Remaining amount on delivery.</span>
+                    </label>
+                  </div>
+                )}
+              </div>
 
               <label className={`flex-1 cursor-pointer border-2 rounded-xl p-5 flex items-center justify-center gap-3 transition-all ${paymentType === 'pay_now' ? 'border-[#6EC72A] bg-[#6EC72A]/5 text-[#6EC72A]' : 'border-slate-200 hover:border-slate-300 text-slate-600'}`}>
                 <input type="radio" name="paymentType" value="pay_now" checked={paymentType === 'pay_now'} onChange={() => setPaymentType('pay_now')} className="hidden" />

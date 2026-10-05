@@ -454,7 +454,7 @@ export const generatePDF = async (
         item.name,
         desc,
         item.brand || "-",
-        item.quantity.toString()
+        item.quantity + ' ' + (item.unit || 'pcs')
       ];
       
       if (!isChallan) {
@@ -482,7 +482,14 @@ export const generatePDF = async (
         halign: "center",
       },
       styles: { fontSize: 7.5, cellPadding: 1.5, textColor: [15, 23, 42] },
-      columnStyles: {
+      columnStyles: isChallan ? {
+        0: { halign: "center", cellWidth: 12 },
+        1: { halign: "left", cellWidth: 70 },
+        2: { halign: "left", cellWidth: 43 },
+        3: { halign: "center", cellWidth: 20 },
+        4: { halign: "center", cellWidth: 15 },
+        5: { halign: "center", cellWidth: 20 },
+      } : {
         0: { halign: "center", cellWidth: 12 },
         1: { halign: "left", cellWidth: 45 },
         2: { halign: "left", cellWidth: 40 },

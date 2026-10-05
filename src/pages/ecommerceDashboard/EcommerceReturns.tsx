@@ -50,9 +50,7 @@ export const EcommerceReturns: React.FC = () => {
       toast.success(`Return status updated to ${newStatus}`);
     } catch (error) {
       console.error('Error updating status:', error);
-      // For demo purposes if permission denied
-      setReturns(returns.map(r => r.id === id ? { ...r, status: newStatus } : r));
-      toast.success(`Return status updated to ${newStatus} (Local)`);
+      toast.error('Failed to update return status. Check permissions.');
     }
   };
 

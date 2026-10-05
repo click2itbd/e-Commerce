@@ -5,9 +5,12 @@ import { ShoppingCart, Save, Share2, Printer, Zap, AlertTriangle, ShieldCheck, M
 import { calculateEstimatedWattage, getOverallCompatibility } from './utils';
 import { CompatibilityEngine } from './CompatibilityEngine';
 import { FPSPredictor } from './FPSPredictor';
+import { BottleneckCalculator } from './BottleneckCalculator';
 
 interface BuilderSidebarProps {
   selectedComponents: Record<string, Product>;
+  includeAssembly?: boolean;
+  onToggleAssembly?: () => void;
   onAddToCart: () => void;
   onSaveBuild: () => void;
   onPrintBuild: () => void;
@@ -17,7 +20,9 @@ interface BuilderSidebarProps {
 }
 
 export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({ 
-  selectedComponents, 
+  selectedComponents,
+  includeAssembly = false,
+  onToggleAssembly,
   onAddToCart,
   onSaveBuild,
   onPrintBuild,
@@ -26,7 +31,9 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
   onPublishBuild
 }) => {
   const selectedList = Object.values(selectedComponents).filter(Boolean) as Product[];
-  const totalPrice = selectedList.reduce((sum, p) => sum + p.price, 0);
+  const basePrice = selectedList.reduce((sum, p) => sum + p.price, 0);
+  const assemblyFee = includeAssembly ? 1500 : 0;
+  const totalPrice = basePrice + assemblyFee;
   const estimatedWattage = calculateEstimatedWattage(selectedComponents);
   const compatibility = getOverallCompatibility(selectedComponents);
   const aiAnalysis = CompatibilityEngine.evaluateScore(selectedComponents);
@@ -95,51 +102,29 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
           </div>
         </div>
 
-        <div className="flex justify-between items-end border-t border-slate-200 pt-6">
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Price</p>
-          <p className="text-3xl font-black text-slate-900">
-            {formatCurrency(totalPrice)}
-          </p>
+                <div className="border-t border-slate-200 pt-6 space-y-3">
+          {onToggleAssembly && (
+            <label className="flex items-center justify-between p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+              <div className="flex items-center gap-3">
+                <input type="checkbox" checked={includeAssembly} onChange={onToggleAssembly} className="w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500" />
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Add Professional Assembly</p>
+                  <p className="text-xs text-slate-500">Cable management & OS installation</p>
+                </div>
+              </div>
+              <span className="font-bold text-slate-900">৳1,500</span>
+            </label>
+          )}
+          <div className="flex justify-between items-end pt-3">
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Price</p>
+            <p className="text-3xl font-black text-slate-900">
+              {formatCurrency(totalPrice)}
+            </p>
+          </div>
         </div>
       
-      <div className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-        
-        <h4 className="text-sm font-bold text-slate-600 mb-3 flex items-center gap-2">
-          <Gamepad2 size={16} className="text-indigo-400" />
-          Gaming Performance (Est.)
-        </h4>
-        <div className="space-y-3 relative z-10">
-          <div className="flex justify-between items-center text-xs">
-            <span className="font-medium text-slate-500">Valorant / CS2 (1080p)</span>
-            <span className="font-bold text-green-600">
-              {Object.keys(selectedComponents).length > 2 ? '240+ FPS' : '-- FPS'}
-            </span>
-          </div>
-          <div className="w-full bg-slate-200/70 rounded-full h-1.5 overflow-hidden">
-            <div className="bg-gradient-to-r from-green-500 to-green-400 h-1.5 rounded-full" style={{ width: Object.keys(selectedComponents).length > 2 ? '95%' : '0%' }}></div>
-          </div>
-          
-          <div className="flex justify-between items-center text-xs">
-            <span className="font-medium text-slate-500">GTA V / Warzone (1080p)</span>
-            <span className="font-bold text-blue-600">
-              {Object.keys(selectedComponents).length > 2 ? '144+ FPS' : '-- FPS'}
-            </span>
-          </div>
-          <div className="w-full bg-slate-200/70 rounded-full h-1.5 overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-400 h-1.5 rounded-full" style={{ width: Object.keys(selectedComponents).length > 2 ? '80%' : '0%' }}></div>
-          </div>
-
-          <div className="flex justify-between items-center text-xs">
-            <span className="font-medium text-slate-500">Cyberpunk 2077 (1080p)</span>
-            <span className="font-bold text-purple-600">
-              {Object.keys(selectedComponents).length > 2 ? '60+ FPS' : '-- FPS'}
-            </span>
-          </div>
-          <div className="w-full bg-slate-200/70 rounded-full h-1.5 overflow-hidden">
-            <div className="bg-gradient-to-r from-purple-500 to-purple-400 h-1.5 rounded-full" style={{ width: Object.keys(selectedComponents).length > 2 ? '60%' : '0%' }}></div>
-          </div>
-        </div>
-      </div>
+      <FPSPredictor cpu={selectedComponents['Processor']} gpu={selectedComponents['Graphics Card']} />
+      <BottleneckCalculator cpu={selectedComponents['Processor']} gpu={selectedComponents['Graphics Card']} />
 
       </div>
 

@@ -39,39 +39,7 @@ export const EcommerceBlog: React.FC = () => {
       const snap = await getDocs(collection(db, 'ecommerce_blog'));
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BlogPost));
       
-      // Default dummy data if empty
-      if (data.length === 0) {
-        setPosts([
-          {
-            id: 'post-1',
-            title: 'Top 5 Mechanical Keyboards in 2026',
-            slug: 'top-5-mechanical-keyboards-2026',
-            content: 'Mechanical keyboards have become a staple for gamers and typists alike...',
-            excerpt: 'Discover the best mechanical keyboards available this year.',
-            imageUrl: 'https://images.unsplash.com/photo-1595225476474-87563907a212?w=500&q=80',
-            author: 'Admin',
-            tags: ['Gaming', 'Hardware', 'Review'],
-            status: 'published',
-            createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-            updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-          },
-          {
-            id: 'post-2',
-            title: 'How to Choose the Right PC Components',
-            slug: 'choose-right-pc-components',
-            content: 'Building a PC can be daunting, but knowing how to select the right components is key...',
-            excerpt: 'A comprehensive guide to picking parts for your next PC build.',
-            imageUrl: 'https://images.unsplash.com/photo-1587202372634-32705e3bf49c?w=500&q=80',
-            author: 'Admin',
-            tags: ['PC Build', 'Guide', 'Hardware'],
-            status: 'draft',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }
-        ]);
-      } else {
-        setPosts(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-      }
+      setPosts(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     } catch (error) {
       console.error('Error fetching blog posts:', error);
     } finally {

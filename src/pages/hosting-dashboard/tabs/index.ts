@@ -11,3 +11,5 @@ export * from './ModuleTabs';
 export * from './DomainRenewalsTab';
 export * from './DomainOffersTab';
 export * from './BdDomainApplicationsTab';export * from './NameserverRequestsTab';
+
+export * from './SslCertificatesTab';

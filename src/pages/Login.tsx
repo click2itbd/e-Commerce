@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
 import { auth } from '../firebase';
-import { LogIn, Mail, Lock, User, ArrowRight, Server, Shield, Zap, Eye, EyeOff } from 'lucide-react';
+import { LogIn, Mail, Lock, User, ArrowRight, Server, Shield, Zap, Eye, EyeOff, ShoppingBag, ShieldCheck, Truck, Cpu, Settings, Star } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
+import { useSiteContext } from '../hooks/useSiteContext';
 
 export const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -18,6 +19,45 @@ export const Login: React.FC = () => {
   
   const navigate = useNavigate();
   const { settings } = useSettings();
+  const siteContext = useSiteContext();
+
+  
+  const getContextContent = () => {
+    switch (siteContext) {
+      case 'ecommerce':
+        return {
+          title: 'Shop the Best Electronics',
+          subtitle: 'Discover top brands, exclusive deals, and fast delivery for all your tech needs.',
+          features: [
+            { icon: <ShoppingBag className="text-orange-400" />, title: 'Vast Selection', desc: 'Find everything from gadgets to premium accessories.' },
+            { icon: <ShieldCheck className="text-blue-400" />, title: '100% Authentic', desc: 'Genuine products with official brand warranties.' },
+            { icon: <Truck className="text-emerald-400" />, title: 'Fast Delivery', desc: 'Secure and express shipping across the country.' }
+          ]
+        };
+      case 'pc-build':
+        return {
+          title: 'Build Your Dream Setup',
+          subtitle: 'Select from thousands of premium components and let our experts assemble it for you.',
+          features: [
+            { icon: <Cpu className="text-purple-400" />, title: 'Premium Components', desc: 'Latest processors, GPUs, and motherboards.' },
+            { icon: <Settings className="text-slate-400" />, title: 'Expert Assembly', desc: 'Professional cable management and stress testing.' },
+            { icon: <Star className="text-yellow-400" />, title: '3 Years Warranty', desc: 'Comprehensive warranty on all custom builds.' }
+          ]
+        };
+      default:
+        return {
+          title: 'Empower Your Digital Presence',
+          subtitle: 'Join thousands of businesses scaling on our ultra-fast, secure, and reliable cloud infrastructure.',
+          features: [
+            { icon: <Zap className="text-yellow-400" />, title: 'Lightning Fast', desc: 'NVMe SSDs and global CDN for unmatched speed.' },
+            { icon: <Shield className="text-blue-400" />, title: 'Enterprise Security', desc: 'Free SSL, DDoS protection, and automated backups.' },
+            { icon: <Server className="text-red-400" />, title: '99.9% Uptime', desc: 'Reliable infrastructure guaranteed to keep you online.' }
+          ]
+        };
+    }
+  };
+
+  const contextData = getContextContent();
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -87,7 +127,7 @@ export const Login: React.FC = () => {
         <div className="relative z-10">
           <Link to="/" className="inline-block">
             {settings?.logoUrl ? (
-              <img src={settings.logoUrl} alt="Logo" className="h-10 object-contain" />
+              <img src={settings?.logoUrl} alt="Logo" className="h-10 object-contain" />
             ) : (
               <img src="/logo.png" alt="Logo" className="h-10 object-contain" />
             )}
@@ -96,40 +136,24 @@ export const Login: React.FC = () => {
         
         <div className="relative z-10 max-w-md">
           <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-6">
-            Empower Your Digital Presence
+            {contextData.title}
           </h1>
           <p className="text-gray-400 text-lg mb-12">
-            Join thousands of businesses scaling on our ultra-fast, secure, and reliable cloud infrastructure.
+            {contextData.subtitle}
           </p>
-          
+
           <div className="space-y-6">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white/10 rounded-xl">
-                <Zap className="text-yellow-400" size={24} />
+            {contextData.features.map((feature, idx) => (
+              <div key={idx} className="flex gap-4">
+                <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
+                  {feature.icon}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white text-lg">{feature.title}</h3>
+                  <p className="text-gray-400 text-sm">{feature.desc}</p>
+                </div>
               </div>
-              <div>
-                <h4 className="font-bold text-white text-lg">Lightning Fast</h4>
-                <p className="text-sm text-gray-400">NVMe SSDs and global CDN for unmatched speed.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white/10 rounded-xl">
-                <Shield className="text-blue-400" size={24} />
-              </div>
-              <div>
-                <h4 className="font-bold text-white text-lg">Enterprise Security</h4>
-                <p className="text-sm text-gray-400">Free SSL, DDoS protection, and automated backups.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white/10 rounded-xl">
-                <Server className="text-red-400" size={24} />
-              </div>
-              <div>
-                <h4 className="font-bold text-white text-lg">99.9% Uptime</h4>
-                <p className="text-sm text-gray-400">Reliable infrastructure guaranteed to keep you online.</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
         
@@ -150,7 +174,9 @@ export const Login: React.FC = () => {
               {isSignUp ? 'Create an account' : 'Welcome back'}
             </h2>
             <p className="text-gray-500">
-              {isSignUp ? 'Sign up to start deploying in seconds.' : 'Enter your details to access your dashboard.'}
+              {isSignUp 
+                ? (siteContext === 'ecommerce' ? 'Sign up to start shopping for the best deals.' : siteContext === 'pc-build' ? 'Sign up to save and order your custom builds.' : 'Sign up to start deploying in seconds.') 
+                : 'Enter your details to access your dashboard.'}
             </p>
           </div>
 

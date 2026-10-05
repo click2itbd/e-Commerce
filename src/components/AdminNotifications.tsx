@@ -269,6 +269,56 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
       rebuildList();
     }, (err) => console.error(err));
 
+    // 6. Project Quote Requests
+    const unsubQuotes = onSnapshot(collection(db, 'quote_requests'), (snap) => {
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if ((data.status || 'pending') === 'pending') {
+          itemsMap.set(`quote-${d.id}`, {
+            id: `quote-${d.id}`,
+            docId: d.id,
+            category: 'orders',
+            targetTab: 'projects',
+            title: 'New Quote Request',
+            badgeText: 'QUOTE',
+            badgeColor: 'bg-teal-100 text-teal-800 border-teal-200',
+            message: `${data.name || 'Client'} — ${data.projectType || 'Project'}`,
+            time: data.createdAt || new Date().toISOString(),
+            icon: Package,
+            iconBg: 'bg-teal-600 text-white',
+          });
+        } else {
+          itemsMap.delete(`quote-${d.id}`);
+        }
+      });
+      rebuildList();
+    }, () => {});
+
+    // 7. Pre-Bookings
+    const unsubPreBooks = onSnapshot(collection(db, 'pre_bookings'), (snap) => {
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if ((data.status || 'pending') === 'pending') {
+          itemsMap.set(`prebook-${d.id}`, {
+            id: `prebook-${d.id}`,
+            docId: d.id,
+            category: 'orders',
+            targetTab: 'preBooks',
+            title: 'New Pre-Book Request',
+            badgeText: 'PRE-BOOK',
+            badgeColor: 'bg-pink-100 text-pink-800 border-pink-200',
+            message: `${data.customerName || data.name || 'Customer'} — ${data.productName || data.product || 'Product'}`,
+            time: data.createdAt || new Date().toISOString(),
+            icon: Package,
+            iconBg: 'bg-pink-600 text-white',
+          });
+        } else {
+          itemsMap.delete(`prebook-${d.id}`);
+        }
+      });
+      rebuildList();
+    }, () => {});
+
     const rebuildList = () => {
       const arr = Array.from(itemsMap.values()).sort((a, b) => {
         const parseTime = (t: any) => t?.toDate?.()?.getTime() || (t?.seconds ? t.seconds * 1000 : 0) || new Date(t).getTime() || 0;
@@ -304,6 +354,8 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
       unsubHosting();
       unsubTickets();
       unsubProducts();
+      unsubQuotes();
+      unsubPreBooks();
     };
   }, []);
 
@@ -353,7 +405,10 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     // Global Navigation for Universal Usability
     const currentPath = window.location.pathname;
     
-    if (notif.category === 'orders') {
+    if (notif.targetTab === 'projects' || notif.targetTab === 'preBooks') {
+      if (currentPath !== '/admin/e-commerce') window.location.href = '/admin/e-commerce?tab=' + notif.targetTab;
+      else if (setActiveTab) setActiveTab(notif.targetTab);
+    } else if (notif.category === 'orders') {
       if (currentPath !== '/admin/e-commerce') window.location.href = '/admin/e-commerce?tab=orders';
       else if (setActiveTab) setActiveTab('orders');
     } else if (notif.category === 'hosting' || notif.targetTab === 'domainOffers') {

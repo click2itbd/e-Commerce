@@ -54,6 +54,11 @@ export const ChatWidget: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Hide on admin routes
+  if (location.pathname.startsWith('/admin') || location.pathname.startsWith('/pos')) {
+    return null;
+  }
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [isExpanded, setIsExpanded] = useState(true);

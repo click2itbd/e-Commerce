@@ -76,6 +76,7 @@ export const PCBuilder: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedComponents, setSelectedComponents] = useState<Record<string, Product>>({});
   const [loading, setLoading] = useState(true);
+  const [includeAssembly, setIncludeAssembly] = useState(false);
   
   const navigate = useNavigate();
   const location = useLocation();
@@ -222,8 +223,26 @@ export const PCBuilder: React.FC = () => {
       toast.error('Please select at least one component');
       return;
     }
+    
+    // Add components
     selectedList.forEach(product => addToCart(product));
-    toast.success('Components added to cart!');
+    
+    // Add assembly service if checked
+    if (includeAssembly) {
+      const assemblyService = {
+        id: 'SERVICE-ASSEMBLY',
+        name: 'Professional PC Assembly Service',
+        price: 1500,
+        stock: 999,
+        category: 'Service',
+        description: 'Professional cable management and stress testing for your custom PC build.',
+        imageUrl: 'https://placehold.co/400x400/1e293b/ffffff?text=Assembly+Service',
+        isService: true
+      };
+      addToCart(assemblyService as any);
+    }
+    
+    toast.success('Components ' + (includeAssembly ? 'and assembly ' : '') + 'added to cart!');
   };
 
   const handleSaveBuild = async () => {

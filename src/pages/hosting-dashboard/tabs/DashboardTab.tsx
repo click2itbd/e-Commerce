@@ -12,6 +12,56 @@ import {
   AddonPackagesModule, PromoCodesModule, ServersModule, DomainPricingModule, DomainRegistrarsModule
 } from '../modules';
 
+import { apiGet } from '../../../services/apiClient';
+import { Wallet } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+
+const ApiBalanceWidget = () => {
+  const [balance, setBalance] = React.useState<number | null>(null);
+  const [currency, setCurrency] = React.useState<string>('USD');
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchBalance = async () => {
+      try {
+        const res: any = await apiGet('/api/domains/balance');
+        if (res.success && res.balance !== undefined) {
+          setBalance(res.balance);
+          setCurrency(res.currency || 'USD');
+        }
+      } catch (e) {
+        console.error('Failed to fetch API balance', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBalance();
+  }, []);
+
+  if (loading || balance === null) return null;
+
+  const isLow = balance < 50;
+
+  return (
+    <div className={`rounded-2xl border p-4 flex items-center justify-between shadow-sm transition-all mb-6 ${isLow ? 'bg-red-50 border-red-200' : 'bg-blue-50/50 border-blue-100'}`}>
+      <div className="flex items-center gap-4">
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isLow ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+          <Wallet size={24} />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wide">Openprovider API Balance</h3>
+          <div className={`text-2xl font-extrabold ${isLow ? 'text-red-700' : 'text-slate-800'}`}>
+            {balance.toFixed(2)} {currency}
+          </div>
+          {isLow && <p className="text-xs text-red-600 font-medium mt-1">Balance is low. Please recharge soon.</p>}
+        </div>
+      </div>
+      <a href="https://rcp.openprovider.eu" target="_blank" rel="noreferrer" className={`px-4 py-2 text-sm font-bold rounded-lg ${isLow ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+        Recharge
+      </a>
+    </div>
+  );
+};
 export function DashboardTab({ state }) {
   const {
     activeTab, setActiveTab, pendingDomainCount, pendingHostingCount, unpaidInvoicesCount,
@@ -36,7 +86,8 @@ export function DashboardTab({ state }) {
       {activeTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in duration-500">
                 {/* Top Modern Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <ApiBalanceWidget />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {[
                     { title: 'Pending Domains', count: pendingDomainCount, icon: Globe, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-200', onClick: () => setActiveTab('domain-list') },
                     { title: 'Pending Hosting', count: pendingHostingCount, icon: Server, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-200', onClick: () => setActiveTab('server-accounts') },
@@ -246,3 +297,8 @@ export function DashboardTab({ state }) {
     </>
   );
 }
+
+
+
+
+

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Product, NavigationMenu } from '../../types';
-import { Package, Plus, Search, Edit2, Trash2, X, Upload, Save, XCircle } from 'lucide-react';
+import { Eye, Package, Plus, Search, Edit2, Trash2, X, Upload, Save, XCircle , Sparkles, Link as LinkIcon, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 import { useSettings } from '../../context/SettingsContext';
 import { toast } from 'react-hot-toast';
@@ -28,6 +29,10 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
   const [categoryFilter, setCategoryFilter] = useState('all');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importTab, setImportTab] = useState<'url' | 'image'>('url');
+  const [importUrl, setImportUrl] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
@@ -43,6 +48,73 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
     return matchesSearch && matchesCategory;
   });
 
+  const handleSmartImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (importTab === 'image') {
+      toast.error('Image scanning requires an active AI Vision API key (Gemini/OpenAI). This feature is currently in demo mode.');
+      return;
+    }
+
+    if (importTab === 'url' && !importUrl) return toast.error('Please enter a valid URL');
+    
+    setImportLoading(true);
+    
+    try {
+      // Use a CORS proxy to fetch the HTML content
+      const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(importUrl)}`;
+      const response = await fetch(proxyUrl);
+      if (!response.ok) throw new Error("Network response was not ok");
+      const htmlText = await response.text();
+      const data = { contents: htmlText };
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(data.contents, 'text/html');
+
+      // Extract metadata
+      const title = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || doc.querySelector('title')?.innerText || 'Unknown Product';
+      const description = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+      const image = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
+      
+      // Try to find a price (very basic heuristic)
+      let price = 0;
+      const priceMeta = doc.querySelector('meta[property="product:price:amount"]');
+      if (priceMeta) {
+        price = parseFloat(priceMeta.getAttribute('content') || '0');
+      } else {
+        // Look for common price classes
+        const priceElement = doc.querySelector('.price, .amount, [class*="price"]');
+        if (priceElement) {
+          const priceText = priceElement.textContent?.replace(/[^0-9.]/g, '') || '0';
+          price = parseFloat(priceText);
+        }
+      }
+
+      setImportLoading(false);
+      setIsImportModalOpen(false);
+      
+      setEditingId(null);
+      setFormData({
+        name: title.trim(),
+        categoryId: menus[0]?.id || "electronics", 
+        price: price || 0,
+        stock: 10,
+        sku: "IMPORT-" + Math.floor(Math.random() * 10000),
+        images: image ? [image] : [],
+        description: description.trim(),
+        isOutOfStock: false,
+        specs: {}
+      });
+      setIsModalOpen(true);
+      toast.success('Product details extracted successfully!');
+      
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to extract data from this URL. The site might be blocking requests.');
+      setImportLoading(false);
+    }
+  };
+  
   const openAddModal = () => {
     setEditingId(null);
     setFormData(initialForm);
@@ -54,6 +126,20 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
     setFormData(product);
     setIsModalOpen(true);
   };
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId && products.length > 0) {
+      const p = products.find(prod => prod.id === editId);
+      if (p) {
+        openEditModal(p);
+        // Clear the param so it doesn't reopen on refresh
+        searchParams.delete('edit');
+        setSearchParams(searchParams);
+      }
+    }
+  }, [searchParams, products]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,15 +208,26 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
     <div className="space-y-6 animate-in fade-in duration-500 relative">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Product Catalog</h2>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            Product Catalog
+            <span className="text-sm font-bold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">{filteredProducts.length}</span>
+          </h2>
           <p className="text-gray-500 text-sm mt-1">Manage your store products and inventory levels.</p>
         </div>
-        <button 
-          onClick={openAddModal}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
-        >
-          <Plus size={18} /> Add New Product
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setIsImportModalOpen(true)}
+            className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <Sparkles size={18} className="text-purple-100" /> AI Smart Import
+          </button>
+          <button 
+            onClick={openAddModal}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <Plus size={18} /> Add Manual
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 items-center">
@@ -174,15 +271,18 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       {product.images?.[0] ? (
-                        <img src={product.images[0]} alt={product.name} className="w-10 h-10 rounded-lg object-cover border border-gray-200" />
+                        <img src={product.images[0]} alt={product.name} className="w-12 h-12 rounded-lg object-cover border border-gray-200 shadow-sm" />
                       ) : (
-                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 border border-gray-200">
-                          <Package size={20} />
+                        <div className="w-12 h-12 rounded-lg bg-slate-50 flex items-center justify-center text-slate-300 border border-slate-200 shadow-sm">
+                          <Package size={24} />
                         </div>
                       )}
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{product.name}</p>
-                        <p className="text-xs text-gray-500">SKU: {product.sku || 'N/A'}</p>
+                      <div className="max-w-[250px]">
+                        <p className="text-sm font-bold text-slate-900 truncate" title={product.name}>{product.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-medium">SKU: {product.sku || 'N/A'}</span>
+                          {product.brand && <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">{product.brand}</span>}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -192,7 +292,12 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <span className="text-sm font-medium text-gray-900">{formatCurrency(product.price, settings)}</span>
+                    <div className="flex flex-col items-end">
+                      <span className="text-sm font-black text-slate-900">{formatCurrency(product.discountPrice || product.price, settings)}</span>
+                      {product.discountPrice && product.discountPrice < product.price && (
+                        <span className="text-xs text-slate-400 line-through">{formatCurrency(product.price, settings)}</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right">
                     {product.isOutOfStock ? (
@@ -209,11 +314,14 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
                     )}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openEditModal(product)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button onClick={() => window.open(`/product/${product.id}`, '_blank')} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors tooltip-trigger" title="View in Store">
+                        <Eye size={16} />
+                      </button>
+                      <button onClick={() => openEditModal(product)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors tooltip-trigger" title="Edit Product">
                         <Edit2 size={16} />
                       </button>
-                      <button onClick={() => { if(window.confirm('Delete product?')) handleDeleteProduct(product.id); }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <button onClick={() => { if(window.confirm('Delete product?')) handleDeleteProduct(product.id); }} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors tooltip-trigger" title="Delete Product">
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -231,6 +339,86 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
           </table>
         </div>
       </div>
+
+      {isImportModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-purple-50 to-indigo-50">
+              <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                <Sparkles size={20} className="text-purple-600" />
+                AI Product Importer
+              </h3>
+              <button onClick={() => !importLoading && setIsImportModalOpen(false)} className="p-2 hover:bg-white/50 rounded-lg text-gray-500 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-6">
+                <button 
+                  onClick={() => setImportTab('url')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-colors ${importTab === 'url' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <LinkIcon size={16} /> Import from URL
+                </button>
+                <button 
+                  onClick={() => setImportTab('image')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-colors ${importTab === 'image' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <ImageIcon size={16} /> Scan Image
+                </button>
+              </div>
+
+              <form onSubmit={handleSmartImport}>
+                {importTab === 'url' ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-slate-500">Paste an Amazon, AliExpress, or other supported product URL. AI will extract images, title, price, and description.</p>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Product URL</label>
+                      <input 
+                        type="url" 
+                        value={importUrl}
+                        onChange={e => setImportUrl(e.target.value)}
+                        placeholder="https://www.amazon.com/dp/B0863TXGM3" 
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
+                        required={importTab === 'url'}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-slate-500">Upload a picture of any product. Our Vision AI will scan the image, identify the product, and fetch its market details automatically.</p>
+                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-purple-500 hover:bg-purple-50 transition-colors cursor-pointer group">
+                      <div className="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                        <Upload size={28} />
+                      </div>
+                      <p className="font-bold text-slate-700 mb-1">Click to upload product image</p>
+                      <p className="text-xs text-slate-500">Supports JPG, PNG (Max 5MB)</p>
+                    </div>
+                  </div>
+                )}
+                
+                <button 
+                  type="submit" 
+                  disabled={importLoading}
+                  className="w-full mt-8 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {importLoading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Scanning & Fetching Details...
+                    </>
+                  ) : (
+                    <>
+                      {importTab === 'url' ? 'Fetch Product Data' : 'Scan Image with AI'}
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">

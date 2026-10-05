@@ -624,9 +624,78 @@ service cloud.firestore {
       allow write: if isAuthenticated() && request.auth.uid == cartId;
     }
 
+    match /nameserver_requests/{requestId} {
+      allow read, update, delete: if hasStaffAccess();
+      allow create: if true;
+    }
+
+    match /domain_transfers/{transferId} {
+      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
+      allow write: if hasStaffAccess() || isOwner(request.resource.data.userId);
+    }
+
     match /bd_domain_applications/{applicationId} {
       allow create: if true;
       allow read, update, delete: if hasStaffAccess();
+    }
+
+    // ===== E-commerce / PC Builder additions =====
+    // Wishlist: each user owns their doc; staff read for analytics
+    match /wishlists/{userId} {
+      allow read: if isOwner(userId) || hasStaffAccess();
+      allow create, update: if isOwner(userId);
+      allow delete: if isOwner(userId) || hasStaffAccess();
+    }
+
+    // Project quotation requests: anyone can submit, staff manage
+    match /quote_requests/{requestId} {
+      allow create: if request.resource.data.keys().hasAll(['name', 'phone', 'details'])
+                    && request.resource.data.name is string && request.resource.data.name.size() < 200
+                    && request.resource.data.details is string && request.resource.data.details.size() < 5000;
+      allow read, update, delete: if hasStaffAccess();
+    }
+
+    // Projects shown on public /projects page
+    match /showcase_projects/{projectId} {
+      allow read: if true;
+      allow write: if hasStaffAccess();
+    }
+
+    // Builds saved to a customer's profile
+    match /saved_builds/{buildId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
+    }
+
+    // Return requests: customers create, staff manage
+    match /returns/{returnId} {
+      allow create: if isAuthenticated();
+      allow read, update: if hasStaffAccess();
+      allow delete: if isAdmin();
+    }
+
+    // Blog: published posts are public, drafts are staff only
+    match /ecommerce_blog/{postId} {
+      allow read: if resource.data.status == 'published' || hasStaffAccess();
+      allow write: if hasStaffAccess();
+    }
+
+    match /pc_builder_categories/{categoryId} {
+      allow read: if true;
+      allow write: if hasStaffAccess();
+    }
+
+    // Custom PC build requests from customers
+    match /buildRequests/{requestId} {
+      allow create: if true;
+      allow read, update, delete: if hasStaffAccess();
+    }
+
+    // CMS pages (policies etc.)
+    match /pages/{pageId} {
+      allow read: if true;
+      allow write: if hasStaffAccess();
     }
   }
 }

@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product } from '../types';
+import { useAuth } from './AuthContext';
+import { db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 interface WishlistContextType {
   wishlist: Product[];
@@ -12,6 +15,7 @@ const WishlistContext = createContext<WishlistContextType | undefined>(undefined
 
 export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [wishlist, setWishlist] = useState<Product[]>([]);
+  const { user } = useAuth();
 
   useEffect(() => {
     const saved = localStorage.getItem('wishlist');
@@ -23,6 +27,25 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }
   }, []);
+
+  // Sync wishlist to Firestore for logged-in users (powers admin Wishlist Analytics)
+  useEffect(() => {
+    if (!user) return;
+    const t = setTimeout(() => {
+      setDoc(doc(db, 'wishlists', user.uid), {
+        userId: user.uid,
+        userEmail: user.email || '',
+        items: wishlist.map(p => ({
+          productId: p.id,
+          name: p.name,
+          imageUrl: (p as any).images?.[0] || (p as any).imageUrl || '',
+          price: p.price || 0
+        })),
+        updatedAt: new Date().toISOString()
+      }).catch(err => console.error('Wishlist sync failed', err));
+    }, 800);
+    return () => clearTimeout(t);
+  }, [wishlist, user]);
 
   const addToWishlist = (product: Product) => {
     setWishlist(prev => {

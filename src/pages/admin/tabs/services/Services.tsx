@@ -31,6 +31,12 @@ interface ServiceRecord {
   vendorId?: string;
   rmaStatus?: 'Pending Vendor' | 'Sent to Vendor' | 'Received from Vendor' | 'Delivered';
   newSerialNumber?: string;
+  outsourceCost?: number;
+  outsourcePaidAmount?: number;
+  outsourcePaymentMethod?: string;
+  outsourceTxPurchaseId?: string;
+  outsourceTxPaymentId?: string;
+  isOutsourced?: boolean;
 }
 
 interface SoldSerial {
@@ -57,13 +63,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   const [serviceRecords, setServiceRecords] = useState<ServiceRecord[]>([]);
   const [vendors, setVendors] = useState<{id: string; name: string}[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [isAddingService, setIsAddingService] = useState(false);
   const [editingService, setEditingService] = useState<ServiceRecord | null>(null);
   
-  const defaultFormData = {
+  const defaultFormData: any = {
     serialNumber: '',
     customerName: '',
     customerPhone: '',
@@ -153,6 +160,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
         setVendors(vendorsSnap.docs.map(v => ({ id: v.id, name: v.data().name })));
         const custSnap = await getDocs(query(collection(db, 'customers')));
         setCustomers(custSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const accSnap = await getDocs(query(collection(db, 'payment_accounts')));
+        setPaymentAccounts(accSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
       } catch (err) {
         console.error(err);
@@ -201,7 +210,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     if (!window.confirm('Are you sure you want to permanently delete this service record?')) return;
     try {
       await deleteDoc(doc(db, 'services', id));
-      const deletedService = services.find(s => s.id === id);
+      const deletedService = serviceRecords.find((s: any) => s.id === id);
       await logAudit('DELETE', 'Service', `Deleted service ticket #${deletedService?.serialNumber || id} for ${deletedService?.customerName}`, profile?.displayName || profile?.email || 'Admin');
       toast.success('Service record deleted successfully');
     } catch (err) {
@@ -503,19 +512,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
 
       setIsAddingService(false);
       setEditingService(null);
-      setServiceFormData({
-        serialNumber: '',
-        customerName: '',
-        customerPhone: '',
-        productName: '',
-        issueDescription: '',
-        isWarranty: false,
-        serviceCharge: 0,
-        status: 'received',
-        equipmentType: 'Laptop',
-        paymentMethod: 'cash',
-        paymentStatus: 'pending',
-      });
+      setServiceFormData(defaultFormData);
       fetchData();
     } catch (error) {
       console.error('Error saving service:', error);
@@ -639,25 +636,92 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   <span>In-House Repair</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="serviceType" value="rma" checked={serviceFormData.serviceType === 'rma'} onChange={() => setServiceFormData({...serviceFormData, serviceType: 'rma'})} className="text-[#EF4444] focus:ring-[#EF4444]" />
-                  <span>Warranty / RMA (Vendor)</span>
+                  <input type="radio" name="serviceType" value="outsourced" checked={serviceFormData.serviceType === 'outsourced'} onChange={() => setServiceFormData({...serviceFormData, serviceType: 'outsourced'})} className="text-[#EF4444] focus:ring-[#EF4444]" />
+                  <span>Outsourced Repair</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="serviceType" value="rma" checked={serviceFormData.serviceType === 'rma'} onChange={() => setServiceFormData({...serviceFormData, serviceType: 'rma'})} className="text-[#EF4444] focus:ring-[#EF4444]" />
+                    <span>Warranty / RMA</span>
                 </label>
               </div>
 
-              {serviceFormData.serviceType === 'rma' && (
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                  <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Select Supplier / Vendor</label>
-                  <select
-                    value={serviceFormData.vendorId}
-                    onChange={e => setServiceFormData({ ...serviceFormData, vendorId: e.target.value })}
-                    className="w-full border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    required={serviceFormData.serviceType === 'rma'}
-                  >
-                    <option value="">-- Select Vendor --</option>
-                    {vendors.map(v => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
-                  </select>
+              
+                {/* Outsourcing Checkbox (Only for In-House Repair) */}
+                {serviceFormData.serviceType === 'in_house' && (
+                  <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <input 
+                      type="checkbox" 
+                      id="isOutsourced"
+                      checked={serviceFormData.isOutsourced}
+                      onChange={(e) => setServiceFormData({...serviceFormData, isOutsourced: e.target.checked})}
+                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                    />
+                    <label htmlFor="isOutsourced" className="font-bold text-gray-700 cursor-pointer">
+                      Did you outsource this repair to a 3rd party vendor?
+                    </label>
+                  </div>
+                )}
+
+                {(serviceFormData.serviceType === 'rma' || serviceFormData.isOutsourced) && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-blue-800 uppercase mb-1">
+                      {serviceFormData.serviceType === 'rma' ? 'Select Supplier / Dealer' : 'Select Outsourced Mechanic / Vendor'}
+                    </label>
+                    <select
+                      value={serviceFormData.vendorId}
+                      onChange={e => setServiceFormData({ ...serviceFormData, vendorId: e.target.value })}
+                      className="w-full border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      required={serviceFormData.serviceType === 'rma' || serviceFormData.isOutsourced}
+                    >
+                      <option value="">-- Select Vendor --</option>
+                      {vendors.map(v => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Repair Cost (Tk)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={serviceFormData.outsourceCost || ''}
+                        onChange={e => setServiceFormData({ ...serviceFormData, outsourceCost: Number(e.target.value) || 0 })}
+                        className="w-full border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="e.g. 500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Paid to Vendor (Tk)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={serviceFormData.outsourcePaidAmount || ''}
+                        onChange={e => setServiceFormData({ ...serviceFormData, outsourcePaidAmount: Number(e.target.value) || 0 })}
+                        className="w-full border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="e.g. 500"
+                      />
+                      {(serviceFormData.outsourceCost || 0) > (serviceFormData.outsourcePaidAmount || 0) && serviceFormData.outsourceCost > 0 && (
+                        <p className="text-[10px] text-red-600 mt-1 font-bold">Unpaid: {(serviceFormData.outsourceCost || 0) - (serviceFormData.outsourcePaidAmount || 0)} Tk will go to vendor due.</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Paid From Account</label>
+                      <select
+                        value={serviceFormData.outsourcePaymentMethod}
+                        onChange={e => setServiceFormData({ ...serviceFormData, outsourcePaymentMethod: e.target.value })}
+                        className="w-full border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        disabled={!(serviceFormData.outsourcePaidAmount > 0)}
+                      >
+                        <option value="cash">Cash</option>
+                        {paymentAccounts?.map((acc: any) => (
+                          <option key={acc.id} value={acc.type || acc.name}>{acc.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1169,7 +1233,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                              <ShoppingCart size={14} />
                            </button>
                          )}
-                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, receivedAt: record.receivedAt ? record.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0], serviceType: record.serviceType || 'in_house', vendorId: record.vendorId || '', rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || 'Laptop', paymentMethod: record.paymentMethod || 'cash', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || ''}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
+                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, receivedAt: record.receivedAt ? record.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0], serviceType: record.serviceType || 'in_house', vendorId: record.vendorId || '', rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || 'Laptop', paymentMethod: record.paymentMethod || 'cash', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || '', outsourceCost: record.outsourceCost || 0, outsourcePaidAmount: record.outsourcePaidAmount || 0, outsourcePaymentMethod: record.outsourcePaymentMethod || 'cash', isOutsourced: record.isOutsourced || (record.outsourceCost > 0)}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
                            <Edit2 size={14} />
                          </button>
                           <button onClick={() => handleDeleteService(record.id)} className="text-gray-500 hover:text-red-700 bg-gray-50 hover:bg-red-50 p-1.5 rounded shadow-sm transition-all" title="Delete Service">
