@@ -12,7 +12,7 @@ import React, {
 import Papa from "papaparse";
 import {
   collection,
-  getDocs,
+  getDoc, getDocs,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -2264,6 +2264,79 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   };
 
+  const handleReturnOrder = async (order: any) => {
+    if (!isAdmin) {
+      toast.error("You do not have permission to return this.");
+      return;
+    }
+    if (order.status === 'returned') {
+      toast.error("This order is already returned.");
+      return;
+    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Full Sale Return",
+      message: `Are you sure you want to completely return invoice ${order.documentNumber || order.id}? This will automatically restore ALL items to stock and credit the customer's ledger.`,
+      confirmText: "Process Full Return",
+      confirmColor: "bg-blue-600 hover:bg-blue-700",
+      onConfirm: async () => {
+        try {
+          // 1. Update order status
+          await updateDoc(doc(db, 'orders', order.id), { status: 'returned' });
+          
+          // 2. Restore stock and available serials
+          for (const item of order.items || []) {
+            if (item.productId || item.id) {
+              const prodRef = doc(db, "products", item.productId || item.id);
+              const prodSnap = await getDoc(prodRef);
+              if (prodSnap.exists()) {
+                const currentProd = prodSnap.data();
+                const updates: any = {};
+                updates.stock = (currentProd.stock || 0) + (item.quantity || 0);
+
+                if (item.selectedSerials && item.selectedSerials.length > 0) {
+                  const newAvailable = [
+                    ...(currentProd.availableSerials || []),
+                    ...item.selectedSerials,
+                  ];
+                  updates.availableSerials = Array.from(new Set(newAvailable));
+                }
+                await updateDoc(prodRef, updates);
+              }
+            }
+          }
+
+          // 3. Delete sold_serials records (or mark them returned)
+          const serialsSnap = await getDocs(
+            query(collection(db, "sold_serials"), where("orderId", "==", order.id))
+          );
+          await Promise.all(serialsSnap.docs.map((d) => deleteDoc(doc(db, "sold_serials", d.id))));
+
+          // 4. Create Sale Return Transaction
+          const docNumber = await generateDocumentNumber('sale_return');
+          await addDoc(collection(db, 'transactions'), {
+            type: 'sale_return',
+            amount: order.total || 0,
+            date: new Date().toISOString().split('T')[0],
+            description: `Full Return of Invoice #${order.documentNumber || order.id}`,
+            entityId: order.customerId || 'general',
+            entityName: order.customerName || 'Customer',
+            referenceId: order.id,
+            documentNumber: docNumber,
+            createdAt: new Date().toISOString(),
+          });
+          
+          await logAudit('UPDATE', 'Order', `Processed full return for invoice #${order.documentNumber || order.id}`, profile?.displayName || profile?.email || 'Unknown Admin');
+          toast.success('Sale returned and stock restored successfully');
+          fetchData();
+        } catch (error) {
+          console.error("Error returning order:", error);
+          toast.error("Failed to process return.");
+        }
+      },
+    });
+  };
+  
   const handleDeleteOrder = async (order: any) => {
     if (!isAdmin) {
       toast.error("You do not have permission to delete this.");
@@ -2290,10 +2363,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           // 2. Revert stock and available serials
           if (
-            order.type === "invoice" ||
-            order.type === "challan" ||
-            order.type === "sale"
-          ) {
+              order.type === "invoice" ||
+              order.type === "challan" ||
+              order.type === "sale" ||
+              order.type === "pos_sale"
+            ) {
             for (const item of order.items || []) {
               if (item.productId || item.id) {
                 const prodRef = doc(db, "products", item.productId || item.id);
@@ -5715,6 +5789,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     generatePDF(enrichedOrder, type, settings, 'download');
                   }}
                   handleDeleteOrder={handleDeleteOrder}
+handleReturnOrder={handleReturnOrder}
                 />
               ) : activeTab === "purchase_return" ? (
                 <PurchaseReturnTab />

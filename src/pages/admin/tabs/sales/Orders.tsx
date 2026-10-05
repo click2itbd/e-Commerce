@@ -7,14 +7,14 @@ import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 export type OrderStatus = string;
 export const DEFAULT_ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
-import { Phone, Mail, MapPin,  Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X , ShieldCheck } from 'lucide-react';
+import { Phone, Mail, MapPin,  Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, RotateCcw, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X , ShieldCheck } from 'lucide-react';
 import EditOrderModal from '../../modals/EditOrderModal';
 import { Edit2 } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
 export type OrderCategory = 'all' | 'ecommerce' | 'pc_build' | 'domain' | 'hosting';
 
-interface OrdersTabProps { orders: any[]; customers: any[]; orderSearchQuery: string; setOrderSearchQuery: (v: string) => void; orderStatusFilter: string; setOrderStatusFilter: (v: string) => void; orderStartDate: string; setOrderStartDate: (v: string) => void; orderEndDate: string; setOrderEndDate: (v: string) => void; orderSort: any; setOrderSort: (v: any) => void; selectedOrderIds: string[]; setSelectedOrderIds: (v: string[]) => void; handleExportFilteredOrders: () => void; handleBulkUpdateOrderStatus: (s: string) => void; handleBulkReturnOrders: () => void; handleBulkExportOrders: () => void; handleBulkDeleteOrders: () => void; setSelectedLedgerEntity: (v: any) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; updateOrderDiscount?: (id: string, v: number) => void; updateOrderStatus?: (id: string, status: OrderStatus) => void; generatePDF?: (order: any, type: 'invoice' | 'challan' | 'quotation') => void; handleDeleteOrder?: (order: any) => void; }
+interface OrdersTabProps { orders: any[]; customers: any[]; orderSearchQuery: string; setOrderSearchQuery: (v: string) => void; orderStatusFilter: string; setOrderStatusFilter: (v: string) => void; orderStartDate: string; setOrderStartDate: (v: string) => void; orderEndDate: string; setOrderEndDate: (v: string) => void; orderSort: any; setOrderSort: (v: any) => void; selectedOrderIds: string[]; setSelectedOrderIds: (v: string[]) => void; handleExportFilteredOrders: () => void; handleBulkUpdateOrderStatus: (s: string) => void; handleBulkReturnOrders: () => void; handleBulkExportOrders: () => void; handleBulkDeleteOrders: () => void; setSelectedLedgerEntity: (v: any) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; updateOrderDiscount?: (id: string, v: number) => void; updateOrderStatus?: (id: string, status: OrderStatus) => void; generatePDF?: (order: any, type: 'invoice' | 'challan' | 'quotation') => void; handleDeleteOrder?: (order: any) => void; handleReturnOrder?: (order: any) => void; }
 
 export const getOrderCategory = (order: any): 'ecommerce' | 'pc_build' | 'domain' | 'hosting' => {
   if (
@@ -43,7 +43,7 @@ export const getOrderCategory = (order: any): 'ecommerce' | 'pc_build' | 'domain
   return 'ecommerce';
 };
 
-const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQuery, setOrderSearchQuery, orderStatusFilter, setOrderStatusFilter, orderStartDate, setOrderStartDate, orderEndDate, setOrderEndDate, orderSort, setOrderSort, selectedOrderIds, setSelectedOrderIds, handleExportFilteredOrders, handleBulkUpdateOrderStatus, handleBulkReturnOrders, handleBulkExportOrders, handleBulkDeleteOrders, setSelectedLedgerEntity, setActiveTab, fetchData, updateOrderDiscount, updateOrderStatus, generatePDF, handleDeleteOrder }) => {
+const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQuery, setOrderSearchQuery, orderStatusFilter, setOrderStatusFilter, orderStartDate, setOrderStartDate, orderEndDate, setOrderEndDate, orderSort, setOrderSort, selectedOrderIds, setSelectedOrderIds, handleExportFilteredOrders, handleBulkUpdateOrderStatus, handleBulkReturnOrders, handleBulkExportOrders, handleBulkDeleteOrders, setSelectedLedgerEntity, setActiveTab, fetchData, updateOrderDiscount, updateOrderStatus, generatePDF, handleDeleteOrder, handleReturnOrder }) => {
   const { isAdmin, hasPermission } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -538,6 +538,15 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                                 </div>
                               </div>
                             )}
+                            {handleReturnOrder && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleReturnOrder(order); }}
+                                className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-md transition-all flex items-center justify-center"
+                                title="Return Sale"
+                              >
+                                <RotateCcw size={16} />
+                              </button>
+                            )}
                             {handleDeleteOrder && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDeleteOrder(order); }}
@@ -867,6 +876,30 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                       <span>Net Total</span>
                       <span>{formatCurrency(viewingOrder.total || 0, settings)}</span>
                     </div>
+                    {(() => {
+                        const profit = viewingOrder.profit ?? (viewingOrder.items?.reduce((sum: number, item: any) => sum + (((item.price || 0) - (item.costPrice || item.purchasePrice || 0)) * (item.quantity || 1)), 0) ?? 0);
+                        if (profit > 0) {
+                          return (
+                            <div className="flex justify-between text-emerald-600 bg-emerald-50 px-3 py-1.5 -mx-3 rounded-lg border border-emerald-100 mt-2 mb-2" title="Only admins can see this profit">
+                              <span className="font-bold text-[10px] uppercase tracking-wider self-center flex items-center gap-1">? Admin Profit</span>
+                              <span className="font-bold text-sm">+{formatCurrency(profit, settings)}</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                    })()}
+                    {(() => {
+                        const profit = viewingOrder.profit ?? (viewingOrder.items?.reduce((sum: number, item: any) => sum + (((item.price || 0) - (item.costPrice || item.purchasePrice || 0)) * (item.quantity || 1)), 0) ?? 0);
+                        if (profit > 0) {
+                          return (
+                            <div className="flex justify-between text-emerald-600 bg-emerald-50 px-3 py-1.5 -mx-3 rounded-lg border border-emerald-100 mt-2 mb-2" title="Only admins can see this profit">
+                              <span className="font-bold text-[10px] uppercase tracking-wider self-center flex items-center gap-1">? Admin Profit</span>
+                              <span className="font-bold text-sm">+{formatCurrency(profit, settings)}</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                    })()}
                     {viewingOrder.type !== 'quotation' && (
                       <div className="pt-2 space-y-2">
                         <div className="flex justify-between text-emerald-600 bg-emerald-50 px-3 py-2 -mx-3 rounded-xl border border-emerald-100">

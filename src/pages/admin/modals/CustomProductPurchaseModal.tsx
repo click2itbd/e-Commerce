@@ -29,6 +29,9 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
     costPrice: 0,
     salesPrice: 0,
     quantity: 1,
+      unit: 'pcs',
+      warrantyMonths: 0,
+      warrantyUnit: 'months',
     paymentAccountId: '',
     paidAmount: 0,
   });
@@ -83,6 +86,9 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
         price: formData.salesPrice,
         costPrice: formData.costPrice,
         stock: formData.quantity,
+          unit: formData.unit,
+          warrantyMonths: formData.warrantyMonths,
+          warrantyUnit: formData.warrantyUnit,
         categoryId: formData.categoryId,
         category: categoryName,
         subCategory: formData.subCategory,
@@ -110,6 +116,7 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
           purchasePrice: formData.costPrice,
           salesPrice: formData.salesPrice,
           quantity: formData.quantity,
+            unit: formData.unit,
         }],
         subtotal: totalAmount,
         total: totalAmount,
@@ -249,14 +256,31 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Quantity *</label>
-              <input
-                type="number"
-                min="1"
-                required
-                value={formData.quantity || ''}
-                onChange={e => setFormData({ ...formData, quantity: Number(e.target.value) })}
-                className="w-full border border-gray-300 rounded-lg p-2 text-sm"
-              />
+              <div className="flex">
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={formData.quantity || ''}
+                  onChange={e => setFormData({ ...formData, quantity: Number(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-l-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <select
+                  value={formData.unit || 'pcs'}
+                  onChange={e => setFormData({ ...formData, unit: e.target.value })}
+                  className="border-y border-r border-gray-300 rounded-r-lg p-2 text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none w-20"
+                >
+                  <option value="pcs">pcs</option>
+                  <option value="nos">nos</option>
+                  <option value="kg">kg</option>
+                  <option value="gm">gm</option>
+                  <option value="ltr">ltr</option>
+                  <option value="meter">meter</option>
+                  <option value="box">box</option>
+                  <option value="set">set</option>
+                  <option value="pack">pack</option>
+                </select>
+              </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Barcode / SKU</label>
@@ -264,9 +288,34 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
                 type="text"
                 value={formData.barcode}
                 onChange={e => setFormData({ ...formData, barcode: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 placeholder="Scan or enter"
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Warranty</label>
+              <div className="flex">
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.warrantyMonths || ''}
+                  onChange={e => setFormData({ ...formData, warrantyMonths: Number(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-l-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="0 (No Warranty)"
+                />
+                <select
+                  value={formData.warrantyUnit || 'months'}
+                  onChange={e => setFormData({ ...formData, warrantyUnit: e.target.value })}
+                  className="border-y border-r border-gray-300 rounded-r-lg p-2 text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none w-32"
+                >
+                  <option value="days">Days</option>
+                  <option value="months">Months</option>
+                  <option value="years">Years</option>
+                </select>
+              </div>
             </div>
           </div>
 

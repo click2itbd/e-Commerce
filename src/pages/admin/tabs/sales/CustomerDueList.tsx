@@ -641,7 +641,7 @@ const fetchData = async () => {
                               <span className={`font-mono font-bold text-sm ${t.runningBalance > 0 ? 'text-blue-600' : 'text-green-600'}`}>
                                 {formatCurrency(Math.max(0, t.runningBalance), settings)}
                               </span>
-                              {(t.type === 'payment_received' || t.type === 'payment_made' || t.type === 'opening_balance') && (
+                              {(t.type === 'payment_received' || t.type === 'payment_made' || t.type === 'opening_balance' || t.type === 'sale') && (
                                 <div className="flex gap-1">
                                   <button
                                     onClick={() => { setEditTx(t); setEditAmount(t.amt); setEditDate(t.date.slice(0, 16)); }}

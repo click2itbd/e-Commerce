@@ -610,6 +610,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const docNumber = await generateDocumentNumber(docType);
 
       const processedItems = saleData.items.map(item => {
+          const currentProduct = products.find(p => p.id === item.id);
         if (item.isCustomService) {
           return {
             productId: item.id,
@@ -625,7 +626,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           };
         }
         
-        const currentProduct = products.find(p => p.id === item.id);
+
         const wMonths = item.hasWarranty ? (item.warrantyMonths || currentProduct?.warrantyMonths || 0) : (currentProduct?.warrantyMonths || 0);
         return {
           productId: item.id,
