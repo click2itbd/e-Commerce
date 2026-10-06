@@ -14,7 +14,7 @@ import { Pagination } from '../../../../components/common/Pagination';
 
 export type OrderCategory = 'all' | 'ecommerce' | 'pc_build' | 'domain' | 'hosting';
 
-interface OrdersTabProps { orders: any[]; customers: any[]; orderSearchQuery: string; setOrderSearchQuery: (v: string) => void; orderStatusFilter: string; setOrderStatusFilter: (v: string) => void; orderStartDate: string; setOrderStartDate: (v: string) => void; orderEndDate: string; setOrderEndDate: (v: string) => void; orderSort: any; setOrderSort: (v: any) => void; selectedOrderIds: string[]; setSelectedOrderIds: (v: string[]) => void; handleExportFilteredOrders: () => void; handleBulkUpdateOrderStatus: (s: string) => void; handleBulkReturnOrders: () => void; handleBulkExportOrders: () => void; handleBulkDeleteOrders: () => void; setSelectedLedgerEntity: (v: any) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; updateOrderDiscount?: (id: string, v: number) => void; updateOrderStatus?: (id: string, status: OrderStatus) => void; generatePDF?: (order: any, type: 'invoice' | 'challan' | 'quotation') => void; handleDeleteOrder?: (order: any) => void; handleReturnOrder?: (order: any) => void; }
+interface OrdersTabProps { orders: any[]; customers: any[]; orderSearchQuery: string; setOrderSearchQuery: (v: string) => void; orderStatusFilter: string; setOrderStatusFilter: (v: string) => void; orderStartDate: string; setOrderStartDate: (v: string) => void; orderEndDate: string; setOrderEndDate: (v: string) => void; orderSort: any; setOrderSort: (v: any) => void; selectedOrderIds: string[]; setSelectedOrderIds: (v: string[]) => void; handleExportFilteredOrders: () => void; handleBulkUpdateOrderStatus: (s: string) => void; handleBulkReturnOrders: () => void; handleBulkExportOrders: () => void; handleBulkDeleteOrders: () => void; setSelectedLedgerEntity: (v: any) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; updateOrderDiscount?: (id: string, v: number) => void; updateOrderStatus?: (id: string, status: OrderStatus) => void; generatePDF?: (order: any, type: 'invoice' | 'challan' | 'quotation') => void; handleDeleteOrder?: (order: any) => void; handleReturnOrder?: (order: any) => void; handleEditInSales?: (order: any) => void; }
 
 export const getOrderCategory = (order: any): 'ecommerce' | 'pc_build' | 'domain' | 'hosting' => {
   if (
@@ -43,7 +43,7 @@ export const getOrderCategory = (order: any): 'ecommerce' | 'pc_build' | 'domain
   return 'ecommerce';
 };
 
-const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQuery, setOrderSearchQuery, orderStatusFilter, setOrderStatusFilter, orderStartDate, setOrderStartDate, orderEndDate, setOrderEndDate, orderSort, setOrderSort, selectedOrderIds, setSelectedOrderIds, handleExportFilteredOrders, handleBulkUpdateOrderStatus, handleBulkReturnOrders, handleBulkExportOrders, handleBulkDeleteOrders, setSelectedLedgerEntity, setActiveTab, fetchData, updateOrderDiscount, updateOrderStatus, generatePDF, handleDeleteOrder, handleReturnOrder }) => {
+const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQuery, setOrderSearchQuery, orderStatusFilter, setOrderStatusFilter, orderStartDate, setOrderStartDate, orderEndDate, setOrderEndDate, orderSort, setOrderSort, selectedOrderIds, setSelectedOrderIds, handleExportFilteredOrders, handleBulkUpdateOrderStatus, handleBulkReturnOrders, handleBulkExportOrders, handleBulkDeleteOrders, setSelectedLedgerEntity, setActiveTab, fetchData, updateOrderDiscount, updateOrderStatus, generatePDF, handleDeleteOrder, handleReturnOrder, handleEditInSales }) => {
   const { isAdmin, hasPermission } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -343,282 +343,127 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
             )}
 
             <div className="overflow-x-auto rounded-xl border border-gray-200 mx-6 mb-6 mt-4 shadow-sm flex-1">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse whitespace-nowrap">
                 <thead className="bg-[#081621] text-xs font-bold text-white uppercase tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 w-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedOrderIds.length === orders.filter(o => {
-                          const matchesStatus = orderStatusFilter === 'all' || o.status === orderStatusFilter;
-                          const matchesSearch = o.id.toLowerCase().includes(orderSearchQuery.toLowerCase()) || 
-                                              o.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
-                                              o.customerPhone.toLowerCase().includes(orderSearchQuery.toLowerCase());
-                          const orderDate = o.createdAt.split('T')[0];
-                          const matchesStartDate = !orderStartDate || orderDate >= orderStartDate;
-                          const matchesEndDate = !orderEndDate || orderDate <= orderEndDate;
-                          return matchesStatus && matchesSearch && matchesStartDate && matchesEndDate;
-                        }).length && actualOrders.length > 0}
-                        onChange={(e) => {
-                          const filteredOrders = actualOrders.filter(o => {
-                            const matchesStatus = orderStatusFilter === 'all' || o.status === orderStatusFilter;
-                            const matchesSearch = o.id.toLowerCase().includes(orderSearchQuery.toLowerCase()) || 
-                                                o.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
-                                                o.customerPhone.toLowerCase().includes(orderSearchQuery.toLowerCase());
-                            const orderDate = o.createdAt.split('T')[0];
-                            const matchesStartDate = !orderStartDate || orderDate >= orderStartDate;
-                            const matchesEndDate = !orderEndDate || orderDate <= orderEndDate;
-                            return matchesStatus && matchesSearch && matchesStartDate && matchesEndDate;
-                          });
-                          if (e.target.checked) {
-                            setSelectedOrderIds(filteredOrders.map(o => o.id));
-                          } else {
-                            setSelectedOrderIds([]);
-                          }
-                        }}
-                        className="rounded border-gray-300 text-[#EF4444] focus:ring-[#EF4444]"
-                      />
-                    </th>
-                    <th className="px-6 py-4">Order ID</th>
-                    
-                    <th className="px-6 py-4">Date</th>
-                    <th className="px-6 py-4">Customer</th>
-                    <th className="px-6 py-4">Total & Payment</th>
-                    <th className="px-6 py-4">Discount</th>
-                    <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Prepared By</th>
-                    <th className="px-6 py-4 text-right">Generate Docs</th>
-                  </tr>
-                </thead>
+                    <tr>
+                      <th className="px-5 py-4 w-48">Order Info</th>
+                      <th className="px-5 py-4">Customer</th>
+                      <th className="px-5 py-4">Amount & Payment</th>
+                      <th className="px-5 py-4">Status</th>
+                      <th className="px-5 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
                 <tbody className="divide-y divide-gray-100">
                   {currentOrders.map(order => {
                     const cat = getOrderCategory(order);
                     return (
                       <React.Fragment key={order.id}>
-                      <tr className={cn(
-                        "hover:bg-gray-50 transition-colors cursor-pointer",
-                        selectedOrderIds.includes(order.id) ? "bg-red-50/50" : (expandedOrderIds.has(order.id) ? "bg-blue-50/30" : "")
-                      )} onClick={() => toggleRow(order.id)}>
-                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedOrderIds.includes(order.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedOrderIds([...selectedOrderIds, order.id]);
-                              } else {
-                                setSelectedOrderIds(selectedOrderIds.filter(id => id !== order.id));
-                              }
-                            }}
-                            className="rounded border-gray-300 text-[#EF4444] focus:ring-[#EF4444]"
-                          />
-                        </td>
-                        <td className="px-6 py-4 text-xs font-mono text-gray-500">
-                            <div className="flex items-center gap-2">
-                            {expandedOrderIds.has(order.id) ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
-                            #{order.documentNumber || order.id.slice(0, 8)}
-                            {order.saleSource === 'online' && (
-                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700">
-                                ONLINE
-                              </span>
-                            )}
+                        <tr className={cn(
+                          "hover:bg-slate-50 transition-colors group cursor-pointer",
+                          selectedOrderIds.includes(order.id) && "bg-blue-50/50"
+                        )} onClick={() => setViewingOrder(order)}>
+                          
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="font-black text-slate-900 flex items-center gap-1.5 text-[13px]">
+                              <Receipt size={14} className="text-blue-500" />
+                              {order.documentNumber || order.id.slice(-6)}
                             </div>
-                          </td>
-                        
-                        <td className="px-6 py-4 text-xs text-gray-500">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); const customer = customers.find(c => c.name === order.customerName);
-                                if (customer) {
-                                  setSelectedLedgerEntity({ id: customer.id, name: customer.name, type: 'customer' });
-                                } else {
-                                  toast.error('Customer details not found');
-                                }
-                              }}
-                              className="text-sm font-bold text-[#EF4444] hover:underline text-left"
-                            >
-                              {order.customerName || 'N/A'}
-                            </button>
-                            <span className="text-xs text-gray-500">{order.customerPhone || order.customerEmail || ''}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                            <div className="flex flex-col gap-1 items-start">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-black text-gray-900">{formatCurrency(order.total, settings)}</span>
-                                {order.paymentStatus === 'paid' && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase tracking-wider border border-green-200">Paid</span>}
-                                {order.paymentStatus === 'partial' && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-bold uppercase tracking-wider border border-amber-200">Partial</span>}
-                                {(order.paymentStatus === 'unpaid' || !order.paymentStatus) && <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px] font-bold uppercase tracking-wider border border-red-200">Due</span>}
-                              </div>
-                              <div className="text-[10.5px] text-gray-500 font-bold -mt-0.5">
-                                Paid: <span className="text-gray-700">{formatCurrency(order.paidAmount || 0, settings)}</span>
-                              </div>
-                              {order.paymentMethod && (
-                                <span className="px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold uppercase bg-gray-100 text-gray-600 inline-block w-fit mt-0.5">
-                                  {order.paymentMethod === 'cod' ? 'Cash on Delivery' : 
-                                   order.paymentMethod === 'bkash' ? 'bKash' : 
-                                   order.paymentMethod === 'nagad' ? 'Nagad' : 
-                                   order.paymentMethod === 'rocket' ? 'Rocket' : 
-                                   order.paymentMethod === 'bank' ? 'Bank Transfer' : 
-                                   order.paymentMethod === 'pos' ? 'POS' : 'Other Gateway'}
-                                </span>
-                              )}
-                              {order.discountAmount && order.discountAmount > 0 && order.items?.length ? (
-                                <div className="text-[10px] text-gray-400 line-through">
-                                  {formatCurrency(order.items.reduce((acc: number, item: any) => acc + (item.price || 0) * (item.quantity || 1), 0), settings)}
-                                </div>
-                              ) : null}
+                            <div className="text-[11px] text-slate-500 mt-1 font-bold">
+                              {new Date(order.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </div>
+                            <div className="text-[10px] text-slate-400 font-semibold mt-0.5">By: {order.createdBy || "Admin"}</div>
                           </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              defaultValue={order.discountAmount || 0}
-                              onClick={(e)=>e.stopPropagation()} onBlur={(e) => {
-                                const val = parseFloat(e.target.value);
-                                if (!isNaN(val) && val !== (order.discountAmount || 0) && updateOrderDiscount) {
-                                  updateOrderDiscount(order.id, val);
-                                }
-                              }}
-                              disabled={!hasPermission('manage_orders')}
-                              className="w-20 px-2 py-1 text-xs border border-gray-200 rounded focus:ring-[#EF4444] focus:border-[#EF4444] disabled:bg-gray-50"
-                              placeholder="0.00"
-                            />
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <select
-                            value={order.status}
-                            onClick={(e)=>e.stopPropagation()} onChange={e => updateOrderStatus && updateOrderStatus(order.id, e.target.value as OrderStatus)}
-                            disabled={!hasPermission('manage_orders')}
-                            className="w-full text-xs border-gray-200 rounded-md focus:ring-[#EF4444] disabled:bg-gray-50 disabled:text-gray-500 font-semibold"
-                          >
-                            {activeStatuses.map((s: string) => (
-                              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                            ))}
-                          </select>
-                          </td>
-                          <td className="px-6 py-4 text-xs font-bold text-gray-500 whitespace-nowrap">{order.createdBy || "Admin"}</td>
-                          <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            
-                              <button
-                                 onClick={(e) => { e.stopPropagation(); setEditingOrder(order); }}
-                                 className="p-1.5 px-3 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold border border-gray-200 bg-white shadow-sm"
-                                 title="Edit Order"
-                               >
-                                 <Edit2 size={14} /> Edit
-                               </button>
-                              <button
-                               onClick={(e) => { e.stopPropagation(); setViewingOrder(order); }}
-                               className="p-1.5 px-3 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold border border-gray-200 bg-white shadow-sm"
-                               title="View Order"
-                             >
-                               <Eye size={14} /> View
-                             </button>
-                            {(order.status === 'shipped' || order.status === 'delivered' || order.courierName) && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setShippingModalOrder(order); }}
-                                className="p-1.5 px-3 text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-all flex items-center gap-1 text-xs font-bold shadow-sm"
-                                title="Shipping Details"
-                              >
-                                <Truck size={14} /> Shipping
-                              </button>
-                            )}
-                            {generatePDF && (
-                              <div className="relative group">
-                                <button onClick={(e)=>e.stopPropagation()} className="p-1.5 px-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all flex items-center gap-1 text-xs font-bold border border-gray-200 bg-white">
-                                  <Download size={14} /> Docs ▾
-                                </button>
-                                <div className="absolute right-0 top-full mt-1 w-28 bg-white rounded-lg shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 flex flex-col overflow-hidden py-1">
-                                  <button onClick={(e) => { e.stopPropagation(); generatePDF(order, 'invoice'); }} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-red-50 hover:text-[#EF4444] transition-colors">Invoice</button>
-                                  <button onClick={(e) => { e.stopPropagation(); generatePDF(order, 'challan'); }} className="text-left px-4 py-2 text-[11px] font-bold text-gray-600 hover:bg-green-50 hover:text-green-600 transition-colors">Challan</button>
-                                </div>
-                              </div>
-                            )}
-                            {handleReturnOrder && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleReturnOrder(order); }}
-                                className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-md transition-all flex items-center justify-center"
-                                title="Return Sale"
-                              >
-                                <RotateCcw size={16} />
-                              </button>
-                            )}
-                            {handleDeleteOrder && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleDeleteOrder(order); }}
-                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all flex items-center justify-center"
-                                title="Delete Sale"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
 
-                      {expandedOrderIds.has(order.id) && (
-                        <tr className="bg-gray-50/30 border-b-2 border-gray-100">
-                          <td colSpan={7} className="p-0">
-                            <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-8 shadow-inner bg-white/60 m-2 rounded-xl border border-gray-200">
-                              <div>
-                                <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2"><ShoppingBag size={14}/> Ordered Items</h4>
-                                <ul className="space-y-2">
-                                  {order.items?.map((item: any, i: number) => (
-                                    <li key={i} className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
-                                      <span className="font-medium text-gray-700">{item.name} <span className="text-gray-400">x{item.quantity}</span></span>
-                                      <span className="font-bold text-gray-900">{formatCurrency((item.price || 0) * (item.quantity || 1), settings)}</span>
-                                    </li>
-                                  ))}
-                                  {order.discountAmount > 0 && (
-                                    <li className="flex justify-between items-center text-sm pt-1">
-                                      <span className="font-medium text-[#EF4444]">Discount</span>
-                                      <span className="font-bold text-[#EF4444]">- {formatCurrency(order.discountAmount, settings)}</span>
-                                    </li>
-                                  )}
-                                  <li className="flex justify-between items-center text-sm pt-2 font-black text-lg">
-                                    <span className="text-gray-900">Total</span>
-                                    <span className="text-gray-900">{formatCurrency(order.total, settings)}</span>
-                                  </li>
-                                </ul>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-slate-800 text-[13px]">{order.customerName}</span>
+                              <span className="text-[11px] text-slate-500 font-semibold mt-0.5">{order.customerPhone}</span>
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[13px] font-black text-slate-900">{formatCurrency(order.total, settings)}</span>
+                                {order.paymentStatus === 'paid' && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[9px] font-black uppercase tracking-wider">Paid</span>}
+                                {order.paymentStatus === 'partial' && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-black uppercase tracking-wider">Partial</span>}
+                                {(order.paymentStatus === 'unpaid' || !order.paymentStatus) && <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[9px] font-black uppercase tracking-wider">Due</span>}
                               </div>
-                              <div className="space-y-4">
-                                <div>
-                                   <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2"><Truck size={14}/> Shipping & Tracking</h4>
-                                   {order.shippingAddress ? <p className="text-sm text-gray-600 bg-gray-100 p-3 rounded-md mb-3 border border-gray-200">{order.shippingAddress}</p> : <p className="text-sm text-gray-400 italic mb-2">No shipping address provided</p>}
-                                   
-                                   <form className="flex flex-col sm:flex-row gap-2" onSubmit={async (e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      const form = e.target as HTMLFormElement;
-                                      const courierName = (form.elements.namedItem('courierName') as HTMLInputElement).value;
-                                      const trackingNumber = (form.elements.namedItem('trackingNumber') as HTMLInputElement).value;
-                                      try {
-                                        await updateDoc(doc(db, 'orders', order.id), { courierName, trackingNumber });
-                                        toast.success('Tracking details updated!');
-                                      } catch (err) {
-                                        toast.error('Failed to update tracking details');
-                                      }
-                                   }}>
-                                     <input type="text" name="courierName" defaultValue={order.courierName || ''} placeholder="Courier (e.g. Pathao)" onClick={(e)=>e.stopPropagation()} className="flex-1 text-sm font-semibold px-3 py-2 border border-gray-200 rounded focus:border-[#EF4444] focus:ring-[#EF4444]" />
-                                     <input type="text" name="trackingNumber" defaultValue={order.trackingNumber || ''} placeholder="Tracking Number" onClick={(e)=>e.stopPropagation()} className="flex-1 text-sm font-semibold px-3 py-2 border border-gray-200 rounded focus:border-[#EF4444] focus:ring-[#EF4444]" />
-                                     <button type="submit" onClick={(e)=>e.stopPropagation()} className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition-colors shadow-sm">Save</button>
-                                   </form>
-                                   {order.courierName && (
-                                     <div className="mt-2 text-xs font-medium text-gray-500">
-                                       Currently shipped via <span className="font-bold text-gray-900">{order.courierName}</span> {order.trackingNumber && <span>(Tracking: {order.trackingNumber})</span>}
-                                     </div>
-                                   )}
+                              <div className="text-[10px] text-slate-500 font-bold mt-1">
+                                Paid: <span className="text-slate-700">{formatCurrency(order.paidAmount || 0, settings)}</span>
+                              </div>
+                              {order.discountAmount > 0 && (
+                                <div className="text-[9px] text-red-500 font-black mt-0.5 uppercase tracking-wider">
+                                  Disc: {formatCurrency(order.discountAmount, settings)}
                                 </div>
-                              </div>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <select
+                              value={order.status}
+                              onClick={(e)=>e.stopPropagation()} onChange={e => updateOrderStatus && updateOrderStatus(order.id, e.target.value as OrderStatus)}
+                              disabled={!hasPermission('manage_orders')}
+                              className="w-32 text-xs border-slate-200 rounded focus:ring-blue-500 font-bold bg-slate-50 text-slate-700 py-1.5"
+                            >
+                              {activeStatuses.map((s: string) => (
+                                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                              ))}
+                            </select>
+                          </td>
+
+                          <td className="px-5 py-4 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              
+                               <button onClick={(e) => { e.stopPropagation(); setEditingOrder(order); }} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all border border-transparent hover:border-blue-200 bg-white shadow-sm" title="Edit Order">
+                                 <Edit2 size={14} />
+                               </button>
+                               <button onClick={(e) => { e.stopPropagation(); setViewingOrder(order); }} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-transparent hover:border-indigo-200 bg-white shadow-sm" title="View Order">
+                                 <Eye size={14} />
+                               </button>
+                              
+                              {(order.status === 'shipped' || order.status === 'delivered' || order.courierName) && (
+                                <button onClick={(e) => { e.stopPropagation(); setShippingModalOrder(order); }} className="w-8 h-8 flex items-center justify-center text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-all border border-emerald-200 shadow-sm" title="Shipping Details">
+                                  <Truck size={14} />
+                                </button>
+                              )}
+                              
+                              {generatePDF && (
+                                <div className="relative group">
+                                  <button onClick={(e)=>e.stopPropagation()} className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all border border-slate-300 shadow-sm" title="Generate Documents">
+                                    <Download size={14} />
+                                  </button>
+                                  <div className="absolute right-0 top-full mt-1 w-28 bg-white rounded-xl shadow-xl border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 flex flex-col overflow-hidden py-1">
+                                    <button onClick={(e) => { e.stopPropagation(); generatePDF(order, 'invoice'); }} className="text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-red-50 hover:text-red-600 transition-colors">Invoice</button>
+                                    <button onClick={(e) => { e.stopPropagation(); generatePDF(order, 'challan'); }} className="text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors">Challan</button>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {handleReturnOrder && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleReturnOrder(order); }}
+                                  className="w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-200 bg-white shadow-sm ml-1"
+                                  title="Return Order"
+                                >
+                                  <RotateCcw size={14} />
+                                </button>
+                              )}
+                              {handleDeleteOrder && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); if(window.confirm('Are you sure you want to delete this order?')) handleDeleteOrder(order); }}
+                                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-200 bg-white shadow-sm ml-1"
+                                  title="Delete Order"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                              
                             </div>
                           </td>
                         </tr>
-                      )}
-                      </React.Fragment>
+                        </React.Fragment>
 
                     );
                   })}
@@ -654,6 +499,10 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
             setEditingOrder(null);
             fetchData();
           }}
+          onEditInSales={handleEditInSales ? () => {
+            setEditingOrder(null);
+            handleEditInSales(editingOrder);
+          } : undefined}
         />
       )}
       {shippingModalOrder && (

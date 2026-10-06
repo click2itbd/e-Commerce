@@ -91,7 +91,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
               </div>
               <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
                 <span className="text-gray-500 text-xs font-bold uppercase mb-1">Inventory Value</span>
-                <span className="text-2xl font-black text-blue-600">{formatCurrency(products.reduce((acc, p) => acc + ((p.stock || 0) * (p.costPrice || p.price || 0)), 0), settings)}</span>
+                <span className="text-2xl font-black text-blue-600">{formatCurrency(products.reduce((acc, p) => acc + ((p.stock || 0) * (p.costPrice ?? p.price ?? 0)), 0), settings)}</span>
               </div>
               <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
                 <span className="text-amber-500 text-xs font-bold uppercase mb-1">Low Stock Items</span>

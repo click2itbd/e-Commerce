@@ -190,6 +190,7 @@ export const QuotationManager: React.FC = () => {
         warranty: ((customItemForm as any).warrantyUnit === 'Life Time') ? 'Life Time' : ((customItemForm as any).warrantyValue ? `${(customItemForm as any).warrantyValue} ${(customItemForm as any).warrantyUnit || 'Years'}` : ''),
       price: Number(customItemForm.price),
       quantity: Number(customItemForm.quantity),
+        unit: (customItemForm as any).unit || 'pcs',
       discount: Number(customItemForm.discount),
       isCustomService: true,
       category: 'Custom'
@@ -298,7 +299,7 @@ export const QuotationManager: React.FC = () => {
             ${q.items.map(item => `
               <tr>
                 <td style="padding: 10px; border: 1px solid #e5e7eb;">${item.name}</td>
-                <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
+                <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: center;">${item.quantity} ${(item as any).unit || 'pcs'}</td>
                 <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: right;">${item.price}</td>
                 <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: right;">${(item.price * item.quantity) - (item.discount || 0)}</td>
               </tr>
@@ -948,7 +949,7 @@ export const QuotationManager: React.FC = () => {
                                  <td className="py-3 px-2 text-center text-gray-600">{(item as any).brand || "-"}</td>
                                  <td className="py-3 px-2 text-center text-gray-600">{warranty}</td>
                                  <td className="py-3 px-2 text-center font-mono">{item.quantity}</td>
-                                 <td className="py-3 px-2 text-center text-gray-600">pcs</td>
+                                 <td className="py-3 px-2 text-center text-gray-600">{(item as any).unit || 'pcs'}</td>
                                  <td className="py-3 px-2 text-right font-mono">{formatCurrency(item.discount || 0, {})}</td>
                                  <td className="py-3 px-2 text-right font-mono">{formatCurrency(item.price, {})}</td>
                                  <td className="py-3 px-2 text-right font-mono font-bold text-gray-700">{formatCurrency((item.price * item.quantity), {})}</td>
@@ -990,7 +991,7 @@ export const QuotationManager: React.FC = () => {
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold">Add Custom Item</h3>
-              <button onClick={() => { setShowCustomModal(false); setCustomItemForm({ name: '', description: '', quantity: 1, price: 0, discount: 0, brand: '', warrantyValue: '', warrantyUnit: 'Years' } as any); }} className="text-gray-400 hover:text-red-500 transition">
+              <button onClick={() => { setShowCustomModal(false); setCustomItemForm({ name: '', description: '', quantity: 1, unit: 'pcs', price: 0, discount: 0, brand: '', warrantyValue: '', warrantyUnit: 'Years' } as any); }} className="text-gray-400 hover:text-red-500 transition">
                 <X size={20} />
               </button>
             </div>
@@ -1026,15 +1027,36 @@ export const QuotationManager: React.FC = () => {
                   />
                 </div>
                 <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Quantity</label>
-                    <input 
-                      type="number"
-                      min="1"
-                      className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
-                      value={customItemForm.quantity}
-                      onChange={e => setCustomItemForm({...customItemForm, quantity: Number(e.target.value)})}
-                    />
-                  </div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Quantity</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="number"
+                          min="1"
+                          className="w-2/3 border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
+                          value={customItemForm.quantity}
+                          onChange={e => setCustomItemForm({...customItemForm, quantity: Number(e.target.value)})}
+                        />
+                        <select
+                          className="w-1/3 border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
+                          value={(customItemForm as any).unit || 'pcs'}
+                          onChange={e => setCustomItemForm({...customItemForm, unit: e.target.value} as any)}
+                        >
+                          <option value="pcs">pcs</option>
+                          <option value="ctn">ctn</option>
+                          <option value="meter">meter</option>
+                          <option value="pack">pack</option>
+                          <option value="kg">kg</option>
+                          <option value="feet">feet</option>
+                          <option value="box">box</option>
+                          <option value="nos">nos</option>
+                          <option value="chops">chops</option>
+                          <option value="set">set</option>
+                          <option value="job">job</option>
+                          <option value="gm">gm</option>
+                          <option value="ltr">ltr</option>
+                        </select>
+                      </div>
+                    </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>

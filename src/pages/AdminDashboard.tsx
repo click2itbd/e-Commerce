@@ -657,6 +657,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<any>(
     () => sessionStorage.getItem("adminActiveTab") || "dashboard",
   );
+  const [editingOrderForSales, setEditingOrderForSalesState] = useState<any | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('adminEditingOrder');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return null;
+  });
+  
+  const setEditingOrderForSales = (order: any | null) => {
+    setEditingOrderForSalesState(order);
+    if (order) sessionStorage.setItem('adminEditingOrder', JSON.stringify(order));
+    else sessionStorage.removeItem('adminEditingOrder');
+  };
   useEffect(() => {
     sessionStorage.setItem("adminActiveTab", activeTab);
   }, [activeTab]);
@@ -5790,6 +5803,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   }}
                   handleDeleteOrder={handleDeleteOrder}
 handleReturnOrder={handleReturnOrder}
+                    handleEditInSales={(order: any) => {
+                      setEditingOrderForSales(order);
+                      setActiveTab('sales');
+                    }}
                 />
               ) : activeTab === "purchase_return" ? (
                 <PurchaseReturnTab />
@@ -5978,8 +5995,10 @@ handleReturnOrder={handleReturnOrder}
                     products={products}
                     customers={customers}
                     transactions={transactions}
-                  discountCodes={discountCodes}
-                  settings={settings}
+                    discountCodes={discountCodes}
+                    settings={settings}
+                    editingOrder={editingOrderForSales}
+                    onCancelEdit={() => { setEditingOrderForSales(null); setActiveTab('orders'); }}
                   formatCurrency={formatCurrency}
                   cn={cn}
                   toast={toast}

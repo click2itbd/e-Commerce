@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, addDoc, updateDoc, doc, query, getDocs, orderBy } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, query, getDocs, orderBy, where, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../../../../firebase';
 import { Product, Customer, DiscountCode, SiteSettings, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn, addWarranty, formatWarranty } from '../../../../lib/utils';
@@ -28,6 +28,8 @@ import { CustomProductPurchaseModal } from '../../modals/CustomProductPurchaseMo
 import { sendEmail } from '../../../../services/emailService';
 
 interface SalesFormProps {
+  editingOrder?: any;
+  onCancelEdit?: () => void;
   products: Product[];
   customers: Customer[];
   transactions?: any[];
@@ -42,7 +44,7 @@ interface SalesFormProps {
   setIsAddingCustomer: (val: boolean) => void;
 }
 
-export const SalesForm: React.FC<SalesFormProps> = ({
+export const SalesForm: React.FC<SalesFormProps> = ({ editingOrder, onCancelEdit,
   products,
   customers: initialCustomers,
   discountCodes,
@@ -144,6 +146,29 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (editingOrder) {
+      setSaleData({
+        ...saleData,
+        type: editingOrder.type || 'invoice',
+        customerId: editingOrder.customerId || '',
+        customerName: editingOrder.customerName || '',
+        customerPhone: editingOrder.customerPhone || '',
+        customerEmail: editingOrder.customerEmail || '',
+        shippingAddress: editingOrder.shippingAddress || editingOrder.customerAddress || '',
+        items: editingOrder.items || [],
+        discountType: 'flat',
+        discountValue: editingOrder.discountAmount || 0,
+        taxRate: editingOrder.taxAmount ? (editingOrder.taxAmount / (editingOrder.subtotal || 1) * 100) : 0,
+        shippingCost: editingOrder.shippingCost || 0,
+        paidAmount: editingOrder.paidAmount || editingOrder.amountPaid || 0,
+        paymentMethod: editingOrder.paymentMethod || '',
+        paymentAccountId: '',
+        notes: editingOrder.notes || '',
+      });
+    }
+  }, [editingOrder]);
   const [showCustomProductModal, setShowCustomProductModal] = useState(false);
 
   const [heldSales, setHeldSales] = useState<{ id: string; time: string; saleData: any }[]>(() => {
@@ -607,7 +632,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       }
 
       const docType = saleData.type === 'quotation' ? 'QUO' : (saleData.type === 'challan' ? 'CHA' : 'INV');
-      const docNumber = await generateDocumentNumber(docType);
+        const docNumber = editingOrder ? (editingOrder.documentNumber || editingOrder.id) : await generateDocumentNumber(docType);
 
       const processedItems = saleData.items.map(item => {
           const currentProduct = products.find(p => p.id === item.id);
@@ -647,7 +672,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             let previousDue = 0;
       if (saleData.customerId && transactions) {
           transactions.forEach(t => {
-              if (t.entityId === saleData.customerId) {
+              if (t.entityId === saleData.customerId && (!editingOrder || t.referenceId !== editingOrder.id)) {
                   if (t.type === 'sale' || t.type === 'opening_balance') previousDue += Number(t.amount);
                   else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') previousDue -= Number(t.amount);
               }
@@ -691,7 +716,42 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         createdAt,
       };
 
-      const orderRef = await addDoc(collection(db, 'orders'), orderData);
+      let orderRefId = '';
+        if (editingOrder) {
+          orderRefId = editingOrder.id;
+          await updateDoc(doc(db, 'orders', editingOrder.id), orderData);
+          
+          // REVERT OLD STOCK
+          if (editingOrder.type === 'invoice' || editingOrder.type === 'challan') {
+            for (const oldItem of editingOrder.items || []) {
+              if (oldItem.isCustomService) continue;
+              const prodRef = doc(db, 'products', oldItem.productId || oldItem.id);
+              const pSnap = await getDocs(query(collection(db, 'products')));
+              const pDoc = pSnap.docs.find(d => d.id === (oldItem.productId || oldItem.id));
+              if (pDoc) {
+                const currentProd = pDoc.data();
+                const updates: any = {};
+                updates.stock = (currentProd.stock || 0) + (oldItem.quantity || 0);
+                if (oldItem.selectedSerials && oldItem.selectedSerials.length > 0) {
+                   updates.availableSerials = [...(currentProd.availableSerials || []), ...oldItem.selectedSerials];
+                }
+                await updateDoc(prodRef, updates);
+              }
+            }
+            
+            // DELETE OLD SOLD SERIALS
+            const oldSerialsSnap = await getDocs(query(collection(db, 'sold_serials'), where('orderId', '==', editingOrder.id)));
+            await Promise.all(oldSerialsSnap.docs.map(d => deleteDoc(doc(db, 'sold_serials', d.id))));
+          }
+          
+          // DELETE OLD TRANSACTIONS
+          const oldTxSnap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', editingOrder.id)));
+          await Promise.all(oldTxSnap.docs.map(d => deleteDoc(doc(db, 'transactions', d.id))));
+          
+        } else {
+          const orderRef = await addDoc(collection(db, 'orders'), orderData);
+          orderRefId = orderRefId;
+        }
 
       // Deduct stock and record serial warranties if invoice/challan
       if (saleData.type === 'invoice' || saleData.type === 'challan') {
@@ -719,7 +779,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   serial,
                   productId: currentProduct.id,
                   productName: currentProduct.name,
-                  orderId: orderRef.id,
+                  orderId: orderRefId,
                   documentNumber: docNumber,
                   customerName: saleData.customerName,
                   customerPhone: saleData.customerPhone,
@@ -745,7 +805,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           entityId: saleData.customerId,
           entityName: saleData.customerName,
           entityType: 'customer',
-          referenceId: orderRef.id,
+          referenceId: orderRefId,
           documentNumber: docNumber,
           paymentAccountId: '', // No payment account for the sale itself
           paymentMethod: '',
@@ -763,7 +823,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             entityId: saleData.customerId,
             entityName: saleData.customerName,
             entityType: 'customer',
-            referenceId: orderRef.id,
+            referenceId: orderRefId,
             documentNumber: docNumber,
             paymentAccountId: selectedAcc?.id || '',
             paymentMethod: selectedAcc?.type || selectedAcc?.name || saleData.paymentMethod || 'cash',
@@ -828,7 +888,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             to: saleData.customerEmail,
             subject: `${typeStr} #${docNumber} from ${settings?.brandName || 'Our Store'}`,
             html: emailHtml,
-            orderId: orderRef.id,
+            orderId: orderRefId,
             category: saleData.type
           }).then(() => {
             toast.success(`Email sent to ${saleData.customerEmail}`);
@@ -844,7 +904,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
       // Auto-print invoice/challan/quotation
       try {
-        const savedOrder = { id: orderRef.id, ...orderData, _autoPrint: true };
+        const savedOrder = { id: orderRefId, ...orderData, _autoPrint: true };
         generatePDF(savedOrder as any, saleData.type as any, settings);
       } catch (err) {
         console.error('Failed to auto-print PDF', err);
@@ -976,7 +1036,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     let due = 0;
                     if (saleData.customerId && transactions) {
                         transactions.forEach(t => {
-                            if (t.entityId === saleData.customerId) {
+                            if (t.entityId === saleData.customerId && (!editingOrder || t.referenceId !== editingOrder.id)) {
                                 if (t.type === 'sale' || t.type === 'opening_balance') due += Number(t.amount);
                                   else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') due -= Number(t.amount);
                             }
@@ -1489,7 +1549,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                         let prevDue = 0;
                         if (saleData.customerId && transactions) {
                             transactions.forEach(t => {
-                                if (t.entityId === saleData.customerId) {
+                                if (t.entityId === saleData.customerId && (!editingOrder || t.referenceId !== editingOrder.id)) {
                                     if (t.type === 'sale' || t.type === 'opening_balance') prevDue += Number(t.amount);
                                     else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') prevDue -= Number(t.amount);
                                 }
@@ -1530,7 +1590,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   let prevDue = 0;
                   if (saleData.customerId && transactions) {
                       transactions.forEach(t => {
-                          if (t.entityId === saleData.customerId) {
+                          if (t.entityId === saleData.customerId && (!editingOrder || t.referenceId !== editingOrder.id)) {
                               if (t.type === 'sale' || t.type === 'opening_balance') prevDue += Number(t.amount);
                               else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') prevDue -= Number(t.amount);
                           }
@@ -1577,7 +1637,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               className="w-full bg-[#081621] hover:bg-[#EF4444] disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm transition-all shadow-md flex items-center justify-center gap-2"
             >
               <CheckCircle size={18} />
-              {submitting ? 'Generating Document...' : `Confirm & Save ${saleData.type.toUpperCase()}`}
+              {submitting ? 'Generating Document...' : (editingOrder ? 'Update & Save Changes' : `Confirm & Save ${saleData.type.toUpperCase()}`)}
                 </button>
               </div>
           </form>

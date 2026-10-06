@@ -13,9 +13,10 @@ interface EditOrderModalProps {
   order: Order;
   onClose: () => void;
   onSuccess: () => void;
+  onEditInSales?: () => void;
 }
 
-export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderModalProps) {
+export default function EditOrderModal({ order, onClose, onSuccess, onEditInSales }: EditOrderModalProps) {
   const [formData, setFormData] = useState({
     customerName: order.customerName || '',
     customerPhone: order.customerPhone || '',
@@ -72,89 +73,99 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
-          <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            <Edit2 size={20} className="text-blue-600" />
-            Edit Order / Document ({order.documentNumber || order.id})
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+          <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+              <Edit2 size={16} />
+            </div>
+            Edit Document <span className="text-blue-600 ml-1">#{order.documentNumber || order.id.slice(-6)}</span>
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-red-500 transition-colors">
-            <X size={24} />
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+            <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Customer Name</label>
-              <input type="text" value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full border-gray-300 rounded-md" />
+        <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6">
+          
+          {onEditInSales && (
+            <div className="mb-6 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+              <div>
+                <h3 className="font-bold text-indigo-900 text-sm">Need to add or remove products?</h3>
+                <p className="text-xs text-indigo-700/80 mt-0.5 font-medium">Open this document in the POS/Sales interface to safely add items, remove items, or adjust quantities while keeping inventory synced.</p>
+              </div>
+              <button
+                type="button"
+                onClick={onEditInSales}
+                className="shrink-0 bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white py-2.5 px-5 rounded-lg font-bold text-xs transition-all shadow-sm border border-indigo-200 hover:border-indigo-600 flex items-center gap-2"
+              >
+                <Edit2 size={14} /> Modify Invoice Items
+              </button>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Customer Phone</label>
-              <input type="text" value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} className="w-full border-gray-300 rounded-md" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Customer Email</label>
-              <input type="text" value={formData.customerEmail} onChange={e => setFormData({...formData, customerEmail: e.target.value})} className="w-full border-gray-300 rounded-md" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Work Order Number</label>
-              <input type="text" value={formData.workOrderNumber} onChange={e => setFormData({...formData, workOrderNumber: e.target.value})} className="w-full border-gray-300 rounded-md" />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Shipping Address</label>
-              <textarea value={formData.shippingAddress} onChange={e => setFormData({...formData, shippingAddress: e.target.value})} className="w-full border-gray-300 rounded-md" rows={2} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Order Notes</label>
-              <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full border-gray-300 rounded-md" rows={2} />
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Customer Name</label>
+                <input type="text" value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-lg px-3 py-2 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Customer Phone</label>
+                <input type="text" value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-lg px-3 py-2 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Customer Email</label>
+                <input type="text" value={formData.customerEmail} onChange={e => setFormData({...formData, customerEmail: e.target.value})} className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-lg px-3 py-2 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Work Order Number</label>
+                <input type="text" value={formData.workOrderNumber} onChange={e => setFormData({...formData, workOrderNumber: e.target.value})} className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-lg px-3 py-2 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Shipping Address</label>
+                <textarea value={formData.shippingAddress} onChange={e => setFormData({...formData, shippingAddress: e.target.value})} className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-lg px-3 py-2 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none" rows={2} />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Order Notes</label>
+                <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-lg px-3 py-2 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none" rows={2} />
+              </div>
             </div>
           </div>
 
-          <div className="mb-4">
-            <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase">Edit Items & Pricing</h3>
-            <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mb-4">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-100 text-gray-600">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6">
+            <h3 className="font-black text-slate-800 mb-4 text-xs uppercase tracking-wider">Item Details & Pricing</h3>
+            <div className="rounded-xl border border-slate-200 overflow-hidden mb-5 shadow-sm">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
                   <tr>
-                    <th className="p-3 font-semibold">Product Name</th>
-                    <th className="p-3 font-semibold w-1/4">Description</th>
-                    <th className="p-3 font-semibold w-20 text-center">Qty</th>
-                    <th className="p-3 font-semibold w-24 text-right">Price</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">Product Name</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">Description</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-center">Qty</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-right">Price</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-right">Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {items.map((item, idx) => (
-                    <tr key={idx} className="bg-white">
-                      <td className="p-2">
-                        <input type="text" value={item.name} onChange={e => updateItem(idx, 'name', e.target.value)} className="w-full border-gray-300 rounded-md text-sm" />
+                <tbody className="divide-y divide-slate-100">
+                  {items.map((item, index) => (
+                    <tr key={index} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-slate-900 text-[13px]">{item.name}</div>
                       </td>
-                      <td className="p-2">
-                        <textarea value={item.description || ''} onChange={e => updateItem(idx, 'description', e.target.value)} className="w-full border-gray-300 rounded-md text-sm" rows={1} />
+                      <td className="px-4 py-3">
+                        <input type="text" value={item.description || ''} onChange={e => { const newItems = [...items]; newItems[index].description = e.target.value; setItems(newItems); }} className="w-full min-w-[150px] border border-slate-200 rounded-md px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Optional details..." />
                       </td>
-                      <td className="p-2">
-                          <div className="flex">
-                            <input type="number" readOnly title="Quantity cannot be edited to maintain correct inventory logs" value={item.quantity || 1} className="w-10 border-gray-200 rounded-l-md text-sm bg-gray-50 text-center cursor-not-allowed px-1" />
-                            <select
-                              value={item.unit || 'pcs'}
-                              onChange={e => updateItem(idx, 'unit', e.target.value)}
-                              className="w-16 border-y border-r border-gray-300 rounded-r-md text-xs bg-white text-gray-700 px-1"
-                            >
-                                  <option value="pcs">pcs</option>
-                                  <option value="nos">nos</option>
-                                  <option value="meter">meter</option>
-                                  <option value="kg">kg</option>
-                                  <option value="gm">gm</option>
-                                  <option value="litre">litre</option>
-                                  <option value="box">box</option>
-                                  <option value="pack">pack</option>
-                                  <option value="chop">chop</option>
-                            </select>
-                          </div>
-                        </td>
-                      <td className="p-2">
-                        <input type="number" value={item.price || 0} onChange={e => updateItem(idx, 'price', Number(e.target.value))} className="w-full border-gray-300 rounded-md text-sm text-right" />
+                      <td className="px-4 py-3 text-center">
+                        <span className="font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md text-xs">{item.quantity}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <input type="number" value={item.price} onChange={e => { const newItems = [...items]; newItems[index].price = Number(e.target.value); setItems(newItems); }} className="w-24 border border-slate-200 rounded-md px-2 py-1 text-xs text-right font-bold focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-slate-800 text-[13px]">
+                        {formatCurrency((item.price || 0) * (item.quantity || 1), settings)}
                       </td>
                     </tr>
                   ))}
@@ -162,41 +173,46 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
               </table>
             </div>
 
-            <div className="bg-blue-50/50 rounded-lg border border-blue-100 p-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600 font-medium text-sm">Subtotal:</span>
-                <span className="font-bold text-gray-800">{formatCurrency(subtotal, settings)}</span>
-              </div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600 font-medium text-sm">Discount Amount:</span>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Discount Amount</label>
                 <input 
                   type="number" 
                   value={discountAmount} 
                   onChange={e => setDiscountAmount(Number(e.target.value))} 
-                  className="w-32 border-blue-300 rounded-md text-right text-sm font-bold text-red-500 focus:ring-blue-500"
+                  className="w-28 border border-slate-300 rounded-lg px-3 py-1.5 text-right text-sm font-black text-red-600 focus:ring-2 focus:ring-red-500 focus:border-red-500 shadow-sm outline-none"
                 />
               </div>
-              <div className="flex justify-between items-center pt-2 border-t border-blue-200">
-                <span className="text-gray-800 font-bold">Final Total:</span>
-                <span className="text-xl font-black text-blue-700">{formatCurrency(total, settings)}</span>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Subtotal</div>
+                  <div className="font-bold text-slate-600 text-sm">{formatCurrency(subtotal, settings)}</div>
+                </div>
+                <div className="h-8 w-px bg-slate-300"></div>
+                <div className="text-right">
+                  <div className="text-[10px] font-black uppercase text-blue-500 tracking-wider">Final Total</div>
+                  <div className="font-black text-blue-700 text-xl">{formatCurrency(total, settings)}</div>
+                </div>
               </div>
             </div>
-
-            <p className="text-xs text-blue-600 mt-2 font-medium">
-              * Note: Changing the price or discount will automatically adjust the customer's ledger/due based on the new total. (Quantity editing is disabled to preserve stock accuracy).
+            
+            <p className="text-[11px] text-slate-400 mt-3 font-medium flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+              Note: Changing price or discount adjusts the customer's ledger automatically. Quantity editing is disabled here to preserve stock accuracy.
             </p>
           </div>
+        </div>
 
-        </form>
-
-        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 shrink-0">
-          <button type="button" onClick={onClose} className="px-4 py-2 font-bold text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+          <button type="button" onClick={onClose} className="px-6 py-2.5 font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors text-sm">
             Cancel
           </button>
-          <button type="button" onClick={handleSubmit} disabled={saving} className="px-4 py-2 font-bold text-white bg-blue-600 rounded-md hover:bg-blue-700 flex items-center gap-2">
-            <Save size={18} /> {saving ? 'Saving...' : 'Save Changes'}
+          <button type="button" onClick={handleSubmit} disabled={saving} className="px-6 py-2.5 font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-md shadow-blue-500/20 flex items-center gap-2 text-sm disabled:opacity-70">
+            <Save size={16} /> {saving ? 'Saving Changes...' : 'Save Changes'}
           </button>
         </div>
+
       </div>
     </div>
   );
