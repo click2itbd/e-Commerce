@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Product, NavigationMenu } from '../../types';
-import { Eye, Package, Plus, Search, Edit2, Trash2, X, Upload, Save, XCircle , Sparkles, Link as LinkIcon, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Eye, Package, Plus, Search, Edit2, Trash2, X, Upload, Save, XCircle, Sparkles, Link as LinkIcon, Image as ImageIcon, Loader2, DollarSign, AlertCircle, AlertTriangle, CheckSquare } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 import { useSettings } from '../../context/SettingsContext';
 import { toast } from 'react-hot-toast';
@@ -35,16 +35,59 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
   const [importLoading, setImportLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  
+  const totalValue = products.reduce((acc, p) => acc + (((p as any).costPrice ?? p.price ?? 0) * (p.stock || 0)), 0);
+  const lowStockCount = products.filter(p => !p.isOutOfStock && p.stock > 0 && p.stock <= (p.lowStockThreshold || 5)).length;
+  const outOfStockCount = products.filter(p => p.isOutOfStock || p.stock === 0).length;
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedProducts(filteredProducts.map(p => p.id!));
+    } else {
+      setSelectedProducts([]);
+    }
+  };
+
+  const handleSelectProduct = (id: string) => {
+    setSelectedProducts(prev => 
+      prev.includes(id) ? prev.filter(pId => pId !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedProducts.length} selected products?`)) return;
+    try {
+      for (const id of selectedProducts) {
+        await handleDeleteProduct(id);
+      }
+      toast.success('Selected products deleted');
+      setSelectedProducts([]);
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to delete some products');
+    }
+  };
+
   
   const initialForm: Partial<Product> = {
-    name: '', sku: '', description: '', price: 0, stock: 0, isOutOfStock: false, categoryId: '', images: [], category: ''
+    name: '', sku: '', description: '', price: 0, stock: 0, isOutOfStock: false, category: '', images: []
   };
   const [formData, setFormData] = useState<Partial<Product>>(initialForm);
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           (product.sku && product.sku.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesCategory = categoryFilter === 'all' || product.categoryId === categoryFilter;
+    
+    let matchesCategory = categoryFilter === 'all';
+    if (!matchesCategory) {
+      // categoryFilter is a menu ID. 
+      // Check if product.category matches the ID OR the menu's name.
+      const menu = menus.find(m => m.id === categoryFilter);
+      matchesCategory = product.category === categoryFilter || (menu && product.category === menu.name);
+    }
+
     return matchesSearch && matchesCategory;
   });
 
@@ -96,7 +139,7 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
       setEditingId(null);
       setFormData({
         name: title.trim(),
-        categoryId: menus[0]?.id || "electronics", 
+        category: menus[0]?.id || "electronics", 
         price: price || 0,
         stock: 10,
         sku: "IMPORT-" + Math.floor(Math.random() * 10000),
@@ -151,7 +194,7 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
     setIsSaving(true);
     try {
       // Find category name
-      const categoryName = menus.find(m => m.id === formData.categoryId)?.title || '';
+      const categoryName = menus.find(m => m.id === formData.category)?.name || '';
       
       const productData = {
         ...formData,
@@ -230,99 +273,186 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 items-center">
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            type="text"
-            placeholder="Search products by name or SKU..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-          />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+            <Package size={24} />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 font-medium">Total Products</p>
+            <p className="text-2xl font-black text-gray-900">{products.length}</p>
+          </div>
         </div>
-        <select 
-          value={categoryFilter} 
-          onChange={e => setCategoryFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 transition-colors"
-        >
-          <option value="all">All Categories</option>
-          {menus.map(menu => (
-            <option key={menu.id} value={menu.id}>{menu.title}</option>
-          ))}
-        </select>
+        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+            <DollarSign size={24} />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 font-medium">Inventory Value</p>
+            <p className="text-2xl font-black text-gray-900">{formatCurrency(totalValue, settings)}</p>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+            <AlertTriangle size={24} />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 font-medium">Low Stock</p>
+            <p className="text-2xl font-black text-gray-900">{lowStockCount}</p>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
+            <AlertCircle size={24} />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 font-medium">Out of Stock</p>
+            <p className="text-2xl font-black text-gray-900">{outOfStockCount}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+        <div className="flex flex-col gap-4 w-full md:w-auto flex-1">
+          <div className="relative max-w-md w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search products by name or SKU..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-3 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <span className="text-xs font-bold text-gray-400 uppercase whitespace-nowrap shrink-0">Filter by Category:</span>
+            <button
+              onClick={() => setCategoryFilter('all')}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                categoryFilter === 'all' 
+                  ? "bg-gray-900 text-white shadow-md" 
+                  : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              All
+            </button>
+            {menus.map(menu => (
+              <button
+                key={menu.id}
+                onClick={() => setCategoryFilter(menu.id)}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                  categoryFilter === menu.id 
+                    ? "bg-gray-900 text-white shadow-md" 
+                    : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {menu.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {selectedProducts.length > 0 && (
+          <div className="flex items-center gap-3 px-4 py-2 bg-red-50 text-red-700 rounded-lg border border-red-100 animate-in fade-in shrink-0">
+            <span className="text-sm font-bold">{selectedProducts.length} selected</span>
+            <button 
+              onClick={handleBulkDelete}
+              className="text-sm font-bold bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition-colors flex items-center gap-1"
+            >
+              <Trash2 size={14} /> Delete Selected
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50/80 border-b border-gray-100">
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Product</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Price</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Stock</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+              <tr className="bg-slate-50/80 border-b border-slate-200">
+                <th className="px-6 py-4 w-10">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedProducts.length > 0 && selectedProducts.length === filteredProducts.length}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  />
+                </th>
+                <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-wider">Product</th>
+                <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-wider">Category</th>
+                <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right">Price</th>
+                <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-center">Stock</th>
+                <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredProducts.map(product => (
-                <tr key={product.id} className="hover:bg-blue-50/30 transition-colors group">
+              {filteredProducts.map((product, index) => (
+                <tr key={product.id} className={`hover:bg-blue-50/40 transition-colors group ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} ${selectedProducts.includes(product.id!) ? 'bg-blue-50/60' : ''}`}>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedProducts.includes(product.id!)}
+                      onChange={() => handleSelectProduct(product.id!)}
+                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                    />
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-4">
                       {product.images?.[0] ? (
-                        <img src={product.images[0]} alt={product.name} className="w-12 h-12 rounded-lg object-cover border border-gray-200 shadow-sm" />
+                        <div className="w-14 h-14 shrink-0 rounded-lg border border-slate-200 shadow-sm bg-white overflow-hidden p-1 flex items-center justify-center">
+                          <img src={product.images[0]} alt={product.name} className="max-w-full max-h-full object-contain" />
+                        </div>
                       ) : (
-                        <div className="w-12 h-12 rounded-lg bg-slate-50 flex items-center justify-center text-slate-300 border border-slate-200 shadow-sm">
+                        <div className="w-14 h-14 shrink-0 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200 shadow-sm">
                           <Package size={24} />
                         </div>
                       )}
                       <div className="max-w-[250px]">
                         <p className="text-sm font-bold text-slate-900 truncate" title={product.name}>{product.name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-medium">SKU: {product.sku || 'N/A'}</span>
-                          {product.brand && <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">{product.brand}</span>}
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] text-slate-600 bg-slate-200 px-2 py-0.5 rounded font-mono font-medium border border-slate-300 shadow-sm">SKU: {product.sku || 'N/A'}</span>
+                          {product.brand && <span className="text-[10px] text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-indigo-200">{product.brand}</span>}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-sm text-gray-600">
-                      {menus.find(m => m.id === product.categoryId)?.title || product.category || 'Uncategorized'}
+                    <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                      {menus.find(m => m.id === product.category)?.name || product.category || 'Uncategorized'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex flex-col items-end">
-                      <span className="text-sm font-black text-slate-900">{formatCurrency(product.discountPrice || product.price, settings)}</span>
+                    <div className="flex flex-col items-end justify-center h-full">
+                      <span className="text-[15px] font-black text-emerald-700">{formatCurrency(product.discountPrice || product.price, settings)}</span>
                       {product.discountPrice && product.discountPrice < product.price && (
-                        <span className="text-xs text-slate-400 line-through">{formatCurrency(product.price, settings)}</span>
+                        <span className="text-xs text-slate-400 line-through mt-0.5 font-medium">{formatCurrency(product.price, settings)}</span>
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-4 text-center">
                     {product.isOutOfStock ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        Out of Stock
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black bg-red-100 text-red-700 border border-red-200 shadow-sm">
+                        OUT OF STOCK
                       </span>
                     ) : (
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        product.stock > (product.lowStockThreshold || 5) ? 'bg-green-100 text-green-800' : 
-                        product.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${
+                        product.stock > (product.lowStockThreshold || 5) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                        product.stock > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200'
                       }`}>
                         {product.stock} in stock
                       </span>
                     )}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button onClick={() => window.open(`/product/${product.id}`, '_blank')} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors tooltip-trigger" title="View in Store">
-                        <Eye size={16} />
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => window.open(`/product/${product.id}`, '_blank')} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100" title="View in Store">
+                        <Eye size={18} />
                       </button>
-                      <button onClick={() => openEditModal(product)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors tooltip-trigger" title="Edit Product">
-                        <Edit2 size={16} />
+                      <button onClick={() => openEditModal(product)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100" title="Edit Product">
+                        <Edit2 size={18} />
                       </button>
-                      <button onClick={() => { if(window.confirm('Delete product?')) handleDeleteProduct(product.id); }} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors tooltip-trigger" title="Delete Product">
-                        <Trash2 size={16} />
+                      <button onClick={() => { if(window.confirm('Delete product?')) handleDeleteProduct(product.id!); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100" title="Delete Product">
+                        <Trash2 size={18} />
                       </button>
                     </div>
                   </td>
@@ -330,8 +460,12 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
               ))}
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                    No products found.
+                  <td colSpan={6} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center justify-center text-slate-400">
+                      <Package size={48} className="mb-4 text-slate-300" />
+                      <p className="text-lg font-bold text-slate-500">No products found</p>
+                      <p className="text-sm mt-1">Try adjusting your search or filters.</p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -451,9 +585,9 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                    <select value={formData.categoryId || ''} onChange={e => setFormData({...formData, categoryId: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <select value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="">Select Category</option>
-                      {menus.map(menu => <option key={menu.id} value={menu.id}>{menu.title}</option>)}
+                      {menus.map(menu => <option key={menu.id} value={menu.id}>{menu.name}</option>)}
                     </select>
                   </div>
                   <div>
@@ -468,6 +602,13 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
                       <input type="text" value={formData.brand || ''} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
+                      <select value={formData.condition || 'new'} onChange={e => setFormData({...formData, condition: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="new">New (Default)</option>
+                        <option value="used">Used / Pre-Owned</option>
+                      </select>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 pt-2">

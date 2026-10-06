@@ -53,6 +53,7 @@ const StarPointPolicy = lazy(() => import('./pages/policies/StarPointPolicy'));
 const OnlineDelivery = lazy(() => import('./pages/policies/OnlineDelivery'));
 const WarrantyPolicy = lazy(() => import('./pages/policies/WarrantyPolicy'));
 const Brands = lazy(() => import('./pages/shop/Brands'));
+const UsedItems = lazy(() => import('./pages/shop/UsedItems'));
 const Blog = lazy(() => import('./pages/shop/Blog'));
 const TrackOrder = lazy(() => import('./pages/shop/TrackOrder'));
 const BlogPost = lazy(() => import('./pages/shop/BlogPost'));
@@ -149,10 +150,12 @@ export default function App() {
                       <Route path="/pre-book" element={<LazyWrapper><PreBook /></LazyWrapper>} />
                       <Route path="/search" element={<LazyWrapper><SearchPage /></LazyWrapper>} />
                       <Route path="/category/:categorySlug/:subCategorySlug" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
+                      <Route path="/category/:categorySlug/:subCategorySlug/:subSubCategorySlug" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
                       <Route path="/pc-build/*" element={<LazyWrapper><PCBuilder /></LazyWrapper>} />
                       <Route path="/pc-builder/*" element={<Navigate to="/pc-build" replace />} />
                       <Route path="/compare" element={<LazyWrapper><ComparePage /></LazyWrapper>} />
                       <Route path="/brands" element={<LazyWrapper><Brands /></LazyWrapper>} />
+                        <Route path="/used-items" element={<LazyWrapper><UsedItems /></LazyWrapper>} />
                       <Route path="/track-order" element={<LazyWrapper><TrackOrder /></LazyWrapper>} />
                       <Route path="/emi-terms" element={<LazyWrapper><EMITerms /></LazyWrapper>} />
                       <Route path="/emi" element={<Navigate to="/emi-terms" replace />} />

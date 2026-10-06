@@ -20,6 +20,10 @@ export interface ProductVariant {
 }
 
 export interface Product {
+  costPrice?: number;
+  sku?: string;
+  lowStockThreshold?: number;
+  isFreeShipping?: boolean;
   model?: string;
   id: string;
   name: string;
@@ -27,6 +31,7 @@ export interface Product {
   price: number;
   category: string;
   subCategory?: string;
+  subSubCategory?: string;
   brand?: string;
   stock: number;
   isOutOfStock?: boolean;
@@ -166,15 +171,27 @@ export interface Order {
   trackingTimeline?: { status: string; location?: string; description?: string; timestamp: string; updatedBy?: string; deliveryMan?: { name: string; phone: string } }[];
 }
 
+export interface SubSubCategory {
+  id: string;
+  name: string;
+  slug: string;
+  imageUrl?: string;
+  isFeatured?: boolean;
+}
+
 export interface SubCategory {
   id: string;
   name: string;
   slug: string;
   brands?: string[];
   imageUrl?: string;
+  isFeatured?: boolean;
+  subCategories?: SubSubCategory[];
 }
 
 export interface NavigationMenu {
+  isFeatured?: boolean;
+  imageUrl?: string;
   id: string;
   name: string;
   slug: string;

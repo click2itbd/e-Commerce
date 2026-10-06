@@ -58,8 +58,19 @@ const getPlaceholder = (slug: string) => {
 export const Home: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [pcBuilderBanner, setPcBuilderBanner] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const { settings } = useSettings();
+
+  useEffect(() => {
+    const q = query(collection(db, 'store_banners'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const activeBanners = snapshot.docs.map(doc => doc.data()).filter(b => b.isActive);
+      const pb = activeBanners.find(b => b.position === 'pc_builder');
+      if (pb) setPcBuilderBanner(pb);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const q = query(
@@ -93,18 +104,31 @@ export const Home: React.FC = () => {
       
       const allItems = menusData.flatMap(menu => {
         const items = [];
-        items.push({ name: menu.name, slug: menu.slug, imageUrl: menu.imageUrl });
+        items.push({ name: menu.name, slug: menu.slug, imageUrl: menu.imageUrl, parentSlug: null, isFeatured: menu.isFeatured });
         if (menu.subCategories) {
-          menu.subCategories.forEach(sub => {
-            items.push({ name: sub.name, slug: sub.slug, imageUrl: sub.imageUrl });
-          });
-        }
+            menu.subCategories.forEach(sub => {
+              items.push({ name: sub.name, slug: sub.slug, imageUrl: sub.imageUrl, parentSlug: menu.slug, isFeatured: sub.isFeatured });
+              
+              if ((sub as any).subCategories) {
+                (sub as any).subCategories.forEach((subSub: any) => {
+                  items.push({ name: subSub.name, slug: subSub.slug, imageUrl: subSub.imageUrl, parentSlug: menu.slug + '/' + sub.slug, isFeatured: subSub.isFeatured });
+                });
+              }
+            });
+          }
         return items;
       });
 
-      const displayItems = allItems.filter(item => item.imageUrl).length > 0 
-        ? allItems.filter(item => item.imageUrl) 
-        : allItems.slice(0, 16);
+      const displayItems = allItems.filter(item => item.isFeatured);
+        // Fallback for old setups that don't have isFeatured set yet
+        if (displayItems.length === 0) {
+          const withImage = allItems.filter(item => item.imageUrl);
+          if (withImage.length > 0) {
+            displayItems.push(...withImage);
+          } else {
+            displayItems.push(...allItems.slice(0, 16));
+          }
+        }
 
       setCategories(displayItems as any[]);
     }, (error) => {
@@ -165,14 +189,14 @@ export const Home: React.FC = () => {
           </h2>
         </div>
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-x-2 gap-y-8">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-x-4 gap-y-10">
           {categories.map((cat) => (
             <Link
               key={cat.id || cat.name}
-              to={`/shop?category=${encodeURIComponent(cat.name)}`}
+              to={cat.parentSlug ? `/category/${cat.parentSlug}/${cat.slug}` : `/category/${cat.slug}`}
               className="flex flex-col items-center justify-start gap-3 group cursor-pointer"
             >
-              <div className="h-14 w-14 md:h-16 md:w-16 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+              <div className="h-20 w-20 md:h-24 md:w-24 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
                 <img
                   src={cat.imageUrl || getPlaceholder(cat.slug)}
                   alt={cat.name}
@@ -182,7 +206,7 @@ export const Home: React.FC = () => {
                   }}
                 />
               </div>
-              <span className="font-medium text-gray-700 text-[11px] md:text-xs text-center leading-tight group-hover:text-orange-500 transition-colors px-1">
+              <span className="font-medium text-gray-800 text-xs md:text-[14px] text-center leading-tight group-hover:text-orange-500 transition-colors px-1">
                 {cat.name}
               </span>
             </Link>
@@ -250,41 +274,15 @@ export const Home: React.FC = () => {
       {/* About & SEO Description */}
 
       {/* New Beautiful PC Builder Banner */}
-      <section className="mt-16 mb-8 relative overflow-hidden rounded-3xl shadow-2xl group">
-        <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1587831990711-23ca6441447b?q=80&w=2000&auto=format&fit=crop"
-            alt="PC Builder"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+      {/* New Beautiful PC Builder Banner */}
+      <section className="mt-16 mb-8">
+        <Link to={pcBuilderBanner?.targetUrl || "/pc-builder"} className="block relative overflow-hidden rounded-3xl shadow-2xl group w-full h-[250px] md:h-[400px]">
+          <img 
+            src={pcBuilderBanner?.imageUrl || "https://images.unsplash.com/photo-1587202372634-32705e3bf49c?q=80&w=1200&auto=format&fit=crop"} 
+            alt="PC Builder" 
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" 
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#081621] via-[#081621]/90 to-transparent"></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-[#081621]/80 md:hidden"></div>
-        </div>
-
-        <div className="relative p-8 md:p-14 flex flex-col md:flex-row items-center justify-between gap-8 z-10">
-          <div className="flex-1 max-w-2xl text-center md:text-left">
-            <div className="inline-block px-4 py-1.5 rounded-full bg-orange-500/20 border border-orange-500/30 text-orange-400 font-bold text-sm mb-6 uppercase tracking-wider backdrop-blur-sm">
-              Intelligent PC Builder
-            </div>
-            <h2 className="text-3xl md:text-5xl font-black text-white mb-6 leading-tight drop-shadow-lg">
-                আপনার স্বপ্নের পিসি বিল্ড করুন <br className="hidden md:block" />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300">
-                  খুব সহজেই
-                </span>{" "}
-                আমাদের সাথে!
-              </h2>
-              <p className="text-gray-300 text-base md:text-lg leading-relaxed mb-8 opacity-90 drop-shadow-md">
-                স্মার্ট পিসি বিল্ডার দিয়ে মাত্র কয়েক মিনিটেই চেক করে নিন আপনার পছন্দের পিসির বাজেট এবং পার্টসগুলোর সামঞ্জস্যতা!
-              </p>
-
-            <Link
-              to="/pc-builder"
-              className="inline-flex items-center justify-center gap-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white font-bold text-lg px-8 py-4 rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all transform hover:-translate-y-1 w-full md:w-auto"
-            >
-              Start PC Build <ChevronRight size={24} />
-            </Link>
-          </div>
-        </div>
+        </Link>
       </section>
       {/* Features Section (Moved to Bottom) */}
       <section className="mb-10 px-4 md:px-0">

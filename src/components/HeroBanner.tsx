@@ -74,7 +74,15 @@ export const HeroBanner: React.FC = () => {
 
       const activeBanners = allBanners.filter(b => b.isActive);
       setHeroSlides(activeBanners.filter(b => b.position === 'hero_slider'));
-      setSidebarAds(activeBanners.filter(b => b.position === 'sidebar_ad'));
+      
+      const topAd = activeBanners.find(b => b.position === 'sidebar_ad_top' || (b.position === 'sidebar_ad' && b.order === 0));
+      const bottomAd = activeBanners.find(b => b.position === 'sidebar_ad_bottom' || (b.position === 'sidebar_ad' && b.order === 1));
+      
+      const combinedSideAds = [];
+      if (topAd) combinedSideAds.push(topAd);
+      if (bottomAd) combinedSideAds.push(bottomAd);
+      
+      setSidebarAds(combinedSideAds);
       setLoading(false);
     }, (error) => {
       console.error('Error fetching banners:', error);
@@ -173,33 +181,7 @@ export const HeroBanner: React.FC = () => {
                   loading="eager"
                   draggable={false}
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-[#081621]/90 via-[#081621]/50 to-transparent flex flex-col justify-center px-12 md:px-16 lg:px-24">
-                  <motion.h2 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-2 tracking-tight uppercase"
-                  >
-                    {currentSlideData?.title}
-                  </motion.h2>
-                  <motion.p 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="text-xl md:text-3xl text-gray-200 font-bold mb-8"
-                  >
-                    {currentSlideData?.id === 'default-1' ? 'Up to 25% Off' : 'Limited Time Offer'}
-                  </motion.p>
-                  <motion.button 
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.4 }}
-                    className="bg-[#F97316] hover:bg-[#e06612] text-white font-bold py-3 md:py-4 px-8 md:px-10 rounded-full w-fit shadow-[0_4px_14px_0_rgba(249,115,22,0.4)] transition-all active:scale-95 text-lg"
-                  >
-                    Shop Collection
-                  </motion.button>
-                </div>
-              </BannerLink>
+                </BannerLink>
             </motion.div>
           </AnimatePresence>
 
@@ -261,13 +243,7 @@ export const HeroBanner: React.FC = () => {
                 className="w-full h-full object-cover group-hover/side:scale-[1.05] transition-transform duration-700"
                 loading="lazy"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6 md:p-8">
-                <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider mb-1 drop-shadow-md">{banner.title}</h3>
-                <p className="text-base font-semibold text-white/90 italic drop-shadow-md">
-                  {banner.id === 'side-1' ? 'Top Picks' : 'Trending Now'}
-                </p>
-              </div>
-            </BannerLink>
+              </BannerLink>
           ))}
         </div>
       </div>

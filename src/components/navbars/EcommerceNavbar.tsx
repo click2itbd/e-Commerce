@@ -110,7 +110,8 @@ export const EcommerceNavbar: React.FC = () => {
             <span className="flex items-center gap-1"><span className="text-[#F97316]">Email:</span> {settings.contactEmail}</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link to="/track-order" className="hover:text-[#F97316] transition-colors">Track Order</Link>
+            <Link to="/used-items" className="hover:text-[#F97316] transition-colors font-bold text-green-400">Pre-Owned</Link>
+              <Link to="/track-order" className="hover:text-[#F97316] transition-colors">Track Order</Link>
             <Link to="/blog" className="hover:text-[#F97316] transition-colors">Blog</Link>
             <Link to="/about" className="hover:text-[#F97316] transition-colors">About Us</Link>
             <Link to="/contact" className="hover:text-[#F97316] transition-colors">Contact</Link>

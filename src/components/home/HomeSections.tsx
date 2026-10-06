@@ -202,10 +202,15 @@ export const PromoBentoGrid = () => {
   useEffect(() => {
     const q = query(collection(db, 'store_banners'), orderBy('order', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const activeBanners = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(b => b.isActive && b.position === 'promo_banner');
-      setPromoBanners(activeBanners);
+      const activeDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((b: any) => b.isActive);
+        const leftPromo = activeDocs.find((b: any) => b.position === 'promo_banner_left' || (b.position === 'promo_banner' && b.order === 0));
+        const rightPromo = activeDocs.find((b: any) => b.position === 'promo_banner_right' || (b.position === 'promo_banner' && b.order === 1));
+        
+        const combinedPromos = [];
+        if (leftPromo) combinedPromos.push(leftPromo);
+        if (rightPromo) combinedPromos.push(rightPromo);
+        
+        setPromoBanners(combinedPromos);
     });
     return () => unsubscribe();
   }, []);
@@ -216,24 +221,13 @@ export const PromoBentoGrid = () => {
   return (
     <section className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-4">
       <Link to={banner1?.targetUrl || "/category/laptop"} className="md:col-span-2 relative rounded-2xl overflow-hidden group h-[250px] bg-gradient-to-r from-gray-900 to-gray-800">
-        <img src={banner1?.imageUrl || "https://images.unsplash.com/photo-1603302576837-37561b2e2302?q=80&w=1000&auto=format&fit=crop"} alt={banner1?.title || "Laptops"} className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-500 group-hover:scale-105" />
-        <div className="absolute inset-0 p-8 flex flex-col justify-center">
-          <span className="bg-[#F97316] text-white text-xs font-bold px-3 py-1 rounded-full w-fit mb-4">NEW COLLECTION</span>
-          <h3 className="text-3xl font-bold text-white mb-2">{banner1?.title || "Premium Gaming Laptops"}</h3>
-          <p className="text-gray-300 mb-6 max-w-sm">Experience desktop-level performance on the go with RTX 40-series.</p>
-          <span className="text-white font-bold flex items-center gap-2 group-hover:text-[#F97316] transition-colors">
-            Shop Now <ChevronRight size={16} />
-          </span>
-        </div>
+        <img src={banner1?.imageUrl || "https://images.unsplash.com/photo-1603302576837-37561b2e2302?q=80&w=1000&auto=format&fit=crop"} alt={banner1?.title || "Laptops"} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" />
+        
       </Link>
       
       <Link to={banner2?.targetUrl || "/category/accessories"} className="md:col-span-1 relative rounded-2xl overflow-hidden group h-[250px] bg-gradient-to-br from-blue-900 to-indigo-900">
-        <img src={banner2?.imageUrl || "https://images.unsplash.com/photo-1598550476439-6847785fcea6?q=80&w=1000&auto=format&fit=crop"} alt={banner2?.title || "Accessories"} className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-500 group-hover:scale-105" />
-        <div className="absolute inset-0 p-6 flex flex-col justify-end">
-          <h3 className="text-xl font-bold text-white mb-2">{banner2?.title || "Gaming Accessories"}</h3>
-          <p className="text-gray-300 text-sm mb-4">Mice, Keyboards & Headsets</p>
-          <span className="text-[#F97316] font-bold text-sm">Up to 30% Off</span>
-        </div>
+        <img src={banner2?.imageUrl || "https://images.unsplash.com/photo-1598550476439-6847785fcea6?q=80&w=1000&auto=format&fit=crop"} alt={banner2?.title || "Accessories"} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" />
+        
       </Link>
     </section>
   );

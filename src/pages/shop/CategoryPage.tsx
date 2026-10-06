@@ -24,7 +24,7 @@ const itemVariants = {
 };
 
 export const CategoryPage: React.FC = () => {
-  const { categorySlug, subCategorySlug } = useParams();
+  const { categorySlug, subCategorySlug, subSubCategorySlug } = useParams();
   const [searchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +61,8 @@ export const CategoryPage: React.FC = () => {
             
             const catSlug = (categorySlug || '').toLowerCase().replace(/-/g, ' ');
             const subCatSlug = (subCategorySlug || '').toLowerCase().replace(/-/g, ' ');
+            const subSubCatSlug = (subSubCategorySlug || '').toLowerCase().replace(/-/g, ' ');
+            const prodSubSubCat = (p.subSubCategory || '').toLowerCase();
 
             const synonyms: Record<string, string[]> = {
               'cpu': ['processor', 'cpu'],
@@ -77,7 +79,15 @@ export const CategoryPage: React.FC = () => {
               'keyboard': ['keyboard', 'keypad']
             };
 
-            // If a specific subCategory is requested (e.g., /category/components/cpu)
+            
+              if (subSubCatSlug) {
+                if (prodSubSubCat.includes(subSubCatSlug)) return true;
+                const targetText = prodSubCat || prodCat;
+                if (targetText.includes(subSubCatSlug)) return true;
+                return false;
+              }
+
+              // If a specific subCategory is requested (e.g., /category/components/cpu)
             if (subCatSlug) {
               const targetText = prodSubCat || prodCat; // If product doesn't have subCategory, check its main category just in case
               
@@ -114,7 +124,7 @@ export const CategoryPage: React.FC = () => {
     };
 
     fetchProducts();
-  }, [categorySlug, subCategorySlug]);
+  }, [categorySlug, subCategorySlug, subSubCategorySlug]);
 
   const availableBrands = useMemo(() => {
     const brands = products.map(p => p.brand).filter(Boolean);
@@ -194,7 +204,15 @@ export const CategoryPage: React.FC = () => {
             {subCategorySlug && (
               <>
                 <ChevronRight size={14} className="text-gray-400" />
-                <span className="capitalize text-[#081621] font-bold">{subCategorySlug.replace(/-/g, ' ')}</span>
+                <span className={cn("capitalize cursor-pointer transition-colors", subSubCategorySlug ? "hover:text-[#F97316]" : "text-[#081621] font-bold")}>
+                  <Link to={`/category/${categorySlug}/${subCategorySlug}`}>{subCategorySlug.replace(/-/g, ' ')}</Link>
+                </span>
+              </>
+            )}
+            {subSubCategorySlug && (
+              <>
+                <ChevronRight size={14} className="text-gray-400" />
+                <span className="capitalize text-[#081621] font-bold">{subSubCategorySlug.replace(/-/g, ' ')}</span>
               </>
             )}
           </div>

@@ -7,7 +7,7 @@ import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, formatWarr
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { BulkEditForm } from '../../../../components/BulkEditForm';
-import { Package, Plus, Upload, Download, Search, Edit, Trash2, X, AlertTriangle, Play, Loader2, Image as ImageIcon, FileText, XCircle, Edit2, ArrowRight, Eye } from 'lucide-react';
+import { Package, Plus, Upload, Download, Search, Edit, Trash2, X, AlertTriangle, Play, Loader2, Image as ImageIcon, FileText, XCircle, Edit2, ArrowRight, Eye, DollarSign, AlertCircle } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
 interface InventoryTabProps { products: any[]; vendors: any[]; menus: any[]; isAddingProduct: boolean; setIsAddingProduct: (v: boolean) => void; editingProduct: any; setEditingProduct: (v: any) => void; formData: any; setFormData: (v: any) => void; inventoryCategoryFilter: string; setInventoryCategoryFilter: (v: string) => void; selectedProductIds: string[]; setSelectedProductIds: (v: string[]) => void; isBulkEditing: boolean; setIsBulkEditing: (v: boolean) => void; bulkEditData: any; setBulkEditData: (v: any) => void; isUploading: boolean; dragOver: boolean; setDragOver: (v: boolean) => void; loading: boolean; handleSaveProduct: (e: any) => void; handleDeleteProduct: (id: string) => void; handleImportProductsCSV: (e: any) => void; handleDownloadCSVTemplate: () => void; handleExportAllProducts: () => void; handleBulkExportProducts: () => void; handleBulkDeleteProducts: () => void; handleBulkUpdate: (e: any) => void; handleImageUpload: (f: any) => void; removeImage: (i: number) => void; addVariant: () => void; updateVariant: (i: number, f: string, v: any) => void; removeVariant: (i: number) => void; addSpec: () => void; updateSpec: (i: number, f: string, v: any) => void; removeSpec: (i: number) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; fileInputRef?: any; setIsAddingMenu?: (v: boolean) => void; }
@@ -84,22 +84,42 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
             </div>
 
             {/* Top Summary Dashboard */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 bg-gray-50 border-b border-gray-100">
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-                <span className="text-gray-500 text-xs font-bold uppercase mb-1">Total Products</span>
-                <span className="text-2xl font-black text-gray-900">{products.length}</span>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 bg-slate-50 border-b border-slate-200">
+              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                  <Package size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500 font-medium">Total Products</p>
+                  <p className="text-2xl font-black text-slate-900">{products.length}</p>
+                </div>
               </div>
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-                <span className="text-gray-500 text-xs font-bold uppercase mb-1">Inventory Value</span>
-                <span className="text-2xl font-black text-blue-600">{formatCurrency(products.reduce((acc, p) => acc + ((p.stock || 0) * (p.costPrice ?? p.price ?? 0)), 0), settings)}</span>
+              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                  <DollarSign size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500 font-medium">Inventory Value</p>
+                  <p className="text-2xl font-black text-slate-900">{formatCurrency(products.reduce((acc, p) => acc + ((p.stock || 0) * (p.costPrice ?? p.price ?? 0)), 0), settings)}</p>
+                </div>
               </div>
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-                <span className="text-amber-500 text-xs font-bold uppercase mb-1">Low Stock Items</span>
-                <span className="text-2xl font-black text-amber-600">{products.filter(p => p.stock > 0 && p.stock < 10).length}</span>
+              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                  <AlertTriangle size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500 font-medium">Low Stock Items</p>
+                  <p className="text-2xl font-black text-slate-900">{products.filter(p => !p.isOutOfStock && p.stock > 0 && p.stock < (p.lowStockThreshold || 10)).length}</p>
+                </div>
               </div>
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-                <span className="text-red-500 text-xs font-bold uppercase mb-1">Out of Stock</span>
-                <span className="text-2xl font-black text-red-600">{products.filter(p => (p.stock || 0) === 0).length}</span>
+              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500 font-medium">Out of Stock</p>
+                  <p className="text-2xl font-black text-slate-900">{products.filter(p => p.isOutOfStock || (p.stock || 0) === 0).length}</p>
+                </div>
               </div>
             </div>
             
@@ -768,7 +788,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
 
             <div className="overflow-x-auto">
               <table className="w-full text-left">
-                <thead className="bg-gray-50 text-xs font-bold text-gray-500 uppercase">
+                <thead className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-wider">
                   <tr>
                     <th className="px-6 py-4 w-10">
                       <input
@@ -848,7 +868,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                           {vendors.find(v => v.id === product.vendorId)?.name || 'N/A'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-600">{product.category}</td>
+                      <td className="px-6 py-4"><span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">{product.category}</span></td>
                       <td className="px-6 py-4 text-sm font-bold text-gray-900">{formatCurrency(product.price, settings)}</td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-1.5 items-start">

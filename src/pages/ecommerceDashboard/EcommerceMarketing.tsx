@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Tag, Globe, Ticket, Plus, Edit2, Trash2, CheckCircle, XCircle, Image as ImageIcon, Link as LinkIcon, MoveUp, MoveDown, Save, X } from 'lucide-react';
+import { Tag, Globe, Info, Ticket, Plus, Edit2, Trash2, CheckCircle, XCircle, Image as ImageIcon, Link as LinkIcon, MoveUp, MoveDown, Save, X } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { db, storage } from '../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, getDocs } from 'firebase/firestore';
@@ -88,10 +88,10 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
     const defaultBanners = [
       { title: 'GAMING SETUPS', imageUrl: '/banners/hero-main.jpg', targetUrl: '/category/components', position: 'hero_slider', isActive: true, order: 0 },
       { title: 'MONITORS & DISPLAYS', imageUrl: '/banners/hero-main.jpg', targetUrl: '/category/components/monitor', position: 'hero_slider', isActive: true, order: 1 },
-      { title: 'ACCESSORIES', imageUrl: '/banners/side-acc.jpg', targetUrl: '/category/components', position: 'sidebar_ad', isActive: true, order: 0 },
-      { title: 'GADGETS', imageUrl: '/banners/side-gadget.jpg', targetUrl: '/category/components', position: 'sidebar_ad', isActive: true, order: 1 },
-      { title: 'Premium Gaming Laptops', imageUrl: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?q=80&w=1000&auto=format&fit=crop', targetUrl: '/category/laptop', position: 'promo_banner', isActive: true, order: 0 },
-      { title: 'Gaming Accessories', imageUrl: 'https://images.unsplash.com/photo-1598550476439-6847785fcea6?q=80&w=1000&auto=format&fit=crop', targetUrl: '/category/accessories', position: 'promo_banner', isActive: true, order: 1 }
+      { title: 'ACCESSORIES', imageUrl: '/banners/side-acc.jpg', targetUrl: '/category/components', position: 'sidebar_ad_top', isActive: true, order: 0 },
+      { title: 'GADGETS', imageUrl: '/banners/side-gadget.jpg', targetUrl: '/category/components', position: 'sidebar_ad_bottom', isActive: true, order: 0 },
+      { title: 'Premium Gaming Laptops', imageUrl: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?q=80&w=1000&auto=format&fit=crop', targetUrl: '/category/laptop', position: 'promo_banner_left', isActive: true, order: 0 },
+      { title: 'Gaming Accessories', imageUrl: 'https://images.unsplash.com/photo-1598550476439-6847785fcea6?q=80&w=1000&auto=format&fit=crop', targetUrl: '/category/accessories', position: 'promo_banner_right', isActive: true, order: 0 }
     ];
     
     const loadingToast = toast.loading('Restoring default banners...');
@@ -212,9 +212,7 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-gray-800">Store Banners</h3>
               <div className="flex items-center gap-3">
-                <button onClick={handleRestoreDefaults} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
-                  Load Defaults
-                </button>
+                
                 <button onClick={() => { setEditingBannerId(null); setBannerForm({ title: '', imageUrl: '', targetUrl: '', position: 'hero_slider', isActive: true, order: banners.length }); setIsBannerModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
                   <Plus size={16} /> Upload Banner
                 </button>
@@ -289,100 +287,128 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
       )}
 
       {isBannerModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
-              <h3 className="font-bold text-gray-900">{editingBannerId ? 'Edit Banner' : 'Upload Banner'}</h3>
-              <button onClick={() => setIsBannerModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-lg"><X size={18}/></button>
-            </div>
-            <form onSubmit={handleSaveBanner} className="p-6 space-y-4">
-              
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors relative group">
-                {bannerForm.imageUrl ? (
-                  <div className="relative">
-                    <img src={bannerForm.imageUrl} alt="Preview" className="w-full h-32 object-cover rounded-lg" />
-                    <button type="button" onClick={() => setBannerForm({...bannerForm, imageUrl: ''})} className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
-                  </div>
-                ) : (
-                  <label className="cursor-pointer flex flex-col items-center py-6">
-                    <ImageIcon size={32} className="text-gray-400 mb-2" />
-                    <span className="text-sm font-medium text-blue-600">Click to upload banner</span>
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
-                  </label>
-                )}
-                {isUploading && <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-xl font-medium text-blue-600">Uploading...</div>}
+          <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+                <h3 className="font-bold text-gray-900 text-lg">{editingBannerId ? 'Edit Banner' : 'Upload Banner'}</h3>
+                <button type="button" onClick={() => setIsBannerModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-lg transition-colors"><X size={20}/></button>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Banner Title</label>
-                <input required type="text" value={bannerForm.title} onChange={e => setBannerForm({...bannerForm, title: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="e.g. Summer Sale 2026" />
-              </div>
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-gray-700">Target URL / Link</label>
-                <div className="flex gap-2">
-                  <select 
-                    className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm w-1/3"
-                    value={bannerForm.targetUrl.startsWith('/category/') ? 'category' : 'custom'}
-                    onChange={(e) => {
-                      if(e.target.value === 'category') {
-                        setBannerForm({...bannerForm, targetUrl: menus[0] ? `/category/${menus[0].slug}` : ''});
-                      } else {
-                        setBannerForm({...bannerForm, targetUrl: ''});
-                      }
-                    }}
-                  >
-                    <option value="custom">Custom URL</option>
-                    <option value="category">Category Page</option>
-                  </select>
+              <form onSubmit={handleSaveBanner} className="flex-1 overflow-y-auto">
+                <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
                   
-                  {bannerForm.targetUrl.startsWith('/category/') ? (
-                    <select 
-                      className="flex-1 px-4 py-2 border border-gray-200 rounded-lg"
-                      value={bannerForm.targetUrl.replace('/category/', '')}
-                      onChange={(e) => setBannerForm({...bannerForm, targetUrl: `/category/${e.target.value}`})}
-                    >
-                      {menus.map(m => (
-                        <option key={m.id} value={m.slug}>{m.title}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input type="text" value={bannerForm.targetUrl} onChange={e => setBannerForm({...bannerForm, targetUrl: e.target.value})} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg" placeholder="e.g. /shop/sale" />
-                  )}
+                  {/* Left Column: Image Upload & Link */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Banner Image</label>
+                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-2 text-center hover:bg-gray-50 transition-colors relative group h-48 flex flex-col items-center justify-center bg-gray-50/50">
+                        {bannerForm.imageUrl ? (
+                          <div className="relative w-full h-full">
+                            <img src={bannerForm.imageUrl} alt="Preview" className="w-full h-full object-contain rounded-lg bg-gray-100" />
+                            <button type="button" onClick={() => setBannerForm({...bannerForm, imageUrl: ''})} className="absolute -top-2 -right-2 bg-red-500 text-white p-1.5 rounded-full shadow-md hover:bg-red-600 transition-colors"><X size={14}/></button>
+                          </div>
+                        ) : (
+                          <label className="cursor-pointer flex flex-col items-center justify-center w-full h-full">
+                            <ImageIcon size={36} className="text-blue-500 mb-3 opacity-80" />
+                            <span className="text-sm font-bold text-blue-600 mb-1">Click to upload image</span>
+                            <span className="text-xs text-gray-500">Supports JPG, PNG, WEBP</span>
+                            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
+                          </label>
+                        )}
+                        {isUploading && <div className="absolute inset-0 bg-white/90 flex items-center justify-center rounded-xl font-bold text-blue-600 backdrop-blur-sm z-10">Uploading...</div>}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 py-2">
+                      <div className="h-px bg-gray-200 flex-1"></div>
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">OR</span>
+                      <div className="h-px bg-gray-200 flex-1"></div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Paste Image URL directly</label>
+                      <input type="url" value={bannerForm.imageUrl} onChange={e => setBannerForm({...bannerForm, imageUrl: e.target.value})} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" placeholder="https://example.com/image.jpg" />
+                      <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1"><Info size={12} /> Useful if you already have the image link.</p>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Details */}
+                  <div className="space-y-5 bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1.5">Banner Title</label>
+                      <input required type="text" value={bannerForm.title} onChange={e => setBannerForm({...bannerForm, title: e.target.value})} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. Premium Gaming Setups" />
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-bold text-gray-700">Target URL / Click Link</label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <select 
+                          className="px-3 py-2.5 border border-gray-200 rounded-lg bg-white font-medium text-sm sm:w-1/3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          value={bannerForm.targetUrl.startsWith('/category/') ? 'category' : 'custom'}
+                          onChange={(e) => {
+                            if(e.target.value === 'category') {
+                              setBannerForm({...bannerForm, targetUrl: menus[0] ? `/category/${menus[0].slug}` : ''});
+                            } else {
+                              setBannerForm({...bannerForm, targetUrl: ''});
+                            }
+                          }}
+                        >
+                          <option value="custom">Custom URL</option>
+                          <option value="category">Category Page</option>
+                        </select>
+                        
+                        {bannerForm.targetUrl.startsWith('/category/') ? (
+                          <select 
+                            className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            value={bannerForm.targetUrl.replace('/category/', '')}
+                            onChange={(e) => setBannerForm({...bannerForm, targetUrl: `/category/${e.target.value}`})}
+                          >
+                            {menus.map(m => (
+                              <option key={m.id} value={m.slug}>{m.title}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input type="text" value={bannerForm.targetUrl} onChange={e => setBannerForm({...bannerForm, targetUrl: e.target.value})} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. /shop/sale or https://..." />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1.5">Position</label>
+                        <select value={bannerForm.position} onChange={e => setBannerForm({...bannerForm, position: e.target.value as any})} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                          <option value="hero_slider">Hero Slider</option>
+                          <option value="promo_banner_left">Promo Banner (Left - Large)</option>
+                          <option value="promo_banner_right">Promo Banner (Right - Small)</option>
+                          <option value="sidebar_ad_top">Sidebar Ad (Top)</option>
+                          <option value="sidebar_ad_bottom">Sidebar Ad (Bottom)</option>
+                          <option value="pc_builder">PC Builder Banner</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1.5">Display Order</label>
+                        <input type="number" min="0" value={bannerForm.order} onChange={e => setBannerForm({...bannerForm, order: Number(e.target.value)})} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 pb-2">
+                      <label className="flex items-center gap-3 cursor-pointer p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                        <input type="checkbox" checked={bannerForm.isActive} onChange={e => setBannerForm({...bannerForm, isActive: e.target.checked})} className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300" />
+                        <span className="text-sm font-bold text-gray-900">Banner is Active & Visible</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Position</label>
-                  <select value={bannerForm.position} onChange={e => setBannerForm({...bannerForm, position: e.target.value as any})} className="w-full px-4 py-2 border border-gray-200 rounded-lg">
-                    <option value="hero_slider">Hero Slider</option>
-                    <option value="promo_banner">Promo Banner</option>
-                    <option value="sidebar_ad">Sidebar Ad</option>
-                  </select>
+                
+                <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-3 shrink-0">
+                  <button type="button" onClick={() => setIsBannerModalOpen(false)} className="px-6 py-2.5 rounded-xl font-bold text-gray-600 hover:bg-gray-200 transition-colors">Cancel</button>
+                  <button type="submit" disabled={!bannerForm.imageUrl || isUploading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-600/20">
+                    Save Banner
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
-                  <input type="number" min="0" value={bannerForm.order} onChange={e => setBannerForm({...bannerForm, order: Number(e.target.value)})} className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
-                </div>
-              </div>
-              
-              <div className="text-xs text-blue-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-100 flex items-center gap-2">
-                <ImageIcon size={14} />
-                <span>
-                  Recommended size: 
-                  {bannerForm.position === 'hero_slider' && ' 1200x500 px'}
-                  {bannerForm.position === 'sidebar_ad' && ' 400x240 px'}
-                  {bannerForm.position === 'promo_banner' && ' 800x400 px'}
-                </span>
-              </div>
-              <label className="flex items-center gap-2 mt-4 cursor-pointer">
-                <input type="checkbox" checked={bannerForm.isActive} onChange={e => setBannerForm({...bannerForm, isActive: e.target.checked})} className="rounded text-blue-600 focus:ring-blue-500" />
-                <span className="text-sm font-medium text-gray-700">Banner is Active</span>
-              </label>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-medium mt-4">Save Banner</button>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
     </div>
   );

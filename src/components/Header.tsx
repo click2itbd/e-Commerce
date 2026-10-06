@@ -231,15 +231,30 @@ export const Header: React.FC = () => {
                   {subs.length > 0 && (
                     <div className="pl-4 flex flex-col border-l border-gray-700">
                       {subs.map(sub => (
-                        <Link 
-                          key={sub.id}
-                          to={`/category/${menu.slug}/${sub.slug}`}
-                          className="py-1.5 text-xs text-gray-400 hover:text-[#EF4444]"
-                          onClick={() => setIsMenuOpen(false)}
-                        >
-                          {sub.name}
-                        </Link>
-                      ))}
+                          <div key={sub.id} className="flex flex-col">
+                            <Link 
+                              to={`/category/${menu.slug}/${sub.slug}`}
+                              className="py-1.5 text-xs text-gray-400 hover:text-[#EF4444]"
+                              onClick={() => setIsMenuOpen(false)}
+                            >
+                              {sub.name}
+                            </Link>
+                            {sub.subCategories && sub.subCategories.length > 0 && (
+                              <div className="pl-3 flex flex-col border-l border-gray-600/50">
+                                {sub.subCategories.map((subSub: any) => (
+                                  <Link 
+                                    key={subSub.id}
+                                    to={`/category/${menu.slug}/${sub.slug}/${subSub.slug}`}
+                                    className="py-1.5 text-[11px] text-gray-500 hover:text-[#EF4444]"
+                                    onClick={() => setIsMenuOpen(false)}
+                                  >
+                                    - {subSub.name}
+                                  </Link>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
                     </div>
                   )}
                 </div>

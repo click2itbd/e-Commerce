@@ -57,6 +57,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           >
             <Heart size={16} className={isInWishlist(product.id) ? 'fill-[#F97316] text-[#F97316]' : 'text-gray-400 hover:text-[#F97316]'} />
           </button>
+          {(product as any).condition === 'used' && (
+            <div className="absolute top-2 left-2 z-20 bg-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm">
+              PRE-OWNED
+            </div>
+          )}
           {product.stock > 0 && (
             <div className="absolute top-12 right-2 z-10 pointer-events-none">
               <span className="bg-green-500 text-white px-2 py-1 rounded-md text-[10px] font-bold uppercase shadow-sm">
