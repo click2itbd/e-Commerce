@@ -19,10 +19,22 @@ export const SEO: React.FC<SEOProps> = ({
 }) => {
   const { settings } = useSettings();
   
+  const currentDomain = window.location.hostname;
+  const isHostingDomain = currentDomain === 'click2it.bd' || currentDomain === 'www.click2it.bd' || currentDomain === '127.0.0.1';
+  
   const siteName = settings?.companyName || 'Click2IT';
-  const defaultTitle = `${siteName} - Premium Hosting & IT Solutions`;
-  const defaultDescription = settings?.companyDescription || 'Get premium web hosting, domains, and IT solutions tailored for your business needs.';
-  const defaultKeywords = 'web hosting, domain registration, IT services, cloud hosting, VPS, dedicated server';
+  
+  const defaultTitle = isHostingDomain 
+    ? `${siteName} - Premium Hosting & IT Solutions`
+    : `${siteName} - E-Commerce & Custom PC Builder`;
+    
+  const defaultDescription = isHostingDomain
+    ? settings?.companyDescription || 'Get premium web hosting, domains, and IT solutions tailored for your business needs.'
+    : 'Shop the best PC components, laptops, smart gadgets, and build your custom PC at Click2IT.';
+    
+  const defaultKeywords = isHostingDomain
+    ? 'web hosting, domain registration, IT services, cloud hosting, VPS, dedicated server'
+    : 'pc builder, e-commerce, laptops, tech shop bd, computer accessories, online shopping bangladesh';
   
   const seoTitle = title ? `${title} | ${siteName}` : defaultTitle;
   const seoDescription = description || defaultDescription;
