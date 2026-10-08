@@ -13,24 +13,15 @@ dnsRouter.get('/zones', requireFirebaseAuth, async (req: any, res: Response) => 
     const provider = new OpenproviderDomainProvider(
       process.env.OPENPROVIDER_USERNAME || '',
       process.env.OPENPROVIDER_PASSWORD || '',
-      true 
+      process.env.OPENPROVIDER_SANDBOX_MODE === "true"
     );
     
-    try {
-      const response = await provider.fetchApi('/dns/zones');
-      return res.json({ success: true, data: response.data || [] });
-    } catch (e: any) {
-      console.warn("Real DNS API failed, falling back to dummy DNS data:", e.message);
-      const dummyZones = [
-        { id: 1, name: 'example-shop.bd', records: 5, status: 'ACT' },
-        { id: 2, name: 'my-business.com', records: 12, status: 'ACT' }
-      ];
-      return res.json({ success: true, data: dummyZones, fallback: true });
-    }
-    
+    const response = await provider.fetchApi('/dns/zones');
+    const zones = response.data?.results || response.data?.zones || [];
+    return res.json({ success: true, data: Array.isArray(zones) ? zones : [] });
   } catch (error: any) {
     console.error('DNS zones error:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(502).json({ success: false, error: error.message || 'Openprovider DNS request failed' });
   }
 });
 

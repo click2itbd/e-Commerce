@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { getAdminDb } from '../firebase/admin';
 import { getDomainProvider } from '../providers/providerFactory';
-import { DomainAvailabilityResult, DomainRegistrationRequest, DomainRegistrationResult, WhoisResult, DomainTransferResult } from '../providers/domain/IDomainProvider';
+import { DomainAvailabilityResult, DomainRegistrationRequest, DomainRegistrationResult, WhoisResult, DomainTransferResult, TldPricingResult } from '../providers/domain/IDomainProvider';
 import { sendEmail } from '../services/email';
 import { getAdminDocument, isUserAdmin } from '../firebase/admin';
 import { getDomainPricingSettings, calculateCustomerPriceBdt } from '../services/domainPricing';
@@ -9,7 +9,7 @@ import { ProviderError } from '../providers/domain/DynadotDomainProvider';
 import { BtclDomainProvider, isBdDomain } from '../providers/domain/BtclDomainProvider';
 import { resolveDomainProvider, getBtclConfig, saveBtclConfig, maskBtclConfig } from '../services/btclConfig';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth';
-import { config } from '../config';
+import { getDomainProviderConfig as getDomainConfig } from '../services/domainProviderConfig';
 
 interface DomainPricing {
   id?: string;
@@ -22,29 +22,7 @@ interface DomainPricing {
 }
 
 const domainRouter = Router();
-
-async function getDomainConfig() {
-  let dynadotApiKey = process.env.DYNADOT_API_KEY || (config.secrets as any)?.dynadotApiKey;
-  let domainApiType = process.env.DOMAIN_API_TYPE || (config as any).dynadot?.domainApiType;
-
-  if (!dynadotApiKey) {
-    try {
-      const doc = await getAdminDocument('settings', 'api_keys');
-      if (doc && doc.data) {
-        if (doc.data.dynadotApiKey) dynadotApiKey = doc.data.dynadotApiKey;
-        if (doc.data.domainApiKey) dynadotApiKey = doc.data.domainApiKey;
-        if (doc.data.domainApiType) domainApiType = doc.data.domainApiType;
-      }
-    } catch (e) {
-      console.warn('Error reading domain config from Firestore settings/api_keys:', e);
-    }
-  }
-
-  return {
-    domainApiType: dynadotApiKey ? (domainApiType || 'dynadot') : 'dummy',
-    domainApiKey: dynadotApiKey || ''
-  };
-}
+let domainPricingCache: { expiresAt: number; data: DomainPricing[] } | null = null;
 
 domainRouter.get('/check', async (req: any, res: Response) => {
   try {
@@ -71,14 +49,48 @@ domainRouter.post('/check', async (req: any, res: Response) => {
     const pricingSettings = await getDomainPricingSettings();
     const results: DomainAvailabilityResult[] = await provider.checkAvailability(domains);
 
-    const enriched = results.map(r => {
-      const priceBdt = r.price && r.price > 0 ? calculateCustomerPriceBdt(r.price, pricingSettings) : undefined;
-      return {
-        ...r,
-        price: priceBdt || r.price,
-        priceBdt: priceBdt,
-      };
-    });
+    const pricingByTld = new Map<string, Promise<TldPricingResult>>();
+    const enriched = await Promise.all(results.map(async r => {
+      if (!r.available) return r;
+
+      const separator = r.domain.indexOf('.');
+      const tld = separator >= 0 ? r.domain.slice(separator + 1).toLowerCase() : '';
+      if (tld && provider.getTldPricing) {
+        let pricingPromise = pricingByTld.get(tld);
+        if (!pricingPromise) {
+          pricingPromise = provider.getTldPricing(tld);
+          pricingByTld.set(tld, pricingPromise);
+        }
+
+        try {
+          const quote = await pricingPromise;
+          if (quote.currency !== 'USD' || !Number.isFinite(quote.registrationPrice) || quote.registrationPrice <= 0
+            || !Number.isFinite(quote.renewalPrice) || quote.renewalPrice <= 0) {
+            return { ...r, error: 'A valid registration and renewal price is unavailable for this domain.' };
+          }
+
+          const registrationPriceBdt = calculateCustomerPriceBdt(quote.registrationPrice, pricingSettings);
+          return {
+            ...r,
+            price: registrationPriceBdt,
+            priceBdt: registrationPriceBdt,
+            renewalPrice: calculateCustomerPriceBdt(quote.renewalPrice, pricingSettings),
+            currency: 'BDT',
+          };
+        } catch (error: any) {
+          return { ...r, error: error?.message || 'Failed to fetch domain pricing.' };
+        }
+      }
+
+      if (r.currency === 'BDT' && Number.isFinite(r.price) && (r.price || 0) > 0) {
+        return { ...r, priceBdt: r.price };
+      }
+      if (r.currency === 'USD' && Number.isFinite(r.price) && (r.price || 0) > 0) {
+        const priceBdt = calculateCustomerPriceBdt(r.price as number, pricingSettings);
+        return { ...r, price: priceBdt, priceBdt, currency: 'BDT' };
+      }
+      return { ...r, price: undefined, priceBdt: undefined, renewalPrice: undefined };
+    }));
 
     return res.json({ success: true, data: enriched });
   } catch (error: any) {
@@ -129,18 +141,20 @@ domainRouter.post('/register', async (req: any, res: Response) => {
     const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
     const pricingSettings = await getDomainPricingSettings();
 
-    let supplierPriceUsd = 0;
+    let supplierPriceUsd: number;
     try {
       const tld = request.domain.split('.').pop() || '';
       const tldPricing = await provider.getTldPricing?.(tld);
-      if (tldPricing) {
-        supplierPriceUsd = tldPricing.registrationPrice;
+      if (!tldPricing || !Number.isFinite(tldPricing.registrationPrice) || tldPricing.registrationPrice <= 0 || tldPricing.currency !== 'USD') {
+        throw new Error('A valid USD registration price is unavailable for this domain.');
       }
-    } catch (e) {
-      console.warn('Failed to get supplier price for registration:', e);
+      supplierPriceUsd = tldPricing.registrationPrice;
+    } catch (error: any) {
+      console.error('Failed to get supplier price for registration:', error);
+      return res.status(502).json({ success: false, error: error?.message || 'Failed to fetch domain registration price' });
     }
 
-    const customerPriceBdt = supplierPriceUsd > 0 ? calculateCustomerPriceBdt(supplierPriceUsd, pricingSettings) : 0;
+    const customerPriceBdt = calculateCustomerPriceBdt(supplierPriceUsd, pricingSettings);
 
     const orderRef = db.collection('domainOrders').doc();
     await orderRef.set({
@@ -192,54 +206,23 @@ domainRouter.post('/whois', async (req: any, res: Response) => {
 });
 
 domainRouter.get('/pricing', async (req: any, res: Response) => {
+  if (domainPricingCache && domainPricingCache.expiresAt > Date.now()) {
+    return res.json({ success: true, data: domainPricingCache.data });
+  }
+
   try {
     const db = getAdminDb();
     const snap = await db.collection('domainPricing').orderBy('tld', 'asc').get();
-    if (!snap.empty) {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as DomainPricing[];
-      return res.json({ success: true, data });
-    }
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as DomainPricing[];
+    domainPricingCache = { expiresAt: Date.now() + 60_000, data };
+    return res.json({ success: true, data });
   } catch (error: any) {
-    // Firestore query failed or not configured — fall back to dynamic default table
+    console.error('Failed to fetch domain pricing from database:', error.message);
+    domainPricingCache = { expiresAt: Date.now() + 15_000, data: [] };
   }
 
-  try {
-    const pricingSettings = await getDomainPricingSettings();
-    const defaultPrices: Record<string, { register: number; renew: number; transfer: number }> = {
-      com: { register: 10.99, renew: 11.99, transfer: 10.99 },
-      net: { register: 12.99, renew: 13.99, transfer: 12.99 },
-      org: { register: 11.99, renew: 12.99, transfer: 11.99 },
-      info: { register: 4.99, renew: 19.99, transfer: 19.99 },
-      biz: { register: 5.99, renew: 18.99, transfer: 18.99 },
-      co: { register: 27.99, renew: 27.99, transfer: 27.99 },
-      xyz: { register: 2.99, renew: 12.99, transfer: 12.99 },
-      store: { register: 3.99, renew: 29.99, transfer: 29.99 },
-      online: { register: 3.99, renew: 34.99, transfer: 34.99 },
-      site: { register: 3.99, renew: 31.99, transfer: 31.99 },
-      me: { register: 14.99, renew: 18.99, transfer: 18.99 },
-      club: { register: 12.99, renew: 15.99, transfer: 15.99 },
-      top: { register: 2.99, renew: 6.99, transfer: 6.99 },
-      io: { register: 39.99, renew: 49.99, transfer: 49.99 },
-      dev: { register: 14.99, renew: 16.99, transfer: 16.99 },
-      tech: { register: 4.99, renew: 24.99, transfer: 24.99 },
-      bd: { register: 25.00, renew: 25.00, transfer: 25.00 },
-      'com.bd': { register: 25.00, renew: 25.00, transfer: 25.00 },
-    };
-
-    const fallbackPricingList = Object.entries(defaultPrices).map(([tld, p]) => ({
-      id: tld,
-      tld,
-      registerPrice: calculateCustomerPriceBdt(p.register, pricingSettings),
-      renewPrice: calculateCustomerPriceBdt(p.renew, pricingSettings),
-      transferPrice: calculateCustomerPriceBdt(p.transfer, pricingSettings),
-      currency: 'BDT',
-      isActive: true,
-    }));
-
-    return res.json({ success: true, data: fallbackPricingList });
-  } catch (err: any) {
-    return res.json({ success: true, data: [] });
-  }
+  // If no pricing is found in the database, return an empty array instead of hardcoded fallbacks
+  return res.json({ success: true, data: [] });
 });
 
 domainRouter.post('/renew', async (req: any, res: Response) => {
@@ -269,20 +252,27 @@ domainRouter.post('/renew', async (req: any, res: Response) => {
 });
 
 domainRouter.post('/test-connection', async (req: any, res: Response) => {
+  let providerType = 'dummy';
   try {
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    providerType = config.domainApiType || 'dummy';
+    const provider = getDomainProvider({ domainApiType: providerType, domainApiKey: config.domainApiKey });
+    if (provider.testConnection) {
+      const result = await provider.testConnection();
+      return res.json({ ...result, providerType });
+    }
+
     const results = await provider.checkAvailability(['test-click2itbd.com']);
     const success = results.length > 0 && !results[0].error;
     return res.json({
       success,
-      providerType: config.domainApiType || 'dummy',
+      providerType,
       message: success ? 'Connection test successful' : 'Connection test failed',
       data: results,
     });
   } catch (error: any) {
     console.error('Domain test connection error:', error);
-    return res.json({ success: false, providerType: 'dummy', message: error?.message || 'Internal server error' });
+    return res.json({ success: false, providerType, message: error?.message || 'Internal server error' });
   }
 });
 
@@ -329,15 +319,22 @@ domainRouter.post('/tld-pricing-batch', async (req: any, res: Response) => {
     if (!result) {
       return res.json({ success: false, error: 'Batch TLD pricing not available for this provider' });
     }
+    if (!result.pricing?.length) {
+      return res.status(502).json({
+        success: false,
+        error: 'No TLD prices could be fetched',
+        failed: result.failed || [],
+      });
+    }
 
     const pricingSettings = await getDomainPricingSettings();
     const pricing = result.pricing.map((item: any) => ({
       tld: item.tld,
-      customerPriceBdt: calculateCustomerPriceBdt(item.customerPriceBdt, pricingSettings),
+      customerPriceBdt: calculateCustomerPriceBdt(item.supplierPriceUsd, pricingSettings),
       currency: 'BDT',
     }));
 
-    return res.json({ success: true, data: { pricing } });
+    return res.json({ success: true, data: { pricing, failed: result.failed || [] } });
   } catch (error: any) {
     console.error('Domain batch TLD pricing error:', error);
     return res.json({ success: false, error: error?.message || 'Internal server error' });
@@ -357,7 +354,10 @@ domainRouter.post('/renewal-price', async (req: any, res: Response) => {
     }
 
     const pricingSettings = await getDomainPricingSettings();
-    const customerPriceBdt = calculateCustomerPriceBdt(result.renewalPriceBdt, pricingSettings);
+    if (!result.success || !Number.isFinite(result.supplierPriceUsd) || result.supplierPriceUsd <= 0) {
+      return res.status(502).json({ success: false, error: result.error || 'A valid renewal price is unavailable for this domain.' });
+    }
+    const customerPriceBdt = calculateCustomerPriceBdt(result.supplierPriceUsd, pricingSettings);
 
     return res.json({ 
       success: true, 
@@ -385,16 +385,21 @@ domainRouter.post('/renewal-price-breakdown', async (req: any, res: Response) =>
     if (!result) {
       return res.json({ success: false, error: 'Renewal price breakdown not available for this provider' });
     }
+    if (!result.success || !Number.isFinite(result.supplierPriceUsd) || result.supplierPriceUsd <= 0) {
+      return res.status(502).json({ success: false, error: result.error || 'A valid renewal price is unavailable for this domain.' });
+    }
 
     const pricingSettings = await getDomainPricingSettings();
     const customerPriceBdt = calculateCustomerPriceBdt(result.supplierPriceUsd, pricingSettings);
-    const retailUsd = result.supplierPriceUsd * (1 + pricingSettings.markupPercent / 100);
+    const sellingPriceUsd = result.supplierPriceUsd * (1 + pricingSettings.markupPercent / 100);
 
     return res.json({ 
       success: true, 
       data: { 
         ...result,
         sellingPriceBdt: customerPriceBdt,
+        sellingPriceUsd: Math.round(sellingPriceUsd * 100) / 100,
+        markupAmountUsd: Math.round((sellingPriceUsd - result.supplierPriceUsd) * 100) / 100,
         markupPercent: pricingSettings.markupPercent,
         exchangeRate: pricingSettings.usdToBdtRate,
       } 
@@ -435,18 +440,24 @@ domainRouter.post('/renewal-order', async (req: any, res: Response) => {
     const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
     const pricingSettings = await getDomainPricingSettings();
 
-    let supplierPriceUsd = 0;
-    try {
-      const renewalPriceResult = await (provider as any).getRenewalPrice?.(params.domain);
-      if (renewalPriceResult) {
-        // Use the USD supplier price, not the BDT price, to avoid double conversion
-        supplierPriceUsd = renewalPriceResult.supplierPriceUsd || renewalPriceResult.sellingPriceUsd || 0;
-      }
-    } catch (e) {
-      console.warn('[Domain] Failed to get supplier price for renewal:', e);
+    const renewalPeriod = Number(params.renewalPeriod);
+    if (!Number.isInteger(renewalPeriod) || renewalPeriod < 1) {
+      return res.status(400).json({ success: false, error: 'renewalPeriod must be a positive whole number of years' });
     }
 
-    const customerPriceBdt = supplierPriceUsd > 0 ? calculateCustomerPriceBdt(supplierPriceUsd, pricingSettings) : params.totalBdt || 0;
+    const renewalPriceResult = await provider.getRenewalPrice?.(params.domain);
+    if (!renewalPriceResult?.success || !Number.isFinite(renewalPriceResult.supplierPriceUsd) || renewalPriceResult.supplierPriceUsd <= 0) {
+      return res.status(502).json({
+        success: false,
+        error: renewalPriceResult?.error || 'A valid renewal price is unavailable for this domain.',
+      });
+    }
+    if (renewalPeriod > renewalPriceResult.maxDuration) {
+      return res.status(400).json({ success: false, error: `Renewal period cannot exceed ${renewalPriceResult.maxDuration} years` });
+    }
+
+    const supplierPriceUsd = renewalPriceResult.supplierPriceUsd * renewalPeriod;
+    const customerPriceBdt = calculateCustomerPriceBdt(supplierPriceUsd, pricingSettings);
 
     const orderData = {
       userId: params.userId || 'guest',
@@ -515,18 +526,20 @@ domainRouter.post('/transfer', async (req: any, res: Response) => {
     const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
     const pricingSettings = await getDomainPricingSettings();
 
-    let supplierPriceUsd = 0;
+    let supplierPriceUsd: number;
     try {
       const tld = domain.split('.').pop() || '';
       const tldPricing = await (provider as any).getTldPricing?.(tld);
-      if (tldPricing) {
-        supplierPriceUsd = tldPricing.transferPrice;
+      if (!tldPricing || !Number.isFinite(tldPricing.transferPrice) || tldPricing.transferPrice <= 0 || tldPricing.currency !== 'USD') {
+        throw new Error('A valid USD transfer price is unavailable for this domain.');
       }
-    } catch (e) {
-      console.warn('Failed to get supplier price for transfer:', e);
+      supplierPriceUsd = tldPricing.transferPrice;
+    } catch (error: any) {
+      console.error('Failed to get supplier price for transfer:', error);
+      return res.status(502).json({ success: false, error: error?.message || 'Failed to fetch domain transfer price' });
     }
 
-    const customerPriceBdt = supplierPriceUsd > 0 ? calculateCustomerPriceBdt(supplierPriceUsd, pricingSettings) : 0;
+    const customerPriceBdt = calculateCustomerPriceBdt(supplierPriceUsd, pricingSettings);
 
     const orderData = {
       userId: req.user?.uid || 'guest',
@@ -576,8 +589,8 @@ domainRouter.post('/transfer/check-eligibility', async (req: any, res: Response)
     let eligible = false;
     let reason = 'Domain provider not configured';
 
-    if (config.domainApiType === 'dynadot' && (provider as any).checkAvailability) {
-      const results = await (provider as any).checkAvailability([domain]);
+    if (['dynadot', 'openprovider'].includes(config.domainApiType) && provider.checkAvailability) {
+      const results = await provider.checkAvailability([domain]);
       const result = results[0];
       if (result && !result.available && !result.error) {
         eligible = true;
@@ -627,7 +640,10 @@ domainRouter.post('/fulfill', requireFirebaseAuth, async (req: any, res: Respons
       return res.json({ success: true, message: 'Order already fulfilled' });
     }
 
-    if (orderData.status !== 'payment_verified' && orderData.status !== 'pending_fulfillment') {
+    const paidRenewal = orderType === 'renewal'
+      && ['payment_received', 'verified'].includes(orderData.paymentStatus)
+      && ['pending_payment', 'pending'].includes(orderData.status);
+    if (!paidRenewal && orderData.status !== 'payment_verified' && orderData.status !== 'pending_fulfillment') {
       return res.json({ success: false, error: `Order status '${orderData.status}' is not eligible for fulfillment` });
     }
 
@@ -638,6 +654,14 @@ domainRouter.post('/fulfill', requireFirebaseAuth, async (req: any, res: Respons
     let fulfillmentType = orderType;
 
     try {
+      if (orderType === 'renewal') {
+        await orderRef.update({
+          status: 'processing',
+          renewalStatus: 'processing',
+          updatedAt: new Date(),
+        });
+      }
+
       if (orderType === 'transfer') {
         const authCode = req.body.authCode || orderData.authCode;
         if (!authCode) {
@@ -666,6 +690,7 @@ domainRouter.post('/fulfill', requireFirebaseAuth, async (req: any, res: Respons
       const batch = db.batch();
       batch.update(orderRef, {
         status: 'manual_review',
+        ...(orderType === 'renewal' ? { renewalStatus: 'failed' } : {}),
         fulfillmentError: errorMessage,
         errorCode,
         retryCount: (orderData.retryCount || 0) + 1,
@@ -719,6 +744,7 @@ domainRouter.post('/fulfill', requireFirebaseAuth, async (req: any, res: Respons
     const batch = db.batch();
     batch.update(orderRef, {
       status: newStatus,
+      ...(orderType === 'renewal' ? { renewalStatus: isSuccess ? 'renewed' : 'failed' } : {}),
       registrationId: result?.registrationId || result?.transferId || orderData.registrationId || null,
       expiresAt: result?.expiresAt || orderData.expiresAt || null,
       newExpiryDate: result?.newExpiryDate || null,
@@ -756,7 +782,12 @@ domainRouter.post('/fulfill', requireFirebaseAuth, async (req: any, res: Respons
       await sendEmail({ to: orderData.customerEmail, subject, html });
     }
 
-    return res.json({ success: isSuccess, data: result, status: newStatus });
+    return res.json({
+      success: isSuccess,
+      data: result,
+      status: newStatus,
+      error: isSuccess ? undefined : result?.error || 'Domain fulfillment failed',
+    });
   } catch (error: any) {
     console.error('Domain fulfill error:', error);
     return res.json({ success: false, error: error?.message || 'Internal server error' });
@@ -1008,41 +1039,52 @@ domainRouter.post('/sync-pricing', requireFirebaseAuth, async (req: any, res: Re
     }
 
     const synced = [];
+    const failed = [];
     const db = getAdminDb();
     const pricingSettings = await getDomainPricingSettings();
-    const markup = pricingSettings.markupPercent || 0;
 
     for (const tld of tlds) {
       try {
-        const result = await provider.getTldPricing(tld.replace('.', ''));
-        if (result && result.registrationPrice) {
+        const cleanTld = String(tld).trim().replace(/^\./, '').toLowerCase();
+        const result = await provider.getTldPricing(cleanTld);
+        if (result && result.registrationPrice > 0 && result.currency === 'USD') {
           const cost = result.registrationPrice;
-          const price = cost * (1 + markup / 100);
+          const registerPriceBdt = calculateCustomerPriceBdt(cost, pricingSettings);
+          const renewPriceBdt = calculateCustomerPriceBdt(result.renewalPrice, pricingSettings);
+          const transferPriceBdt = calculateCustomerPriceBdt(result.transferPrice, pricingSettings);
           
-          const tldStr = tld.startsWith('.') ? tld : `.${tld}`;
+          const tldStr = `.${cleanTld}`;
           const ref = db.collection('domainPricing').doc(tldStr.replace('.', ''));
           
           await ref.set({
             tld: tldStr,
-            registerPrice: price,
-            renewPrice: price, // assuming same for simplicity
-            transferPrice: price,
-            currency: 'BDT', // Assuming system converts to BDT
+            registerPrice: registerPriceBdt,
+            renewPrice: renewPriceBdt,
+            transferPrice: transferPriceBdt,
+            currency: 'BDT',
             isActive: true,
             supplierPriceUsd: cost,
             updatedAt: new Date()
           }, { merge: true });
 
-          synced.push({ tld: tldStr, cost, price });
+          synced.push({ tld: tldStr, price: registerPriceBdt });
+        } else {
+          failed.push({ tld, error: 'Provider returned invalid or unsupported pricing data' });
         }
       } catch (e: any) {
         console.warn(`Failed to sync ${tld}:`, e.message);
+        failed.push({ tld, error: e.message || 'Failed to fetch TLD pricing' });
       }
     }
 
-    return res.json({ success: true, synced });
+    if (synced.length === 0) {
+      return res.status(502).json({ success: false, error: 'No TLD prices could be synchronized', synced, failed });
+    }
+    domainPricingCache = null;
+    return res.json({ success: true, synced, failed });
   } catch (error: any) {
     console.error('Domain sync error:', error);
+    try { import('fs').then(fs => fs.appendFileSync('sync-error.log', new Date().toISOString() + ' ' + (error?.stack || error?.message || error) + '\n')); } catch (e) {}
     return res.status(500).json({ success: false, error: error?.message || 'Internal server error' });
   }
 });

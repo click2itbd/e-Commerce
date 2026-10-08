@@ -79,17 +79,22 @@ vi.mock('../src/providers/providerFactory', () => ({
       transferPrice: 12,
       restorePrice: 20,
     })),
+    testConnection: vi.fn(() => ({
+      success: true,
+      code: '200',
+      message: 'Provider connection verified',
+    })),
     getBatchTldPricing: vi.fn(() => ({
       pricing: [
-        { tld: '.com', customerPriceBdt: 1200, currency: 'BDT' },
-        { tld: '.net', customerPriceBdt: 1400, currency: 'BDT' },
+        { tld: '.com', supplierPriceUsd: 10, currency: 'USD' },
+        { tld: '.net', supplierPriceUsd: 12, currency: 'USD' },
       ],
     })),
     getRenewalPrice: vi.fn(() => ({
       success: true,
       domain: 'testclick2itbd.com',
       tld: '.com',
-      renewalPriceBdt: 1000,
+      supplierPriceUsd: 10,
       maxDuration: 10,
     })),
     getRenewalPriceBreakdown: vi.fn(() => ({
@@ -123,6 +128,9 @@ describe('Domain Production Flow', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
+    createdOrders.clear();
+    lastIdempotencyKey = undefined;
+    lastOrderId = undefined;
     process.env.NODE_ENV = 'test';
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY = '';
     process.env.EXPRESS_API_KEY = 'test-api-key';
@@ -139,17 +147,59 @@ describe('Domain Production Flow', () => {
 
   it('search returns available domains', async () => {
     const response = await request(app)
-      .post('/api/domain/check')
+      .post('/api/domains/check')
       .send({ domains: ['testclick2itbd.com'] });
     
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
     expect(Array.isArray(response.body.data)).toBe(true);
+    expect(response.body.data[0].currency).toBe('BDT');
+    expect(response.body.data[0].price).toBeGreaterThan(0);
+    expect(response.body.data[0].priceBdt).toBe(response.body.data[0].price);
+    expect(response.body.data[0].renewalPrice).toBeGreaterThan(0);
+  });
+
+  it('does not return catalog fallback prices when the provider quote is invalid', async () => {
+    const { getDomainProvider } = await import('../src/providers/providerFactory');
+    const provider = getDomainProvider();
+    vi.mocked(getDomainProvider).mockReturnValueOnce({
+      ...provider,
+      checkAvailability: vi.fn(() => Promise.resolve([
+        { domain: 'testclick2itbd.com', available: true, price: 100, currency: 'BDT' },
+      ])),
+      getTldPricing: vi.fn(() => Promise.resolve({
+        tld: '.com',
+        currency: 'EUR',
+        registrationPrice: 10,
+        renewalPrice: 12,
+        transferPrice: 10,
+        restorePrice: 0,
+      })),
+    });
+
+    const response = await request(app)
+      .post('/api/domains/check')
+      .send({ domains: ['testclick2itbd.com'] });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data[0].price).toBeUndefined();
+    expect(response.body.data[0].renewalPrice).toBeUndefined();
+    expect(response.body.data[0].error).toContain('valid registration and renewal price');
+  });
+
+  it('tests provider credentials through the provider connection method', async () => {
+    const response = await request(app)
+      .post('/api/domains/test-connection')
+      .send({});
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.message).toBe('Provider connection verified');
   });
 
   it('tld pricing returns customer BDT price only, no wholesale/exchange/markup', async () => {
     const response = await request(app)
-      .post('/api/domain/tld-pricing')
+      .post('/api/domains/tld-pricing')
       .send({ tld: 'com' });
     
     expect(response.status).toBe(200);
@@ -163,7 +213,7 @@ describe('Domain Production Flow', () => {
 
   it('batch pricing returns customer BDT prices only', async () => {
     const response = await request(app)
-      .post('/api/domain/tld-pricing-batch')
+      .post('/api/domains/tld-pricing-batch')
       .send({ tlds: ['com', 'net'] });
     
     expect(response.status).toBe(200);
@@ -176,6 +226,25 @@ describe('Domain Production Flow', () => {
     });
   });
 
+  it('creates renewal orders with the server-calculated wholesale price for the full term', async () => {
+    const response = await request(app)
+      .post('/api/domains/renewal-order')
+      .send({
+        domain: 'testclick2itbd.com',
+        renewalPeriod: 2,
+        customerName: 'Test User',
+        customerEmail: 'test@example.com',
+        customerPhone: '01700000000',
+        paymentMethod: 'bkash',
+        totalBdt: 1,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.order.totalBdt).toBe(2760);
+    expect(response.body.order.supplierPriceUsd).toBe(20);
+  });
+
   it('registration creates pending_payment order with idempotency', async () => {
     const authHeader = {
       'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYWRtaW4iLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwic3ViIjoiYWRtaW4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiZXhwIjo5OTk5OTk5OTk5OTk5OTk5fQ.test',
@@ -183,7 +252,7 @@ describe('Domain Production Flow', () => {
     };
 
     const response = await request(app)
-      .post('/api/domain/register')
+      .post('/api/domains/register')
       .set(authHeader)
       .send({
         domain: 'testclick2itbd.com',
@@ -202,13 +271,24 @@ describe('Domain Production Flow', () => {
   });
 
   it('duplicate registration returns existing order', async () => {
+    const firstResponse = await request(app)
+      .post('/api/domains/register')
+      .set('X-Idempotency-Key', 'test-domain-com-1')
+      .send({
+        domain: 'testclick2itbd.com',
+        years: 1,
+        contactId: 'test-user',
+      });
+
+    expect(firstResponse.status).toBe(200);
+
     const authHeader = {
       'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYWRtaW4iLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwic3ViIjoiYWRtaW4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiZXhwIjo5OTk5OTk5OTk5OTk5OTk5fQ.test',
       'X-Idempotency-Key': 'test-domain-com-1',
     };
 
     const response = await request(app)
-      .post('/api/domain/register')
+      .post('/api/domains/register')
       .set(authHeader)
       .send({
         domain: 'testclick2itbd.com',
@@ -229,7 +309,7 @@ describe('Domain Production Flow', () => {
     };
 
     const response = await request(app)
-      .post('/api/domain/transfer')
+      .post('/api/domains/transfer')
       .set(authHeader)
       .send({
         domain: 'testclick2itbd.com',
@@ -249,7 +329,7 @@ describe('Domain Production Flow', () => {
 
   it('transfer eligibility check works', async () => {
     const response = await request(app)
-      .post('/api/domain/transfer/check-eligibility')
+      .post('/api/domains/transfer/check-eligibility')
       .send({ domain: 'testclick2itbd.com' });
     
     expect(response.status).toBe(200);
@@ -261,7 +341,7 @@ describe('Domain Production Flow', () => {
 
   it('unauthorized access to admin endpoints returns 401', async () => {
     const response = await request(app)
-      .post('/api/domain/fulfill')
+      .post('/api/domains/fulfill')
       .send({ orderId: 'test', orderType: 'registration' });
     
     expect(response.status).toBe(401);

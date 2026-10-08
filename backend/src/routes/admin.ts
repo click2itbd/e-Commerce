@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { getAdminDocument, setAdminDocument, isUserAdmin } from '../firebase/admin';
 import { CpanelHostingProvider } from '../providers/hosting/CpanelHostingProvider';
 import { DynadotDomainProvider } from '../providers/domain/DynadotDomainProvider';
+import { OpenproviderDomainProvider } from '../providers/domain/OpenproviderDomainProvider';
 import { getCloudLinuxProvider } from '../providers/cloudlinux/CloudLinuxProvider';
 import { verifySmtpConnection } from '../services/email';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth';
@@ -180,7 +181,9 @@ adminRouter.post('/domain/test-connection', async (req: any, res: Response) => {
     if (providerName === 'openprovider') {
       const username = config?.username || process.env.OPENPROVIDER_USERNAME;
       const password = config?.password || process.env.OPENPROVIDER_PASSWORD;
-      const isSandbox = config?.isSandbox !== undefined ? config.isSandbox : true;
+      const isSandbox = config?.isSandbox !== undefined
+        ? config.isSandbox
+        : process.env.OPENPROVIDER_SANDBOX_MODE === 'true';
 
       if (!username || !password) {
         return res.json({ success: false, code: 'NOT_CONFIGURED', message: 'Openprovider credentials are missing.' });
@@ -189,8 +192,7 @@ adminRouter.post('/domain/test-connection', async (req: any, res: Response) => {
       const provider = new OpenproviderDomainProvider(username, password, isSandbox);
       
       try {
-        await provider.fetchApi('/ssl/products');
-        return res.json({ success: true, code: 'OK', message: 'Openprovider connection successful!' });
+        return res.json(await provider.testConnection());
       } catch (e: any) {
         return res.json({ success: false, code: 'AUTH_FAILED', message: e.message || 'Authentication failed' });
       }
@@ -232,4 +234,3 @@ adminRouter.post('/email/test-connection', async (req: any, res: Response) => {
 });
 
 export default adminRouter;
-

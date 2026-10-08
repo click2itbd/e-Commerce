@@ -864,9 +864,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     try {
       const uploadPromises = Array.from(files).map(async (file) => {
-        if (CPANEL_UPLOAD_URL) {
+          const compressedFile = await compressImage(file);
+          if (CPANEL_UPLOAD_URL) {
           const formDataToUpload = new FormData();
-          formDataToUpload.append("image", file);
+          formDataToUpload.append("image", compressedFile);
           const res = await fetch(CPANEL_UPLOAD_URL, {
             method: "POST",
             body: formDataToUpload,
@@ -876,7 +877,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           throw new Error(data.message || "cPanel upload failed");
         } else {
           // Fallback to Firebase
-          const compressedFile = await compressImage(file);
           const storageRef = ref(
             storage,
             `products/${Date.now()}_${compressedFile.name}`,
@@ -1751,6 +1751,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             checkLowStock(productData.name, productData.stock);
           } else {
             await addDoc(collection(db, "products"), productData);
+              await logAuditAction('CREATE', 'Product', `Created new product: ${formData.name}`);
             toast.success("Product added successfully");
             checkLowStock(productData.name, productData.stock);
           }
@@ -2017,6 +2018,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }));
   };
 
+  
+  const logAuditAction = async (action: 'CREATE' | 'EDIT' | 'DELETE', entityType: string, details: string) => {
+    try {
+      await addDoc(collection(db, 'audit_logs'), {
+        action,
+        entityType,
+        details,
+        performedBy: auth.currentUser?.email || 'Admin',
+        timestamp: new Date().toISOString()
+      });
+    } catch(e) {
+      console.error('Audit log failed', e);
+    }
+  };
+
   const handleDeleteProduct = async (id: string) => {
     if (!isAdmin) {
       toast.error("You do not have permission to delete this.");
@@ -2029,7 +2045,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         "Are you sure you want to delete this product? This action cannot be undone.",
       onConfirm: async () => {
         try {
-          await deleteDoc(doc(db, "products", id));
+          const prod = products.find(p => p.id === id);
+            await deleteDoc(doc(db, "products", id));
+            await logAuditAction('DELETE', 'Product', `Deleted product: ${prod?.name || id}`);
           toast.success("Product deleted");
           debouncedFetchData();
         } catch (error) {
@@ -2740,6 +2758,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               // Create new
               productData.createdAt = new Date().toISOString();
               await addDoc(collection(db, "products"), productData);
+              await logAuditAction('CREATE', 'Product', `Created new product: ${formData.name}`);
               addedCount++;
             }
           });

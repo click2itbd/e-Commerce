@@ -19,6 +19,7 @@ interface CartContextType {
   appliedDiscount: DiscountCode | null;
   setAppliedDiscount: (discount: DiscountCode | null) => void;
   isShippingFree: boolean;
+  promoSettings: Record<string, any>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -192,7 +193,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [items, total, user]);
 
   return (
-    <CartContext.Provider value={{ items: processedItems, addToCart, removeFromCart, updateQuantity, updateCartItem, clearCart, subtotal, total, promoDiscount, promoMessage, appliedDiscount, setAppliedDiscount, isShippingFree }}>
+    <CartContext.Provider value={{ items: processedItems, addToCart, removeFromCart, updateQuantity, updateCartItem, clearCart, subtotal, total, promoDiscount, promoMessage, appliedDiscount, setAppliedDiscount, isShippingFree, promoSettings }}>
       {children}
     </CartContext.Provider>
   );
@@ -203,7 +204,6 @@ export const useCart = () => {
   if (!context) throw new Error('useCart must be used within a CartProvider');
   return context;
 };
-
 
 
 

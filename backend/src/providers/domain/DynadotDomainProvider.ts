@@ -279,16 +279,16 @@ export class DynadotDomainProvider implements IDomainProvider {
       tlds.map(async (tld) => {
         try {
           const priced = await this.getTldPricing(tld);
-          return { tld: priced.tld, customerPriceBdt: priced.registrationPrice, currency: priced.currency };
+          return { tld: priced.tld, supplierPriceUsd: priced.registrationPrice, currency: priced.currency };
         } catch {
           const cleanTld = tld.replace(/^\./, '').toLowerCase();
           const fallback = DEFAULT_TLD_PRICES[cleanTld] || { register: 12.99, renew: 14.99, transfer: 12.99, restore: 60 };
-          return { tld: `.${cleanTld}`, customerPriceBdt: fallback.register, currency: 'USD' };
+          return { tld: `.${cleanTld}`, supplierPriceUsd: fallback.register, currency: 'USD' };
         }
       })
     );
     const pricing = results
-      .filter((r): r is PromiseFulfilledResult<{ tld: string; customerPriceBdt: number; currency: string }> => 
+      .filter((r): r is PromiseFulfilledResult<{ tld: string; supplierPriceUsd: number; currency: string }> => 
         r.status === 'fulfilled' && r.value !== null
       )
       .map(r => r.value);
@@ -316,7 +316,7 @@ export class DynadotDomainProvider implements IDomainProvider {
       success: true,
       domain,
       tld: `.${tld}`,
-      renewalPriceBdt: renewPrice,
+      supplierPriceUsd: renewPrice,
       maxDuration: 10,
     };
   }

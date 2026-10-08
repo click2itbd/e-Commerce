@@ -22,12 +22,15 @@ export function useDomainSearch() {
     try {
       const apiResults = await checkDomainAvailability(domains);
       const results: DomainAvailabilityResult[] = (apiResults || []).map(res => {
-        const domainPrice = (res as any).priceBdt || res.price || 0;
+        const domainPrice = res.priceBdt ?? res.price ?? 0;
         return {
           domain: res.domain,
           available: res.available,
           price: domainPrice,
+          renewalPrice: res.renewalPrice,
+          currency: res.currency,
           originalPrice: domainPrice,
+          error: res.error,
         };
       });
 

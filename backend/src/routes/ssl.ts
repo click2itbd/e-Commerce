@@ -15,35 +15,23 @@ sslRouter.get('/products', requireFirebaseAuth, async (req: any, res: Response) 
     const provider = new OpenproviderDomainProvider(
       process.env.OPENPROVIDER_USERNAME || '',
       process.env.OPENPROVIDER_PASSWORD || '',
-      true // We hardcode true to use sandbox as requested by user initially
+      process.env.OPENPROVIDER_SANDBOX_MODE === "true"
     );
     
-    try {
-      const response = await provider.fetchApi('/ssl/products');
-      const products = response.data.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        price: p.prices?.[0]?.price || 0,
-        type: p.category || 'DV',
-        brand: p.brand || 'Unknown',
-        validationType: p.validation_method || 'email'
-      }));
-      return res.json({ success: true, data: products });
-    } catch (e: any) {
-      console.warn("Real API failed, falling back to dummy SSL data:", e.message);
-      // Fallback for demo if API fails
-      const dummyProducts = [
-        { id: 1, name: 'Sectigo EssentialSSL', price: 9.99, type: 'DV', brand: 'Sectigo', validationType: 'email' },
-        { id: 2, name: 'Sectigo PositiveSSL', price: 8.50, type: 'DV', brand: 'Sectigo', validationType: 'email' },
-        { id: 3, name: 'Sectigo EssentialSSL Wildcard', price: 79.99, type: 'DV Wildcard', brand: 'Sectigo', validationType: 'email' },
-        { id: 4, name: 'Sectigo EV SSL', price: 120.00, type: 'EV', brand: 'Sectigo', validationType: 'document' }
-      ];
-      return res.json({ success: true, data: dummyProducts, fallback: true });
-    }
-    
+    const response = await provider.fetchApi('/ssl/products');
+    const resultsArray = Array.isArray(response.data) ? response.data : (response.data?.results || []);
+    const products = resultsArray.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      price: p.prices?.[0]?.price || p.prices?.reseller?.price?.reseller || 0,
+      type: p.category || 'DV',
+      brand: p.brand || 'Unknown',
+      validationType: p.validation_method || 'email'
+    }));
+    return res.json({ success: true, data: products });
   } catch (error: any) {
     console.error('SSL products error:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(502).json({ success: false, error: error.message || 'Openprovider SSL request failed' });
   }
 });
 

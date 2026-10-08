@@ -36,7 +36,15 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
   const [liveOrders, setLiveOrders] = useState<any[]>([]);
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'orders'), (snap) => {
-      setLiveOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const hostingAndDomainOrders = allOrders.filter(order => 
+        order.items && order.items.some((item: any) => 
+          item.itemType === 'domain' || 
+          item.itemType === 'hosting' || 
+          item.itemType === 'vps'
+        )
+      );
+      setLiveOrders(hostingAndDomainOrders);
     }, () => {});
     return () => unsub();
   }, []);
@@ -57,6 +65,7 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
     manualBkashNumber: '01700000000',
   });
   const [savingGlobal, setSavingGlobal] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [formData, setFormData] = useState<DomainPricing>({
     tld: '',
     registerPrice: 0,
@@ -66,6 +75,38 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
     isActive: true,
   });
   const [confirmDelete, setConfirmDelete] = useState<{ tld: string; onConfirm: () => void } | null>(null);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const token = await user?.getIdToken();
+      if (!token) throw new Error('Not authenticated');
+
+      const tldsToSync = ['.com', '.net', '.org', '.xyz', '.io', '.co', '.dev', '.online', '.info', '.biz'];
+      const res = await fetch('/api/domains/sync-pricing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ tlds: tldsToSync }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Successfully synced ${data.synced?.length || 0} TLDs from Openprovider!`);
+        if (data.failed?.length) {
+          toast.error(`Could not sync ${data.failed.length} TLD(s): ${data.failed.map((item: any) => item.tld).join(', ')}`);
+        }
+        fetchData(); // Refresh table
+      } else {
+        toast.error(data.error || 'Failed to sync API pricing');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -412,6 +453,14 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
             <p className="text-sm text-gray-500 mt-1">Override specific TLD pricing for domain registration, renewal, and transfer (Optional)</p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-md font-bold flex items-center gap-2 transition-all hover:bg-indigo-700 disabled:opacity-70"
+            >
+              <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? 'Syncing...' : 'Sync Popular TLDs'}
+            </button>
             <button
               onClick={() => {
                 setEditingDocId(null);

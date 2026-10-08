@@ -6,6 +6,7 @@ import { resolveDomainProvider } from './btclConfig.js';
 import { ProviderError } from '../providers/domain/DynadotDomainProvider.js';
 import { classifyHostingError } from './hosting.js';
 import { config } from '../config/index.js';
+import { getDomainProviderConfig } from './domainProviderConfig.js';
 
 export interface FulfillmentResult {
   success: boolean;
@@ -204,7 +205,7 @@ async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorU
     };
   }
 
-  const config = await getDomainConfig();
+  const config = await getDomainProviderConfig();
   const { provider } = await resolveDomainProvider(domainData.domain, { domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
 
   let result: any;
@@ -523,29 +524,6 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
       errorCode: classified.code,
     };
   }
-}
-
-async function getDomainConfig() {
-  let dynadotApiKey = process.env.DYNADOT_API_KEY || config.secrets.dynadotApiKey || '';
-  if (!dynadotApiKey) {
-    try {
-      const apiKeysDoc = await getAdminDocument('settings', 'api_keys');
-      if (apiKeysDoc.exists && apiKeysDoc.data?.dynadotApiKey) {
-        dynadotApiKey = apiKeysDoc.data.dynadotApiKey;
-      }
-    } catch (e) {
-      console.warn('[Fulfillment] Error reading api_keys from Firestore:', e);
-    }
-  }
-
-  if (!dynadotApiKey) {
-    console.warn('[Fulfillment] No Dynadot API key found in .env or settings/api_keys — domain orders will fail');
-  }
-
-  return {
-    domainApiType: dynadotApiKey ? 'dynadot' : 'dummy',
-    domainApiKey: dynadotApiKey,
-  };
 }
 
 async function getHostingProviderWithSettings() {

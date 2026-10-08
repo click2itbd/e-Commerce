@@ -1,22 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Globe, ArrowRight, Loader2 } from 'lucide-react';
-import { collection, onSnapshot, doc } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { getDomainPricing } from '../../services/hostingApi';
 
 const POPULAR_TLDS = ['.com', '.net', '.org', '.xyz', '.io', '.co', '.dev', '.online'];
-
-// Standard Openprovider / Wholesale Base USD Prices
-const TLD_BASE_USD = {
-  '.com': 10.99,
-  '.net': 12.99,
-  '.org': 11.99,
-  '.xyz': 2.99,
-  '.io': 39.99,
-  '.co': 25.99,
-  '.dev': 14.99,
-  '.online': 3.99,
-};
 
 const SkeletonCard = () => (
   <div className="bg-white rounded-2xl p-6 border border-gray-200 animate-pulse">
@@ -32,61 +19,30 @@ export default function DomainPricingSection({
   title = 'Popular Domains',
   subtitle = 'Register your perfect domain name at transparent pricing. All domains include free WHOIS privacy protection.',
 }) {
-  const [globalSettings, setGlobalSettings] = useState({
-    usdToBdtRate: 121,
-    domainMarkupPercent: 15,
-  });
   const [customOverrides, setCustomOverrides] = useState({});
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // 1. Real-time listener for Global Pricing Settings (Dollar Rate & Margin %)
-    const unsubPublic = onSnapshot(doc(db, 'settings', 'public_config'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setGlobalSettings({
-          usdToBdtRate: Number(data.usdToBdtRate) || 121,
-          domainMarkupPercent: Number(data.domainMarkupPercent) || 15,
-        });
-      }
-    }, (err) => console.error(err));
-
-    const unsubSite = onSnapshot(doc(db, 'settings', 'site'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.usdToBdtRate) {
-          setGlobalSettings(prev => ({
-            ...prev,
-            usdToBdtRate: Number(data.usdToBdtRate) || prev.usdToBdtRate,
-            domainMarkupPercent: Number(data.domainMarkupPercent) || prev.domainMarkupPercent,
-          }));
-        }
-      }
-    }, (err) => console.error(err));
-
-    // 2. Real-time listener for Custom Per-TLD Pricing Overrides
-    const unsubPricing = onSnapshot(collection(db, 'domainPricing'), (snap) => {
+    let isMounted = true;
+    getDomainPricing().then((pricing) => {
       const overrides = {};
-      snap.docs.forEach((d) => {
-        const item = d.data();
+      pricing.forEach((item) => {
         if (item.tld && item.isActive !== false) {
           const formattedTld = item.tld.startsWith('.') ? item.tld.toLowerCase() : `.${item.tld.toLowerCase()}`;
           overrides[formattedTld] = Number(item.registerPrice) || 0;
         }
       });
-      setCustomOverrides(overrides);
-      setLoading(false);
-    }, (err) => {
-      
-      setLoading(false);
+      if (isMounted) {
+        setCustomOverrides(overrides);
+        setLoading(false);
+      }
+    }).catch((error) => {
+      console.error('Failed to load domain pricing:', error);
+      if (isMounted) setLoading(false);
     });
 
-    return () => {
-      unsubPublic();
-      unsubSite();
-      unsubPricing();
-    };
+    return () => { isMounted = false; };
   }, []);
 
   const handleCardClick = (tld) => {
@@ -98,17 +54,11 @@ export default function DomainPricingSection({
   const getCalculatedPrice = (rawTld) => {
     const tld = rawTld.startsWith('.') ? rawTld.toLowerCase() : `.${rawTld.toLowerCase()}`;
     
-    // 1. Check custom override from Firestore
+    // Check price from Firestore
     if (customOverrides[tld] && customOverrides[tld] > 0) {
       return customOverrides[tld];
     }
-
-    // 2. Compute from Formula: Base USD * (1 + Margin% / 100) * Dollar Rate
-    const baseUsd = TLD_BASE_USD[tld] || 10.99;
-    const rate = globalSettings.usdToBdtRate || 121;
-    const margin = globalSettings.domainMarkupPercent || 15;
-    const retailUsd = baseUsd * (1 + margin / 100);
-    return Math.round(retailUsd * rate);
+    return null;
   };
 
   return (
@@ -138,6 +88,8 @@ export default function DomainPricingSection({
               const tld = rawTld.startsWith('.') ? rawTld : `.${rawTld}`;
               const isPopular = POPULAR_TLDS.slice(0, 4).includes(tld);
               const price = getCalculatedPrice(tld);
+
+              if (!price) return null;
 
               return (
                 <button
@@ -196,4 +148,3 @@ export default function DomainPricingSection({
     </section>
   );
 }
-

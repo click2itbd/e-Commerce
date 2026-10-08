@@ -6,6 +6,7 @@ import { Loader2, Mail, Phone, Clock, CheckCircle, XCircle, Eye, RefreshCw, X } 
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { getDomainRenewalPriceBreakdown } from '../../../../services/domainApi';
 import { Pagination } from '../../../../components/common/Pagination';
+import { apiPost } from '../../../../services/apiClient';
 
 interface DomainRenewal {
   id: string;
@@ -25,8 +26,29 @@ interface DomainRenewal {
   customerPhone: string;
   paymentMethod: string;
   transactionId?: string;
-  createdAt: string;
+  createdAt: unknown;
   updatedAt: string;
+}
+
+function formatRenewalDate(value: unknown): string {
+  let date: Date;
+  if (value instanceof Date) {
+    date = value;
+  } else if (value && typeof value === 'object') {
+    const timestamp = value as { toDate?: () => Date; seconds?: number; _seconds?: number };
+    if (typeof timestamp.toDate === 'function') {
+      date = timestamp.toDate();
+    } else {
+      const seconds = timestamp.seconds ?? timestamp._seconds;
+      date = typeof seconds === 'number' ? new Date(seconds * 1000) : new Date(Number.NaN);
+    }
+  } else if (typeof value === 'string' || typeof value === 'number') {
+    date = new Date(value);
+  } else {
+    date = new Date(Number.NaN);
+  }
+
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
 }
 
 export default function DomainRenewals() {
@@ -78,6 +100,39 @@ export default function DomainRenewals() {
     }
   };
 
+  const handleApprovePayment = async (renewal: DomainRenewal) => {
+    setStatusUpdating(true);
+    let paymentApproved = false;
+    try {
+      await updateDoc(doc(db, 'domain_renewals', renewal.id), {
+        paymentStatus: 'payment_received',
+        paymentVerifiedAt: new Date().toISOString(),
+        status: 'pending',
+        updatedAt: new Date().toISOString(),
+      });
+      paymentApproved = true;
+
+      const result = await apiPost<{ success: boolean; error?: string; message?: string; data?: { error?: string } }>(
+        '/api/domains/fulfill',
+        { orderId: renewal.id, orderType: 'renewal' },
+      );
+      if (!result.success) {
+        throw new Error(result.error || result.data?.error || result.message || 'Domain renewal failed');
+      }
+
+      toast.success('Payment verified and domain renewal processed through the registrar');
+      await fetchRenewals();
+    } catch (error: any) {
+      console.error('Domain renewal payment approval error:', error);
+      toast.error(paymentApproved
+        ? `Payment approved, but registrar renewal failed: ${error.message || 'Please review the renewal'}`
+        : error.message || 'Failed to approve payment');
+      if (paymentApproved) await fetchRenewals();
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
   const handleViewBreakdown = async (domain: string) => {
     setLoadingBreakdown(true);
     setBreakdown(null);
@@ -88,6 +143,26 @@ export default function DomainRenewals() {
       toast.error(error.message || 'Failed to load pricing breakdown');
     } finally {
       setLoadingBreakdown(false);
+    }
+  };
+
+  const handleFulfillRenewal = async (renewal: DomainRenewal) => {
+    setStatusUpdating(true);
+    try {
+      const result = await apiPost<{ success: boolean; error?: string; message?: string }>(
+        '/api/domains/fulfill',
+        { orderId: renewal.id, orderType: 'renewal' },
+      );
+      if (!result.success) {
+        throw new Error(result.error || result.message || 'Domain renewal failed');
+      }
+      toast.success('Domain renewed through the registrar');
+      await fetchRenewals();
+    } catch (error: any) {
+      console.error('Domain renewal fulfillment error:', error);
+      toast.error(error.message || 'Domain renewal failed');
+    } finally {
+      setStatusUpdating(false);
     }
   };
 
@@ -173,7 +248,7 @@ export default function DomainRenewals() {
                   <td className="px-4 py-3">{getStatusBadge(renewal.paymentStatus, 'payment')}</td>
                   <td className="px-4 py-3">{getStatusBadge(renewal.renewalStatus, 'renewal')}</td>
                   <td className="px-4 py-3 text-gray-500">
-                    {new Date(renewal.createdAt).toLocaleDateString()}
+                    {formatRenewalDate(renewal.createdAt)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
@@ -186,8 +261,9 @@ export default function DomainRenewals() {
                       </button>
                       {renewal.paymentStatus === 'pending_verification' && (
                         <button 
-                          onClick={() => updateRenewalStatus(renewal.id, 'paymentStatus', 'payment_received')} 
-                          title="Approve Payment" 
+                          onClick={() => handleApprovePayment(renewal)} 
+                          disabled={statusUpdating}
+                          title="Approve payment and renew through registrar" 
                           className="p-1.5 text-green-600 hover:bg-green-50 rounded"
                         >
                           <CheckCircle size={16} />
@@ -195,9 +271,10 @@ export default function DomainRenewals() {
                       )}
                       {renewal.renewalStatus === 'pending' && renewal.paymentStatus === 'payment_received' && (
                         <button 
-                          onClick={() => updateRenewalStatus(renewal.id, 'renewalStatus', 'renewed')} 
-                          title="Mark as Renewed" 
-                          className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                          onClick={() => handleFulfillRenewal(renewal)} 
+                          disabled={statusUpdating}
+                          title="Renew through registrar" 
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded disabled:opacity-50"
                         >
                           <RefreshCw size={16} />
                         </button>
@@ -331,20 +408,15 @@ export default function DomainRenewals() {
               <div className="border-t border-gray-100 pt-4">
                 <p className="text-xs font-bold text-gray-500 uppercase mb-2">Update Renewal Status</p>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => updateRenewalStatus(selectedRenewal.id, 'renewalStatus', 'processing')}
-                    disabled={statusUpdating}
-                    className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 disabled:opacity-50"
-                  >
-                    Processing
-                  </button>
-                  <button
-                    onClick={() => updateRenewalStatus(selectedRenewal.id, 'renewalStatus', 'renewed')}
-                    disabled={statusUpdating}
-                    className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold hover:bg-green-100 disabled:opacity-50"
-                  >
-                    Mark Renewed
-                  </button>
+                  {selectedRenewal.paymentStatus === 'payment_received' && selectedRenewal.renewalStatus === 'pending' && (
+                    <button
+                      onClick={() => handleFulfillRenewal(selectedRenewal)}
+                      disabled={statusUpdating}
+                      className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold hover:bg-green-100 disabled:opacity-50"
+                    >
+                      Renew through registrar
+                    </button>
+                  )}
                   <button
                     onClick={() => updateRenewalStatus(selectedRenewal.id, 'renewalStatus', 'failed')}
                     disabled={statusUpdating}

@@ -16,7 +16,7 @@ export function DnsManagementTab({ state }) {
     try {
       const res: any = await apiGet('/api/dns/zones');
       if (res.success) {
-        setZones(res.data);
+        setZones(Array.isArray(res.data) ? res.data : []);
       } else {
         toast.error(res.error || 'Failed to fetch DNS zones');
       }

@@ -138,18 +138,9 @@ export default function DomainSearchResults() {
   };
 
   const getPrice = (domainObj: any): number | null => {
-    // 1. If API provides a valid price (> 0), prioritize it
     if (domainObj.price && domainObj.price > 0) {
       return domainObj.price;
     }
-
-    // 2. Fallback to TLD price if available in pricing list
-    const tld = domainObj.domain?.substring(domainObj.domain.lastIndexOf('.')) || '';
-    const match = pricing.find(p => p.tld === tld || p.tld === tld.replace('.', ''));
-    if (match?.registerPrice && match.registerPrice > 0) {
-      return match.registerPrice;
-    }
-
     return null;
   };
 
@@ -307,13 +298,14 @@ export default function DomainSearchResults() {
                         <div className="text-[10px] md:text-xs text-gray-500">/yr</div>
                       </div>
                       <button 
+                        disabled={!getPrice(exactMatch)}
                         onClick={() => {
                           const price = getPrice(exactMatch);
                           if (price) handleAddToCart(exactMatch.domain, price);
                         }}
-                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 md:px-6 py-2 md:py-2.5 rounded text-xs md:text-sm font-bold flex items-center gap-2 transition-colors"
+                        className="bg-gray-600 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-gray-600 text-white px-4 md:px-6 py-2 md:py-2.5 rounded text-xs md:text-sm font-bold flex items-center gap-2 transition-colors"
                       >
-                        <ShoppingCart size={14} /> Add to cart
+                        <ShoppingCart size={14} /> {getPrice(exactMatch) ? 'Add to cart' : 'Price unavailable'}
                       </button>
                     </div>
                   ) : (
@@ -363,16 +355,17 @@ export default function DomainSearchResults() {
                       <>
                         <div className="text-right">
                           <div className="text-sm font-bold">{formatPrice(getPrice(alt))}</div>
-                          <div className="text-[10px] text-gray-500">Renews at {formatPrice(getPrice(alt) ? Math.round(getPrice(alt)! * 1.2) : null)}/yr</div>
+                          <div className="text-[10px] text-gray-500">Renews at {formatPrice(alt.renewalPrice ?? null)}/yr</div>
                         </div>
                         <button 
+                          disabled={!getPrice(alt)}
                           onClick={() => {
                             const price = getPrice(alt);
                             if (price) handleAddToCart(alt.domain, price);
                           }}
-                          className="bg-gray-600 hover:bg-gray-700 text-white px-3 md:px-4 py-2 rounded text-xs md:text-sm font-bold flex items-center gap-2 transition-colors w-28 md:w-32 justify-center"
+                          className="bg-gray-600 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-gray-600 text-white px-3 md:px-4 py-2 rounded text-xs md:text-sm font-bold flex items-center gap-2 transition-colors w-28 md:w-32 justify-center"
                         >
-                          <ShoppingCart size={14} /> Add to cart
+                          <ShoppingCart size={14} /> {getPrice(alt) ? 'Add to cart' : 'Price unavailable'}
                         </button>
                       </>
                     ) : (
@@ -489,7 +482,7 @@ export default function DomainSearchResults() {
                   </div>
                   <div className="flex justify-between items-center pb-3 border-b border-gray-50">
                     <span className="text-sm text-gray-500 font-medium">Renewal Price</span>
-                    <span className="font-bold text-gray-800">{formatPrice(getPrice(infoDomain) ? Math.round(getPrice(infoDomain)! * 1.2) : null)}/yr</span>
+                    <span className="font-bold text-gray-800">{formatPrice(infoDomain.renewalPrice ?? null)}/yr</span>
                   </div>
                   <div className="pt-2">
                     <span className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2 block">Included for free:</span>

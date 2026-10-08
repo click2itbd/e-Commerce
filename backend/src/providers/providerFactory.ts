@@ -6,9 +6,14 @@ import { CpanelHostingProvider } from './hosting/CpanelHostingProvider.js';
 import { ResellerClubHostingProvider } from './hosting/ResellerClubHostingProvider.js';
 
 export function getDomainProvider(config?: { domainApiType?: string; domainApiKey?: string; openproviderPassword?: string }): IDomainProvider {
-  const domainApiKey = config?.domainApiKey || process.env.DYNADOT_API_KEY || process.env.OPENPROVIDER_USERNAME || '';
+  const configuredType = config?.domainApiType || process.env.DOMAIN_API_TYPE;
+  const domainApiType = configuredType || (process.env.OPENPROVIDER_USERNAME ? 'openprovider' : (process.env.DYNADOT_API_KEY ? 'dynadot' : 'dummy'));
+  const domainApiKey = config?.domainApiKey || (
+    domainApiType === 'openprovider'
+      ? process.env.OPENPROVIDER_USERNAME || ''
+      : process.env.DYNADOT_API_KEY || ''
+  );
   const openproviderPassword = config?.openproviderPassword || process.env.OPENPROVIDER_PASSWORD || '';
-  const domainApiType = config?.domainApiType || (process.env.OPENPROVIDER_USERNAME ? 'openprovider' : (domainApiKey ? 'dynadot' : 'dummy'));
 
   if (domainApiType === 'dummy' || !domainApiType) {
     return {
@@ -43,7 +48,7 @@ export function getDomainProvider(config?: { domainApiType?: string; domainApiKe
         };
       }
       // true = isSandbox
-      return new OpenproviderDomainProvider(domainApiKey, openproviderPassword, true);
+      return new OpenproviderDomainProvider(domainApiKey, openproviderPassword, process.env.OPENPROVIDER_SANDBOX_MODE === "true");
     default:
       return {
         checkAvailability: async () => { throw new Error(`Unsupported domain provider: ${domainApiType}`); },

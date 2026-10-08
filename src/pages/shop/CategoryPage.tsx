@@ -31,7 +31,7 @@ export const CategoryPage: React.FC = () => {
   const [priceRange, setPriceRange] = useState({ min: 0, max: 200000 });
   const [sortBy, setSortBy] = useState('newest');
   const [showInStock, setShowInStock] = useState(true);
-  const [showOutOfStock, setShowOutOfStock] = useState(true);
+  const [showOutOfStock, setShowOutOfStock] = useState(false);
   const [showDiscountedOnly, setShowDiscountedOnly] = useState(false);
   const [minRating, setMinRating] = useState(0);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
@@ -43,7 +43,7 @@ export const CategoryPage: React.FC = () => {
     setSelectedBrands([]);
     setPriceRange({ min: 0, max: 200000 });
     setShowInStock(true);
-    setShowOutOfStock(true);
+    setShowOutOfStock(false);
     setShowDiscountedOnly(false);
     setMinRating(0);
     setSelectedSpecs({});

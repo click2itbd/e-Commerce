@@ -1,20 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { db } from '../../firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { Gift, ArrowRight, Sparkles } from 'lucide-react';
+import React from 'react';
+import { ArrowRight, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useCart } from '../../context/CartContext';
 
 export const HostingPromoBanner: React.FC = () => {
-  const [promoSettings, setPromoSettings] = useState<any>(null);
-
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'hostingPromos'), (snap) => {
-      if (snap.exists()) {
-        setPromoSettings(snap.data());
-      }
-    });
-    return () => unsub();
-  }, []);
+  const { promoSettings } = useCart();
 
   if (!promoSettings || !promoSettings.isFreeDomainEnabled) return null;
 

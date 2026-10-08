@@ -121,14 +121,15 @@ export interface BatchTldPricingItem {
 }
 
 export interface BatchTldPricingResponse {
-  success: boolean;
   pricing: BatchTldPricingItem[];
+  failed?: Array<{ tld: string; error: string }>;
 }
 
 export interface BatchTldPricingApiResponse {
   success: boolean;
   data?: BatchTldPricingResponse;
   error?: string;
+  failed?: Array<{ tld: string; error: string }>;
 }
 
 export const getBatchTldPricing = async (tlds: string[]): Promise<BatchTldPricingResponse> => {
@@ -145,7 +146,7 @@ export const getBatchTldPricing = async (tlds: string[]): Promise<BatchTldPricin
     }
   } catch (error: any) {
     console.error('Domain batch TLD pricing error:', error?.code || error?.message || error);
-    throw new Error('Domain pricing is temporarily unavailable. Please try again shortly.');
+    throw new Error(error.message || 'Domain pricing is temporarily unavailable. Please try again shortly.');
   }
 };
 
@@ -169,11 +170,11 @@ export const searchDomain = async (domain: string): Promise<DomainAvailabilityRe
 };
 
 export interface DomainRenewalPriceResponse {
-  success: boolean;
   domain: string;
   tld: string;
   renewalPriceBdt: number;
   maxDuration: number;
+  discountPercent?: number;
 }
 
 export const getDomainRenewalPrice = async (domain: string): Promise<DomainRenewalPriceResponse> => {

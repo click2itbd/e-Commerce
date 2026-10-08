@@ -38,7 +38,7 @@ const DomainRenewal = () => {
     customerName: user?.displayName || '',
     email: user?.email || '',
     phone: '',
-    paymentMethod: 'bkash',
+    paymentMethod: 'manual_bkash',
     transactionId: '',
     termsAccepted: false,
   });
@@ -112,8 +112,8 @@ const DomainRenewal = () => {
       return;
     }
 
-    if (formData.paymentMethod === 'bank' && !formData.transactionId.trim()) {
-      toast.error('Please enter the Transaction ID for Bank/Manual transfer');
+    if (formData.paymentMethod === 'manual_bkash' && !formData.transactionId.trim()) {
+      toast.error('Please enter the Transaction ID for bKash payment');
       return;
     }
 
@@ -129,7 +129,7 @@ const DomainRenewal = () => {
         customerEmail: formData.email,
         customerPhone: formData.phone,
         paymentMethod: formData.paymentMethod,
-        transactionId: formData.paymentMethod === 'bank' ? formData.transactionId : null,
+        transactionId: formData.paymentMethod === 'manual_bkash' ? formData.transactionId : null,
       });
 
       const orderData = result.order;
@@ -167,12 +167,12 @@ const DomainRenewal = () => {
         } else {
           throw new Error(res.errorMessage || 'Failed to initiate Card payment');
         }
-      } else if (formData.paymentMethod === 'bank') {
+      } else if (formData.paymentMethod === 'manual_bkash') {
         await updateDoc(doc(db, 'domain_renewals', result.orderId), {
           paymentStatus: 'pending_verification',
           status: 'pending',
         });
-        toast.success('Renewal request submitted! Please complete the bank transfer and we will verify your payment.');
+        toast.success('Renewal request submitted! We will verify your bKash payment and process the renewal.');
       }
     } catch (error: any) {
       console.error('Renewal submission error:', error);
@@ -369,14 +369,21 @@ const DomainRenewal = () => {
                         onChange={handleChange}
                         className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                       >
-                        <option value="bkash">bKash</option>
+                        <option value="manual_bkash">bKash (Manual Send Money)</option>
+                        <option value="bkash" disabled>bKash Gateway (Coming Soon)</option>
                         <option value="card" disabled>Card (Coming Soon)</option>
-                        <option value="bank" disabled>Bank / Manual Transfer (Coming Soon)</option>
+                        <option value="bank" disabled>Bank Transfer (Coming Soon)</option>
                       </select>
                     </div>
-                    {formData.paymentMethod === 'bank' && (
+                    {formData.paymentMethod === 'manual_bkash' && (
                       <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID</label>
+                        <div className="mb-4 p-4 bg-pink-50 border border-pink-200 rounded-lg text-pink-800 text-sm">
+                          <p className="font-bold mb-1">bKash Payment Instructions:</p>
+                          <p>1. Go to your bKash app and select <strong>Send Money</strong>.</p>
+                          <p>2. Send exactly <strong>৳{totalBdt.toLocaleString()}</strong> to <strong>01727666677</strong> (Personal).</p>
+                          <p>3. Enter the Transaction ID (TrxID) below.</p>
+                        </div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID (TrxID)</label>
                         <input
                           type="text"
                           name="transactionId"
@@ -384,7 +391,7 @@ const DomainRenewal = () => {
                           onChange={handleChange}
                           required
                           className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                          placeholder="Enter your bank transaction ID"
+                          placeholder="e.g. 9F3G5H7J"
                         />
                       </div>
                     )}

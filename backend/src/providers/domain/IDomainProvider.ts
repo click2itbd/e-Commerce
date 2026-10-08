@@ -56,7 +56,7 @@ export interface TldPricingResult {
 
 export interface BatchTldPricingItem {
   tld: string;
-  customerPriceBdt: number;
+  supplierPriceUsd: number;
   currency: string;
 }
 
@@ -64,8 +64,9 @@ export interface DomainRenewalPriceResult {
   success: boolean;
   domain: string;
   tld: string;
-  renewalPriceBdt: number;
+  supplierPriceUsd: number;
   maxDuration: number;
+  error?: string;
 }
 
 export interface DomainRenewalPriceBreakdown {
@@ -97,7 +98,10 @@ export interface IDomainProvider {
   renewDomain(domain: string, years: number): Promise<DomainRenewalResult>;
   getWhois(domain: string): Promise<WhoisResult>;
   getTldPricing?(tld: string): Promise<TldPricingResult>;
-  getBatchTldPricing?(tlds: string[]): Promise<{ pricing: BatchTldPricingItem[] }>;
+  getBatchTldPricing?(tlds: string[]): Promise<{
+    pricing: BatchTldPricingItem[];
+    failed?: Array<{ tld: string; error: string }>;
+  }>;
   getRenewalPrice?(domain: string): Promise<DomainRenewalPriceResult>;
   getRenewalPriceBreakdown?(domain: string): Promise<DomainRenewalPriceBreakdown>;
   transferDomain?(domain: string, authCode: string, years: number): Promise<DomainTransferResult>;

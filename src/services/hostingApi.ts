@@ -1,13 +1,13 @@
-import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
-
 export interface DomainAvailabilityResult {
   domain: string;
   available: boolean;
   price?: number;
+  priceBdt?: number;
+  originalPrice?: number;
   currency?: string;
   renewalPrice?: number;
   error?: string;
+  status?: string;
 }
 
 export interface DomainSuggestionResult {
@@ -104,6 +104,9 @@ const DEFAULT_DOMAIN_PRICING: DomainPricing[] = [
   { tld: '.co.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
 ];
 
+let domainPricingCache: { expiresAt: number; data: DomainPricing[] } | null = null;
+let domainPricingRequest: Promise<DomainPricing[]> | null = null;
+
 async function checkDomainDnsAvailability(domain: string): Promise<boolean> {
   try {
     const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=SOA`, {
@@ -166,33 +169,41 @@ export async function getDomainSuggestions(domain: string): Promise<string[]> {
 }
 
 export async function getDomainPricing(): Promise<DomainPricing[]> {
-  let finalPricing = [...DEFAULT_DOMAIN_PRICING];
-  try {
-    const snap = await getDocs(query(collection(db, 'domainPricing')));
-    if (!snap.empty) {
-      const fbPricing = snap.docs.map(d => d.data() as DomainPricing);
-      finalPricing = finalPricing.map(dp => {
-        const override = fbPricing.find(fp => fp.tld === dp.tld);
-        return override ? { ...dp, ...override } : dp;
-      });
-      fbPricing.forEach(fp => {
-        if (!finalPricing.some(p => p.tld === fp.tld)) finalPricing.push(fp);
-      });
-      return finalPricing;
-    }
-  } catch (e) {
-    console.error("Firebase pricing fetch failed", e);
+  if (domainPricingCache && domainPricingCache.expiresAt > Date.now()) {
+    return [...domainPricingCache.data];
+  }
+  if (domainPricingRequest) {
+    return domainPricingRequest.then(data => [...data]);
   }
 
-  try {
-    const response = await apiRequest<{ success: boolean; data: DomainPricing[] }>('/api/domains/pricing');
-    if (response.success && Array.isArray(response.data) && response.data.length > 0) {
-      return response.data;
+  domainPricingRequest = (async () => {
+    let pricing = [...DEFAULT_DOMAIN_PRICING];
+    try {
+      const response = await apiRequest<{ success: boolean; data: DomainPricing[] }>('/api/domains/pricing');
+      if (response.success && Array.isArray(response.data) && response.data.length > 0) {
+        pricing = pricing.map(defaultPrice => {
+          const configuredPrice = response.data.find(item => item.tld === defaultPrice.tld);
+          return configuredPrice ? { ...defaultPrice, ...configuredPrice } : defaultPrice;
+        });
+        response.data.forEach(configuredPrice => {
+          if (!pricing.some(item => item.tld === configuredPrice.tld)) {
+            pricing.push(configuredPrice);
+          }
+        });
+      }
+    } catch (error) {
+      console.warn('Domain pricing API unavailable; using configured fallback prices.', error);
     }
-  } catch {
-    // fallback below
+
+    domainPricingCache = { expiresAt: Date.now() + 60_000, data: pricing };
+    return pricing;
+  })();
+
+  try {
+    return [...await domainPricingRequest];
+  } finally {
+    domainPricingRequest = null;
   }
-  return finalPricing;
 }
 
 export interface HostingUsageStats {

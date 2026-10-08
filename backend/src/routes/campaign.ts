@@ -1,4 +1,4 @@
-﻿import { Router, Response } from 'express';
+import { Router, Response } from 'express';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
 
 const campaignRouter = Router();
@@ -27,7 +27,7 @@ campaignRouter.post('/send-sms-campaign', requireFirebaseAuth, async (req: any, 
             message: message
           })
         });
-        const data = await response.json();
+        const data: any = await response.json();
         if (data?.success) successCount++;
         else failCount++;
       } catch (err) {
@@ -75,7 +75,7 @@ campaignRouter.post('/send-whatsapp-campaign', requireFirebaseAuth, async (req: 
             text: { body: message }
           })
         });
-        const data = await response.json();
+        const data: any = await response.json();
         if (data?.messages) successCount++;
         else failCount++;
       } catch (err: any) {

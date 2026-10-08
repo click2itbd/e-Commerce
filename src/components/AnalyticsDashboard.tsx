@@ -176,8 +176,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             const savedCostPrice = (item as any).costPrice;
             const knownCost = (savedCostPrice !== undefined && savedCostPrice !== null && savedCostPrice > 0)
               ? Number(savedCostPrice)
-              : (productCostMap.get(item.id) || Number((item as any).purchasePrice) || (rawItemTotal * 0.82));
-            hardwareCOGS += knownCost * (Number(item.quantity) || 1);
+              : (productCostMap.get(item.id) || Number((item as any).purchasePrice) || ((Number(item.price) || 0) * 0.82));
+            
+            
+            if (knownCost * (Number(item.quantity) || 1) > 10000) {
+               serviceBreakdown.push({ source: 'HIGH COST ITEM (Bug)', name: item.name + ' (Order: ' + order.documentNumber + ')', amount: knownCost * (Number(item.quantity) || 1), date: order.createdAt });
+            }
+
+hardwareCOGS += knownCost * (Number(item.quantity) || 1);
+
           }
         });
       // Process Standalone Services
@@ -193,7 +200,14 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
       } else {
         hardwareRevenue += orderTotal;
-        hardwareCOGS += (order as any).totalCost || (orderTotal * 0.82);
+        
+          
+          if ((order as any).totalCost > 10000) {
+              serviceBreakdown.push({ source: 'HIGH COST ORDER (Bug)', name: 'Order: ' + order.id, amount: (order as any).totalCost, date: order.createdAt });
+          }
+
+hardwareCOGS += (order as any).totalCost || (orderTotal * 0.82);
+
       }
     });
 

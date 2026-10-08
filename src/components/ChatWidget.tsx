@@ -55,10 +55,6 @@ export const ChatWidget: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Hide on admin routes
-  if (location.pathname.startsWith('/admin') || location.pathname.startsWith('/pos')) {
-    return null;
-  }
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [isExpanded, setIsExpanded] = useState(true);
@@ -167,6 +163,11 @@ export const ChatWidget: React.FC = () => {
       }
     ]);
   };
+
+  // Hide on admin routes
+  if (location.pathname.startsWith('/admin') || location.pathname.startsWith('/pos')) {
+    return null;
+  }
 
   return (
     <div className="fixed bottom-5 right-5 z-50 font-sans">

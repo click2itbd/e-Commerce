@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc, setDoc, where } from 'firebase/firestore';
 import { db, auth } from '../../../../firebase';
 import { Product, Vendor, Transaction, SiteSettings, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, type WarrantyUnit } from '../../../../lib/utils';
@@ -11,6 +11,7 @@ const itemWarrantyMonths = (i: any): number =>
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import {
+  Edit2,
   ShoppingBag, Barcode, ScanLine,
   Plus,
   Trash2,
@@ -29,6 +30,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 interface PurchaseItem {
+  unit?: string;
   id: string;
   name: string;
   category?: string;
@@ -48,6 +50,8 @@ interface PurchaseItem {
 }
 
 interface PurchaseRecord {
+  shippingCost?: number;
+  createdBy?: string;
   id: string;
   documentNumber: string;
   vendorId: string;
@@ -653,8 +657,35 @@ const Purchases: React.FC<PurchasesProps> = ({
 
     try {
       setSubmitting(true);
-      const docNumber = await generateDocumentNumber('PUR');
-      const createdAt = new Date().toISOString();
+      
+      let finalDocNumber = purchaseForm.documentNumber || '';
+      let finalCreatedAt = new Date().toISOString();
+
+      if (purchaseForm.id) {
+         // REVERT OLD PURCHASE
+         const oldPur = purchaseHistory.find((p: any) => p.id === purchaseForm.id);
+         if (oldPur) {
+            finalDocNumber = oldPur.documentNumber || finalDocNumber;
+            finalCreatedAt = oldPur.createdAt || finalCreatedAt;
+            for (const item of (oldPur.items || [])) {
+                const prodRef = doc(db, 'products', item.id);
+                const pData = products.find((p: any) => p.id === item.id);
+                if (pData) {
+                    await updateDoc(prodRef, { stock: Math.max(0, (Number(pData.stock) || 0) - (Number(item.quantity) || 0)) });
+                }
+            }
+         }
+         // Delete old transactions
+         const snap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', purchaseForm.id)));
+         for (const d of snap.docs) {
+             await deleteDoc(doc(db, 'transactions', d.id));
+         }
+         // We will overwrite the purchase doc using setDoc later
+      } else {
+         finalDocNumber = await generateDocumentNumber('PUR');
+      }
+      const docNumber = finalDocNumber;
+      const createdAt = finalCreatedAt;
       const paid = Math.min(billTotal, Math.max(0, Number(purchaseForm.paidAmount) || 0));
       const paymentStatus: 'paid' | 'partial' | 'unpaid' =
         paid >= billTotal ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
@@ -814,10 +845,16 @@ const Purchases: React.FC<PurchasesProps> = ({
         reference: purchaseForm.reference || '',
         notes: purchaseForm.notes || '',
         createdAt,
-        createdBy: purchaseForm.createdBy || profile?.displayName || profile?.email || 'Admin',
+        createdBy: purchaseForm.createdBy || 'Admin',
       };
 
-      const purchaseDocRef = await addDoc(collection(db, 'purchases'), purchaseRecord);
+      let purchaseDocRef;
+      if (purchaseForm.id) {
+          await setDoc(doc(db, 'purchases', purchaseForm.id), purchaseRecord);
+          purchaseDocRef = { id: purchaseForm.id };
+      } else {
+          purchaseDocRef = await addDoc(collection(db, 'purchases'), purchaseRecord);
+      }
 
       // 3. Record Outflow in Firestore `transactions`
       // Always record the full purchase amount to update the vendor ledger (Payable)
@@ -834,7 +871,7 @@ const Purchases: React.FC<PurchasesProps> = ({
         paymentAccountId: '', // No payment for the purchase itself
         paymentMethod: '',
         createdAt,
-        createdBy: purchaseForm.createdBy || profile?.displayName || profile?.email || 'Admin',
+        createdBy: purchaseForm.createdBy || 'Admin',
       });
 
       // If any amount was paid, record the payment transaction
@@ -1146,7 +1183,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                       {purchaseForm.items.map((item, idx) => (
                         <div key={idx} className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-2">
                           <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0 w-full break-words">
+                            <div className="flex-1 min-w-[150px] w-full break-words">
                               <span className="font-bold text-gray-900 block text-xs">{item.name}{item.variantName ? ` - ${item.variantName}` : ""}</span>
                               <span className="text-[10px] text-gray-400">Category: {item.category}</span>
                             </div>
@@ -1813,6 +1850,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                         {pur.createdBy || "Admin"}
                       </td>
                       <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => setViewingPurchase(pur)}
                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all border border-transparent hover:border-blue-200 shadow-sm opacity-100 md:opacity-70 group-hover:opacity-100"
@@ -1820,6 +1858,59 @@ const Purchases: React.FC<PurchasesProps> = ({
                         >
                           <Eye size={16} />
                         </button>
+                        <button
+                          onClick={(e) => {
+                             e.stopPropagation();
+                             setPurchaseForm({
+                                 id: pur.id,
+                                 documentNumber: pur.documentNumber,
+                                 vendorId: pur.vendorId,
+                                 vendorName: pur.vendorName,
+                                 date: pur.date.split('T')[0],
+                                 reference: pur.reference || '',
+                                 items: pur.items || [],
+                                 paymentAccountId: pur.paymentAccountId || '',
+                                 paymentMethod: pur.paymentMethod || 'cash',
+                                 paidAmount: pur.paidAmount || 0,
+                                 shippingCost: pur.shippingCost || 0,
+                                 notes: pur.notes || '',
+                             });
+                             setIsCreatingPurchase(true);
+                          }}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all border border-transparent hover:border-blue-200 shadow-sm opacity-100 md:opacity-70 group-hover:opacity-100"
+                          title="Edit Purchase"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={async (e) => {
+                             e.stopPropagation();
+                             if (!window.confirm('Delete this purchase? This will revert stock and delete related transactions.')) return;
+                             try {
+                                 for (const item of (pur.items || [])) {
+                                     const prodRef = doc(db, 'products', item.id);
+                                     const pData = products.find((p: any) => p.id === item.id);
+                                     if (pData) {
+                                         await updateDoc(prodRef, { stock: Math.max(0, (Number(pData.stock) || 0) - (Number(item.quantity) || 0)) });
+                                     }
+                                 }
+                                 const snap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', pur.id)));
+                                 for (const d of snap.docs) {
+                                     await deleteDoc(doc(db, 'transactions', d.id));
+                                 }
+                                 await deleteDoc(doc(db, 'purchases', pur.id));
+                                 toast.success('Purchase deleted!');
+                                 fetchData();
+                             } catch(err) {
+                                 toast.error('Failed to delete purchase');
+                             }
+                          }}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-200 shadow-sm opacity-100 md:opacity-70 group-hover:opacity-100"
+                          title="Delete Purchase"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                        </div>
                       </td>
                     </tr>
                   );

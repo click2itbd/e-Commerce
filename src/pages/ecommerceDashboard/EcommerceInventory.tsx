@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Product, NavigationMenu } from '../../types';
-import { Eye, Package, Plus, Search, Edit2, Trash2, X, Upload, Save, XCircle, Sparkles, Link as LinkIcon, Image as ImageIcon, Loader2, DollarSign, AlertCircle, AlertTriangle, CheckSquare, Filter, ArrowUpDown, Tag } from 'lucide-react';
+import { Eye, Package, Plus, Search, Edit2, Trash2, X, Upload, Save, XCircle, Sparkles, Link as LinkIcon, Image as ImageIcon, Loader2, DollarSign, AlertCircle, AlertTriangle, CheckSquare, Filter, ArrowUpDown, Tag, ChevronRight } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 import { useSettings } from '../../context/SettingsContext';
 import { toast } from 'react-hot-toast';
@@ -94,6 +94,7 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
   };
   const [formData, setFormData] = useState<Partial<Product>>(initialForm);
   const [specTemplates, setSpecTemplates] = useState<any[]>([]);
+  const [bulkSpecInput, setBulkSpecInput] = useState('');
 
   useEffect(() => {
     getDocs(collection(db, 'specificationTemplates')).then(snap => {
