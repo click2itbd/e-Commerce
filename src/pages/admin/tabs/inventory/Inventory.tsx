@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db, storage } from '../../../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -7,12 +7,118 @@ import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, formatWarr
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { BulkEditForm } from '../../../../components/BulkEditForm';
-import { Package, Plus, Upload, Download, Search, Edit, Trash2, X, AlertTriangle, Play, Loader2, Image as ImageIcon, FileText, XCircle, Edit2, ArrowRight, Eye, DollarSign, AlertCircle } from 'lucide-react';
+import {  Package, Plus, Upload, Download, Search, Edit, Trash2, X, AlertTriangle, Play, Loader2, Image as ImageIcon, FileText, XCircle, Edit2, ArrowRight, Eye, DollarSign, AlertCircle, Filter, ArrowUpDown, Tag , ChevronRight } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
 interface InventoryTabProps { products: any[]; vendors: any[]; menus: any[]; isAddingProduct: boolean; setIsAddingProduct: (v: boolean) => void; editingProduct: any; setEditingProduct: (v: any) => void; formData: any; setFormData: (v: any) => void; inventoryCategoryFilter: string; setInventoryCategoryFilter: (v: string) => void; selectedProductIds: string[]; setSelectedProductIds: (v: string[]) => void; isBulkEditing: boolean; setIsBulkEditing: (v: boolean) => void; bulkEditData: any; setBulkEditData: (v: any) => void; isUploading: boolean; dragOver: boolean; setDragOver: (v: boolean) => void; loading: boolean; handleSaveProduct: (e: any) => void; handleDeleteProduct: (id: string) => void; handleImportProductsCSV: (e: any) => void; handleDownloadCSVTemplate: () => void; handleExportAllProducts: () => void; handleBulkExportProducts: () => void; handleBulkDeleteProducts: () => void; handleBulkUpdate: (e: any) => void; handleImageUpload: (f: any) => void; removeImage: (i: number) => void; addVariant: () => void; updateVariant: (i: number, f: string, v: any) => void; removeVariant: (i: number) => void; addSpec: () => void; updateSpec: (i: number, f: string, v: any) => void; removeSpec: (i: number) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; fileInputRef?: any; setIsAddingMenu?: (v: boolean) => void; }
 
 import { useRef } from 'react';
+
+const SPEC_TEMPLATES: Record<string, Record<string, string>> = {
+  // PCs & Laptops
+  'Laptop': { 'Processor': '', 'RAM': '', 'Storage': '', 'Display': '', 'Graphics': '', 'Battery': '', 'OS': '' },
+  'Laptops': { 'Processor': '', 'RAM': '', 'Storage': '', 'Display': '', 'Graphics': '', 'Battery': '', 'OS': '' },
+  'Desktop': { 'Processor': '', 'Motherboard': '', 'RAM': '', 'Storage': '', 'Graphics': '', 'Power Supply': '', 'Casing': '' },
+  'PC': { 'Processor': '', 'Motherboard': '', 'RAM': '', 'Storage': '', 'Graphics': '', 'Power Supply': '', 'Casing': '' },
+  'Server': { 'Processor': '', 'RAM': '', 'Storage Controller': '', 'Drive Bays': '', 'Form Factor': '', 'Power Supply': '' },
+  
+  // Core Components
+  'Processor': { 'Cores': '', 'Threads': '', 'Base Clock': '', 'Boost Clock': '', 'Socket': '', 'TDP': '' },
+  'CPU': { 'Cores': '', 'Threads': '', 'Base Clock': '', 'Boost Clock': '', 'Socket': '', 'TDP': '' },
+  'Motherboard': { 'Form Factor': '', 'Socket': '', 'Chipset': '', 'Memory Slots': '', 'Max Memory': '' },
+  'RAM': { 'Capacity': '', 'Type (DDR4/DDR5)': '', 'Speed': '', 'Latency': '', 'Voltage': '' },
+  'Memory': { 'Capacity': '', 'Type': '', 'Speed': '', 'Latency': '', 'Voltage': '' },
+  'Graphics Card': { 'Memory': '', 'Memory Type': '', 'Core Clock': '', 'Boost Clock': '', 'Ports': '' },
+  'GPU': { 'Memory': '', 'Memory Type': '', 'Core Clock': '', 'Boost Clock': '', 'Ports': '' },
+  'Storage': { 'Capacity': '', 'Type (SSD/HDD)': '', 'Form Factor': '', 'Interface': '', 'Read/Write Speed': '' },
+  'SSD': { 'Capacity': '', 'Form Factor': '', 'Interface': '', 'Read/Write Speed': '' },
+  'HDD': { 'Capacity': '', 'RPM': '', 'Cache': '', 'Form Factor': '', 'Interface': '' },
+  'Power Supply': { 'Wattage': '', 'Efficiency Rating': '', 'Modular': '', 'Form Factor': '' },
+  'PSU': { 'Wattage': '', 'Efficiency Rating': '', 'Modular': '', 'Form Factor': '' },
+  'Casing': { 'Type': '', 'Motherboard Support': '', 'Front Ports': '', 'Fan Support': '', 'Radiator Support': '' },
+  'Cooler': { 'Type (Air/Liquid)': '', 'Socket Support': '', 'Fan Speed': '', 'Noise Level': '' },
+  
+  // Peripherals & Audio
+  'Monitor': { 'Panel Type': '', 'Refresh Rate': '', 'Resolution': '', 'Response Time': '', 'Ports': '' },
+  'Keyboard': { 'Type (Mech/Membrane)': '', 'Switch Type': '', 'Connectivity': '', 'Backlight': '' },
+  'Mouse': { 'Sensor': '', 'DPI': '', 'Connectivity': '', 'Buttons': '' },
+  'Headphone': { 'Type': '', 'Connectivity': '', 'Frequency Response': '', 'Microphone': '', 'Impedance': '' },
+  'Earphone': { 'Type': '', 'Connectivity': '', 'Frequency Response': '', 'Microphone': '' },
+  'Earbud': { 'Bluetooth Version': '', 'Driver Size': '', 'Play Time': '', 'Charging Time': '', 'Water Resistance': '' },
+  'TWS': { 'Bluetooth Version': '', 'Driver Size': '', 'Play Time': '', 'Charging Time': '', 'Water Resistance': '' },
+  'Speaker': { 'Configuration (2.0/2.1)': '', 'Total RMS': '', 'Connectivity': '', 'Frequency Response': '' },
+  'Webcam': { 'Resolution': '', 'Frame Rate': '', 'Field of View': '', 'Microphone': '' },
+  'Microphone': { 'Type': '', 'Polar Pattern': '', 'Frequency Response': '', 'Connectivity': '' },
+  
+  // IT, Networking & Security
+  'Router': { 'Antenna': '', 'Wi-Fi Speed': '', 'Bands': '', 'Ports': '', 'Coverage': '' },
+  'Network': { 'Standard': '', 'Speed': '', 'Ports': '', 'Features': '' },
+  'Switch': { 'Ports': '', 'Speed': '', 'PoE Support': '', 'Managed/Unmanaged': '' },
+  'Access Point': { 'Wi-Fi Standard': '', 'Speed': '', 'Antenna': '', 'Coverage': '' },
+  'CCTV': { 'Resolution': '', 'Lens': '', 'Night Vision Distance': '', 'Connectivity': '', 'Weatherproof Rating': '' },
+  'Camera': { 'Resolution': '', 'Lens': '', 'Night Vision Distance': '', 'Connectivity': '', 'Weatherproof Rating': '' },
+  'NVR': { 'Channels': '', 'Storage Capacity': '', 'Resolution Support': '', 'Video Output': '' },
+  'DVR': { 'Channels': '', 'Storage Capacity': '', 'Resolution Support': '', 'Video Output': '' },
+  'Printer': { 'Functions': '', 'Print Speed': '', 'Resolution': '', 'Paper Size': '', 'Connectivity': '' },
+  'Scanner': { 'Type': '', 'Resolution': '', 'Scan Speed': '', 'Connectivity': '' },
+  'Barcode': { 'Scan Type (1D/2D)': '', 'Connectivity': '', 'Scan Rate': '', 'Drop Resistance': '' },
+  'POS': { 'Processor': '', 'RAM': '', 'Storage': '', 'Display': '', 'OS': '' },
+  
+  // Gadgets & Smart Home
+  'Smart Watch': { 'Display': '', 'Battery Life': '', 'Water Resistance': '', 'Sensors': '', 'Connectivity': '' },
+  'Power Bank': { 'Capacity': '', 'Input Ports': '', 'Output Ports': '', 'Fast Charging': '' },
+  'Flash Drive': { 'Capacity': '', 'Interface (USB 2.0/3.0)': '', 'Read Speed': '', 'Material': '' },
+  'Pen Drive': { 'Capacity': '', 'Interface (USB 2.0/3.0)': '', 'Read Speed': '', 'Material': '' },
+  'Memory Card': { 'Capacity': '', 'Class': '', 'Read Speed': '', 'Format (SD/MicroSD)': '' },
+  'Projector': { 'Brightness (Lumens)': '', 'Resolution': '', 'Contrast Ratio': '', 'Lamp Life': '', 'Projection Size': '' },
+  'Drone': { 'Camera Resolution': '', 'Flight Time': '', 'Control Range': '', 'Weight': '' },
+  'Action Camera': { 'Resolution': '', 'Frame Rate': '', 'Waterproof': '', 'Battery Life': '' },
+  'Gimbal': { 'Payload': '', 'Battery Life': '', 'Axes': '', 'Compatibility': '' },
+  'Stabilizer': { 'Payload': '', 'Battery Life': '', 'Axes': '', 'Compatibility': '' },
+  'Gamepad': { 'Compatibility': '', 'Connectivity': '', 'Vibration': '', 'Battery Life': '' },
+  'Controller': { 'Compatibility': '', 'Connectivity': '', 'Vibration': '', 'Battery Life': '' },
+  
+  // Accessories & Power
+  'UPS': { 'Capacity (VA)': '', 'Load Capacity (W)': '', 'Backup Time': '', 'Battery Type': '' },
+  'Cable': { 'Type': '', 'Length': '', 'Data Transfer Rate': '', 'Material': '' },
+  'Adapter': { 'Input': '', 'Output': '', 'Supported Resolution/Speed': '', 'Material': '' },
+  'Converter': { 'Input': '', 'Output': '', 'Supported Resolution/Speed': '', 'Material': '' },
+  'Hub': { 'Input Interface': '', 'Output Ports': '', 'Data Transfer Rate': '', 'Material': '' },
+  'Docking Station': { 'Input Interface': '', 'Output Ports': '', 'Power Delivery': '', 'Material': '' },
+  
+  // TV & Display
+  'TV': { 'Screen Size': '', 'Resolution': '', 'Panel Type': '', 'Smart Features': '', 'Ports': '' },
+  'Television': { 'Screen Size': '', 'Resolution': '', 'Panel Type': '', 'Smart Features': '', 'Ports': '' },
+  
+  // Fallback
+  'Accessory': { 'Type': '', 'Material': '', 'Compatibility': '', 'Dimensions': '' },
+  'Default': { 
+    'Brand': '', 
+    'Model': '', 
+    'Type': '',
+    'Color': '', 
+    'Material': '',
+    'Weight': '', 
+    'Dimensions': '', 
+    'Resolution': '',
+    'Display / Lens': '',
+    'Processor / Chipset': '',
+    'Memory / RAM': '',
+    'Storage': '',
+    'Connectivity': '',
+    'Ports & Interfaces': '',
+    'Power / Voltage': '',
+    'Battery Life': '',
+    'Charging Time': '',
+    'Sensor': '',
+    'Night Vision': '',
+    'Water/Dust Resistance': '',
+    'Compatibility': '',
+    'Special Features': '',
+    'Included in Box': '',
+    'Warranty': ''
+  }
+};
 
 const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, isAddingProduct, setIsAddingProduct, editingProduct, setEditingProduct, formData, setFormData, inventoryCategoryFilter, setInventoryCategoryFilter, selectedProductIds, setSelectedProductIds, isBulkEditing, setIsBulkEditing, bulkEditData, setBulkEditData, isUploading, dragOver, setDragOver, loading, handleSaveProduct, handleDeleteProduct, handleImportProductsCSV, handleDownloadCSVTemplate, handleExportAllProducts, handleBulkExportProducts, handleBulkDeleteProducts, handleBulkUpdate, handleImageUpload, removeImage, addVariant, updateVariant, removeVariant, addSpec, updateSpec, removeSpec, setActiveTab, fetchData, setIsAddingMenu }) => {
   const { isAdmin, hasPermission } = useAuth();
@@ -21,13 +127,50 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [inventorySearchQuery, setInventorySearchQuery] = useState("");
+  const [stockFilter, setStockFilter] = useState('all');
+  const [brandFilter, setBrandFilter] = useState('all');
+  const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
+  const brandDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (brandDropdownRef.current && !brandDropdownRef.current.contains(event.target as Node)) {
+        setIsBrandDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  const [sortBy, setSortBy] = useState('newest');
   const [brands, setBrands] = useState<any[]>([]);
+  const [specTemplates, setSpecTemplates] = useState<any[]>([]);
   const [viewingProduct, setViewingProduct] = useState<any>(null);
+  const [bulkSpecInput, setBulkSpecInput] = useState('');
+
+  // Auto-populate specs when category is chosen or product is opened
+  React.useEffect(() => {
+    if (formData.category && (!formData.specs || Object.keys(formData.specs).length === 0)) {
+      const cat = formData.category;
+      const matchedTemplate = specTemplates.find(t => cat.toLowerCase().includes(t.category.toLowerCase()));
+      
+      if (matchedTemplate) {
+        const newSpecs: Record<string, string> = {};
+        matchedTemplate.fields.forEach((f: any) => {
+          newSpecs[f.label] = f.type === 'boolean' ? 'false' : '';
+        });
+        setFormData((prev: any) => ({ ...prev, specs: newSpecs }));
+      }
+    }
+  }, [formData.category, specTemplates]); // Re-run when category or templates change
+
 
   React.useEffect(() => {
     import('firebase/firestore').then(({ collection, getDocs }) => {
       getDocs(collection(db, 'brands')).then(snap => {
         setBrands(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+      getDocs(collection(db, 'specificationTemplates')).then(snap => {
+        setSpecTemplates(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
     });
   }, []);
@@ -124,16 +267,87 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
             </div>
             
             <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex flex-col gap-4">
-              <div className="relative max-w-md w-full">
-                <input
-                  type="text"
-                  placeholder="Search products by name, SKU, model..."
-                  value={inventorySearchQuery}
-                  onChange={(e) => { setInventorySearchQuery(e.target.value); setCurrentPage(1); }}
-                  className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#EF4444]"
-                />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search products by name, SKU, model..."
+                    value={inventorySearchQuery}
+                    onChange={(e) => { setInventorySearchQuery(e.target.value); setCurrentPage(1); }}
+                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#EF4444]"
+                  />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                </div>
+                
+                <div className="flex flex-wrap gap-3">
+                  <div className="relative">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                    <select
+                      value={stockFilter}
+                      onChange={(e) => { setStockFilter(e.target.value); setCurrentPage(1); }}
+                      className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#EF4444] appearance-none bg-white font-medium text-slate-700 min-w-[140px]"
+                    >
+                      <option value="all">All Stock</option>
+                      <option value="in_stock">In Stock</option>
+                      <option value="low_stock">Low Stock</option>
+                      <option value="out_of_stock">Out of Stock</option>
+                    </select>
+                  </div>
+                  
+                  <div className="relative" ref={brandDropdownRef}>
+              <div 
+                onClick={() => setIsBrandDropdownOpen(!isBrandDropdownOpen)}
+                className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm bg-white font-medium text-slate-700 min-w-[140px] cursor-pointer flex items-center justify-between"
+              >
+                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <span className="truncate max-w-[100px]">{brandFilter === 'all' ? 'All Brands' : brandFilter}</span>
+                <ChevronRight className={`absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-transform ${isBrandDropdownOpen ? 'rotate-90' : ''}`} size={14} />
               </div>
+              
+              {isBrandDropdownOpen && (
+                <div className="absolute top-full mt-2 left-0 w-[320px] bg-white border border-gray-100 shadow-xl rounded-xl z-50 p-3 max-h-[300px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => { setBrandFilter('all'); setCurrentPage(1); setIsBrandDropdownOpen(false); }}
+                      className={`text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors ${brandFilter === 'all' ? 'bg-red-50 text-red-700' : 'hover:bg-gray-50 text-gray-700'}`}
+                    >
+                      All Brands
+                    </button>
+                    {brands.map((b: any) => (
+                      <button
+                        key={b.id || b.name}
+                        onClick={() => { setBrandFilter(b.name); setCurrentPage(1); setIsBrandDropdownOpen(false); }}
+                        className={`text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors truncate ${brandFilter === b.name ? 'bg-red-50 text-red-700' : 'hover:bg-gray-50 text-gray-700'}`}
+                        title={b.name}
+                      >
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+                  <div className="relative">
+                    <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                    <select
+                      value={sortBy}
+                      onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
+                      className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#EF4444] appearance-none bg-white font-medium text-slate-700 min-w-[160px]"
+                    >
+                      <option value="newest">Newest First</option>
+                      <option value="oldest">Oldest First</option>
+                      <option value="price_desc">Price: High to Low</option>
+                      <option value="price_asc">Price: Low to High</option>
+                      <option value="stock_desc">Stock: High to Low</option>
+                      <option value="stock_asc">Stock: Low to High</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="w-full h-px bg-gray-200 my-1"></div>
+
               <div className="flex items-center gap-3 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 <span className="text-xs font-bold text-gray-400 uppercase whitespace-nowrap shrink-0">Filter by Category:</span>
                 <button
@@ -544,48 +758,166 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                           onClick={addSpec}
                           className="text-[11px] bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-200 transition-all flex items-center gap-1"
                         >
-                          <Plus size={14} /> Add Spec
+                          <Plus size={14} /> Add Custom Spec
                         </button>
                       </div>
+<div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4 mt-2">
+                          <label className="block text-[11px] font-bold text-blue-800 mb-1.5 uppercase">Quick Paste Specs (Key: Value)</label>
+                          <div className="flex gap-2 items-start">
+                            <textarea 
+                              value={bulkSpecInput}
+                              onChange={e => setBulkSpecInput(e.target.value)}
+                              placeholder="e.g. Processor: Intel i5
+RAM: 16GB
+Storage: 512GB SSD"
+                              className="flex-1 px-3 py-2 border border-blue-200 rounded-md focus:ring-blue-500 text-sm bg-white min-h-[60px]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+    // Split by newline or comma
+    
+      let items = [];
+      if (bulkSpecInput.includes('\n')) {
+        items = bulkSpecInput.split('\n').map(s => s.trim()).filter(s => s);
+      } else {
+        items = bulkSpecInput.split(',').map(s => s.trim()).filter(s => s);
+      }
+    if (items.length > 0) {
+      const newSpecs = { ...(formData.specs || {}) };
+      items.forEach(item => {
+        // Try to split by colon, dash, or equals to extract Key and Value
+        const match = item.match(/^(.*?)\s*[:\-=]\s*(.*)$/);
+        if (match) {
+          const key = match[1].trim();
+          const val = match[2].trim();
+          newSpecs[key] = val; // Always overwrite if they pasted a value
+        } else {
+          // No value found, just create the field if it doesn't exist
+          if (newSpecs[item] === undefined) newSpecs[item] = '';
+        }
+      });
+      setFormData({ ...formData, specs: newSpecs });
+      setBulkSpecInput('');
+    }
+  }}
+                              className="bg-blue-600 text-white px-3 py-2 rounded-md font-bold text-xs hover:bg-blue-700 h-[60px]"
+                            >
+                              Add Fields
+                            </button>
+                          </div>
+                        </div>
                       
-                      {Object.keys(formData.specs || {}).length > 0 ? (
-                        <div className="space-y-3">
-                          {Object.entries(formData.specs || {}).map(([key, value], index) => (
-                            <div key={index} className="flex gap-2">
-                              <input
-                                type="text"
-                                placeholder="Property (e.g. RAM)"
-                                value={key}
-                                onChange={e => {
-                                  const newSpecs = { ...formData.specs };
-                                  delete newSpecs[key];
-                                  newSpecs[e.target.value] = value;
-                                  setFormData({ ...formData, specs: newSpecs });
-                                }}
-                                className="w-1/3 text-sm font-bold border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-slate-50"
-                              />
-                              <input
-                                type="text"
-                                placeholder="Value (e.g. 16GB)"
-                                value={value as string}
-                                onChange={e => updateSpec(key, e.target.value)}
-                                className="flex-1 text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeSpec(key)}
-                                className="text-red-400 hover:text-red-600 p-2 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">
-                          <p className="text-xs text-slate-400 font-bold">No technical specifications added.</p>
-                        </div>
-                      )}
+                      <div className="space-y-4">
+                        {(() => {
+                          const cat = formData.category || '';
+                          const matchedTemplate = specTemplates.find(t => cat.toLowerCase().includes(t.category.toLowerCase()));
+                          const templateFields = matchedTemplate?.fields || [];
+                          const templateFieldLabels = templateFields.map((f: any) => f.label);
+                          
+                          const customSpecEntries = Object.entries(formData.specs || {}).filter(([k]) => !templateFieldLabels.includes(k));
+
+                          return (
+                            <>
+                              {templateFields.length > 0 && (
+                                <div className="space-y-3">
+                                  {templateFields.map((field: any) => (
+                                    <div key={field.label} className="flex gap-2 items-center">
+                                      <label className="w-1/3 text-sm font-bold text-slate-700">{field.label}</label>
+                                      {field.type === 'select' ? (
+                                        <select
+                                          value={(formData.specs || {})[field.label] || ''}
+                                          onChange={e => updateSpec(field.label, e.target.value)}
+                                          className="flex-1 text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                        >
+                                          <option value="">Select {field.label}</option>
+                                          {field.options?.map((opt: string) => (
+                                            <option key={opt} value={opt}>{opt}</option>
+                                          ))}
+                                        </select>
+                                      ) : field.type === 'boolean' ? (
+                                        <input
+                                          type="checkbox"
+                                          checked={(formData.specs || {})[field.label] === 'true'}
+                                          onChange={e => updateSpec(field.label, e.target.checked ? 'true' : 'false')}
+                                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                      ) : (
+                                        <input
+                                          type="text"
+                                          value={(formData.specs || {})[field.label] || ''}
+                                          onChange={e => updateSpec(field.label, e.target.value)}
+                                          placeholder={`Enter ${field.label}`}
+                                          className="flex-1 text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {customSpecEntries.length > 0 && (
+                                <div className="space-y-3 mt-4 pt-4 border-t border-slate-100">
+                                  {customSpecEntries.map(([key, value], index) => (
+                                    <div key={index} className="flex gap-2">
+                                      <input
+                                        type="text"
+                                        placeholder="Property (e.g. Color)"
+                                        value={key}
+                                        onChange={e => {
+                                          const newSpecs = { ...formData.specs };
+                                          delete newSpecs[key];
+                                          newSpecs[e.target.value] = value;
+                                          setFormData({ ...formData, specs: newSpecs });
+                                        }}
+                                        className="w-1/3 text-sm font-bold border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-slate-50"
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="Value"
+                                        value={value as string}
+                                        onChange={e => updateSpec(key, e.target.value)}
+                                        className="flex-1 text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => removeSpec(key)}
+                                        className="text-red-400 hover:text-red-600 p-2 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {templateFields.length === 0 && customSpecEntries.length === 0 && (
+                                <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">
+                                  <p className="text-xs text-slate-400 font-bold mb-3">No technical specifications added.</p>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const cat = formData.category || '';
+                                        const t = specTemplates.find(x => cat.toLowerCase().includes(x.category.toLowerCase()));
+                                        if (t) {
+                                          const newSpecs: Record<string, string> = {};
+                                          t.fields.forEach((f: any) => newSpecs[f.label] = f.type === 'boolean' ? 'false' : '');
+                                          setFormData({ ...formData, specs: newSpecs });
+                                          toast.success('Template loaded');
+                                        } else {
+                                          toast.error('No template found for this category');
+                                        }
+                                      }}
+                                      className="text-[11px] bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold hover:bg-blue-100 transition-all mx-auto flex items-center gap-2"
+                                    >
+                                      <Plus size={14} /> Auto-Fill Template
+                                    </button>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
 
@@ -825,7 +1157,31 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                                (p.sku || p.id || '').toLowerCase().includes(q) ||
                                (p.model || '').toLowerCase().includes(q);
                       })
-                      .sort((a, b) => a.name.localeCompare(b.name));
+                      .filter(p => {
+                        if (stockFilter === 'all') return true;
+                        if (stockFilter === 'in_stock') return !p.isOutOfStock && p.stock > 0;
+                        if (stockFilter === 'low_stock') return !p.isOutOfStock && p.stock > 0 && p.stock < (p.lowStockThreshold || 10);
+                        if (stockFilter === 'out_of_stock') return p.isOutOfStock || (p.stock || 0) === 0;
+                        return true;
+                      })
+                      .filter(p => brandFilter === 'all' || p.brand === brandFilter)
+                      .sort((a, b) => {
+                        if (sortBy === 'newest') {
+                           const tA = a.createdAt?.toMillis?.() || a.createdAt || 0;
+                           const tB = b.createdAt?.toMillis?.() || b.createdAt || 0;
+                           return tB - tA;
+                        }
+                        if (sortBy === 'oldest') {
+                           const tA = a.createdAt?.toMillis?.() || a.createdAt || 0;
+                           const tB = b.createdAt?.toMillis?.() || b.createdAt || 0;
+                           return tA - tB;
+                        }
+                        if (sortBy === 'price_desc') return (b.price || b.costPrice || 0) - (a.price || a.costPrice || 0);
+                        if (sortBy === 'price_asc') return (a.price || a.costPrice || 0) - (b.price || b.costPrice || 0);
+                        if (sortBy === 'stock_desc') return (b.stock || 0) - (a.stock || 0);
+                        if (sortBy === 'stock_asc') return (a.stock || 0) - (b.stock || 0);
+                        return a.name.localeCompare(b.name);
+                      });
                     return filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((product, index) => (
                     <tr key={product.id} className={cn(
                       "hover:bg-gray-50 transition-colors",
@@ -949,7 +1305,23 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
 
             <Pagination
               currentPage={currentPage}
-              totalItems={products.filter(p => inventoryCategoryFilter === 'all' || p.category === inventoryCategoryFilter).filter(p => !inventorySearchQuery.trim() || (p.name || "").toLowerCase().includes(inventorySearchQuery.toLowerCase()) || (p.sku || p.id || "").toLowerCase().includes(inventorySearchQuery.toLowerCase()) || (p.model || "").toLowerCase().includes(inventorySearchQuery.toLowerCase())).length}
+              totalItems={products
+                .filter(p => inventoryCategoryFilter === 'all' || p.category === inventoryCategoryFilter)
+                .filter(p => {
+                  if (!inventorySearchQuery.trim()) return true;
+                  const q = inventorySearchQuery.toLowerCase();
+                  return (p.name || '').toLowerCase().includes(q) ||
+                         (p.sku || p.id || '').toLowerCase().includes(q) ||
+                         (p.model || '').toLowerCase().includes(q);
+                })
+                .filter(p => {
+                  if (stockFilter === 'all') return true;
+                  if (stockFilter === 'in_stock') return !p.isOutOfStock && p.stock > 0;
+                  if (stockFilter === 'low_stock') return !p.isOutOfStock && p.stock > 0 && p.stock < (p.lowStockThreshold || 10);
+                  if (stockFilter === 'out_of_stock') return p.isOutOfStock || (p.stock || 0) === 0;
+                  return true;
+                })
+                .filter(p => brandFilter === 'all' || p.brand === brandFilter).length}
               itemsPerPage={itemsPerPage}
               onPageChange={setCurrentPage}
               onItemsPerPageChange={setItemsPerPage}

@@ -147,64 +147,80 @@ const Customers: React.FC<CustomersProps> = ({
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden space-y-6">
-      {/* Header Bar */}
-      <div className="p-6 pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <Users className="text-[#EF4444]" /> Customer Directory
-          </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            Add and manage registered customer details ({customers.length} total).
-          </p>
+      {/* Header Area */}
+      <div className="p-6 md:p-8 bg-gradient-to-r from-slate-900 to-[#081621] text-white">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-[10px] font-black uppercase tracking-widest mb-3">
+              <Users size={12} className="text-blue-400" /> CRM Module
+            </div>
+            <h2 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3">
+              Customer Directory
+              <span className="text-xs font-bold text-slate-300 bg-white/10 px-3 py-1 rounded-full border border-white/5">
+                {customers.length} Total
+              </span>
+            </h2>
+            <p className="text-sm text-slate-400 mt-2 max-w-2xl">
+              Manage all registered customer profiles, view ledgers, and maintain communication channels.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+            {hasPermission('manage_orders') && (
+              <button
+                onClick={() => {
+                  setEditingCustomer(null);
+                  setCustomerFormData({ name: '', phone: '', email: '', address: '' });
+                  setIsAddingCustomer(true);
+                }}
+                className="w-full md:w-auto bg-emerald-500 text-white px-5 py-3 rounded-xl hover:bg-emerald-400 transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+              >
+                <Plus size={18} /> Add Customer
+              </button>
+            )}
+          </div>
         </div>
+      </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative w-full sm:w-64">
+      {/* Search Bar */}
+      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+         <div className="relative w-full max-w-md">
             <input
               type="text"
-              placeholder="Search by name, phone, email..."
+              placeholder="Search customers by name, phone, email..."
               value={searchQuery}
               onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-red-100"
+              className="w-full pl-10 pr-10 py-2.5 text-sm font-medium bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm transition-all placeholder:text-slate-400"
             />
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={13} />
-          </div>
-
-          {hasPermission('manage_orders') && (
-            <button
-              onClick={() => {
-                setEditingCustomer(null);
-                setCustomerFormData({ name: '', phone: '', email: '', address: '' });
-                setIsAddingCustomer(true);
-              }}
-              className="bg-[#081621] hover:bg-[#EF4444] text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm shrink-0"
-            >
-              <Plus size={14} /> Add Customer
-            </button>
-          )}
-        </div>
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 bg-slate-100 rounded-full p-1 transition-colors">
+                <X size={12} />
+              </button>
+            )}
+         </div>
       </div>
 
       {/* Customer Modal (Add / Edit) */}
       {(isAddingCustomer || editingCustomer) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="p-5 bg-[#081621] text-white flex items-center justify-between">
-              <h3 className="font-bold text-sm flex items-center gap-2">
-                <Users size={16} className="text-[#EF4444]" />
-                {editingCustomer ? 'Edit Customer Details' : 'Add New Customer'}
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-slate-50 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col border border-slate-200/50">
+            <div className="p-5 px-6 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <h3 className="font-black text-lg flex items-center gap-2">
+                <Users size={18} className="text-emerald-400" />
+                {editingCustomer ? 'Edit Customer' : 'New Customer'}
               </h3>
               <button
                 onClick={() => { setIsAddingCustomer(false); setEditingCustomer(null); }}
-                className="text-gray-400 hover:text-white"
+                className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCustomer} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleSaveCustomer} className="p-6 space-y-5 overflow-y-auto flex-1">
               <div>
-                <label className="block font-bold text-gray-700 uppercase mb-1">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
                   Customer Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -213,58 +229,67 @@ const Customers: React.FC<CustomersProps> = ({
                   placeholder="e.g. Tanvir Hasan"
                   value={customerFormData.name}
                   onChange={e => setCustomerFormData({ ...customerFormData, name: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg p-2.5 font-bold text-gray-800"
+                  className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 uppercase mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  placeholder="e.g. 017XXXXXXXX"
-                  value={customerFormData.phone}
-                  onChange={e => setCustomerFormData({ ...customerFormData, phone: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg p-2.5 font-medium"
-                />
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Phone Number</label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    placeholder="e.g. 017XXXXXXXX"
+                    value={customerFormData.phone}
+                    onChange={e => setCustomerFormData({ ...customerFormData, phone: e.target.value })}
+                    className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl pl-10 pr-4 py-2.5 font-bold text-slate-800 outline-none transition-all"
+                  />
+                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                </div>
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 uppercase mb-1">Email Address</label>
-                <input
-                  type="email"
-                  placeholder="e.g. tanvir@example.com"
-                  value={customerFormData.email}
-                  onChange={e => setCustomerFormData({ ...customerFormData, email: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg p-2.5 font-medium"
-                />
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Email Address</label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    placeholder="e.g. contact@example.com"
+                    value={customerFormData.email}
+                    onChange={e => setCustomerFormData({ ...customerFormData, email: e.target.value })}
+                    className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl pl-10 pr-4 py-2.5 font-bold text-slate-800 outline-none transition-all"
+                  />
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                </div>
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 uppercase mb-1">Address</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Dhanmondi, Dhaka"
-                  value={customerFormData.address}
-                  onChange={e => setCustomerFormData({ ...customerFormData, address: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg p-2.5 font-medium"
-                />
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Physical Address</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="e.g. Dhanmondi, Dhaka"
+                    value={customerFormData.address}
+                    onChange={e => setCustomerFormData({ ...customerFormData, address: e.target.value })}
+                    className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl pl-10 pr-4 py-2.5 font-bold text-slate-800 outline-none transition-all"
+                  />
+                  <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-bold text-sm transition-colors flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    {submitting ? 'Saving...' : (editingCustomer ? 'Update Customer' : 'Save Customer')}
-                  </button>
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => { setIsAddingCustomer(false); setEditingCustomer(null); }}
-                  className="px-4 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold"
+                  className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
                 >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {submitting ? 'Saving...' : (editingCustomer ? 'Update Customer' : 'Save Customer')}
                 </button>
               </div>
             </form>
@@ -273,80 +298,82 @@ const Customers: React.FC<CustomersProps> = ({
       )}
 
       {/* Customers Table */}
-      <div className="overflow-x-auto border-t border-gray-100">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-gray-50 text-gray-500 uppercase font-bold border-b border-gray-200">
-            <tr>
-              <th className="px-6 py-3.5">Customer Name</th>
-              <th className="px-6 py-3.5">Phone Number</th>
-              <th className="px-6 py-3.5">Email Address</th>
-              <th className="px-6 py-3.5">Address</th>
-              <th className="px-6 py-3.5 text-center">Actions</th>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-white border-b border-slate-100">
+              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Customer Name</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Contact Details</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Address</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-50 bg-white">
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">Loading customers...</td>
+                <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium">Loading customers...</td>
               </tr>
             ) : filteredCustomers.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-gray-400 italic">
-                  No customers found. Click &quot;Add Customer&quot; to add one.
+                <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">
+                  No customers found. Click "Add Customer" to add one.
                 </td>
               </tr>
             ) : (
               filteredCustomers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(customer => (
-                <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-3.5 font-bold text-gray-900">
-                    {customer.name}
+                <tr key={customer.id} className="hover:bg-slate-50/80 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full flex items-center justify-center font-black text-sm shadow-inner shrink-0 bg-blue-100 text-blue-700 border border-blue-200">
+                        {(customer.name || 'C').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <span className="font-bold text-sm text-slate-900 block group-hover:text-blue-600 transition-colors">{customer.name}</span>
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-3.5">
+                  <td className="px-6 py-4 space-y-1.5">
                     {customer.phone ? (
                       <div className="flex items-center gap-2">
-                        <a href={`tel:${customer.phone}`} className="text-gray-700 hover:text-blue-600 font-medium flex items-center gap-1">
-                          <Phone size={11} className="text-gray-400" /> {customer.phone}
+                        <a href={`tel:${customer.phone}`} className="text-slate-600 hover:text-blue-600 font-medium flex items-center gap-1.5 text-sm transition-colors">
+                          <Phone size={14} className="text-slate-400" /> {customer.phone}
                         </a>
                         <a
                           href={`https://wa.me/${customer.phone.replace(/\D/g, '')}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-emerald-500 hover:text-emerald-700"
-                          title="WhatsApp"
+                          className="text-emerald-500 hover:text-emerald-600 bg-emerald-50 p-1 rounded-md transition-colors"
+                          title="Message on WhatsApp"
                         >
-                          <MessageCircle size={12} />
+                          <MessageCircle size={14} />
                         </a>
                       </div>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className="text-slate-400 text-sm">-</span>
                     )}
-                  </td>
-                  <td className="px-6 py-3.5">
-                    {customer.email ? (
-                      <a href={`mailto:${customer.email}`} className="text-blue-600 hover:underline flex items-center gap-1 font-medium">
-                        <Mail size={11} className="text-gray-400" /> {customer.email}
+                    {customer.email && (
+                      <a href={`mailto:${customer.email}`} className="text-slate-600 hover:text-blue-600 flex items-center gap-1.5 text-sm font-medium transition-colors">
+                        <Mail size={14} className="text-slate-400" /> {customer.email}
                       </a>
-                    ) : (
-                      <span className="text-gray-400">-</span>
                     )}
                   </td>
-                  <td className="px-6 py-3.5 text-gray-600 max-w-xs truncate">
+                  <td className="px-6 py-4 text-sm text-slate-600 max-w-xs truncate font-medium">
                     {customer.address ? (
-                      <span className="flex items-center gap-1">
-                        <MapPin size={11} className="text-gray-400 shrink-0" /> {customer.address}
+                      <span className="flex items-center gap-1.5">
+                        <MapPin size={14} className="text-slate-400 shrink-0" /> {customer.address}
                       </span>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className="text-slate-400">-</span>
                     )}
                   </td>
-                  <td className="px-6 py-3.5 text-center">
-                    <div className="flex items-center justify-center gap-2">
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-70 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => handleViewLedger(customer)}
-                        className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
+                        className="flex items-center gap-1.5 text-xs bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-bold px-3 py-2 rounded-lg border border-slate-200 hover:border-emerald-200 transition-all shadow-sm"
                         title="View Ledger Statement"
                       >
-                        <FileText size={14} />
+                        <FileText size={14} /> <span className="hidden xl:inline">Ledger</span>
                       </button>
                       {hasPermission('manage_orders') && (
                         <button
@@ -360,19 +387,19 @@ const Customers: React.FC<CustomersProps> = ({
                             });
                             setIsAddingCustomer(true);
                           }}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          className="p-2 bg-white hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-lg border border-slate-200 hover:border-blue-200 transition-all shadow-sm"
                           title="Edit Customer"
                         >
-                          <Edit2 size={14} />
+                          <Edit2 size={16} />
                         </button>
                       )}
                       {isAdmin && (
                         <button
                           onClick={() => handleDeleteCustomer(customer.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          className="p-2 bg-white hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg border border-slate-200 hover:border-red-200 transition-all shadow-sm"
                           title="Delete Customer"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={16} />
                         </button>
                       )}
                     </div>
@@ -385,7 +412,7 @@ const Customers: React.FC<CustomersProps> = ({
       </div>
 
       {/* Pagination */}
-      <div className="p-6 pt-0">
+      <div className="p-6 bg-white border-t border-slate-100 rounded-b-2xl">
         <Pagination
           currentPage={currentPage}
           totalItems={filteredCustomers.length}

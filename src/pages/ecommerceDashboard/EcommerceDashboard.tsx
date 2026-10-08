@@ -34,6 +34,7 @@ const EcommerceShipping = lazy(() => import('./EcommerceShipping').then(m => ({ 
 const EcommerceAbandonedCarts = lazy(() => import('./EcommerceAbandonedCarts').then(m => ({ default: m.EcommerceAbandonedCarts })));
 const EcommerceAnalytics = lazy(() => import('./EcommerceAnalytics').then(m => ({ default: m.EcommerceAnalytics })));
 const EcommerceCategories = lazy(() => import('./EcommerceCategories').then(m => ({ default: m.EcommerceCategories })));
+const TemplatesTab = lazy(() => import('../admin/tabs/templates/TemplatesTab').then(m => ({ default: m.TemplatesTab })));
 const EcommerceWishlistAnalytics = lazy(() => import('./EcommerceWishlistAnalytics').then(m => ({ default: m.EcommerceWishlistAnalytics })));
 const EcommerceBlog = lazy(() => import('./EcommerceBlog').then(m => ({ default: m.EcommerceBlog })));
 const EcommerceProjects = lazy(() => import('./EcommerceProjects').then(m => ({ default: m.EcommerceProjects })));
@@ -265,6 +266,7 @@ const EcommerceDashboard: React.FC = () => {
           <NavGroup title="Catalog">
             {renderNavBtn('inventory', 'Products', Package)}
             {renderNavBtn('categories', 'Categories', Layers)}
+            {renderNavBtn('templates', 'Spec Templates', FileText)}
           </NavGroup>
           <NavGroup title="Sales">
             {renderNavBtn('orders', 'Orders', ShoppingBag)}
@@ -350,6 +352,8 @@ const EcommerceDashboard: React.FC = () => {
                 <EcommerceInventory products={products} menus={menus} handleDeleteProduct={handleDeleteProduct} setActiveTab={setActiveTab} fetchData={fetchData} />
               ) : activeTab === 'categories' ? (
                 <EcommerceCategories />
+              ) : activeTab === 'templates' ? (
+                <TemplatesTab />
               ) : activeTab === 'orders' ? (
                 <EcommerceOrders
                   orders={orders}

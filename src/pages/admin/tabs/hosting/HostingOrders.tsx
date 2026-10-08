@@ -554,10 +554,10 @@ export default function HostingOrders() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-6 py-4 text-sm font-semibold text-gray-900">Order ID</th>
-                <th className="px-6 py-4 text-sm font-semibold text-gray-900">Date</th>
+                <th className="px-6 py-4 text-sm font-semibold text-gray-900">Order ID & Date</th>
                 <th className="px-6 py-4 text-sm font-semibold text-gray-900">Customer</th>
-                <th className="px-6 py-4 text-sm font-semibold text-gray-900">Total</th>
+                <th className="px-6 py-4 text-sm font-semibold text-gray-900">Order Items</th>
+                <th className="px-6 py-4 text-sm font-semibold text-gray-900">Payment</th>
                 <th className="px-6 py-4 text-sm font-semibold text-gray-900">Status</th>
                 <th className="px-6 py-4 text-sm font-semibold text-gray-900 text-right">Actions</th>
               </tr>
@@ -572,36 +572,67 @@ export default function HostingOrders() {
                 </tr>
               ) : processedOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                    No hosting orders found.
+                  <td colSpan={6} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center text-gray-400">
+                      <FileText className="w-10 h-10 mb-3 text-gray-300" />
+                      <p className="text-base font-semibold text-gray-600">No hosting orders found.</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 currentOrders.map(order => (
-                  <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{order.documentNumber || order.id.slice(0, 8)}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {new Date(order.createdAt).toLocaleDateString()}
+                  <tr key={order.id} className="hover:bg-gray-50/70 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-bold text-gray-900">{order.documentNumber || order.id.slice(0, 8)}</div>
+                      <div className="text-xs text-gray-500 font-medium flex items-center gap-1 mt-0.5">
+                        <Clock className="w-3 h-3" />
+                        {new Date(order.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{order.customerName}</div>
+                      <div className="text-sm font-bold text-gray-900">{order.customerName}</div>
                       <div className="text-xs text-gray-500">{order.customerEmail}</div>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {`BDT ${order.total.toLocaleString()}`}
+                      {order.customerPhone && <div className="text-xs text-gray-500">{order.customerPhone}</div>}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={cn("px-2.5 py-1 rounded-full text-xs font-medium capitalize", getStatusColor(order.status))}>
+                      <div className="flex flex-col gap-1">
+                        {order.items?.map((item: any, i: number) => (
+                          <div key={i} className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-1 rounded w-fit max-w-[200px] truncate">
+                            {item.targetType === 'domain' ? '🌐 ' : '📦 '}{item.name}
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-bold text-gray-900">
+                        {`BDT ${order.total.toLocaleString()}`}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className={cn("text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded",
+                          (order as any).paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        )}>
+                          {(order as any).paymentStatus || 'Unpaid'}
+                        </span>
+                        <span className="text-xs font-medium text-gray-500 capitalize">
+                          • {order.paymentMethod || 'Manual'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={cn("px-2.5 py-1.5 rounded-lg text-xs font-bold capitalize flex items-center gap-1.5 w-fit shadow-sm", getStatusColor(order.status))}>
+                        {order.status === 'completed' && <CheckCircle className="w-3.5 h-3.5" />}
+                        {order.status === 'processing' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                        {order.status === 'pending' && <Clock className="w-3.5 h-3.5" />}
                         {order.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
                         {order.status === 'pending' && (
                           <button
                             onClick={() => handleAcceptOrder(order)}
                             disabled={statusUpdating}
-                            className="px-2.5 py-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded text-xs font-semibold shadow-sm transition"
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-sm shadow-blue-200 transition"
                             title="Accept and provision account"
                           >
                             Accept
@@ -611,7 +642,7 @@ export default function HostingOrders() {
                           <button
                             onClick={() => handleMarkCompletedOrder(order)}
                             disabled={statusUpdating}
-                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded text-xs font-semibold shadow-sm transition"
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-sm shadow-emerald-200 transition"
                             title="Mark completed once live"
                           >
                             Complete
@@ -621,7 +652,7 @@ export default function HostingOrders() {
                           <button
                             onClick={() => handleAcceptOrder(order)}
                             disabled={statusUpdating}
-                            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded text-xs font-semibold shadow-sm transition"
+                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-sm shadow-amber-200 transition"
                             title="Retry provisioning"
                           >
                             Retry
@@ -629,10 +660,10 @@ export default function HostingOrders() {
                         )}
                         <button
                           onClick={() => handleViewOrder(order)}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="View Details"
+                          className="px-3 py-1.5 bg-gray-100 hover:bg-blue-50 hover:text-blue-600 text-gray-700 rounded-lg text-xs font-bold transition-colors border border-gray-200 hover:border-blue-200 flex items-center gap-1.5"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-3.5 h-3.5" />
+                          View
                         </button>
                       </div>
                     </td>
@@ -782,7 +813,7 @@ export default function HostingOrders() {
                               <div className="space-y-2">
                                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
                                   <p className="font-bold">Provisioning Status:</p>
-                                  <p>{(selectedOrder as any).provisioningError || (hasDomain ? 'Domain registration pending Dynadot balance or provider approval.' : 'WHM provisioning failed or server timed out.')}</p>
+                                  <p>{(selectedOrder as any).provisioningError || (hasDomain ? 'Domain registration pending Openprovider balance or provider approval.' : 'WHM provisioning failed or server timed out.')}</p>
                                 </div>
                                                                   <button
                                     onClick={() => hasCloudLinux ? handleProvisionCloudLinux(selectedOrder) : handleAcceptOrder(selectedOrder)}

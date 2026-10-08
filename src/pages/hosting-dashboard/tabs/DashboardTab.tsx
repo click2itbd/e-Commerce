@@ -226,69 +226,142 @@ export function DashboardTab({ state }) {
                   </div>
                 </div>
 
-                {/* Bottom Row */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                ﻿                {/* Bottom Row - Upgraded */}
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                  
+                  {/* Quick Actions & System Health */}
+                  <div className="flex flex-col gap-6">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                      <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <ArrowUpRight size={18} className="text-blue-500" /> Quick Actions
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => setActiveTab('server-accounts')} className="p-3 bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-xl text-xs font-bold transition-colors flex flex-col items-center gap-2 border border-slate-100 hover:border-blue-200">
+                          <Server size={20} />
+                          New Server
+                        </button>
+                        <button onClick={() => setActiveTab('domain-list')} className="p-3 bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-700 rounded-xl text-xs font-bold transition-colors flex flex-col items-center gap-2 border border-slate-100 hover:border-amber-200">
+                          <Globe size={20} />
+                          Domain Search
+                        </button>
+                        <button onClick={() => setActiveTab('all-orders')} className="p-3 bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-xl text-xs font-bold transition-colors flex flex-col items-center gap-2 border border-slate-100 hover:border-emerald-200">
+                          <FileText size={20} />
+                          View Orders
+                        </button>
+                        <button onClick={() => setActiveTab('tickets')} className="p-3 bg-slate-50 hover:bg-rose-50 text-slate-700 hover:text-rose-700 rounded-xl text-xs font-bold transition-colors flex flex-col items-center gap-2 border border-slate-100 hover:border-rose-200">
+                          <HeadphonesIcon size={20} />
+                          Support Desk
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                      <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <Shield size={18} className="text-emerald-500" /> System Health
+                      </h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span className="text-xs font-bold text-emerald-800">WHM Server</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Online</span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span className="text-xs font-bold text-emerald-800">Openprovider API</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Connected</span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span className="text-xs font-bold text-emerald-800">Payment Gateway</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Ready</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Recently Paid */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 min-h-[250px]">
-                    <h3 className="text-sm font-bold text-slate-800 mb-5 flex items-center gap-2">
-                      <CheckCircle2 size={18} className="text-emerald-500" /> Recently Paid Invoices
-                    </h3>
-                    <div className="space-y-4">
-                      {orders.filter(o => PAID_STATUSES.includes(o.status) || o.paymentStatus === 'paid').slice(0, 5).map(order => (
-                        <div key={order.id} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
-                          <div className="flex gap-4 items-center">
-                            <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
-                              <DollarSign size={18} className="text-emerald-600" />
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 min-h-[250px] flex flex-col">
+                    <div className="flex items-center justify-between mb-5">
+                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <CheckCircle2 size={18} className="text-blue-500" /> Recent Orders
+                      </h3>
+                      <button onClick={() => setActiveTab('all-orders')} className="text-xs font-bold text-blue-600 hover:text-blue-800">View All</button>
+                    </div>
+                    <div className="space-y-3 flex-1">
+                      {orders.slice(0, 5).map(order => (
+                        <div key={order.id} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors border border-slate-100 group cursor-pointer" onClick={() => setActiveTab('all-orders')}>
+                          <div className="flex gap-3 items-center">
+                            <div className="w-10 h-10 bg-slate-100 group-hover:bg-blue-100 rounded-full flex items-center justify-center shrink-0 transition-colors">
+                              <FileText size={16} className="text-slate-500 group-hover:text-blue-600" />
                             </div>
                             <div>
                               <span className="font-bold text-sm text-slate-800">{order.customerName || order.userId || 'Customer'}</span>
-                              <div className="text-xs text-slate-400 font-medium">
-                                {order.createdAt ? new Date(order.createdAt.toDate ? order.createdAt.toDate() : order.createdAt).toLocaleDateString() : '—'}
+                              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                {order.status} • {order.createdAt ? new Date(order.createdAt.toDate ? order.createdAt.toDate() : order.createdAt).toLocaleDateString() : 'N/A'}
                               </div>
                             </div>
                           </div>
                           <div className="text-right">
                             <div className="font-extrabold text-sm text-slate-900">{formatCurrency(order.total || 0)}</div>
-                            <div className="text-xs font-bold text-blue-500 hover:text-blue-700 cursor-pointer">#{order.id.substring(0, 6)}</div>
+                            <div className={`text-[10px] font-bold uppercase tracking-wider mt-0.5 ${order.paymentStatus === 'paid' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {order.paymentStatus || 'Unpaid'}
+                            </div>
                           </div>
                         </div>
                       ))}
-                      {orders.filter(o => PAID_STATUSES.includes(o.status) || o.paymentStatus === 'paid').length === 0 && (
-                        <div className="text-sm text-slate-500 text-center py-6">No recently paid invoices</div>
+                      {orders.length === 0 && (
+                        <div className="text-sm text-slate-500 text-center py-10 flex flex-col items-center gap-2">
+                          <FileText size={24} className="text-slate-300" />
+                          No recent orders
+                        </div>
                       )}
                     </div>
                   </div>
 
                   {/* Recent Tickets */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 min-h-[250px]">
-                    <h3 className="text-sm font-bold text-slate-800 mb-5 flex items-center gap-2">
-                      <HeadphonesIcon size={18} className="text-indigo-500" /> Recent Support Tickets
-                    </h3>
-                    <div className="space-y-4">
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 min-h-[250px] flex flex-col">
+                    <div className="flex items-center justify-between mb-5">
+                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <HeadphonesIcon size={18} className="text-indigo-500" /> Recent Tickets
+                      </h3>
+                      <button onClick={() => setActiveTab('tickets')} className="text-xs font-bold text-indigo-600 hover:text-indigo-800">View All</button>
+                    </div>
+                    <div className="space-y-3 flex-1">
                       {tickets.slice(0, 5).map(ticket => (
-                        <div key={ticket.id} className="flex gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
-                          <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center shrink-0">
-                            <User size={18} className="text-slate-500" />
+                        <div key={ticket.id} className="flex gap-3 p-3 hover:bg-slate-50 rounded-xl transition-colors border border-slate-100 group cursor-pointer" onClick={() => setActiveTab('tickets')}>
+                          <div className="w-10 h-10 bg-slate-100 group-hover:bg-indigo-100 rounded-full flex items-center justify-center shrink-0 transition-colors">
+                            <User size={16} className="text-slate-500 group-hover:text-indigo-600" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-bold text-sm text-slate-800 truncate">{ticket.customerName || 'Customer'}</span>
-                              <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">
-                                {ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString() : '—'}
+                              <span className={`text-white text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 shadow-sm ${ticket.status === 'open' || ticket.status === 'customer-reply' ? 'bg-rose-500' : 'bg-emerald-500'}`}>
+                                {(ticket.status || 'open')}
                               </span>
                             </div>
-                            <div className="mt-1 flex items-center gap-2">
-                              <span className="text-blue-500 text-sm font-medium truncate hover:underline cursor-pointer">
-                                [{ticket.id.substring(0, 6)}] {ticket.subject || 'No subject'}
+                            <div className="mt-1 flex items-center justify-between">
+                              <span className="text-slate-500 text-xs font-medium truncate">
+                                {ticket.subject || 'No subject'}
                               </span>
-                              <span className={`text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 ${ticket.status === 'open' || ticket.status === 'customer-reply' ? 'bg-rose-500' : 'bg-emerald-500'}`}>
-                                {(ticket.status || 'open')}
+                              <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap ml-2">
+                                {ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'N/A'}
                               </span>
                             </div>
                           </div>
                         </div>
                       ))}
-                      {tickets.length === 0 && <div className="text-sm text-slate-500 text-center py-6">No recent tickets</div>}
+                      {tickets.length === 0 && (
+                        <div className="text-sm text-slate-500 text-center py-10 flex flex-col items-center gap-2">
+                          <HeadphonesIcon size={24} className="text-slate-300" />
+                          No recent tickets
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -297,8 +370,3 @@ export function DashboardTab({ state }) {
     </>
   );
 }
-
-
-
-
-

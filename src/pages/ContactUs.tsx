@@ -9,6 +9,10 @@ import { toast } from 'react-hot-toast';
 import { useSiteContext } from '../hooks/useSiteContext';
 
 export const ContactUs = () => {
+  return <ContactUsDefault />;
+};
+
+export default function ContactUsDefault() {
   const { settings } = useSettings();
   const siteContext = useSiteContext();
   const isHosting = siteContext === 'hosting';
@@ -73,10 +77,7 @@ export const ContactUs = () => {
             We'd Love to Hear From You
           </h1>
           <p className="text-gray-300 text-sm md:text-base leading-relaxed">
-            {isHosting 
-              ? 'Have questions about a domain registration, VPS deployment, or cloud hosting package? Our server technical specialists are here to assist 24/7.'
-              : 'Have questions about a product, custom PC build, or gaming accessories? Our hardware tech specialists are here to assist.'
-            }
+            'Have questions about custom PC builds, tech gadgets, or premium web hosting? Our dedicated specialists are here to assist you 24/7.'
           </p>
         </div>
       </div>
@@ -112,7 +113,7 @@ export const ContactUs = () => {
                     <Mail className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 font-medium">{isHosting ? 'Support Email' : 'Email Address'}</p>
+                    <p className="text-xs text-gray-500 font-medium">'Support Email'</p>
                     <a href={`mailto:${settings.contactEmail}`} className="text-sm font-bold text-gray-900 hover:text-blue-600 break-all">
                       {settings.contactEmail}
                     </a>
@@ -155,7 +156,7 @@ export const ContactUs = () => {
                   <h4 className="font-bold text-base">Instant WhatsApp Support</h4>
                 </div>
                 <p className="text-xs text-emerald-100 leading-relaxed mb-4">
-                  Chat with our technical support team directly on WhatsApp for real-time queries and {isHosting ? 'server/hosting assistance.' : 'order assistance.'}
+                  Chat with our technical support team directly on WhatsApp for real-time queries and 'order assistance, or tech support.'
                 </p>
                 <a 
                   href={`https://wa.me/${(settings.contactPhone || '8801900000000').replace(/[^0-9]/g, '')}`} 
@@ -239,22 +240,13 @@ export const ContactUs = () => {
                           onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                           className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm outline-none appearance-none"
                         >
-                          {isHosting ? (
-                            <>
-                              <option>Sales Inquiry</option>
-                              <option>Technical Support</option>
-                              <option>Billing Question</option>
-                              <option>Report Abuse</option>
-                            </>
-                          ) : (
-                            <>
+                          <>
                               <option>General Inquiry</option>
-                              <option>Product Availability</option>
+                              <option>Order Status & Sales</option>
                               <option>PC Build Quotation</option>
-                              <option>Order Status</option>
+                              <option>Hosting & Technical Support</option>
                               <option>Warranty Claim / RMA</option>
                             </>
-                          )}
                         </select>
                       </div>
                     </div>

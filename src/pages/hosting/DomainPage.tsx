@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { Layout } from '../../components/Layout';
 import { PageHeader } from '../../components/hosting/PageHeader';

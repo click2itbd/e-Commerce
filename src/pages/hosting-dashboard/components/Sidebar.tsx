@@ -47,6 +47,7 @@ export function Sidebar({ state }) {
             { icon: Globe, label: 'NS Requests', id: 'ns-requests' },
             { icon: HeadphonesIcon, label: 'Support Tickets', id: 'tickets' },
               { icon: Shield, label: 'SSL Certificates', id: 'ssl-certificates' },
+              { icon: Globe, label: 'DNS Management', id: 'dns-management' },
           ].map((item, idx) => {
             const isActive = activeTab === item.id;
             return (
@@ -140,5 +141,6 @@ export function Sidebar({ state }) {
     </aside>
   );
 }
+
 
 

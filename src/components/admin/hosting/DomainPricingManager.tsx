@@ -296,25 +296,34 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
       </div>
 
       {/* Global Rate & Profit Margin Settings Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 md:p-8 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-slate-100 pb-5">
           <div>
-            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-emerald-600" /> Global Dollar Rate & Profit Margin
+            <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                <DollarSign className="w-4 h-4 text-emerald-600" />
+              </div>
+              Global Exchange Rate & Profit Margin
             </h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Set the USD to BDT exchange rate and profit margin percentage used to automatically calculate domain prices from Dynadot supplier rates.
+            <p className="text-sm text-slate-500 mt-2 max-w-2xl">
+              Configure the base USD to BDT exchange rate and your desired profit margin. These settings are used to automatically calculate live domain pricing dynamically from <strong className="text-slate-700">Openprovider API</strong> supplier rates.
             </p>
+          </div>
+          <div className="shrink-0 bg-slate-50 border border-slate-100 rounded-xl p-3 px-4 flex flex-col items-end">
+             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status</span>
+             <span className="text-xs font-bold text-emerald-500 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Active Settings</span>
           </div>
         </div>
 
-        <form onSubmit={handleSaveGlobal} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end pt-2">
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-              USD to BDT Exchange Rate (৳)
+        <form onSubmit={handleSaveGlobal} className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+          {/* Exchange Rate */}
+          <div className="group">
+            <label className="flex flex-col text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+              USD to BDT Exchange Rate
+              <span className="text-[10px] text-slate-400 normal-case font-normal mt-0.5">Base rate for domain conversion</span>
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">৳</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">৳</span>
               <input
                 type="number"
                 step="0.01"
@@ -322,18 +331,20 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
                 required
                 value={globalSettings.usdToBdtRate}
                 onChange={e => setGlobalSettings({ ...globalSettings, usdToBdtRate: parseFloat(e.target.value) || 0 })}
-                className="w-full pl-8 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-semibold"
+                className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-slate-800 font-black transition-all"
                 placeholder="121"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-              Profit Margin (%)
+          {/* Profit Margin */}
+          <div className="group">
+            <label className="flex flex-col text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+              Retail Profit Margin
+              <span className="text-[10px] text-slate-400 normal-case font-normal mt-0.5">Percentage added to supplier cost</span>
             </label>
             <div className="relative">
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">%</span>
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
               <input
                 type="number"
                 step="0.1"
@@ -341,48 +352,56 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
                 required
                 value={globalSettings.domainMarkupPercent}
                 onChange={e => setGlobalSettings({ ...globalSettings, domainMarkupPercent: parseFloat(e.target.value) || 0 })}
-                className="w-full pl-4 pr-8 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-semibold"
+                className="w-full pl-4 pr-9 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-slate-800 font-black transition-all"
                 placeholder="15"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+          {/* bKash Number */}
+          <div className="group">
+            <label className="flex flex-col text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
               Manual bKash Number
+              <span className="text-[10px] text-slate-400 normal-case font-normal mt-0.5">Used for offline manual payments</span>
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-pink-500 font-bold text-xs">bKash</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 bg-pink-100 text-pink-600 font-bold text-[10px] px-2 py-1 rounded-md uppercase">bKash</span>
               <input
                 type="text"
                 required
                 value={globalSettings.manualBkashNumber}
                 onChange={e => setGlobalSettings({ ...globalSettings, manualBkashNumber: e.target.value })}
-                className="w-full pl-14 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-sm font-semibold"
+                className="w-full pl-16 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-slate-800 font-black transition-all"
                 placeholder="01700000000"
               />
             </div>
           </div>
 
-          <div>
+          {/* Full Width Save Button & Formula Preview */}
+          <div className="md:col-span-3 flex flex-col md:flex-row items-center gap-4 mt-2">
             <button
               type="submit"
               disabled={savingGlobal}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-sm"
+              className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-8 rounded-xl text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-emerald-500/20 whitespace-nowrap"
             >
-              <Save size={16} /> {savingGlobal ? 'Saving...' : 'Save Global Settings'}
+              <Save size={18} /> {savingGlobal ? 'Saving Changes...' : 'Save Global Settings'}
             </button>
+            
+            <div className="flex-1 w-full bg-slate-50 border border-slate-200 rounded-xl p-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors hover:bg-slate-100">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <span className="text-emerald-500"><Percent size={14} /></span>
+                <span className="hidden sm:inline"><strong>Formula:</strong> Supplier Price (USD) × (1 + {globalSettings.domainMarkupPercent}% / 100) × ৳{globalSettings.usdToBdtRate} BDT</span>
+                <span className="sm:hidden"><strong>Formula Preview</strong></span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-400">e.g. .com ($10.99) =</span>
+                <span className="font-black text-emerald-600 bg-emerald-100/50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                  ৳{Math.round(10.99 * (1 + (globalSettings.domainMarkupPercent || 0) / 100) * (globalSettings.usdToBdtRate || 121))} BDT
+                </span>
+              </div>
+            </div>
           </div>
         </form>
-
-        <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg p-3 text-xs text-emerald-900 flex items-center justify-between flex-wrap gap-2">
-          <span>
-            💡 <strong>Formula Preview:</strong> Supplier Price (USD) × (1 + {globalSettings.domainMarkupPercent}% / 100) × ৳{globalSettings.usdToBdtRate} BDT
-          </span>
-          <span className="font-bold text-emerald-800 bg-white/80 px-2.5 py-1 rounded border border-emerald-200">
-            Sample .com ($10.99 base) = ৳{Math.round(10.99 * (1 + (globalSettings.domainMarkupPercent || 0) / 100) * (globalSettings.usdToBdtRate || 121))} BDT
-          </span>
-        </div>
       </div>
 
       {/* Per-TLD Pricing Table */}

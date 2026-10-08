@@ -4,6 +4,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase';
 import { FolderTree, Plus, Edit2, Trash2, Save, X, Search, Image as ImageIcon, ChevronRight , Star } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useConfirm } from '../../context/ConfirmContext';
 
 interface SubCategory {
   subCategories?: any[];
@@ -27,6 +28,7 @@ interface Menu {
 }
 
 export const EcommerceCategories: React.FC = () => {
+  const { confirm } = useConfirm();
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -213,7 +215,7 @@ export const EcommerceCategories: React.FC = () => {
   };
 
   const handleDeleteSubSub = async (menuId: string, subId: string, subSubId: string) => {
-    if (!window.confirm('Are you sure you want to delete this level 3 category?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Are you sure you want to delete this level 3 category?', isDestructive: true })) return;
     try {
       const menu = menus.find(m => m.id === menuId);
       if (!menu) return;
@@ -232,7 +234,7 @@ export const EcommerceCategories: React.FC = () => {
   };
 
 const handleDeleteMenu = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this category?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Are you sure you want to delete this category?', isDestructive: true })) return;
     try {
       await deleteDoc(doc(db, 'menus', id));
       toast.success('Category deleted');
@@ -242,7 +244,7 @@ const handleDeleteMenu = async (id: string) => {
   };
 
   const handleDeleteSub = async (menuId: string, subId: string) => {
-    if (!window.confirm('Are you sure you want to delete this sub-category?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Are you sure you want to delete this sub-category?', isDestructive: true })) return;
     const menu = menus.find(m => m.id === menuId);
     if (!menu) return;
     

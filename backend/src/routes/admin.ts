@@ -151,10 +151,13 @@ adminRouter.post('/hosting/test-connection', async (req: any, res: Response) => 
       return res.status(403).json({ error: 'Admin access required' });
     }
 
+    const dbConfig = await getAdminDocument('settings', 'hostingApiConfig');
+    const hostingUrl = dbConfig.data?.hostingApiUrl || process.env.WHM_URL || process.env.WHM_API_URL;
+
     const provider = new CpanelHostingProvider(
-      process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || '',
-      process.env.WHM_URL || process.env.WHM_API_URL,
-      process.env.WHM_USERNAME || 'root',
+      (process.env.WHM_API_TOKEN || process.env.WHM_API_KEY || '').trim(),
+      hostingUrl,
+      (process.env.WHM_USERNAME || 'root').trim(),
       parseInt(process.env.WHM_TIMEOUT_MS || '15000', 10)
     );
 
@@ -172,16 +175,30 @@ adminRouter.post('/domain/test-connection', async (req: any, res: Response) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const apiKey = process.env.DYNADOT_API_KEY;
-    if (!apiKey) {
-      return res.json({ success: false, code: 'NOT_CONFIGURED', message: 'Dynadot API key is not configured on the server.' });
+    const { provider: providerName, config } = req.body;
+    
+    if (providerName === 'openprovider') {
+      const username = config?.username || process.env.OPENPROVIDER_USERNAME;
+      const password = config?.password || process.env.OPENPROVIDER_PASSWORD;
+      const isSandbox = config?.isSandbox !== undefined ? config.isSandbox : true;
+
+      if (!username || !password) {
+        return res.json({ success: false, code: 'NOT_CONFIGURED', message: 'Openprovider credentials are missing.' });
+      }
+
+      const provider = new OpenproviderDomainProvider(username, password, isSandbox);
+      
+      try {
+        await provider.fetchApi('/ssl/products');
+        return res.json({ success: true, code: 'OK', message: 'Openprovider connection successful!' });
+      } catch (e: any) {
+        return res.json({ success: false, code: 'AUTH_FAILED', message: e.message || 'Authentication failed' });
+      }
     }
 
-    const provider = new DynadotDomainProvider(apiKey, false, 15000);
-    const result = await provider.testConnection();
-    return res.json(result);
+    return res.json({ success: false, code: 'UNKNOWN_PROVIDER', message: 'Unknown provider specified' });
   } catch (error: any) {
-    return res.status(500).json({ success: false, code: 'UNKNOWN_ERROR', message: 'Dynadot connection test failed' });
+    return res.status(500).json({ success: false, code: 'UNKNOWN_ERROR', message: 'Connection test failed' });
   }
 });
 
@@ -215,3 +232,4 @@ adminRouter.post('/email/test-connection', async (req: any, res: Response) => {
 });
 
 export default adminRouter;
+

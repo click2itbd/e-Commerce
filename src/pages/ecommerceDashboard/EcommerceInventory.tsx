@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Product, NavigationMenu } from '../../types';
-import { Eye, Package, Plus, Search, Edit2, Trash2, X, Upload, Save, XCircle, Sparkles, Link as LinkIcon, Image as ImageIcon, Loader2, DollarSign, AlertCircle, AlertTriangle, CheckSquare } from 'lucide-react';
+import { Eye, Package, Plus, Search, Edit2, Trash2, X, Upload, Save, XCircle, Sparkles, Link as LinkIcon, Image as ImageIcon, Loader2, DollarSign, AlertCircle, AlertTriangle, CheckSquare, Filter, ArrowUpDown, Tag } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 import { useSettings } from '../../context/SettingsContext';
 import { toast } from 'react-hot-toast';
 import { db, storage } from '../../firebase';
-import { collection, addDoc, updateDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, setDoc, getDocs } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { useConfirm } from '../../context/ConfirmContext';
 
 interface EcommerceInventoryProps {
   products: Product[];
@@ -24,9 +25,26 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
   fetchData,
   setActiveTab
 }) => {
+  const { confirm } = useConfirm();
   const { settings } = useSettings();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [stockFilter, setStockFilter] = useState('all');
+  const [brandFilter, setBrandFilter] = useState('all');
+  const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
+  const brandDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (brandDropdownRef.current && !brandDropdownRef.current.contains(event.target as Node)) {
+        setIsBrandDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  const [sortBy, setSortBy] = useState('newest');
+  const [brands, setBrands] = useState<any[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -57,7 +75,7 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
   };
 
   const handleBulkDelete = async () => {
-    if (!window.confirm(`Are you sure you want to delete ${selectedProducts.length} selected products?`)) return;
+    if (!await confirm({ title: 'Confirmation', message: `Are you sure you want to delete ${selectedProducts.length} selected products?`, isDestructive: true })) return;
     try {
       for (const id of selectedProducts) {
         await handleDeleteProduct(id);
@@ -75,6 +93,55 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
     name: '', sku: '', description: '', price: 0, stock: 0, isOutOfStock: false, category: '', images: []
   };
   const [formData, setFormData] = useState<Partial<Product>>(initialForm);
+  const [specTemplates, setSpecTemplates] = useState<any[]>([]);
+
+  useEffect(() => {
+    getDocs(collection(db, 'specificationTemplates')).then(snap => {
+      setSpecTemplates(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    getDocs(collection(db, 'brands')).then(snap => {
+      setBrands(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (formData.category && (!formData.specs || Object.keys(formData.specs).length === 0)) {
+      const cat = formData.category;
+      const matchedTemplate = specTemplates.find(t => cat.toLowerCase().includes(t.category.toLowerCase()));
+      
+      if (matchedTemplate) {
+        const newSpecs: Record<string, string> = {};
+        matchedTemplate.fields.forEach((f: any) => {
+          newSpecs[f.label] = f.type === 'boolean' ? 'false' : '';
+        });
+        setFormData((prev: any) => ({ ...prev, specs: newSpecs }));
+      }
+    }
+  }, [formData.category, specTemplates]);
+
+  const addSpec = () => {
+    const newSpecs = { ...(formData.specs || {}) };
+    let keyName = "New Attribute";
+    let counter = 1;
+    while(newSpecs[keyName]) {
+        keyName = "New Attribute " + counter;
+        counter++;
+    }
+    newSpecs[keyName] = '';
+    setFormData({ ...formData, specs: newSpecs });
+  };
+
+  const updateSpec = (key: string, value: string) => {
+    const newSpecs = { ...formData.specs };
+    newSpecs[key] = value;
+    setFormData({ ...formData, specs: newSpecs });
+  };
+
+  const removeSpec = (key: string) => {
+    const newSpecs = { ...formData.specs };
+    delete newSpecs[key];
+    setFormData({ ...formData, specs: newSpecs });
+  };
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -82,13 +149,34 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
     
     let matchesCategory = categoryFilter === 'all';
     if (!matchesCategory) {
-      // categoryFilter is a menu ID. 
-      // Check if product.category matches the ID OR the menu's name.
       const menu = menus.find(m => m.id === categoryFilter);
       matchesCategory = product.category === categoryFilter || (menu && product.category === menu.name);
     }
 
-    return matchesSearch && matchesCategory;
+    let matchesStock = true;
+    if (stockFilter === 'in_stock') matchesStock = !product.isOutOfStock && (product.stock || 0) > 0;
+    else if (stockFilter === 'low_stock') matchesStock = !product.isOutOfStock && (product.stock || 0) > 0 && (product.stock || 0) < (product.lowStockThreshold || 10);
+    else if (stockFilter === 'out_of_stock') matchesStock = product.isOutOfStock || (product.stock || 0) === 0;
+
+    let matchesBrand = brandFilter === 'all' || product.brand === brandFilter;
+
+    return matchesSearch && matchesCategory && matchesStock && matchesBrand;
+  }).sort((a, b) => {
+    if (sortBy === 'newest') {
+      const tA = (a.createdAt as any)?.toMillis?.() || a.createdAt || 0;
+      const tB = (b.createdAt as any)?.toMillis?.() || b.createdAt || 0;
+      return tB - tA;
+    }
+    if (sortBy === 'oldest') {
+      const tA = (a.createdAt as any)?.toMillis?.() || a.createdAt || 0;
+      const tB = (b.createdAt as any)?.toMillis?.() || b.createdAt || 0;
+      return tA - tB;
+    }
+    if (sortBy === 'price_desc') return (b.price || (b as any).costPrice || 0) - (a.price || (a as any).costPrice || 0);
+    if (sortBy === 'price_asc') return (a.price || (a as any).costPrice || 0) - (b.price || (b as any).costPrice || 0);
+    if (sortBy === 'stock_desc') return (b.stock || 0) - (a.stock || 0);
+    if (sortBy === 'stock_asc') return (a.stock || 0) - (b.stock || 0);
+    return a.name.localeCompare(b.name);
   });
 
   const handleSmartImport = async (e: React.FormEvent) => {
@@ -312,9 +400,9 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
-        <div className="flex flex-col gap-4 w-full md:w-auto flex-1">
-          <div className="relative max-w-md w-full">
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
@@ -324,34 +412,103 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors outline-none"
             />
           </div>
-          <div className="flex items-center gap-3 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <span className="text-xs font-bold text-gray-400 uppercase whitespace-nowrap shrink-0">Filter by Category:</span>
+          
+          <div className="flex flex-wrap gap-3">
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <select
+                value={stockFilter}
+                onChange={(e) => setStockFilter(e.target.value)}
+                className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white font-medium text-slate-700 min-w-[140px]"
+              >
+                <option value="all">All Stock</option>
+                <option value="in_stock">In Stock</option>
+                <option value="low_stock">Low Stock</option>
+                <option value="out_of_stock">Out of Stock</option>
+              </select>
+            </div>
+            
+            <div className="relative" ref={brandDropdownRef}>
+              <div 
+                onClick={() => setIsBrandDropdownOpen(!isBrandDropdownOpen)}
+                className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm bg-white font-medium text-slate-700 min-w-[140px] cursor-pointer flex items-center justify-between"
+              >
+                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <span className="truncate max-w-[100px]">{brandFilter === 'all' ? 'All Brands' : brandFilter}</span>
+                <ChevronRight className={`absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-transform ${isBrandDropdownOpen ? 'rotate-90' : ''}`} size={14} />
+              </div>
+              
+              {isBrandDropdownOpen && (
+                <div className="absolute top-full mt-2 left-0 w-[320px] bg-white border border-gray-100 shadow-xl rounded-xl z-50 p-3 max-h-[300px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => { setBrandFilter('all'); setIsBrandDropdownOpen(false); }}
+                      className={`text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors ${brandFilter === 'all' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'}`}
+                    >
+                      All Brands
+                    </button>
+                    {brands.map((b: any) => (
+                      <button
+                        key={b.id || b.name}
+                        onClick={() => { setBrandFilter(b.name); setIsBrandDropdownOpen(false); }}
+                        className={`text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors truncate ${brandFilter === b.name ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'}`}
+                        title={b.name}
+                      >
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white font-medium text-slate-700 min-w-[160px]"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="price_desc">Price: High to Low</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="stock_desc">Stock: High to Low</option>
+                <option value="stock_asc">Stock: Low to High</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="w-full h-px bg-gray-100 my-1"></div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-bold text-gray-400 uppercase whitespace-nowrap shrink-0">Filter by Category:</span>
+          <button
+            onClick={() => setCategoryFilter('all')}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+              categoryFilter === 'all' 
+                ? "bg-gray-900 text-white shadow-md" 
+                : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            All
+          </button>
+          {menus.map(menu => (
             <button
-              onClick={() => setCategoryFilter('all')}
+              key={menu.id}
+              onClick={() => setCategoryFilter(menu.id)}
               className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                categoryFilter === 'all' 
+                categoryFilter === menu.id 
                   ? "bg-gray-900 text-white shadow-md" 
                   : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
-              All
+              {menu.name}
             </button>
-            {menus.map(menu => (
-              <button
-                key={menu.id}
-                onClick={() => setCategoryFilter(menu.id)}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                  categoryFilter === menu.id 
-                    ? "bg-gray-900 text-white shadow-md" 
-                    : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                {menu.name}
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
-
+      </div>
         {selectedProducts.length > 0 && (
           <div className="flex items-center gap-3 px-4 py-2 bg-red-50 text-red-700 rounded-lg border border-red-100 animate-in fade-in shrink-0">
             <span className="text-sm font-bold">{selectedProducts.length} selected</span>
@@ -363,7 +520,7 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
             </button>
           </div>
         )}
-      </div>
+
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
@@ -451,7 +608,7 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
                       <button onClick={() => openEditModal(product)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100" title="Edit Product">
                         <Edit2 size={18} />
                       </button>
-                      <button onClick={() => { if(window.confirm('Delete product?')) handleDeleteProduct(product.id!); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100" title="Delete Product">
+                      <button onClick={async () => { if(await confirm({ title: 'Confirmation', message: 'Delete product?', isDestructive: true })) handleDeleteProduct(product.id!); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100" title="Delete Product">
                         <Trash2 size={18} />
                       </button>
                     </div>
@@ -691,72 +848,175 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
                 
 
                   <div className="col-span-2 pt-4 mt-4 border-t border-gray-100">
-                    <h3 className="font-bold text-gray-800 mb-3">Product Attributes (Filters)</h3>
-                    <p className="text-[10px] text-gray-500 mb-2">e.g. Color, RAM, Storage (Used for shop filters)</p>
-                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newSpecs = { ...(formData.specs || {}) };
-                          let keyName = "New Attribute";
-                          let counter = 1;
-                          while(newSpecs[keyName]) {
-                              keyName = "New Attribute " + counter;
-                              counter++;
-                          }
-                          newSpecs[keyName] = '';
-                          setFormData({ ...formData, specs: newSpecs });
-                        }}
-                        className="text-xs bg-white text-blue-600 px-3 py-1.5 rounded font-bold hover:bg-blue-50 border border-blue-100 transition-colors mb-3 shadow-sm inline-block"
-                      >
-                        + Add Attribute
-                      </button>
-                      
-                      {Object.keys(formData.specs || {}).length === 0 ? (
-                        <p className="text-xs text-gray-400 font-medium">No attributes added yet.</p>
-                      ) : (
-                        <div className="space-y-2">
-                        {Object.entries(formData.specs || {}).map(([key, value], index) => (
-                          <div key={index} className="flex gap-2">
-                            <input
-                              type="text"
-                              placeholder="Name (e.g. Color)"
-                              value={key}
-                              onChange={e => {
-                                const newSpecs = { ...formData.specs };
-                                const val = newSpecs[key];
-                                delete newSpecs[key];
-                                newSpecs[e.target.value] = val;
-                                setFormData({ ...formData, specs: newSpecs });
-                              }}
-                              className="w-1/3 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 font-bold text-gray-700"
-                            />
-                            <input
-                              type="text"
-                              placeholder="Value (e.g. Black)"
-                              value={value}
-                              onChange={e => {
-                                const newSpecs = { ...formData.specs };
-                                newSpecs[key] = e.target.value;
-                                setFormData({ ...formData, specs: newSpecs });
-                              }}
-                              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500"
+                    {/* Specifications */}
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                      <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-2">
+                        <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Specifications</h4>
+                        <button
+                          type="button"
+                          onClick={addSpec}
+                          className="text-[11px] bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-200 transition-all flex items-center gap-1"
+                        >
+                          <Plus size={14} /> Add Custom Spec
+                        </button>
+                      </div>
+<div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4 mt-2">
+                          <label className="block text-[11px] font-bold text-blue-800 mb-1.5 uppercase">Quick Paste Specs (Key: Value)</label>
+                          <div className="flex gap-2 items-start">
+                            <textarea 
+                              value={bulkSpecInput}
+                              onChange={e => setBulkSpecInput(e.target.value)}
+                              placeholder="e.g. Processor: Intel i5
+RAM: 16GB
+Storage: 512GB SSD"
+                              className="flex-1 px-3 py-2 border border-blue-200 rounded-md focus:ring-blue-500 text-sm bg-white min-h-[60px]"
                             />
                             <button
                               type="button"
                               onClick={() => {
-                                const newSpecs = { ...formData.specs };
-                                delete newSpecs[key];
-                                setFormData({ ...formData, specs: newSpecs });
-                              }}
-                              className="px-2 text-red-400 hover:text-red-600 transition-colors"
+    // Split by newline or comma
+    
+      let items = [];
+      if (bulkSpecInput.includes('\n')) {
+        items = bulkSpecInput.split('\n').map(s => s.trim()).filter(s => s);
+      } else {
+        items = bulkSpecInput.split(',').map(s => s.trim()).filter(s => s);
+      }
+    if (items.length > 0) {
+      const newSpecs = { ...(formData.specs || {}) };
+      items.forEach(item => {
+        // Try to split by colon, dash, or equals to extract Key and Value
+        const match = item.match(/^(.*?)\s*[:\-=]\s*(.*)$/);
+        if (match) {
+          const key = match[1].trim();
+          const val = match[2].trim();
+          newSpecs[key] = val; // Always overwrite if they pasted a value
+        } else {
+          // No value found, just create the field if it doesn't exist
+          if (newSpecs[item] === undefined) newSpecs[item] = '';
+        }
+      });
+      setFormData({ ...formData, specs: newSpecs });
+      setBulkSpecInput('');
+    }
+  }}
+                              className="bg-blue-600 text-white px-3 py-2 rounded-md font-bold text-xs hover:bg-blue-700 h-[60px]"
                             >
-                              <XCircle size={18} />
+                              Add Fields
                             </button>
                           </div>
-                        ))}
                         </div>
-                      )}
+                      
+                      <div className="space-y-4">
+                        {(() => {
+                          const cat = formData.category || '';
+                          const matchedTemplate = specTemplates.find(t => cat.toLowerCase().includes(t.category.toLowerCase()));
+                          const templateFields = matchedTemplate?.fields || [];
+                          const templateFieldLabels = templateFields.map((f: any) => f.label);
+                          
+                          const customSpecEntries = Object.entries(formData.specs || {}).filter(([k]) => !templateFieldLabels.includes(k));
+
+                          return (
+                            <>
+                              {templateFields.length > 0 && (
+                                <div className="space-y-3">
+                                  {templateFields.map((field: any) => (
+                                    <div key={field.label} className="flex gap-2 items-center">
+                                      <label className="w-1/3 text-sm font-bold text-slate-700">{field.label}</label>
+                                      {field.type === 'select' ? (
+                                        <select
+                                          value={(formData.specs || {})[field.label] || ''}
+                                          onChange={e => updateSpec(field.label, e.target.value)}
+                                          className="flex-1 text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                        >
+                                          <option value="">Select {field.label}</option>
+                                          {field.options?.map((opt: string) => (
+                                            <option key={opt} value={opt}>{opt}</option>
+                                          ))}
+                                        </select>
+                                      ) : field.type === 'boolean' ? (
+                                        <input
+                                          type="checkbox"
+                                          checked={(formData.specs || {})[field.label] === 'true'}
+                                          onChange={e => updateSpec(field.label, e.target.checked ? 'true' : 'false')}
+                                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                      ) : (
+                                        <input
+                                          type="text"
+                                          value={(formData.specs || {})[field.label] || ''}
+                                          onChange={e => updateSpec(field.label, e.target.value)}
+                                          placeholder={`Enter ${field.label}`}
+                                          className="flex-1 text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {customSpecEntries.length > 0 && (
+                                <div className="space-y-3 mt-4 pt-4 border-t border-slate-100">
+                                  {customSpecEntries.map(([key, value], index) => (
+                                    <div key={index} className="flex gap-2">
+                                      <input
+                                        type="text"
+                                        placeholder="Property (e.g. Color)"
+                                        value={key}
+                                        onChange={e => {
+                                          const newSpecs = { ...formData.specs };
+                                          delete newSpecs[key];
+                                          newSpecs[e.target.value] = value as string;
+                                          setFormData({ ...formData, specs: newSpecs });
+                                        }}
+                                        className="w-1/3 text-sm font-bold border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-slate-50"
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="Value"
+                                        value={value as string}
+                                        onChange={e => updateSpec(key, e.target.value)}
+                                        className="flex-1 text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => removeSpec(key)}
+                                        className="text-red-400 hover:text-red-600 p-2 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {templateFields.length === 0 && customSpecEntries.length === 0 && (
+                                <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">
+                                  <p className="text-xs text-slate-400 font-bold mb-3">No technical specifications added.</p>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const cat = formData.category || '';
+                                        const t = specTemplates.find(x => cat.toLowerCase().includes(x.category.toLowerCase()));
+                                        if (t) {
+                                          const newSpecs: Record<string, string> = {};
+                                          t.fields.forEach((f: any) => newSpecs[f.label] = f.type === 'boolean' ? 'false' : '');
+                                          setFormData({ ...formData, specs: newSpecs });
+                                          toast.success('Template loaded');
+                                        } else {
+                                          toast.error('No template found for this category');
+                                        }
+                                      }}
+                                      className="text-[11px] bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold hover:bg-blue-100 transition-all mx-auto flex items-center gap-2"
+                                    >
+                                      <Plus size={14} /> Auto-Fill Template
+                                    </button>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
 

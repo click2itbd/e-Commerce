@@ -103,7 +103,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           
           <div className="mt-auto">
             <div className="flex items-center justify-between mb-4">
-              <span className="font-bold text-lg text-[#F97316]">{formatCurrency(product.price)}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-lg text-[#F97316]">
+                  {formatCurrency(product.discountPrice || product.price)}
+                </span>
+                {product.discountPrice && product.discountPrice < product.price && (
+                  <span className="text-xs text-gray-400 line-through font-semibold">
+                    {formatCurrency(product.price)}
+                  </span>
+                )}
+              </div>
               <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">{product.category}</span>
             </div>
             
@@ -178,8 +187,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 </div>
                 <h2 className="text-xl md:text-2xl font-bold text-[#081621] mb-4 leading-tight">{product.name}</h2>
                 
-                <div className="flex items-center gap-4 mb-6">
-                  <span className="text-3xl font-black text-[#F97316]">{formatCurrency(product.price)}</span>
+                <div className="flex flex-wrap items-center gap-4 mb-6">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-[#F97316]">
+                      {formatCurrency(product.discountPrice || product.price)}
+                    </span>
+                    {product.discountPrice && product.discountPrice < product.price && (
+                      <span className="text-lg text-gray-400 line-through font-semibold">
+                        {formatCurrency(product.price)}
+                      </span>
+                    )}
+                  </div>
                   <span className={cn(
                     "px-2.5 py-1 rounded-md text-xs font-bold uppercase",
                     product.stock > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
@@ -201,10 +219,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                       <span className="text-[#081621] text-sm font-bold">{product.model}</span>
                     </div>
                   )}
-                  <div className="flex gap-4 border-b border-gray-100 pb-2">
-                    <span className="text-gray-500 text-sm font-medium w-24">Code:</span>
-                    <span className="text-[#081621] text-sm font-bold">{product.sku || product.id.substring(0, 8)}</span>
-                  </div>
                 </div>
 
                 <div className="mt-auto flex gap-3">

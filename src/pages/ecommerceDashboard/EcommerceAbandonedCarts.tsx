@@ -4,6 +4,7 @@ import { db } from '../../firebase';
 import { ShoppingCart, Search, Mail, Trash2, Clock, Phone, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { CartItem } from '../../types';
+import { useConfirm } from '../../context/ConfirmContext';
 
 interface AbandonedCart {
   id: string;
@@ -20,6 +21,7 @@ export const EcommerceAbandonedCarts: React.FC = () => {
   const [carts, setCarts] = useState<AbandonedCart[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const { confirm } = useConfirm();
 
   useEffect(() => {
     fetchCarts();
@@ -40,7 +42,7 @@ export const EcommerceAbandonedCarts: React.FC = () => {
   };
 
   const deleteCart = async (id: string) => {
-    if (!window.confirm('Are you sure you want to remove this abandoned cart?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Are you sure you want to remove this abandoned cart?', isDestructive: true })) return;
     try {
       await deleteDoc(doc(db, 'abandoned_carts', id));
       setCarts(carts.filter(c => c.id !== id));

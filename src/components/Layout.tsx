@@ -52,8 +52,16 @@ function NavbarSelector() {
     pathname.startsWith('/hosting/cart') ||
     pathname.startsWith('/hosting/checkout')
   ) {
+    if (pathname.startsWith('/hosting') || pathname.startsWith('/domain') || pathname.startsWith('/web') || (isHostingDomain && pathname === '/')) {
     return <HostingNavbar />;
   }
+
+  // Generic routes (/contact, /about, /terms, etc)
+  if (siteContext === 'pc-build') return <PCBuildNavbar />;
+  if (siteContext === 'ecommerce') return <EcommerceNavbar />;
+  
+  return <HostingNavbar />;
+}
 
   // ï¿½ï¿½ï¿½ï¿½ Shared routes: use whichever site the user came from ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   // (cart, checkout, order-success, profile, payment, login)
@@ -84,6 +92,14 @@ function NavbarSelector() {
   }
 
   // ï¿½ï¿½ï¿½ï¿½ Hosting routes (default) ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+  if (pathname.startsWith('/hosting') || pathname.startsWith('/domain') || pathname.startsWith('/web') || (isHostingDomain && pathname === '/')) {
+    return <HostingNavbar />;
+  }
+
+  // Generic routes (/contact, /about, /terms, etc)
+  if (siteContext === 'pc-build') return <PCBuildNavbar />;
+  if (siteContext === 'ecommerce') return <EcommerceNavbar />;
+  
   return <HostingNavbar />;
 }
 

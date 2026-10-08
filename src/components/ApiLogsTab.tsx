@@ -40,7 +40,7 @@ export const ApiLogsTab = () => {
           <Terminal className="text-gray-600" size={24} />
           <div>
             <h3 className="text-lg font-bold text-gray-800">API Logs</h3>
-            <p className="text-sm text-gray-500">Monitor Dynadot API activity and errors</p>
+            <p className="text-sm text-gray-500">Monitor Openprovider API activity and errors</p>
           </div>
         </div>
         <button 

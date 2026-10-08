@@ -88,7 +88,7 @@ export const EcommerceBlog: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this post?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Are you sure you want to delete this post?', isDestructive: true })) return;
     try {
       await deleteDoc(doc(db, 'ecommerce_blog', id));
       setPosts(posts.filter(p => p.id !== id));

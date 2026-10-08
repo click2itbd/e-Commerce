@@ -4,6 +4,7 @@ import { db, storage } from '../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
+import { useConfirm } from '../../context/ConfirmContext';
 
 export const EcommerceBrands: React.FC = () => {
   const [brands, setBrands] = useState<any[]>([]);
@@ -11,6 +12,7 @@ export const EcommerceBrands: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', logo: '', isActive: true, order: 0 });
   const [isUploading, setIsUploading] = useState(false);
+  const { confirm } = useConfirm();
 
   useEffect(() => {
     const q = query(collection(db, 'store_brands'), orderBy('order', 'asc'));
@@ -21,7 +23,7 @@ export const EcommerceBrands: React.FC = () => {
   }, []);
 
   const handleRestoreDefaults = async () => {
-    if (!window.confirm('Are you sure you want to load default brands?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Are you sure you want to load default brands?', isDestructive: false })) return;
     
     const defaultBrands = [
       { name: 'Intel', logo: '/images/brands/intel.svg', isActive: true, order: 0 },
@@ -99,7 +101,7 @@ export const EcommerceBrands: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this brand?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Delete this brand?', isDestructive: true })) return;
     try {
       await deleteDoc(doc(db, 'store_brands', id));
       toast.success('Brand deleted');

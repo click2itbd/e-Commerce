@@ -13,3 +13,5 @@ export * from './DomainOffersTab';
 export * from './BdDomainApplicationsTab';export * from './NameserverRequestsTab';
 
 export * from './SslCertificatesTab';
+
+export * from './DnsManagementTab';

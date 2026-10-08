@@ -3,8 +3,10 @@ import { db } from '../../firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { Camera, Briefcase, Monitor, Server, Shield, Home, Trash2, Plus, Edit2, Loader2, CheckCircle2, MessageSquare, Save, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useConfirm } from '../../context/ConfirmContext';
 
 export const EcommerceProjects = () => {
+  const { confirm } = useConfirm();
   const [activeTab, setActiveTab] = useState<'quotes' | 'showcase'>('quotes');
   const [quotes, setQuotes] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -90,7 +92,7 @@ export const EcommerceProjects = () => {
   };
 
   const handleDeleteProject = async (id: string) => {
-    if (!window.confirm('Are you sure?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Are you sure?', isDestructive: true })) return;
     try {
       await deleteDoc(doc(db, 'showcase_projects', id));
       setProjects(prev => prev.filter(p => p.id !== id));

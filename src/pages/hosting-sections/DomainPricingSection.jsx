@@ -6,7 +6,7 @@ import { db } from '../../firebase';
 
 const POPULAR_TLDS = ['.com', '.net', '.org', '.xyz', '.io', '.co', '.dev', '.online'];
 
-// Standard Dynadot / Wholesale Base USD Prices
+// Standard Openprovider / Wholesale Base USD Prices
 const TLD_BASE_USD = {
   '.com': 10.99,
   '.net': 12.99,

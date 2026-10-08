@@ -1,27 +1,51 @@
 ﻿const fs = require('fs');
-let c = fs.readFileSync('src/pages/ecommerceDashboard/EcommerceInventory.tsx', 'utf8');
+let c = fs.readFileSync('src/pages/admin/tabs/inventory/Inventory.tsx', 'utf8');
 const nl = c.includes('\r\n') ? '\r\n' : '\n';
 c = c.replace(/\r\n/g, '\n');
 
-const brandField = `<label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
-                      <input type="text" value={formData.brand || ''} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                    </div>`;
+// Insert Spec Templates definition right before the component
+const templatesCode = `const SPEC_TEMPLATES: Record<string, Record<string, string>> = {
+  'Laptop': { 'Processor': '', 'RAM': '', 'Storage': '', 'Display': '', 'Graphics': '', 'Battery': '', 'OS': '' },
+  'Laptops': { 'Processor': '', 'RAM': '', 'Storage': '', 'Display': '', 'Graphics': '', 'Battery': '', 'OS': '' },
+  'Monitor': { 'Panel Type': '', 'Refresh Rate': '', 'Resolution': '', 'Response Time': '', 'Ports': '' },
+  'Monitors': { 'Panel Type': '', 'Refresh Rate': '', 'Resolution': '', 'Response Time': '', 'Ports': '' },
+  'Desktop': { 'Processor': '', 'Motherboard': '', 'RAM': '', 'Storage': '', 'Graphics': '', 'Power Supply': '', 'Casing': '' },
+  'Processor': { 'Cores': '', 'Threads': '', 'Base Clock': '', 'Boost Clock': '', 'Socket': '', 'TDP': '' },
+  'Graphics Card': { 'Memory': '', 'Memory Type': '', 'Core Clock': '', 'Boost Clock': '', 'Ports': '' },
+  'GPU': { 'Memory': '', 'Memory Type': '', 'Core Clock': '', 'Boost Clock': '', 'Ports': '' },
+  'Motherboard': { 'Form Factor': '', 'Socket': '', 'Chipset': '', 'Memory Slots': '', 'Max Memory': '' },
+  'RAM': { 'Capacity': '', 'Type': '', 'Speed': '', 'Latency': '', 'Voltage': '' },
+  'Storage': { 'Capacity': '', 'Type (SSD/HDD)': '', 'Form Factor': '', 'Interface': '', 'Read Speed': '' }
+};
 
-const brandWithCondition = `<label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
-                      <input type="text" value={formData.brand || ''} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
-                      <select value={formData.condition || 'new'} onChange={e => setFormData({...formData, condition: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="new">New (Default)</option>
-                        <option value="used">Used / Pre-Owned</option>
-                      </select>
-                    </div>`;
+export const Inventory = () => {`;
 
-if (c.includes(brandField) && !c.includes('<option value="used">Used / Pre-Owned</option>')) {
-  c = c.replace(brandField, brandWithCondition);
-  fs.writeFileSync('src/pages/ecommerceDashboard/EcommerceInventory.tsx', c.replace(/\n/g, nl));
-  console.log('Added condition field to Inventory');
+if (c.includes('export const Inventory = () => {') && !c.includes('SPEC_TEMPLATES')) {
+  c = c.replace('export const Inventory = () => {', templatesCode);
+}
+
+// Update the category onChange handler
+const oldOnChange = `onChange={e => setFormData({ ...formData, category: e.target.value, subCategory: '' })}`;
+const newOnChange = `onChange={e => {
+                                  const newCat = e.target.value;
+                                  let newSpecs = formData.specs || {};
+                                  
+                                  // Auto-apply template if specs are empty
+                                  if (Object.keys(newSpecs).length === 0) {
+                                    // Try exact match or substring match (e.g. if category is "Gaming Laptop")
+                                    const templateKey = Object.keys(SPEC_TEMPLATES).find(k => newCat.toLowerCase().includes(k.toLowerCase()));
+                                    if (templateKey) {
+                                      newSpecs = { ...SPEC_TEMPLATES[templateKey] };
+                                    }
+                                  }
+                                  
+                                  setFormData({ ...formData, category: newCat, subCategory: '', specs: newSpecs });
+                                }}`;
+
+if (c.includes(oldOnChange)) {
+  c = c.replace(oldOnChange, newOnChange);
+  fs.writeFileSync('src/pages/admin/tabs/inventory/Inventory.tsx', c.replace(/\n/g, nl));
+  console.log('Category auto-template updated');
 } else {
-  console.log('Could not find brand field or already added');
+  console.log('Could not find onChange for category');
 }

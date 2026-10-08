@@ -16,7 +16,7 @@ const allBrands: BrandItem[] = [
   // Hosting & Cloud
   { name: 'cPanel / WHM', category: 'Hosting & Cloud', description: 'Industry-standard web hosting management automation control panel.', featured: true },
   { name: 'CloudLinux', category: 'Hosting & Cloud', description: 'Enterprise Linux OS for shared web hosting with resource isolation.', featured: true },
-  { name: 'Dynadot', category: 'Hosting & Cloud', description: 'ICANN-accredited domain registrar providing wholesale TLD registration.', featured: true },
+  { name: 'Openprovider', category: 'Hosting & Cloud', description: 'ICANN-accredited domain registrar providing wholesale TLD registration.', featured: true },
   { name: 'LiteSpeed Web Server', category: 'Hosting & Cloud', description: 'High-performance, ultra-fast web server technology for WordPress sites.', featured: true },
   
   // Hardware & Laptops

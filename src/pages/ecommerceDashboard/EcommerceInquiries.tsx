@@ -3,8 +3,10 @@ import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from '
 import { db } from '../../firebase';
 import { MessageSquare, CheckCircle, Trash2, Mail, Phone, Search, Reply } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useConfirm } from '../../context/ConfirmContext';
 
 export const EcommerceInquiries: React.FC = () => {
+  const { confirm } = useConfirm();
   const [inquiries, setInquiries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,7 +43,7 @@ export const EcommerceInquiries: React.FC = () => {
   };
 
   const deleteInquiry = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this inquiry?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Are you sure you want to delete this inquiry?', isDestructive: true })) return;
     try {
       await deleteDoc(doc(db, 'inquiries', id));
       setInquiries(inquiries.filter(i => i.id !== id));

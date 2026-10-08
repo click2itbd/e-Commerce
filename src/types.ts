@@ -11,6 +11,24 @@ export interface UserProfile {
   createdAt: string;
 }
 
+export interface SpecificationField {
+  id: string;
+  name: string;
+  label: string;
+  type: 'text' | 'select' | 'boolean';
+  required?: boolean;
+  options?: string[]; // for 'select' type
+}
+
+export interface SpecificationTemplate {
+  id: string;
+  name: string;
+  category: string;
+  subCategory?: string;
+  fields: SpecificationField[];
+  createdAt?: string;
+}
+
 export interface ProductVariant {
   id: string;
   name: string; // e.g., "Red", "Large"
@@ -260,9 +278,9 @@ export interface ServiceRecord {
 }
 
 export interface ApiSettings {
-  domainApiType: 'manual' | 'resellerclub' | 'namecheap' | 'dynadot';
+  domainApiType: 'manual' | 'resellerclub' | 'namecheap' | 'openprovider';
   domainApiKey: string;
-  dynadotApiKey?: string;
+  openproviderApiKey?: string;
   usdToBdtRate?: number;
   cloudLinuxApiType: 'manual' | 'cpanel';
   cloudLinuxApiKey: string;

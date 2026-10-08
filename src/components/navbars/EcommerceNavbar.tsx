@@ -333,7 +333,7 @@ export const EcommerceNavbar: React.FC = () => {
       <nav className="hidden md:block bg-white border-b border-gray-200">
           <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
             <div className="flex items-center justify-between h-12">
-              <ul className="flex items-center gap-8 h-full">
+              <ul className="flex items-center gap-4 xl:gap-6 h-full">
             {menus.filter(m => m.name.toLowerCase() !== 'hosting').map(menu => {
               const subs = menu.subCategories || [];
 
@@ -341,7 +341,7 @@ export const EcommerceNavbar: React.FC = () => {
               <li key={menu.id} className="relative group h-full">
                 <Link 
                   to={`/category/${menu.slug}`} 
-                  className="flex items-center gap-1 h-full text-sm font-bold transition-colors"
+                  className="flex items-center gap-1 h-full text-[13px] font-bold transition-colors whitespace-nowrap"
                   style={{ color: 'inherit' }}
                   onMouseEnter={(e) => e.currentTarget.style.color = settings.accentColor}
                   onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}

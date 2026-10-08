@@ -3,8 +3,10 @@ import { CalendarPlus, Search, CheckCircle, XCircle, Clock, Trash2, Eye, MapPin,
 import { db } from '../../firebase';
 import { collection, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, addDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
+import { useConfirm } from '../../context/ConfirmContext';
 
 export const EcommercePreBooks: React.FC = () => {
+  const { confirm } = useConfirm();
   const [preBooks, setPreBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,7 +28,7 @@ export const EcommercePreBooks: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this pre-book request?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Are you sure you want to delete this pre-book request?', isDestructive: true })) return;
     try {
       await deleteDoc(doc(db, 'pre_bookings', id));
       toast.success('Request deleted');

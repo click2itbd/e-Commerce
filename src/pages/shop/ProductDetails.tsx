@@ -13,6 +13,97 @@ import { useCompare } from '../../context/CompareContext';
 import { ProductCard } from '../../components/ProductCard';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 
+
+const SPEC_PRIORITY = [
+  'brand', 'model', 'type', 'form factor', 
+  'processor', 'cpu', 'architecture', 'cores', 'threads', 'base clock', 'boost clock',
+  'motherboard', 'chipset', 'socket',
+  'memory', 'ram', 
+  'storage', 'capacity', 'ssd', 'hdd',
+  'display', 'screen size', 'resolution', 'panel type', 'refresh rate', 'response time',
+  'graphics', 'gpu',
+  'camera', 'lens', 'sensor', 'night vision',
+  'connectivity', 'network', 'wi-fi', 'bluetooth', 'connection type',
+  'ports', 'interface', 'usb',
+  'power', 'battery', 'battery life', 'charging time',
+  'material', 'color', 'design', 'weight', 'dimensions', 
+  'os support', 'compatibility', 'plug & play',
+  'warranty'
+];
+
+const sortSpecs = (entries: [string, any][]) => {
+  return entries.sort((a, b) => {
+    const aKey = String(a[0]).toLowerCase();
+    const bKey = String(b[0]).toLowerCase();
+    const aIndex = SPEC_PRIORITY.findIndex(p => aKey.includes(p));
+    const bIndex = SPEC_PRIORITY.findIndex(p => bKey.includes(p));
+    
+    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+    if (aIndex !== -1) return -1;
+    if (bIndex !== -1) return 1;
+    return aKey.localeCompare(bKey);
+  });
+};
+
+
+const SPEC_GROUPS = [
+  {
+    title: 'General',
+    keywords: ['brand', 'model', 'type', 'form factor', 'color', 'material', 'design']
+  },
+  {
+    title: 'Display & Video',
+    keywords: ['display', 'screen', 'resolution', 'panel', 'refresh rate', 'response time', 'graphics', 'gpu', 'video']
+  },
+  {
+    title: 'Performance & Core',
+    keywords: ['processor', 'cpu', 'architecture', 'core', 'thread', 'clock', 'motherboard', 'chipset', 'socket']
+  },
+  {
+    title: 'Memory & Storage',
+    keywords: ['memory', 'ram', 'storage', 'capacity', 'ssd', 'hdd']
+  },
+  {
+    title: 'Camera & Audio',
+    keywords: ['camera', 'lens', 'sensor', 'night vision', 'audio', 'speaker', 'microphone', 'sound']
+  },
+  {
+    title: 'Connectivity & Ports',
+    keywords: ['connectivity', 'network', 'wi-fi', 'wifi', 'bluetooth', 'port', 'interface', 'usb', 'connection']
+  },
+  {
+    title: 'Power & Battery',
+    keywords: ['power', 'battery', 'charging', 'voltage', 'wattage']
+  },
+  {
+    title: 'Physical Specifications',
+    keywords: ['weight', 'dimension', 'size']
+  },
+  {
+    title: 'Warranty',
+    keywords: ['warranty']
+  }
+];
+
+const groupSpecs = (specsObj: Record<string, any>) => {
+  if (!specsObj) return [];
+  const entries = sortSpecs(Object.entries(specsObj));
+  const groups = SPEC_GROUPS.map(g => ({ title: g.title, items: [] as [string, any][] }));
+  const otherGroup = { title: 'Main Features', items: [] as [string, any][] };
+
+  entries.forEach(([key, value]) => {
+    const lowerKey = key.toLowerCase();
+    const matchedGroup = groups.find(g => SPEC_GROUPS.find(sg => sg.title === g.title)?.keywords.some(k => lowerKey.includes(k)));
+    if (matchedGroup) {
+      matchedGroup.items.push([key, value]);
+    } else {
+      otherGroup.items.push([key, value]);
+    }
+  });
+
+  return [otherGroup, ...groups].filter(g => g.items.length > 0);
+};
+
 export const ProductDetails: React.FC = () => {
   const { settings } = useSettings();
   const { id } = useParams<{ id: string }>();
@@ -184,7 +275,7 @@ export const ProductDetails: React.FC = () => {
   };
 
   const displayPrice = product.discountPrice || product.price;
-  const sku = product.sku || product.id.slice(0, 8).toUpperCase();
+  const sku = product.sku ? product.sku.split(' ')[0] : product.id.slice(0, 8).toUpperCase();
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -311,7 +402,12 @@ export const ProductDetails: React.FC = () => {
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-6 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-3xl font-bold text-[#EF4444]">{formatCurrency(displayPrice * quantity)}</span>
-                  <span className="text-gray-500 font-medium">(Total Price)</span>
+                  {product.discountPrice && product.discountPrice < product.price && (
+                    <span className="text-xl text-gray-400 line-through font-semibold ml-1">
+                      {formatCurrency(product.price * quantity)}
+                    </span>
+                  )}
+                  <span className="text-gray-500 font-medium ml-1">(Total Price)</span>
                 </div>
               
               <div className="flex items-center gap-2 text-gray-700">
@@ -323,17 +419,14 @@ export const ProductDetails: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex items-center gap-2 text-gray-700">
-                <span className="font-bold">Code:</span> SKU-{sku}
               </div>
-            </div>
 
             {/* Key Features */}
             {product.specs && Object.keys(product.specs).length > 0 && (
               <div className="mb-8">
                 <h3 className="font-bold text-[#081621] mb-3">Key Features:</h3>
                 <ul className="space-y-2">
-                  {Object.entries(product.specs).slice(0, 5).map(([key, value]) => (
+                  {sortSpecs(Object.entries(product.specs)).slice(0, 5).map(([key, value]) => (
                     <li key={key} className="flex gap-2 text-sm text-gray-700">
                       <span className="w-1 h-1 bg-gray-400 rounded-full mt-2 shrink-0"></span>
                       <span className="font-medium text-gray-800">{key}:</span> {value}
@@ -514,18 +607,24 @@ export const ProductDetails: React.FC = () => {
                 <div>
                   <h3 className="text-xl font-bold text-[#081621] mb-4">Specification</h3>
                   {product.specs && Object.keys(product.specs).length > 0 ? (
-                    <div className="border border-gray-200 rounded-lg overflow-hidden">
-                      {Object.entries(product.specs).map(([key, value], i) => (
-                        <div key={key} className={cn(
-                          "grid grid-cols-1 sm:grid-cols-3 p-4 text-sm border-b border-gray-200 last:border-0",
-                          i % 2 === 0 ? "bg-white" : "bg-gray-50"
-                        )}>
-                          <div className="font-bold text-gray-600">{key}</div>
-                          <div className="sm:col-span-2 text-[#081621]">{value}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
+                      <div className="space-y-6">
+                        {groupSpecs(product.specs).map((group, gIdx) => (
+                          <div key={gIdx}>
+                            <div className="bg-[#F5F6FB] text-[#3749BB] font-bold px-4 py-2.5 rounded-md text-[15px] mb-2">
+                              {group.title}
+                            </div>
+                            <div className="flex flex-col">
+                              {group.items.map(([key, value], i) => (
+                                <div key={key} className="flex border-b border-gray-100 hover:bg-gray-50 transition-colors py-3 px-2 text-[14px]">
+                                  <div className="w-1/3 text-gray-500 font-medium pr-4">{key}</div>
+                                  <div className="w-2/3 text-gray-900">{value}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
                     <p className="text-gray-500">No specifications available.</p>
                   )}
                 </div>

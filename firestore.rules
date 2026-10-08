@@ -382,6 +382,23 @@ service cloud.firestore {
 
     match /settings/hostingPromos {
       allow read: if true;
+      allow write: if hasStaffAccess();
+    }
+    
+    match /hostingAddonPackages/{id} { allow read: if true; allow write: if hasStaffAccess(); }
+    match /hostingServiceCategories/{id} { allow read: if true; allow write: if hasStaffAccess(); }
+    match /hostingExtraServices/{id} { allow read: if true; allow write: if hasStaffAccess(); }
+
+    match /servers/{serverId} {
+      allow read, write: if hasStaffAccess();
+    }
+
+    match /hosting_config/{docId} {
+      allow read, write: if hasStaffAccess();
+    }
+
+    match /settings/hostingPromos {
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /settings/{settingId} {
@@ -640,6 +657,10 @@ service cloud.firestore {
     }
 
     // ===== E-commerce / PC Builder additions =====
+
+    match /specificationTemplates/{templateId} {
+      allow read, write: if isAdmin();
+    }
     // Wishlist: each user owns their doc; staff read for analytics
     match /wishlists/{userId} {
       allow read: if isOwner(userId) || hasStaffAccess();
@@ -699,6 +720,9 @@ service cloud.firestore {
     }
   }
 }
+
+
+
 
 
 

@@ -136,7 +136,7 @@ export const HostingNavbar: React.FC = () => {
             {user ? (
               <>
                 <Link
-                  to="/dashboard"
+                  to="/profile"
                   className="flex items-center space-x-1 hover:text-white transition-colors"
                 >
                   <User size={12} />

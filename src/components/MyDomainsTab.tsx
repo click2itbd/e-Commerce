@@ -97,7 +97,7 @@ export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
         fetchDomains();
         setManagingDomain(null);
       } else {
-        toast.error(response.error || 'Failed to update NameServers. Check your Dynadot API settings.');
+        toast.error(response.error || 'Failed to update NameServers. Check your Openprovider API settings.');
       }
     } catch (error: any) {
       console.error('NS Update Error:', error);

@@ -107,14 +107,15 @@ export const Checkout: React.FC = () => {
     shippingCost = 0;
   }
   
+  const [paymentType, setPaymentType] = useState<'cod' | 'pay_now'>('cod');
+  const [advanceDelivery, setAdvanceDelivery] = useState(false);
+
   // If payment is COD and advance delivery is checked, the customer only pays the delivery charge right now
   const isAdvanceCOD = paymentType === 'cod' && advanceDelivery && shippingCost > 0;
   const payNowAmount = isAdvanceCOD ? shippingCost : (total + shippingCost);
   const dueOnDelivery = isAdvanceCOD ? total : 0;
   const grandTotal = total + shippingCost;
 
-  const [paymentType, setPaymentType] = useState<'cod' | 'pay_now'>('cod');
-  const [advanceDelivery, setAdvanceDelivery] = useState(false);
   const [geoData, setGeoData] = useState({ divisions: [], districts: [], upazilas: [], unions: [] });
   const [activeGeo, setActiveGeo] = useState({ districts: [], upazilas: [], unions: [] });
 

@@ -148,7 +148,7 @@ export const Profile: React.FC = () => {
       try {
         const q = query(collection(db, 'pre_bookings'), where('email', '==', user.email));
         const snap = await getDocs(q);
-        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
         data.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         setPreBooks(data);
       } catch (err) {
@@ -350,7 +350,6 @@ export const Profile: React.FC = () => {
                      
                      const baseTabs = [
     { id: 'saved-builds', label: 'Saved PC Builds', icon: Save },
-                       { id: 'dashboard', label: 'Dashboard', icon: Globe },
                        { id: 'profile', label: 'My Profile', icon: User },
                        { id: 'orders', label: 'My Orders', icon: ShoppingBag },
                      ];

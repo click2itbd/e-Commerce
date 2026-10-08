@@ -13,12 +13,12 @@ import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 
 import { coreCategories, peripheralCategories } from '../../components/PCBuilder/constants';
 
-const containerVariants = {
+const containerVariants: any = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.05 } }
 };
 
-const itemVariants = {
+const itemVariants: any = {
   hidden: { opacity: 0, y: 15 },
   show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
 };
@@ -32,10 +32,23 @@ export const CategoryPage: React.FC = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [showInStock, setShowInStock] = useState(true);
   const [showOutOfStock, setShowOutOfStock] = useState(true);
+  const [showDiscountedOnly, setShowDiscountedOnly] = useState(false);
+  const [minRating, setMinRating] = useState(0);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedSpecs, setSelectedSpecs] = useState<Record<string, string[]>>({});
 
   const [currentPage, setCurrentPage] = useState(1);
+
+  const clearFilters = () => {
+    setSelectedBrands([]);
+    setPriceRange({ min: 0, max: 200000 });
+    setShowInStock(true);
+    setShowOutOfStock(true);
+    setShowDiscountedOnly(false);
+    setMinRating(0);
+    setSelectedSpecs({});
+    setCurrentPage(1);
+  };
   const itemsPerPage = 12;
 
   const [categorySearch, setCategorySearch] = useState('');
@@ -126,13 +139,28 @@ export const CategoryPage: React.FC = () => {
     fetchProducts();
   }, [categorySlug, subCategorySlug, subSubCategorySlug]);
 
+  
+  const availableSubCategories = useMemo(() => {
+    if (subSubCategorySlug) return [];
+    
+    const items = new Set<string>();
+    products.forEach(p => {
+      if (subCategorySlug) {
+        if (p.subSubCategory) items.add(p.subSubCategory);
+      } else if (categorySlug) {
+        if (p.subCategory) items.add(p.subCategory);
+      }
+    });
+    return Array.from(items).sort();
+  }, [products, categorySlug, subCategorySlug, subSubCategorySlug]);
+
   const availableBrands = useMemo(() => {
     const brands = products.map(p => p.brand).filter(Boolean);
     return Array.from(new Set(brands)).sort();
   }, [products]);
 
   const availableSpecs = useMemo(() => {
-    const specs = {};
+    const specs: Record<string, string[]> = {};
     products.forEach(p => {
       if (p.specs) {
         Object.entries(p.specs).forEach(([key, val]) => {
@@ -230,71 +258,59 @@ export const CategoryPage: React.FC = () => {
               <div className="bg-white p-5 rounded-md shadow-sm border border-gray-200 sticky top-24">
                 <div className="flex items-center gap-2 mb-6 pb-4 border-b border-gray-100">
                   <Filter size={18} className="text-[#081621]" />
-                  <h2 className="font-bold text-[15px] text-[#081621]">Filter Options</h2>
+                    <h2 className="font-bold text-[15px] text-[#081621] flex-1">Filter Options</h2>
+                    <button onClick={clearFilters} className="text-xs bg-orange-50 text-[#F97316] px-3 py-1 rounded-full font-bold hover:bg-orange-100 transition-colors">Clear</button>
                 </div>
 
-                <div className="mb-6">
-                  <h3 className="text-xs font-bold text-gray-800 mb-3 tracking-wide">PRICE RANGE</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
+                
+                  {availableSubCategories.length > 0 && (
+                    <div className="mb-6 border-b border-gray-100 pb-6">
+                      <h3 className="text-xs font-bold text-gray-800 mb-3 tracking-wide">CATEGORIES</h3>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                        {availableSubCategories.map(sub => (
+                          <Link 
+                            key={sub} 
+                            to={`/category/${categorySlug}${subCategorySlug ? `/${subCategorySlug}/${sub}` : `/${sub}`}`}
+                            className="block text-[13px] text-gray-600 hover:text-[#F97316] hover:bg-orange-50 px-2 py-1.5 rounded transition-colors truncate"
+                          >
+                            {sub.replace(/-/g, ' ')}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mb-6">
+                    <h3 className="text-xs font-bold text-gray-800 mb-3 tracking-wide flex justify-between items-center">
+                      PRICE RANGE
+                    </h3>
+                    <div className="flex items-center gap-2 mb-2">
                       <div className="relative w-full">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">৳</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">৳</span>
                         <input 
                           type="number" 
                           value={priceRange.min}
                           onChange={e => setPriceRange({ ...priceRange, min: parseInt(e.target.value) || 0 })}
-                          className="w-full pl-6 pr-2 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs focus:border-[#F97316] focus:ring-0 transition-colors"
+                          className="w-full pl-7 pr-2 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] outline-none transition-all shadow-inner"
                           placeholder="Min"
                         />
                       </div>
-                      <span className="text-gray-400">-</span>
+                      <span className="text-gray-300 font-black">-</span>
                       <div className="relative w-full">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">৳</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">৳</span>
                         <input 
                           type="number" 
                           value={priceRange.max}
                           onChange={e => setPriceRange({ ...priceRange, max: parseInt(e.target.value) || 0 })}
-                          className="w-full pl-6 pr-2 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs focus:border-[#F97316] focus:ring-0 transition-colors"
+                          className="w-full pl-7 pr-2 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] outline-none transition-all shadow-inner"
                           placeholder="Max"
                         />
                       </div>
                     </div>
-
-                    <div className="space-y-2 pt-2">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex justify-between items-center">
-                          <label className="text-[10px] text-gray-500 font-bold uppercase">Min</label>
-                        </div>
-                        <input 
-                          type="range" 
-                          min="0" 
-                          max="500000" 
-                          step="500"
-                          value={priceRange.min}
-                          onChange={e => setPriceRange({ ...priceRange, min: Math.min(parseInt(e.target.value), priceRange.max - 500) })}
-                          className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#F97316]"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex justify-between items-center">
-                          <label className="text-[10px] text-gray-500 font-bold uppercase">Max</label>
-                        </div>
-                        <input 
-                          type="range" 
-                          min="0" 
-                          max="500000" 
-                          step="500"
-                          value={priceRange.max}
-                          onChange={e => setPriceRange({ ...priceRange, max: Math.max(parseInt(e.target.value), priceRange.min + 500) })}
-                          className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#F97316]"
-                        />
-                      </div>
-                    </div>
                   </div>
-                </div>
 
-                <div className="mb-6">
-                  <h3 className="text-xs font-bold text-gray-800 mb-3 tracking-wide">BRANDS</h3>
+                  <div className="mb-6">
+                    <h3 className="text-xs font-bold text-gray-800 mb-3 tracking-wide">BRANDS</h3>
                   {availableBrands.length > 0 ? (
                     <div className="space-y-2.5 max-h-48 overflow-y-auto custom-scrollbar pr-2">
                       {availableBrands.map(brand => (
@@ -306,7 +322,7 @@ export const CategoryPage: React.FC = () => {
                               if (e.target.checked) setSelectedBrands([...selectedBrands, brand]);
                               else setSelectedBrands(selectedBrands.filter(b => b !== brand));
                             }}
-                            className="w-4 h-4 rounded-sm border-gray-300 text-[#F97316] focus:ring-[#F97316] transition-all cursor-pointer bg-white" 
+                            className="w-4 h-4 rounded border-gray-300 text-[#F97316] focus:ring-[#F97316] transition-all cursor-pointer bg-white accent-[#F97316]" 
                           />
                           <span className="text-[13px] text-gray-600 group-hover:text-[#F97316] transition-colors capitalize">{brand}</span>
                         </label>
@@ -325,7 +341,7 @@ export const CategoryPage: React.FC = () => {
                         type="checkbox" 
                         checked={showInStock}
                         onChange={e => setShowInStock(e.target.checked)}
-                        className="w-4 h-4 rounded-sm border-gray-300 text-[#F97316] focus:ring-[#F97316] transition-all cursor-pointer bg-white" 
+                        className="w-4 h-4 rounded border-gray-300 text-[#F97316] focus:ring-[#F97316] transition-all cursor-pointer bg-white accent-[#F97316]" 
                       />
                       <span className="text-[13px] text-gray-600 group-hover:text-[#F97316] transition-colors">In Stock</span>
                     </label>
@@ -334,7 +350,7 @@ export const CategoryPage: React.FC = () => {
                         type="checkbox" 
                         checked={showOutOfStock}
                         onChange={e => setShowOutOfStock(e.target.checked)}
-                        className="w-4 h-4 rounded-sm border-gray-300 text-[#F97316] focus:ring-[#F97316] transition-all cursor-pointer bg-white" 
+                        className="w-4 h-4 rounded border-gray-300 text-[#F97316] focus:ring-[#F97316] transition-all cursor-pointer bg-white accent-[#F97316]" 
                       />
                       <span className="text-[13px] text-gray-600 group-hover:text-[#F97316] transition-colors">Out of Stock</span>
                     </label>
@@ -351,7 +367,7 @@ export const CategoryPage: React.FC = () => {
                         <label key={val} className="flex items-center gap-3 cursor-pointer group">
                           <input 
                             type="checkbox"
-                            className="w-4 h-4 rounded-sm border-gray-300 text-[#F97316] focus:ring-[#F97316] transition-all cursor-pointer bg-white"
+                            className="w-4 h-4 rounded border-gray-300 text-[#F97316] focus:ring-[#F97316] transition-all cursor-pointer bg-white accent-[#F97316]"
                             checked={selectedSpecs[specName]?.includes(val) || false}
                             onChange={(e) => {
                               const checked = e.target.checked;

@@ -2,7 +2,7 @@
 /**
  * Domain API Service
  * Calls backend Express API for domain operations.
- * Never exposes Dynadot API key, wholesale prices, exchange rate, or markup to frontend.
+ * Never exposes Openprovider API key, wholesale prices, exchange rate, or markup to frontend.
  */
 
 const API_BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '');

@@ -4,6 +4,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { SettingsProvider } from './context/SettingsContext';
+import { ConfirmProvider } from './context/ConfirmContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { WebsitePopup } from './components/WebsitePopup';
 import { ReviewRewardPopup } from './components/ReviewRewardPopup';
@@ -81,6 +82,7 @@ export default function App() {
 
   return (
     <HelmetProvider>
+      <ConfirmProvider>
       <SettingsProvider>
         <AuthProvider>
           <WishlistProvider>
@@ -176,6 +178,7 @@ export default function App() {
           </WishlistProvider>
         </AuthProvider>
       </SettingsProvider>
+      </ConfirmProvider>
     </HelmetProvider>
   );
 }

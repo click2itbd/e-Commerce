@@ -136,7 +136,7 @@ export const ActiveHostingAccounts: React.FC = () => {
       toast.success(`Usage updated for ${account.domain || account.id}`);
     } catch (error: any) {
       console.error('Usage fetch error:', error);
-      toast.error(`Usage error for ${account.domain}: ` + (error.message || 'Check server connection'));
+      toast.error(`Usage error for ${account.domain || account.username || account.id || 'Unknown Domain'}: ` + (error.message || 'Check server connection'));
     } finally {
       setLoadingUsage(prev => ({ ...prev, [account.id]: false }));
     }
@@ -166,7 +166,7 @@ export const ActiveHostingAccounts: React.FC = () => {
     const isCurrentlySuspended = account.status === 'suspended';
     const actionText = isCurrentlySuspended ? 'unsuspend' : 'suspend';
     
-    if (!window.confirm(`Are you sure you want to ${actionText.toUpperCase()} hosting for ${account.domain}?`)) {
+    if (!window.confirm(`Are you sure you want to ${actionText.toUpperCase()} hosting for ${account.domain || account.username || account.id || 'Unknown Domain'}?`)) {
       return;
     }
 
@@ -193,32 +193,40 @@ export const ActiveHostingAccounts: React.FC = () => {
     }
   };
 
-  const handleTerminate = async (account: HostingAccountItem) => {
+    const handleTerminate = async (account: HostingAccountItem) => {
     if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
+    
+    const targetName = account.domain || account.username || account.id || 'unknown';
     const domainConfirm = window.prompt(
-      `⚠️ DANGER: This will PERMANENTLY delete the cPanel account, databases, and emails for ${account.domain} on the server.\n\nType the domain "${account.domain}" to confirm:`
+      `⚠️ DANGER: This will PERMANENTLY delete the cPanel account, databases, and emails for ${targetName} on the server.\n\nType "${targetName}" to confirm:`
     );
 
-    if (domainConfirm !== account.domain) {
-      toast.error('Termination cancelled: Domain did not match.');
+    if (domainConfirm !== targetName) {
+      toast.error('Termination cancelled: Confirmation text did not match.');
       return;
     }
 
-    const toastId = toast.loading(`Terminating ${account.domain} on WHM server...`);
+    const toastId = toast.loading(`Terminating ${targetName} on WHM server...`);
     try {
       const accId = account.providerAccountId || account.username || account.id;
-      await terminateHostingAccount(accId);
+      
+      try {
+        if (accId) await terminateHostingAccount(accId);
+      } catch (whmError: any) {
+        const forceDelete = window.confirm(`WHM Error: ${whmError.message}\n\nDo you want to force delete this record from the database anyway?`);
+        if (!forceDelete) {
+          toast.error('Termination aborted.', { id: toastId });
+          return;
+        }
+      }
 
-      await updateDoc(doc(db, 'hostingAccounts', account.id), {
-        status: 'terminated',
-        updatedAt: new Date().toISOString(),
-      });
+      await deleteDoc(doc(db, 'hostingAccounts', account.id));
 
-      setAccounts(prev => prev.map(a => a.id === account.id ? { ...a, status: 'terminated' } : a));
-      toast.success(`Account for ${account.domain} has been terminated.`, { id: toastId });
+      setAccounts(prev => prev.filter(a => a.id !== account.id));
+      toast.success(`Account for ${targetName} has been completely removed.`, { id: toastId });
     } catch (error: any) {
       console.error('Termination error:', error);
-      toast.error('Failed to terminate account: ' + error.message, { id: toastId });
+      toast.error('Failed to remove account: ' + error.message, { id: toastId });
     }
   };
 
@@ -250,12 +258,12 @@ export const ActiveHostingAccounts: React.FC = () => {
 
   const handleResendCredentials = async (account: HostingAccountItem) => {
     if (!account.customerEmail) {
-      const email = window.prompt(`Enter customer email to send credentials for ${account.domain}:`);
+      const email = window.prompt(`Enter customer email to send credentials for ${account.domain || account.username || account.id || 'Unknown Domain'}:`);
       if (!email) return;
       account.customerEmail = email;
     }
 
-    const toastId = toast.loading(`Sending activation email for ${account.domain}...`);
+    const toastId = toast.loading(`Sending activation email for ${account.domain || account.username || account.id || 'Unknown Domain'}...`);
     try {
       const success = await sendServiceActivationEmail(account.orderId || account.id, account.customerEmail, {
         domain: account.domain,
@@ -501,7 +509,7 @@ export const ActiveHostingAccounts: React.FC = () => {
                 filteredAccounts.map((account) => {
                   const usage = usageStats[account.id];
                   const isLoadingThis = loadingUsage[account.id];
-                  const cPanelLoginUrl = account.cPanelUrl || account.controlPanelUrl || `https://${account.domain}:2083`;
+                  const cPanelLoginUrl = account.cPanelUrl || account.controlPanelUrl || `https://${account.domain || account.username || account.id || 'Unknown Domain'}:2083`;
                   
                   // Disk usage math
                   const diskUsedGB = usage ? (usage.diskUsageMB / 1024) : 0;
@@ -527,7 +535,7 @@ export const ActiveHostingAccounts: React.FC = () => {
                           </div>
                           <div>
                             <div className="font-bold text-gray-900 flex items-center gap-1.5">
-                              {account.domain}
+                              {account.domain || account.username || account.id || 'Unknown Domain'}
                               <a
                                 href={cPanelLoginUrl}
                                 target="_blank"
@@ -870,3 +878,6 @@ export const ActiveHostingAccounts: React.FC = () => {
   );
 };
 export default ActiveHostingAccounts;
+
+
+

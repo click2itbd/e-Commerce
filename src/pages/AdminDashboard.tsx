@@ -1276,57 +1276,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   });
 
   const ConfirmModal = () => {
-    const [isConfirming, setIsConfirming] = useState(false);
-    if (!confirmModal.isOpen) return null;
-    const confirmText = confirmModal.confirmText || "Confirm Delete";
-    const confirmColor =
-      confirmModal.confirmColor || "bg-red-600 hover:bg-red-700 shadow-red-200";
+      const [isConfirming, setIsConfirming] = useState(false);
+      if (!confirmModal.isOpen) return null;
+      const confirmText = confirmModal.confirmText || "Confirm Delete";
+      const confirmColor = confirmModal.confirmColor || "bg-red-600 hover:bg-red-700";
+      
+      const isRed = confirmColor.includes('red') || confirmColor.includes('EF4444');
+      const isBlue = confirmColor.includes('blue');
 
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
-        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
-          <div className="p-6 border-b border-gray-100">
-            <h3 className="text-xl font-bold text-gray-900">
-              {confirmModal.title}
-            </h3>
-          </div>
-          <div className="p-6">
-            <p className="text-gray-600 leading-relaxed">
-              {confirmModal.message}
-            </p>
-          </div>
-          <div className="p-6 bg-gray-50 flex justify-end gap-3">
-            <button
-              onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
-              disabled={isConfirming}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-all font-medium disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => {
-                if (isConfirming) return;
-                setIsConfirming(true);
-                try {
-                  await confirmModal.onConfirm();
-                } finally {
-                  setIsConfirming(false);
-                  setConfirmModal({ ...confirmModal, isOpen: false });
-                }
-              }}
-              disabled={isConfirming}
-              className={cn(
-                "px-6 py-2 text-white rounded-lg transition-all font-bold shadow-lg disabled:opacity-50 flex items-center gap-2",
-                confirmColor,
-              )}
-            >
-              {isConfirming ? "Processing..." : confirmText}
-            </button>
+      return (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 text-center pt-8">
+              <div className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-4 ${isRed ? 'bg-red-100 text-red-600' : isBlue ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                {isRed ? <AlertTriangle size={32} strokeWidth={1.5} /> : <CheckCircle size={32} strokeWidth={1.5} />}
+              </div>
+              <h3 className="text-xl font-bold text-slate-800 mb-2">
+                {confirmModal.title}
+              </h3>
+              <p className="text-slate-500 text-sm leading-relaxed mb-6">
+                {confirmModal.message}
+              </p>
+              
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                  disabled={isConfirming}
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl font-bold transition-all disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setIsConfirming(true);
+                    try {
+                      await confirmModal.onConfirm();
+                    } finally {
+                      setIsConfirming(false);
+                      setConfirmModal({ ...confirmModal, isOpen: false });
+                    }
+                  }}
+                  disabled={isConfirming}
+                  className={`flex-1 py-2.5 text-white rounded-xl font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${confirmColor}`}
+                >
+                  {isConfirming ? <Loader2 size={18} className="animate-spin" /> : confirmText}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    );
-  };
+      );
+    };
 
   const fetchData = async () => {
     setLoading(true);
@@ -1734,8 +1734,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       title: `${editingProduct ? "Update" : "Create"} Product`,
       message: `Are you sure you want to ${editingProduct ? "update" : "create"} the product "${formData.name}"?`,
       confirmText: "Confirm",
-      confirmColor: "bg-[#EF4444] hover:bg-red-700",
-      onConfirm: async () => {
+      confirmColor: "bg-blue-600 hover:bg-blue-700",
+        onConfirm: async () => {
         try {
           const productData = {
             ...formData,
@@ -5329,41 +5329,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               )}
             </>
-          )}
-          {/* Storefront CMS */}
-          {(!isStaff || isAdmin || isManager) && (
-            <div className="px-4 mb-2">
-              {!isSidebarCollapsed && (
-                <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">
-                  Storefront CMS
-                </div>
-              )}
-              <button
-                onClick={() => {
-                  setActiveTab("banners");
-                  setIsMobileMenuOpen(false);
-                }}
-                className={cn(
-                  "w-full flex items-center rounded-md text-[13px] transition-colors",
-                  isSidebarCollapsed
-                    ? "justify-center py-2"
-                    : "gap-3 px-3 py-2",
-                  activeTab === "banners"
-                    ? "text-blue-600 font-bold bg-blue-50"
-                    : "text-gray-600 hover:bg-gray-50",
-                )}
-              >
-                <Globe
-                  size={16}
-                  className={
-                    activeTab === "banners" ? "text-blue-600" : "text-gray-400"
-                  }
-                />{" "}
-                {!isSidebarCollapsed && (
-                  <span className="truncate">Banners & Pages</span>
-                )}
-              </button>
-            </div>
           )}
 
           {/* System & Settings */}

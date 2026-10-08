@@ -322,66 +322,77 @@ export const SaleReturnTab: React.FC = () => {
   });
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden space-y-6">
+    <div className="bg-white rounded-2xl shadow-[0_2px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden flex flex-col">
       {/* Top Header & View Switcher */}
-      <div className="p-6 pb-0 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <RotateCcw className="text-[#EF4444]" /> Sale Return Management
-          </h2>
-          <p className="text-xs text-gray-500 mt-1">Accept customer returns, restock inventory, void warranty serials, and log refunds.</p>
-        </div>
+      <div className="p-6 md:p-8 bg-gradient-to-r from-slate-900 to-[#081621] text-white border-b border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 border border-red-400/30 text-red-300 text-[10px] font-black uppercase tracking-widest mb-3">
+              <RotateCcw size={12} className="text-red-400" /> Returns & Refunds
+            </div>
+            <h2 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3">
+              Sale Return Management
+            </h2>
+            <p className="text-sm text-slate-400 mt-2 max-w-2xl">
+              Accept customer returns, restock inventory, void warranty serials, and log refunds securely.
+            </p>
+          </div>
 
-        <div className="flex bg-gray-100 p-1 rounded-lg">
-          <button
-            onClick={() => setActiveView('create')}
-            className={cn(
-              "px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2",
-              activeView === 'create' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-            )}
-          >
-            <Plus size={14} /> New Sale Return
-          </button>
-          <button
-            onClick={() => { setActiveView('history'); fetchReturnsHistory(); }}
-            className={cn(
-              "px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2",
-              activeView === 'history' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-            )}
-          >
-            <FileText size={14} /> Return History
-            <span className="bg-gray-200 text-gray-700 text-[10px] px-1.5 py-0.2 rounded-full">
-              {returnsHistory.length}
-            </span>
-          </button>
+          <div className="flex bg-slate-800/50 p-1.5 rounded-xl border border-slate-700/50 backdrop-blur-sm shrink-0">
+            <button
+              onClick={() => setActiveView('create')}
+              className={cn(
+                "px-5 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center gap-2",
+                activeView === 'create' 
+                  ? "bg-white text-slate-900 shadow-md" 
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/50"
+              )}
+            >
+              <Plus size={16} /> New Sale Return
+            </button>
+            <button
+              onClick={() => { setActiveView('history'); fetchReturnsHistory(); }}
+              className={cn(
+                "px-5 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center gap-2",
+                activeView === 'history' 
+                  ? "bg-white text-slate-900 shadow-md" 
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/50"
+              )}
+            >
+              <FileText size={16} /> Return History
+              <span className={cn("text-[10px] px-2 py-0.5 rounded-full", activeView === 'history' ? "bg-slate-100 text-slate-600" : "bg-slate-700 text-slate-300")}>
+                {returnsHistory.length}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
       {activeView === 'create' ? (
         <form onSubmit={handleSubmitReturn} className="p-6 pt-0 space-y-6">
           {/* Metadata Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100 shadow-sm">
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
                 Reference No <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={referenceNo}
                 readOnly
-                className="w-full border-gray-200 rounded-lg bg-gray-100 text-xs font-mono font-bold text-gray-700"
+                className="w-full border-slate-200 rounded-xl bg-slate-100 text-sm font-mono font-bold text-slate-500 px-4 py-2.5 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
                 Select Sale Invoice <span className="text-red-500">*</span>
               </label>
               <select
                 required
                 value={selectedOrderId}
                 onChange={e => handleSelectOrder(e.target.value)}
-                className="w-full border-gray-200 rounded-lg text-xs focus:ring-[#EF4444] font-medium"
+                className="w-full bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700 px-4 py-2.5 shadow-sm transition-all"
               >
                 <option value="">-- Choose Sold Invoice --</option>
                 {orders.map(o => (
@@ -393,7 +404,7 @@ export const SaleReturnTab: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
                 Return Date <span className="text-red-500">*</span>
               </label>
               <input
@@ -401,55 +412,61 @@ export const SaleReturnTab: React.FC = () => {
                 required
                 value={returnDate}
                 onChange={e => setReturnDate(e.target.value)}
-                className="w-full border-gray-200 rounded-lg text-xs focus:ring-[#EF4444]"
+                className="w-full bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700 px-4 py-2.5 shadow-sm transition-all"
               />
             </div>
           </div>
 
           {/* Selected Order Summary Card */}
           {selectedOrder && (
-            <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-100 flex flex-wrap items-center justify-between gap-4 text-xs">
+            <div className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm shadow-sm">
               <div>
-                <span className="font-bold text-gray-700 block">Customer Name: {selectedOrder.customerName || 'N/A'}</span>
-                <span className="text-gray-500">Phone: {selectedOrder.customerPhone || 'N/A'} | Email: {selectedOrder.customerEmail || 'N/A'}</span>
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest block mb-1">Customer Details</span>
+                <span className="font-bold text-slate-800 block text-base">{selectedOrder.customerName || 'N/A'}</span>
+                <span className="text-slate-500 font-medium mt-0.5 block">Phone: {selectedOrder.customerPhone || 'N/A'} | Email: {selectedOrder.customerEmail || 'N/A'}</span>
               </div>
-              <div className="text-right">
-                <span className="font-bold text-blue-900 block">Invoice Total: {formatCurrency(selectedOrder.total || 0, settings)}</span>
-                <span className="text-gray-500">Status: <span className="uppercase font-bold text-green-700">{selectedOrder.status}</span></span>
+              <div className="sm:text-right bg-white/60 p-3 rounded-xl border border-blue-50">
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest block mb-1">Invoice Status</span>
+                <span className="font-black text-blue-900 block text-lg">{formatCurrency(selectedOrder.total || 0, settings)}</span>
+                <span className="text-slate-500 text-xs font-bold block mt-0.5">Status: <span className="uppercase text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-md ml-1">{selectedOrder.status}</span></span>
               </div>
             </div>
           )}
 
           {/* Items Return Table */}
-          <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-gray-50 text-gray-500 uppercase font-bold border-b border-gray-200">
+          <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  <th className="py-3 px-4">#</th>
-                  <th className="py-3 px-4">Item Name / Details</th>
-                  <th className="py-3 px-4 text-center">Sold Qty</th>
-                  <th className="py-3 px-4 text-center">Return Qty</th>
-                  <th className="py-3 px-4 text-right">Unit Price</th>
-                  <th className="py-3 px-4 text-right">Return Subtotal</th>
+                  <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">#</th>
+                  <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item Name / Details</th>
+                  <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Sold Qty</th>
+                  <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Return Qty</th>
+                  <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Unit Price</th>
+                  <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Return Subtotal</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-50 bg-white">
                 {returnItems.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-gray-400">
-                      Select a sale invoice above to view sold items and choose quantities to return.
+                    <td colSpan={6} className="py-16 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <ShoppingBag size={24} className="text-slate-300 mb-2" />
+                        <span className="font-bold text-slate-500">No Items to Return</span>
+                        <span className="text-sm">Select a sale invoice above to view sold items and choose quantities.</span>
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   returnItems.map((item, idx) => (
-                    <tr key={idx} className={item.returnQty > 0 ? "bg-red-50/30" : ""}>
-                      <td className="py-3 px-4 font-mono text-gray-400">{idx + 1}</td>
-                      <td className="py-3 px-4">
-                        <span className="font-bold text-gray-900 block">{item.name}</span>
+                    <tr key={idx} className={cn("transition-colors group", item.returnQty > 0 ? "bg-red-50/50" : "hover:bg-slate-50/80")}>
+                      <td className="py-4 px-6 font-mono text-sm text-slate-400 font-bold">{idx + 1}</td>
+                      <td className="py-4 px-6">
+                        <span className="font-bold text-slate-900 block text-sm">{item.name}</span>
                         {item.hasSerialTracking && item.availableSerials && item.availableSerials.length > 0 && (
-                          <div className="mt-2 space-y-1">
-                            <span className="text-[10px] font-bold text-gray-500 uppercase block">Select Returned Serials:</span>
-                            <div className="flex flex-wrap gap-1.5">
+                          <div className="mt-3 bg-white p-3 rounded-xl border border-slate-200">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Select Returned Serials</span>
+                            <div className="flex flex-wrap gap-2">
                               {item.availableSerials.map(ser => {
                                 const isSelected = item.selectedReturnSerials.includes(ser);
                                 return (
@@ -458,13 +475,13 @@ export const SaleReturnTab: React.FC = () => {
                                     type="button"
                                     onClick={() => handleToggleSerial(idx, ser)}
                                     className={cn(
-                                      "px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 border transition-all",
+                                      "px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 border transition-all",
                                       isSelected
-                                        ? "bg-red-600 text-white border-red-600"
-                                        : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
+                                        ? "bg-red-500 text-white border-red-500 shadow-sm"
+                                        : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-100"
                                     )}
                                   >
-                                    {isSelected && <Check size={10} />} {ser}
+                                    {isSelected && <Check size={12} />} {ser}
                                   </button>
                                 );
                               })}
@@ -472,21 +489,30 @@ export const SaleReturnTab: React.FC = () => {
                           </div>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-center font-bold text-gray-700">{item.soldQty}</td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="inline-flex items-center gap-1">
+                      <td className="py-4 px-6 text-center font-black text-slate-400 text-sm">{item.soldQty}</td>
+                      <td className="py-4 px-6 text-center">
+                        <div className="inline-flex items-center justify-center">
                           <input
                             type="number"
                             min={0}
                             max={item.soldQty}
                             value={item.returnQty}
                             onChange={e => handleReturnQtyChange(idx, parseInt(e.target.value) || 0)}
-                            className="w-16 text-center border-gray-200 rounded-lg text-xs font-bold focus:ring-[#EF4444]"
+                            className={cn(
+                              "w-20 text-center border rounded-xl text-sm font-black focus:ring-2 focus:ring-blue-500 outline-none px-2 py-1.5 transition-all",
+                              item.returnQty > 0 ? "border-red-300 bg-white text-red-600" : "border-slate-200 bg-slate-50 text-slate-700"
+                            )}
                           />
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-right font-medium text-gray-600">{formatCurrency(item.returnPrice, settings)}</td>
-                      <td className="py-3 px-4 text-right font-bold text-gray-900">{formatCurrency(item.returnQty * item.returnPrice, settings)}</td>
+                      <td className="py-4 px-6 text-right font-bold text-slate-500 text-sm">{formatCurrency(item.returnPrice, settings)}</td>
+                      <td className="py-4 px-6 text-right font-black text-slate-900 text-sm">
+                        {item.returnQty > 0 ? (
+                           <span className="text-red-600 bg-red-100 px-2.5 py-1 rounded-lg">{formatCurrency(item.returnQty * item.returnPrice, settings)}</span>
+                        ) : (
+                           formatCurrency(0, settings)
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -496,36 +522,36 @@ export const SaleReturnTab: React.FC = () => {
 
           {/* Refund Settlement Footer */}
           {returnItems.length > 0 && (
-            <div className="flex flex-col lg:flex-row justify-between gap-6 pt-4 border-t border-gray-100">
+            <div className="flex flex-col lg:flex-row justify-between gap-6 pt-6 border-t border-slate-100 mt-6">
               <div className="flex-1 space-y-3">
-                <label className="block text-xs font-bold text-gray-700">Return Reason / Internal Notes</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Return Reason / Internal Notes</label>
                 <textarea
-                  rows={3}
+                  rows={4}
                   value={note}
                   onChange={e => setNote(e.target.value)}
                   placeholder="e.g. Defective unit, customer requested refund, wrong specification delivered..."
-                  className="w-full border-gray-200 rounded-xl text-xs focus:ring-[#EF4444]"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 outline-none p-4 font-medium text-slate-700 transition-all resize-none"
                 />
               </div>
 
-              <div className="w-full lg:w-96 bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
-                <div className="flex justify-between items-center text-xs text-gray-600">
-                  <span>Total Items to Return:</span>
-                  <span className="font-bold text-gray-900">{totalReturnUnits} Units</span>
+              <div className="w-full lg:w-96 bg-white p-6 rounded-2xl border border-slate-200 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-4">
+                <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
+                  <span className="font-bold text-slate-500">Total Items to Return:</span>
+                  <span className="font-black text-slate-800 bg-slate-100 px-3 py-1 rounded-full">{totalReturnUnits} Units</span>
                 </div>
-                <div className="flex justify-between items-center text-xs text-gray-600">
-                  <span>Grand Return Total:</span>
-                  <span className="font-bold text-lg text-red-600">{formatCurrency(grandTotalReturn, settings)}</span>
+                <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
+                  <span className="font-bold text-slate-500">Grand Return Total:</span>
+                  <span className="font-black text-xl text-red-600">{formatCurrency(grandTotalReturn, settings)}</span>
                 </div>
 
-                <div className="pt-2 border-t border-gray-200">
-                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                <div className="pt-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
                     Refund / Settlement Method <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={paymentMethod}
                     onChange={e => setPaymentMethod(e.target.value as any)}
-                    className="w-full border-gray-200 rounded-lg text-xs font-bold text-gray-800 focus:ring-[#EF4444]"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none px-4 py-2.5 transition-all"
                   >
                     <option value="cash">Cash Drawer Refund</option>
                     <option value="bank">Bank Transfer Refund</option>
@@ -535,7 +561,7 @@ export const SaleReturnTab: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
                     Refund Amount to Customer <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -543,16 +569,16 @@ export const SaleReturnTab: React.FC = () => {
                     min={0}
                     value={refundAmount}
                     onChange={e => setRefundAmount(parseFloat(e.target.value) || 0)}
-                    className="w-full border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-[#EF4444]"
+                    className="w-full bg-white border-2 border-red-100 focus:border-red-400 rounded-xl text-lg font-black text-red-600 focus:ring-4 focus:ring-red-500/10 outline-none px-4 py-2.5 transition-all"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={isSubmitting || totalReturnUnits === 0}
-                  className="w-full py-3 bg-[#081621] hover:bg-[#EF4444] text-white rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                  className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 disabled:opacity-50 mt-2"
                 >
-                  <CheckSquare size={16} /> {isSubmitting ? 'Processing Return...' : 'Confirm & Process Sale Return'}
+                  <CheckSquare size={18} /> {isSubmitting ? 'Processing Return...' : 'Confirm Sale Return'}
                 </button>
               </div>
             </div>

@@ -8,6 +8,7 @@ import { getOrderCategory } from '../admin/tabs/sales/Orders'; // Reuse classifi
 import { toast } from 'react-hot-toast';
 import { db } from '../../firebase';
 import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
+import { useConfirm } from '../../context/ConfirmContext';
 
 interface EcommerceOrdersProps {
   orders: Order[];
@@ -24,6 +25,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
   handleDeleteOrder,
   updateOrderPaymentStatus
 }) => {
+  const { confirm } = useConfirm();
   const { settings } = useSettings();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -67,7 +69,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
 
   const handleBulkStatus = async () => {
     if (!bulkStatus || selectedIds.length === 0) return;
-    if (!window.confirm(`Change ${selectedIds.length} order(s) to "${bulkStatus}"?`)) return;
+    if (!await confirm({ title: 'Confirmation', message: `Change ${selectedIds.length} order(s) to "${bulkStatus}"?`, isDestructive: false })) return;
     setBulkBusy(true);
     for (const id of selectedIds) {
       const o = orders.find(x => x.id === id);
@@ -80,7 +82,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Permanently delete ${selectedIds.length} order(s)? This cannot be undone.`)) return;
+    if (!await confirm({ title: 'Confirmation', message: `Permanently delete ${selectedIds.length} order(s)? This cannot be undone.`, isDestructive: true })) return;
     setBulkBusy(true);
     for (const id of selectedIds) await handleDeleteOrder(id);
     setBulkBusy(false);
@@ -368,7 +370,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
                         <button onClick={() => handlePrint(order)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Print Invoice">
                           <Printer size={16} />
                         </button>
-                        <button onClick={() => { if(window.confirm('Are you sure you want to delete this order?')) handleDeleteOrder(order.id); }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Order">
+                        <button onClick={async () => { if(await confirm({ title: 'Confirmation', message: 'Are you sure you want to delete this order?', isDestructive: true })) handleDeleteOrder(order.id); }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Order">
                           <Trash2 size={16} />
                         </button>
                       </div>

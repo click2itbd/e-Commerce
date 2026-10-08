@@ -5,8 +5,10 @@ import { Review, Product } from '../../types';
 import { MessageCircle, CheckCircle, XCircle, Trash2, Star, Search, UploadCloud, X, Plus } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Papa from 'papaparse';
+import { useConfirm } from '../../context/ConfirmContext';
 
 export const EcommerceReviews: React.FC = () => {
+  const { confirm } = useConfirm();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +62,7 @@ export const EcommerceReviews: React.FC = () => {
   };
 
   const deleteReview = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this review?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Are you sure you want to delete this review?', isDestructive: true })) return;
     try {
       await deleteDoc(doc(db, 'reviews', id));
       setReviews(reviews.filter(r => r.id !== id));

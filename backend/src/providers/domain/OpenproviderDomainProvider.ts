@@ -55,7 +55,7 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     return this.token;
   }
 
-  private async fetchApi(endpoint: string, options: RequestInit = {}): Promise<any> {
+  public async fetchApi(endpoint: string, options: RequestInit = {}): Promise<any> {
     const token = await this.authenticate();
     const headers = {
       'Content-Type': 'application/json',

@@ -1581,7 +1581,7 @@ export const Settings = () => {
                       Domain & Hosting Reseller Configuration
                     </p>
                     <p>
-                      API credentials (DYNADOT_API_KEY, WHM_URL, WHM_API_TOKEN, WHM_USERNAME) are managed securely via backend environment variables.
+                      API credentials (OPENPROVIDER_API_KEY, WHM_URL, WHM_API_TOKEN, WHM_USERNAME) are managed securely via backend environment variables.
                       Configure commercial pricing, currency exchange rates, and profit markups below.
                     </p>
                   </div>
@@ -1590,7 +1590,7 @@ export const Settings = () => {
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    <div className="md:col-span-2">
                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                       Dynadot API Key
+                       Openprovider API Key
                      </label>
                      <div className="w-full px-3 py-2 border rounded-md bg-gray-50 text-gray-600 text-sm">
                        Managed securely on server
@@ -1622,7 +1622,7 @@ export const Settings = () => {
                       />
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Used to convert Dynadot USD prices to BDT
+                      Used to convert Openprovider USD prices to BDT
                     </p>
                   </div>
 
@@ -1650,7 +1650,7 @@ export const Settings = () => {
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Markup added to Dynadot wholesale price
+                      Markup added to Openprovider wholesale price
                     </p>
                   </div>
 
@@ -1734,7 +1734,7 @@ export const Settings = () => {
                         Sandbox Mode
                       </label>
                       <p className="text-xs text-gray-500">
-                        Use Dynadot Sandbox API for testing without spending
+                        Use Openprovider Sandbox API for testing without spending
                         money
                       </p>
                     </div>

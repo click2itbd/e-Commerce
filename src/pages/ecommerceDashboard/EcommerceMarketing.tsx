@@ -7,8 +7,10 @@ import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, order
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-hot-toast';
 import { NavigationMenu } from '../../types';
+import { useConfirm } from '../../context/ConfirmContext';
 
 export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', menus?: NavigationMenu[]}> = ({initialTab = 'coupons', menus = []}) => {
+  const { confirm } = useConfirm();
   const [activeSubTab, setActiveSubTab] = useState<'coupons' | 'banners'>(initialTab);
   
   useEffect(() => {
@@ -64,7 +66,7 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
   };
 
   const handleDeleteCoupon = async (id: string) => {
-    if (!window.confirm('Delete this coupon?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Delete this coupon?', isDestructive: true })) return;
     try {
       await deleteDoc(doc(db, 'couponCodes', id));
       setCoupons(prev => prev.filter(c => c.id !== id));
@@ -83,7 +85,7 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
 
   // --- Banner Handlers ---
   const handleRestoreDefaults = async () => {
-    if (!window.confirm('Are you sure you want to load default banners?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Are you sure you want to load default banners?', isDestructive: false })) return;
     
     const defaultBanners = [
       { title: 'GAMING SETUPS', imageUrl: '/banners/hero-main.jpg', targetUrl: '/category/components', position: 'hero_slider', isActive: true, order: 0 },
@@ -144,7 +146,7 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
   };
 
   const handleDeleteBanner = async (id: string) => {
-    if (!window.confirm('Delete this banner?')) return;
+    if (!await confirm({ title: 'Confirmation', message: 'Delete this banner?', isDestructive: true })) return;
     await deleteDoc(doc(db, 'store_banners', id));
     toast.success('Banner deleted');
   };

@@ -985,41 +985,47 @@ const Purchases: React.FC<PurchasesProps> = ({
   return (
     <div className="space-y-6">
       {/* ── TOP ACTION & SUMMARY BAR ── */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-slate-900 to-[#081621] rounded-2xl shadow-[0_2px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-800 p-6 md:p-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <ShoppingBag className="text-[#EF4444]" /> Product Purchases & Restocking
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-[10px] font-black uppercase tracking-widest mb-3">
+              <ShoppingBag size={12} className="text-blue-400" /> Inventory Procurement
+            </div>
+            <h2 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3">
+              Product Purchases & Restocking
             </h2>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-sm text-slate-400 mt-2 max-w-2xl">
               Procure inventory stock from suppliers, update cost prices, register serial numbers, and track vendor bills.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex bg-slate-800/50 p-1.5 rounded-xl border border-slate-700/50 backdrop-blur-sm shrink-0 flex-wrap gap-1.5">
             <button
               onClick={exportToCSV}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all"
+              className="px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-600 border border-slate-600/50"
             >
-              <Download size={13} /> CSV
+              <Download size={14} /> CSV
             </button>
             <button
               onClick={exportToPDF}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all"
+              className="px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-600 border border-slate-600/50"
             >
-              <Printer size={13} /> PDF
+              <Printer size={14} /> PDF
             </button>
             <button
               onClick={() => setIsCreatingPurchase(!isCreatingPurchase)}
-              className="bg-[#081621] hover:bg-[#EF4444] text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all shadow-sm"
+              className={cn(
+                "px-5 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 shadow-md border",
+                isCreatingPurchase 
+                  ? "bg-red-500 hover:bg-red-600 text-white border-red-500" 
+                  : "bg-white hover:bg-blue-50 text-slate-900 border-white"
+              )}
             >
-              {isCreatingPurchase ? <X size={15} /> : <Plus size={15} />}
+              {isCreatingPurchase ? <X size={16} /> : <Plus size={16} />}
               {isCreatingPurchase ? 'Close Purchase Form' : 'New Product Purchase'}
             </button>
           </div>
         </div>
-
-
       </div>
 
       {/* ── NEW PURCHASE CREATION WORKFLOW ── */}
@@ -1678,15 +1684,16 @@ const Purchases: React.FC<PurchasesProps> = ({
       )}
 
       {/* ── PURCHASE HISTORY TABLE ── */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden space-y-4">
+      {/* ── PURCHASE HISTORY TABLE ── */}
+      <div className="bg-white rounded-2xl shadow-[0_2px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden flex flex-col">
         {/* Table Filters */}
-        <div className="p-6 pb-0 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="p-6 md:p-8 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <div>
               <select
                 value={vendorFilter}
                 onChange={e => { setVendorFilter(e.target.value); setCurrentPage(1); }}
-                className="py-1.5 px-3 text-xs border border-gray-200 rounded-lg outline-none font-medium"
+                className="py-2.5 px-4 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 transition-all"
               >
                 <option value="all">-- All Suppliers --</option>
                 {vendors.map(v => (
@@ -1695,64 +1702,64 @@ const Purchases: React.FC<PurchasesProps> = ({
               </select>
             </div>
 
-            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
-              <label className="text-[10px] font-bold text-gray-500 uppercase">From</label>
+            <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">From</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }}
-                className="border-none bg-transparent text-xs font-bold text-gray-800 p-0 focus:ring-0"
+                className="border-none bg-transparent text-xs font-bold text-slate-800 p-0 focus:ring-0 outline-none"
               />
             </div>
 
-            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
-              <label className="text-[10px] font-bold text-gray-500 uppercase">To</label>
+            <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">To</label>
               <input
                 type="date"
                 value={endDate}
                 onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }}
-                className="border-none bg-transparent text-xs font-bold text-gray-800 p-0 focus:ring-0"
+                className="border-none bg-transparent text-xs font-bold text-slate-800 p-0 focus:ring-0 outline-none"
               />
             </div>
           </div>
 
-          <div className="relative w-full md:w-64">
+          <div className="relative w-full md:w-72">
             <input
               type="text"
               placeholder="Search purchase #, supplier..."
               value={searchHistory}
               onChange={e => { setSearchHistory(e.target.value); setCurrentPage(1); }}
-              className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-red-100"
+              className="w-full pl-10 pr-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all"
             />
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={13} />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
           </div>
         </div>
 
         {/* Purchases Table */}
-        <div className="overflow-x-auto border-t border-gray-100">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-gray-50 text-gray-500 uppercase font-bold border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3.5">Purchase #</th>
-                <th className="px-6 py-3.5">Date</th>
-                <th className="px-6 py-3.5">Supplier / Vendor</th>
-                <th className="px-6 py-3.5 text-center">Items Qty</th>
-                <th className="px-6 py-3.5 text-right">Total Bill</th>
-                <th className="px-6 py-3.5 text-right">Paid Amount</th>
-                <th className="px-6 py-3.5 text-right">Due Balance</th>
-                <th className="px-6 py-3.5 text-center">Status</th>
-                  <th className="px-6 py-3.5 text-center">Prepared By</th>
-                <th className="px-6 py-3.5 text-center">Actions</th>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-white border-b border-slate-100">
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Purchase #</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Date</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Supplier / Vendor</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-center">Items Qty</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-right">Total Bill</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-right">Paid Amount</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-right">Due Balance</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-center">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-center">Prepared By</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-50 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-gray-400">Loading purchase records...</td>
+                  <td colSpan={10} className="px-6 py-12 text-center text-slate-400 font-medium">Loading purchase records...</td>
                 </tr>
               ) : filteredPurchases.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-gray-400 italic">
+                  <td colSpan={10} className="px-6 py-12 text-center text-slate-400 italic font-medium">
                     No purchase records match the selected filters.
                   </td>
                 </tr>
@@ -1761,55 +1768,57 @@ const Purchases: React.FC<PurchasesProps> = ({
                   const totalQty = pur.items?.reduce((s, i) => s + (i.quantity || 0), 0) || 0;
                   const due = Math.max(0, (pur.total || 0) - (pur.paidAmount || 0));
                   return (
-                    <tr key={pur.id || idx} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-3.5 font-bold font-mono text-gray-900">
+                    <tr key={pur.id || idx} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-6 py-4 font-black font-mono text-xs text-slate-900">
                         {pur.documentNumber}
                       </td>
-                      <td className="px-6 py-3.5 text-gray-500 whitespace-nowrap">
+                      <td className="px-6 py-4 text-xs font-medium text-slate-500 whitespace-nowrap">
                         {new Date(pur.date || pur.createdAt).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-3.5 font-bold text-gray-800">
+                      <td className="px-6 py-4 text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
                         {pur.vendorName}
                         {pur.reference && (
-                          <span className="text-[10px] text-gray-400 font-mono block">Challan: #{pur.reference}</span>
+                          <span className="text-[10px] text-slate-400 font-mono font-medium block mt-1">Challan: #{pur.reference}</span>
                         )}
                       </td>
-                      <td className="px-6 py-3.5 text-center font-bold text-gray-700">
-                        {totalQty} Units
+                      <td className="px-6 py-4 text-center text-xs font-bold text-slate-600">
+                        <span className="bg-slate-100 px-2 py-0.5 rounded-full">{totalQty} Units</span>
                       </td>
-                      <td className="px-6 py-3.5 text-right font-black text-gray-900">
+                      <td className="px-6 py-4 text-right text-sm font-black text-slate-900">
                         {formatCurrency(pur.total, settings)}
                       </td>
-                      <td className="px-6 py-3.5 text-right font-bold text-green-700">
+                      <td className="px-6 py-4 text-right text-sm font-bold text-emerald-600">
                         {formatCurrency(pur.paidAmount, settings)}
                       </td>
-                      <td className="px-6 py-3.5 text-right">
+                      <td className="px-6 py-4 text-right">
                         {due > 0 ? (
-                          <span className="font-black text-red-600 bg-red-50 px-2 py-0.5 rounded">
+                          <span className="font-black text-sm text-red-600 bg-red-50 px-2.5 py-1 rounded-lg">
                             {formatCurrency(due, settings)}
                           </span>
                         ) : (
-                          <span className="text-gray-400">-</span>
+                          <span className="text-slate-300 font-bold">-</span>
                         )}
                       </td>
-                      <td className="px-6 py-3.5 text-center">
+                      <td className="px-6 py-4 text-center">
                         <span className={cn(
-                          "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
-                          pur.paymentStatus === 'paid' ? "bg-green-100 text-green-700" :
+                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                          pur.paymentStatus === 'paid' ? "bg-emerald-100 text-emerald-700" :
                           pur.paymentStatus === 'partial' ? "bg-amber-100 text-amber-700" :
                           "bg-red-100 text-red-700"
                         )}>
                           {pur.paymentStatus}
                         </span>
                       </td>
-                        <td className="px-6 py-3.5 text-center text-[11px] font-bold text-gray-500 whitespace-nowrap">{pur.createdBy || "Admin"}</td>
-                      <td className="px-6 py-3.5 text-center">
+                      <td className="px-6 py-4 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                        {pur.createdBy || "Admin"}
+                      </td>
+                      <td className="px-6 py-4 text-center">
                         <button
                           onClick={() => setViewingPurchase(pur)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all border border-transparent hover:border-blue-200 shadow-sm opacity-100 md:opacity-70 group-hover:opacity-100"
                           title="View Purchase Bill"
                         >
-                          <Eye size={14} />
+                          <Eye size={16} />
                         </button>
                       </td>
                     </tr>
@@ -1821,7 +1830,7 @@ const Purchases: React.FC<PurchasesProps> = ({
         </div>
 
         {/* Pagination */}
-        <div className="p-6 pt-0">
+        <div className="p-6 bg-white border-t border-slate-100 rounded-b-2xl">
           <Pagination
             currentPage={currentPage}
             totalItems={filteredPurchases.length}
