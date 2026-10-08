@@ -390,8 +390,8 @@ import { Trophy,
   Terminal,
   RefreshCw,
   DollarSign,
-  ExternalLink,
- } from "lucide-react";
+  ExternalLink, Loader2
+} from "lucide-react";
 import { formatCurrency, cn, addWarranty, formatWarranty } from "../lib/utils";
 import { useSettings } from "../context/SettingsContext";
 import { toast } from "react-hot-toast";

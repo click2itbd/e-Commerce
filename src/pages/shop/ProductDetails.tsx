@@ -101,7 +101,7 @@ const groupSpecs = (specsObj: Record<string, any>) => {
     }
   });
 
-  return [otherGroup, ...groups].filter(g => g.items.length > 0);
+  return [...groups, otherGroup].filter(g => g.items.length > 0);
 };
 
 export const ProductDetails: React.FC = () => {
