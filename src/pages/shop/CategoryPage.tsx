@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { collection, getDocs, query, limit } from 'firebase/firestore';
+import { collection, getDocs, query } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Product } from '../../types';
 import { Layout } from '../../components/Layout';
@@ -63,7 +63,7 @@ export const CategoryPage: React.FC = () => {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        let q = query(collection(db, 'products'), limit(200));
+        let q = query(collection(db, 'products'));
         const snap = await getDocs(q);
         let productsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[];
         

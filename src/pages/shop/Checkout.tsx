@@ -8,7 +8,7 @@ import { Layout } from '../../components/Layout';
 import { toast } from 'react-hot-toast';
 import { Lock, ArrowRight } from 'lucide-react';
 import { auth, db } from '../../firebase';
-import { collection, addDoc, doc, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, writeBatch, getDoc, increment } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { generateDocumentNumber } from '../../lib/numbering';
 import { generatePDF } from '../../lib/pdf';
@@ -259,6 +259,14 @@ export const Checkout: React.FC = () => {
       
       const domainItems = items.filter(item => item.itemType === 'domain' || item.itemType === 'domain_transfer');
       const hostingItems = items.filter(item => item.itemType === 'hosting');
+      
+      const productItems = items.filter(item => !item.itemType || item.itemType === 'product');
+      for (const pItem of productItems) {
+        if (pItem.id) {
+          const prodRef = doc(db, 'products', pItem.id);
+          batch.update(prodRef, { stock: increment(-pItem.quantity) });
+        }
+      }
 
       for (const domainItem of domainItems) {
         const domain = domainItem.id.replace('domain_', '');

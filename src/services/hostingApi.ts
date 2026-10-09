@@ -78,86 +78,18 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   }
 }
 
-const DEFAULT_DOMAIN_PRICING: DomainPricing[] = [
-  { tld: '.com', registerPrice: 1529, renewPrice: 1655, transferPrice: 1529, currency: 'BDT', isActive: true },
-  { tld: '.net', registerPrice: 1808, renewPrice: 2170, transferPrice: 1808, currency: 'BDT', isActive: true },
-  { tld: '.org', registerPrice: 1669, renewPrice: 1808, transferPrice: 1669, currency: 'BDT', isActive: true },
-  { tld: '.info', registerPrice: 689, renewPrice: 2759, transferPrice: 2759, currency: 'BDT', isActive: true },
-  { tld: '.biz', registerPrice: 828, renewPrice: 2621, transferPrice: 2621, currency: 'BDT', isActive: true },
-  { tld: '.co', registerPrice: 3863, renewPrice: 3863, transferPrice: 3863, currency: 'BDT', isActive: true },
-  { tld: '.xyz', registerPrice: 419, renewPrice: 1794, transferPrice: 1794, currency: 'BDT', isActive: true },
-  { tld: '.online', registerPrice: 551, renewPrice: 4829, transferPrice: 4829, currency: 'BDT', isActive: true },
-  { tld: '.store', registerPrice: 551, renewPrice: 4139, transferPrice: 4139, currency: 'BDT', isActive: true },
-  { tld: '.me', registerPrice: 2069, renewPrice: 2621, transferPrice: 2621, currency: 'BDT', isActive: true },
-  { tld: '.io', registerPrice: 5519, renewPrice: 6899, transferPrice: 6899, currency: 'BDT', isActive: true },
-  { tld: '.dev', registerPrice: 2069, renewPrice: 2346, transferPrice: 2346, currency: 'BDT', isActive: true },
-  { tld: '.tech', registerPrice: 689, renewPrice: 3449, transferPrice: 3449, currency: 'BDT', isActive: true },
-  // BTCL Domains
-  { tld: '.com.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
-  { tld: '.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
-  { tld: '.net.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
-  { tld: '.org.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
-  { tld: '.edu.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
-  { tld: '.gov.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
-  { tld: '.ac.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
-  { tld: '.info.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
-  { tld: '.co.bd', registerPrice: 1840, renewPrice: 1840, transferPrice: 1840, currency: 'BDT', isActive: true },
-];
-
 let domainPricingCache: { expiresAt: number; data: DomainPricing[] } | null = null;
 let domainPricingRequest: Promise<DomainPricing[]> | null = null;
 
-async function checkDomainDnsAvailability(domain: string): Promise<boolean> {
-  try {
-    const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=SOA`, {
-      headers: { Accept: 'application/dns-json' },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      // Status 3 is NXDOMAIN (domain does not exist -> available)
-      if (data.Status === 3 && (!data.Answer || data.Answer.length === 0)) {
-        return true;
-      }
-      // Status 0 (NOERROR) or has answers -> registered / taken
-      if (data.Status === 0 || (data.Answer && data.Answer.length > 0)) {
-        return false;
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return true;
-}
-
 export async function checkDomainAvailability(domains: string[]): Promise<DomainAvailabilityResult[]> {
-  try {
-    const response = await apiRequest<{ success: boolean; data: DomainAvailabilityResult[]; error?: string }>('/api/domains/check', {
-      method: 'POST',
-      body: JSON.stringify({ domains }),
-    });
-    if (response && response.success && Array.isArray(response.data) && response.data.length > 0) {
-      return response.data;
-    }
-  } catch {
-    // Backend offline or static host: resolve in parallel via DNS-over-HTTPS
+  const response = await apiRequest<{ success: boolean; data: DomainAvailabilityResult[]; error?: string }>('/api/domains/check', {
+    method: 'POST',
+    body: JSON.stringify({ domains }),
+  });
+  if (!response.success || !Array.isArray(response.data)) {
+    throw new Error(response.error || 'Openprovider domain availability is unavailable.');
   }
-
-  const results = await Promise.all(
-    domains.map(async (domain) => {
-      const isAvailable = await checkDomainDnsAvailability(domain);
-      const pricing = DEFAULT_DOMAIN_PRICING.sort((a, b) => b.tld.length - a.tld.length).find(p => domain.toLowerCase().endsWith(p.tld)) || DEFAULT_DOMAIN_PRICING[0];
-
-      return {
-        domain,
-        available: isAvailable,
-        price: pricing.registerPrice,
-        originalPrice: pricing.registerPrice,
-        currency: 'BDT',
-      };
-    })
-  );
-
-  return results;
+  return response.data;
 }
 
 export async function getDomainSuggestions(domain: string): Promise<string[]> {
@@ -177,26 +109,13 @@ export async function getDomainPricing(): Promise<DomainPricing[]> {
   }
 
   domainPricingRequest = (async () => {
-    let pricing = [...DEFAULT_DOMAIN_PRICING];
-    try {
-      const response = await apiRequest<{ success: boolean; data: DomainPricing[] }>('/api/domains/pricing');
-      if (response.success && Array.isArray(response.data) && response.data.length > 0) {
-        pricing = pricing.map(defaultPrice => {
-          const configuredPrice = response.data.find(item => item.tld === defaultPrice.tld);
-          return configuredPrice ? { ...defaultPrice, ...configuredPrice } : defaultPrice;
-        });
-        response.data.forEach(configuredPrice => {
-          if (!pricing.some(item => item.tld === configuredPrice.tld)) {
-            pricing.push(configuredPrice);
-          }
-        });
-      }
-    } catch (error) {
-      console.warn('Domain pricing API unavailable; using configured fallback prices.', error);
+    const response = await apiRequest<{ success: boolean; data: DomainPricing[]; error?: string }>('/api/domains/pricing');
+    if (!response.success || !Array.isArray(response.data)) {
+      throw new Error(response.error || 'Openprovider domain pricing is unavailable.');
     }
 
-    domainPricingCache = { expiresAt: Date.now() + 60_000, data: pricing };
-    return pricing;
+    domainPricingCache = { expiresAt: Date.now() + 60_000, data: response.data };
+    return response.data;
   })();
 
   try {

@@ -193,17 +193,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                       {formatCurrency(product.discountPrice || product.price)}
                     </span>
                     {product.discountPrice && product.discountPrice < product.price && (
-                      <span className="text-lg text-gray-400 line-through font-semibold">
-                        {formatCurrency(product.price)}
-                      </span>
-                    )}
+                      <>
+<span className="text-lg text-gray-400 line-through font-semibold">
+{formatCurrency(product.price)}
+</span>
+<span className="bg-red-100 text-red-600 text-xs font-black px-2 py-1 rounded-full uppercase tracking-wider ml-2">
+                        Save {formatCurrency(product.price - (product.discountPrice || product.price))}
+</span>
+</>
+)}
                   </div>
-                  <span className={cn(
-                    "px-2.5 py-1 rounded-md text-xs font-bold uppercase",
-                    product.stock > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                  )}>
-                    {product.stock > 0 ? 'In Stock' : 'Out of Stock'}
-                  </span>
+                  
                 </div>
 
                 <div className="space-y-4 mb-8">

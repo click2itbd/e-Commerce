@@ -217,7 +217,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                 </button>
                 {hasPermission('manage_inventory') && (
                   <button
-                    onClick={() => setIsAddingProduct(true)}
+                    onClick={() => { setIsAddingProduct(true); document.getElementById('main-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' }); }}
                     className="bg-[#081621] text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-[#EF4444] transition-all font-bold text-sm"
                   >
                     <Plus size={18} /> Add Product
@@ -1302,7 +1302,7 @@ Storage: 512GB SSD"
                           )}
                           {hasPermission('manage_inventory') && (
                             <button
-                              onClick={() => { setEditingProduct(product); setFormData({ ...product, variants: product.variants || [], specs: product.specs || {} }); setIsAddingProduct(true); }}
+                              onClick={() => { setEditingProduct(product); setFormData({ ...product, variants: product.variants || [], specs: product.specs || {} }); setIsAddingProduct(true); document.getElementById('main-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' }); }}
                               className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-all"
                               title="Edit Product"
                             >

@@ -20,8 +20,13 @@ export interface DomainRegistrationResult {
   success: boolean;
   domain: string;
   registrationId?: string;
+  status?: string;
   expiresAt?: string;
   error?: string;
+  providerHttpStatus?: number;
+  providerCode?: string;
+  requestStartedAt?: string;
+  responseReceivedAt?: string;
 }
 
 export interface DomainRenewalResult {
@@ -58,6 +63,8 @@ export interface BatchTldPricingItem {
   tld: string;
   supplierPriceUsd: number;
   currency: string;
+  supplierRenewalPriceUsd?: number;
+  supplierTransferPriceUsd?: number;
 }
 
 export interface DomainRenewalPriceResult {
@@ -89,6 +96,10 @@ export interface DomainTransferResult {
   transferId?: string;
   status?: string;
   error?: string;
+  providerHttpStatus?: number;
+  providerCode?: string;
+  requestStartedAt?: string;
+  responseReceivedAt?: string;
 }
 
 export interface IDomainProvider {

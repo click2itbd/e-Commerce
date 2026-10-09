@@ -14,8 +14,8 @@ describe('Frontend Source Secret Scan', () => {
   const secretPatterns = [
     { pattern: /GEMINI_API_KEY/i, name: 'GEMINI_API_KEY' },
     { pattern: /VITE_GEMINI_API_KEY/i, name: 'VITE_GEMINI_API_KEY' },
-    { pattern: /DYNADOT_API_KEY/i, name: 'DYNADOT_API_KEY' },
-    { pattern: /dynadotApiKey/i, name: 'dynadotApiKey' },
+    { pattern: /OPENPROVIDER_PASSWORD/i, name: 'OPENPROVIDER_PASSWORD' },
+    { pattern: /openproviderPassword/i, name: 'openproviderPassword' },
     { pattern: /WHM_API_TOKEN/i, name: 'WHM_API_TOKEN' },
     { pattern: /hostingApiKey/i, name: 'hostingApiKey' },
     { pattern: /SMTP_PASSWORD/i, name: 'SMTP_PASSWORD' },
@@ -24,7 +24,7 @@ describe('Frontend Source Secret Scan', () => {
     { pattern: /bkashAppKey/i, name: 'bkashAppKey' },
     { pattern: /bkashAppSecret/i, name: 'bkashAppSecret' },
     { pattern: /client_secret/i, name: 'client_secret' },
-    { pattern: /process\.env\.(GEMINI|DYNADOT|WHM|SMTP|RESEND|BKASH)/i, name: 'process.env secret' },
+    { pattern: /process\.env\.(GEMINI|OPENPROVIDER|WHM|SMTP|RESEND|BKASH)/i, name: 'process.env secret' },
     { pattern: /import.*GoogleGenAI/i, name: 'GoogleGenAI import' },
   ];
 
@@ -145,7 +145,7 @@ describe('.env Security', () => {
       expect(content).not.toMatch(/^RESEND_API_KEY=(re_|)[A-Za-z0-9]{20,}$/m);
       expect(content).not.toMatch(/^WHM_API_TOKEN=[A-Za-z0-9]{20,}$/m);
       expect(content).not.toMatch(/^GEMINI_API_KEY=[A-Za-z0-9._\-]{20,}$/m);
-      expect(content).not.toMatch(/^DYNADOT_API_KEY=[A-Za-z0-9]{20,}$/m);
+      expect(content).not.toMatch(/^OPENPROVIDER_PASSWORD=[A-Za-z0-9]{20,}$/m);
       expect(content).not.toMatch(/^SMTP_PASSWORD=.{8,}$/m);
     }
   });
@@ -194,11 +194,11 @@ describe('Console Logging Security', () => {
 });
 
 describe('Phase 2 Critical Code Repair', () => {
-  it('DynadotDomainProvider.ts must exist and implement IDomainProvider', () => {
-    const providerPath = path.join(projectRoot, 'backend/src/providers/domain/DynadotDomainProvider.ts');
+  it('OpenproviderDomainProvider.ts must exist and implement IDomainProvider', () => {
+    const providerPath = path.join(projectRoot, 'backend/src/providers/domain/OpenproviderDomainProvider.ts');
     expect(fs.existsSync(providerPath)).toBe(true);
     const content = fs.readFileSync(providerPath, 'utf-8');
-    expect(content).toMatch(/class DynadotDomainProvider implements IDomainProvider/);
+    expect(content).toMatch(/class OpenproviderDomainProvider implements IDomainProvider/);
     expect(content).toMatch(/checkAvailability/);
     expect(content).toMatch(/getSuggestions/);
     expect(content).toMatch(/registerDomain/);
@@ -226,16 +226,16 @@ describe('Phase 2 Critical Code Repair', () => {
   it('paymentWebhook must not delete orders on failure', () => {
     const functionsPath = path.join(projectRoot, 'functions/index.js');
     const content = fs.readFileSync(functionsPath, 'utf-8');
-    const webhookSection = content.substring(content.indexOf('exports.paymentWebhook'), content.indexOf('exports.dynadotSearchProxy'));
+    const webhookSection = content.substring(content.indexOf('exports.paymentWebhook'), content.indexOf('exports.openproviderSearchProxy'));
     expect(webhookSection).not.toMatch(/targetRef\.delete\(\)/);
     expect(webhookSection).not.toMatch(/collection\("orders"\)\.doc\(orderId\)\.delete\(\)/);
     expect(webhookSection).toMatch(/provisioningStatus: 'cancelled'/);
   });
 
-  it('providerFactory must be able to import DynadotDomainProvider', () => {
+  it('providerFactory must use OpenproviderDomainProvider', () => {
     const factoryPath = path.join(projectRoot, 'backend/src/providers/providerFactory.ts');
     const content = fs.readFileSync(factoryPath, 'utf-8');
-    expect(content).toMatch(/import\s+\{?\s*DynadotDomainProvider\s*\}?\s*from\s*['"]\.\/domain\/DynadotDomainProvider(?:\.js)?['"]/);
-    expect(content).toMatch(/new\s+DynadotDomainProvider\(/);
+    expect(content).toMatch(/import\s+\{?\s*OpenproviderDomainProvider\s*\}?\s*from\s*['"]\.\/domain\/OpenproviderDomainProvider(?:\.js)?['"]/);
+    expect(content).toMatch(/new\s+OpenproviderDomainProvider\(/);
   });
 });

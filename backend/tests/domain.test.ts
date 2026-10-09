@@ -56,9 +56,11 @@ vi.mock('../src/firebase/admin', () => {
     getAdminDb: vi.fn(() => ({
       collection: vi.fn((name: string) => mockCollection(name)),
     })),
-    getAdminDocument: vi.fn(() => Promise.resolve({
-      exists: false,
-      data: null,
+    getAdminDocument: vi.fn((collection: string, docId: string) => Promise.resolve({
+      exists: collection === 'settings' && docId === 'public_config',
+      data: collection === 'settings' && docId === 'public_config'
+        ? { usdToBdtRate: 120, domainMarkupPercent: 15 }
+        : null,
     })),
     setAdminDocument: vi.fn(),
     isUserAdmin: vi.fn(() => false),
@@ -134,7 +136,6 @@ describe('Domain Production Flow', () => {
     process.env.NODE_ENV = 'test';
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY = '';
     process.env.EXPRESS_API_KEY = 'test-api-key';
-    process.env.DYNADOT_API_KEY = 'test-dynadot-key';
     app = createApp();
   });
 

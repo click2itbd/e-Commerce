@@ -8,7 +8,6 @@ vi.mock('../src/firebase/admin', () => ({
 
 describe('getDomainProviderConfig', () => {
   beforeEach(() => {
-    vi.stubEnv('DOMAIN_API_TYPE', '');
     vi.stubEnv('OPENPROVIDER_USERNAME', '');
     vi.stubEnv('OPENPROVIDER_PASSWORD', '');
     vi.mocked(getAdminDocument).mockResolvedValue({ exists: false, data: null });
@@ -18,28 +17,33 @@ describe('getDomainProviderConfig', () => {
     vi.unstubAllEnvs();
   });
 
-  it('selects Openprovider credentials instead of forcing the Dynadot provider', async () => {
+  it('selects Openprovider credentials from the environment', async () => {
     vi.stubEnv('OPENPROVIDER_USERNAME', 'openprovider-user');
     vi.stubEnv('OPENPROVIDER_PASSWORD', 'openprovider-password');
+    vi.stubEnv('OPENPROVIDER_SANDBOX_MODE', 'false');
 
     await expect(getDomainProviderConfig()).resolves.toMatchObject({
       domainApiType: 'openprovider',
       domainApiKey: 'openprovider-user',
       openproviderPassword: 'openprovider-password',
+      openproviderSandbox: false,
     });
   });
 
-  it('uses the stored provider selection and Openprovider username', async () => {
-    vi.mocked(getAdminDocument).mockResolvedValue({
-      exists: true,
-      data: { domainApiType: 'openprovider', openproviderUsername: 'stored-user' },
-    });
-    vi.stubEnv('OPENPROVIDER_PASSWORD', 'openprovider-password');
+  it('uses Openprovider credentials saved in the registrar settings', async () => {
+    delete process.env.OPENPROVIDER_SANDBOX_MODE;
+    vi.mocked(getAdminDocument).mockImplementation(async (collection, docId) => ({
+      exists: collection === 'hosting_config' && docId === 'registrar_settings',
+      data: collection === 'hosting_config' && docId === 'registrar_settings'
+        ? { openprovider: { username: 'stored-user', password: 'stored-password', isSandbox: true } }
+        : null,
+    }));
 
     await expect(getDomainProviderConfig()).resolves.toMatchObject({
       domainApiType: 'openprovider',
       domainApiKey: 'stored-user',
-      openproviderPassword: 'openprovider-password',
+      openproviderPassword: 'stored-password',
+      openproviderSandbox: true,
     });
   });
 });

@@ -48,8 +48,8 @@ export function createApp(): Express {
           ],
           connectSrc: [
             "'self'",
-            "https://api.dynadot.com",
-            "https://api-sandbox.dynadot.com",
+            "https://api.openprovider.eu",
+            "https://api.cte.openprovider.eu",
             "https://cln.cloudlinux.com",
             "https://securetoken.googleapis.com",
             "https://identitytoolkit.googleapis.com",
@@ -83,6 +83,8 @@ export function createApp(): Express {
   const allowedOrigins = [
     "https://click2itbd.com",
     "https://www.click2itbd.com",
+    "https://click2it.bd",
+    "https://www.click2it.bd",
     ...envOrigins,
     ...(config.cors?.origins || []),
   ];
@@ -199,5 +201,4 @@ export function createApp(): Express {
 
   return app;
 }
-
 

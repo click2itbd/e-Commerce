@@ -34,17 +34,11 @@ export const config = {
     whmApiToken: process.env.WHM_API_TOKEN || process.env.WHM_API_KEY,
     whmApiKey: process.env.WHM_API_TOKEN || process.env.WHM_API_KEY,
     whmUsername: (process.env.WHM_USERNAME || 'root').trim(),
-    dynadotApiKey: process.env.DYNADOT_API_KEY,
     whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN,
     whatsappVerifyToken: process.env.WHATSAPP_VERIFY_TOKEN,
     manualPaymentSecret: process.env.MANUAL_PAYMENT_SECRET,
     manualBikashNumber: process.env.MANUAL_BIKASH_NUMBER,
     firebaseServiceAccountKey: process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
-  },
-  dynadot: {
-    exchangeRate: parseFloat(process.env.DYNADOT_EXCHANGE_RATE || '120'),
-    markupPercent: parseFloat(process.env.DYNADOT_MARKUP_PERCENT || '15'),
-    sandboxMode: process.env.DYNADOT_SANDBOX_MODE === 'true',
   },
   smtp: {
     host: process.env.SMTP_HOST || '',
@@ -73,8 +67,8 @@ export function validateEnvironment(): void {
   if (!config.secrets.whmApiUrl) {
     missing.push('WHM_API_URL');
   }
-  if (!config.secrets.dynadotApiKey) {
-    missing.push('DYNADOT_API_KEY');
+  if (!process.env.OPENPROVIDER_USERNAME || !process.env.OPENPROVIDER_PASSWORD) {
+    missing.push('OPENPROVIDER_USERNAME / OPENPROVIDER_PASSWORD');
   }
   
   if (missing.length > 0) {

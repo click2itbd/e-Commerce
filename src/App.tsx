@@ -41,7 +41,7 @@ const CampaignLanding = lazy(() => import('./pages/shop/CampaignLanding').then(m
 
 const ServicesPage = lazy(() => import('./pages/hosting/ServicesPage'));
 const PricingPage = lazy(() => import('./pages/hosting/PricingPage'));
-const DomainPage = lazy(() => import('./pages/hosting/DomainPage').then(m => ({ default: m.default || m.DomainPage })));
+const DomainPage = lazy(() => import('./pages/hosting/DomainPage'));
 const DomainSearchResults = lazy(() => import('./pages/hosting/DomainSearchResults'));
 const BdDomainPage = lazy(() => import('./pages/hosting/BdDomainPage'));
 const SupportPage = lazy(() => import('./pages/hosting/SupportPage'));
@@ -60,14 +60,14 @@ const TrackOrder = lazy(() => import('./pages/shop/TrackOrder'));
 const BlogPost = lazy(() => import('./pages/shop/BlogPost'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
 const ContactUs = lazy(() => import('./pages/ContactUs'));
-const DomainTransferPage = lazy(() => import('./pages/hosting/DomainTransferPage').then(m => ({ default: m.default || m.DomainTransferPage })));
+const DomainTransferPage = lazy(() => import('./pages/hosting/DomainTransferPage'));
 const PaymentSimulation = lazy(() => import('./pages/PaymentSimulation'));
 const PaymentCallback = lazy(() => import('./pages/PaymentCallback'));
 const PaymentReturn = lazy(() => import('./pages/PaymentReturn').then(m => ({ default: m.default || m.PaymentReturn })));
 
 const HostingCart = lazy(() => import('./pages/hosting/HostingCart').then(m => ({ default: m.HostingCart })));
 const HostingCheckout = lazy(() => import('./pages/hosting/HostingCheckout').then(m => ({ default: m.HostingCheckout })));
-const DomainRenewal = lazy(() => import('./pages/hosting/DomainRenewal').then(m => ({ default: m.default || m.DomainRenewal })));
+const DomainRenewal = lazy(() => import('./pages/hosting/DomainRenewal'));
 
 import { PageLoader } from './components/Loading';
 
@@ -182,7 +182,6 @@ export default function App() {
     </HelmetProvider>
   );
 }
-
 
 
 

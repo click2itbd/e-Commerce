@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, addDoc, updateDoc, doc, query, getDocs, orderBy, where, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, query, getDocs, getDoc, orderBy, where, deleteDoc, increment } from 'firebase/firestore';
 import { db, auth } from '../../../../firebase';
 import { Product, Customer, DiscountCode, SiteSettings, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn, addWarranty, formatWarranty } from '../../../../lib/utils';
@@ -28,6 +28,7 @@ import { CustomProductPurchaseModal } from '../../modals/CustomProductPurchaseMo
 import { sendEmail } from '../../../../services/emailService';
 
 interface SalesFormProps {
+  users?: any[];
   editingOrder?: any;
   onCancelEdit?: () => void;
   products: Product[];
@@ -44,7 +45,8 @@ interface SalesFormProps {
   setIsAddingCustomer: (val: boolean) => void;
 }
 
-export const SalesForm: React.FC<SalesFormProps> = ({ editingOrder, onCancelEdit,
+export const SalesForm: React.FC<SalesFormProps> = ({
+  users = [], editingOrder, onCancelEdit,
   products,
   customers: initialCustomers,
   discountCodes,
@@ -329,7 +331,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({ editingOrder, onCancelEdit
               playBeep('error');
               toast.error('This product requires a Serial Number! Please scan the S/N instead.', { duration: 4000 });
             } else {
-              addItemToSale(bestMatch, matchedSerial, matchedVariant);
+              addItemToSale(bestMatch, matchedSerial);
               setProductSearch('');
               playBeep('success');
               toast.success(`Scanned: ${bestMatch.name}`);
@@ -643,7 +645,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({ editingOrder, onCancelEdit
             price: Number(item.price),
             costPrice: 0,
             quantity: Number(item.quantity),
-            unit: item.unit || currentProduct?.unit || 'pcs',
+            unit: (item as any).unit || currentProduct?.unit || 'pcs',
             hasWarranty: false,
             warrantyMonths: 0,
             selectedSerials: [],
@@ -659,7 +661,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({ editingOrder, onCancelEdit
           price: Number(item.price),
           costPrice: Number(currentProduct?.costPrice) || 0,
           quantity: Number(item.quantity),
-            unit: item.unit || currentProduct?.unit || 'pcs',
+            unit: (item as any).unit || currentProduct?.unit || 'pcs',
           hasWarranty: Boolean(item.hasWarranty),
             warrantyMonths: wMonths,
             warrantyUnit: currentProduct?.warrantyUnit || 'months',
@@ -726,12 +728,20 @@ export const SalesForm: React.FC<SalesFormProps> = ({ editingOrder, onCancelEdit
             for (const oldItem of editingOrder.items || []) {
               if (oldItem.isCustomService) continue;
               const prodRef = doc(db, 'products', oldItem.productId || oldItem.id);
-              const pSnap = await getDocs(query(collection(db, 'products')));
-              const pDoc = pSnap.docs.find(d => d.id === (oldItem.productId || oldItem.id));
-              if (pDoc) {
-                const currentProd = pDoc.data();
+              const pSnap = await getDoc(prodRef);
+              if (pSnap.exists()) {
+                const currentProd = pSnap.data();
                 const updates: any = {};
-                updates.stock = (currentProd.stock || 0) + (oldItem.quantity || 0);
+                updates.stock = increment(oldItem.quantity || 0);
+                
+                // UPDATE LOCAL STATE SO THE DEDUCT LOGIC USES IT
+                const localProd = products.find(p => p.id === (oldItem.productId || oldItem.id));
+                if (localProd) {
+                   localProd.stock = updates.stock;
+                   if (oldItem.selectedSerials) {
+                      localProd.availableSerials = [...(localProd.availableSerials || []), ...oldItem.selectedSerials];
+                   }
+                }
                 if (oldItem.selectedSerials && oldItem.selectedSerials.length > 0) {
                    updates.availableSerials = [...(currentProd.availableSerials || []), ...oldItem.selectedSerials];
                 }
@@ -761,8 +771,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({ editingOrder, onCancelEdit
           const currentProduct = products.find(p => p.id === item.id);
           if (currentProduct) {
             const updates: any = {};
-            const newStock = Math.max(0, currentProduct.stock - item.quantity);
-            updates.stock = newStock;
+            updates.stock = increment(-item.quantity);
 
             if (currentProduct.hasSerialTracking && item.selectedSerials) {
               const remainingSerials = (currentProduct.availableSerials || []).filter(
@@ -1000,13 +1009,18 @@ export const SalesForm: React.FC<SalesFormProps> = ({ editingOrder, onCancelEdit
                 </div>
                 <div>
                   <label className="block font-bold text-gray-700 uppercase mb-1">Prepared By</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Fahad, Atik..."
+                  <select
                     value={saleData.createdBy || ''}
                     onChange={e => setSaleData({ ...saleData, createdBy: e.target.value })}
-                    className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                  />
+                    className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-800 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white cursor-pointer"
+                  >
+                    <option value="">-- Select --</option>
+                    {users
+                      .filter(u => u.role === 'admin' || u.role === 'staff' || u.role === 'manager' || u.permissions?.length > 0)
+                      .map(u => (
+                      <option key={u.uid} value={u.displayName || u.email}>{u.displayName || u.email}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                     <label className="block font-bold text-gray-700 uppercase mb-1">Work Order #</label>
@@ -1337,7 +1351,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({ editingOrder, onCancelEdit
                                   <Plus size={12} />
                                 </button>
                                 <select
-                                  value={item.unit || originalProd?.unit || 'pcs'}
+                                  value={(item as any).unit || originalProd?.unit || 'pcs'}
                                   onChange={e => {
                                     setSaleData(prev => ({
                                       ...prev,

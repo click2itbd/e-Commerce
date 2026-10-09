@@ -56,12 +56,17 @@ export async function isBtclEnabled(): Promise<boolean> {
 
 /**
  * Picks the right registrar for a domain: `.bd` -> BTCL (when enabled and
- * configured), everything else -> the default provider (Dynadot).
+ * configured), everything else -> the default provider (Openprovider).
  * Returns `viaBtcl` so callers can tell whether the BTCL API handled it.
  */
 export async function resolveDomainProvider(
   domain: string,
-  defaultConfig: { domainApiType?: string; domainApiKey?: string }
+  defaultConfig: {
+    domainApiType?: string;
+    domainApiKey?: string;
+    openproviderPassword?: string;
+    openproviderSandbox?: boolean;
+  }
 ): Promise<{ provider: IDomainProvider; viaBtcl: boolean }> {
   if (isBdDomain(domain)) {
     const cfg = await getBtclConfig();

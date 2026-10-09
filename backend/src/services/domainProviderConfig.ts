@@ -1,37 +1,42 @@
 import { getAdminDocument } from '../firebase/admin';
-import { config } from '../config/index.js';
 
 export interface DomainProviderConfig {
-  domainApiType: string;
+  domainApiType: 'openprovider';
   domainApiKey: string;
-  openproviderPassword?: string;
+  openproviderPassword: string;
+  openproviderSandbox: boolean;
 }
 
 export async function getDomainProviderConfig(): Promise<DomainProviderConfig> {
-  const envDomainApiType = process.env.DOMAIN_API_TYPE?.trim().toLowerCase();
-  const dynadotApiKey = process.env.DYNADOT_API_KEY || config.secrets.dynadotApiKey || '';
-  const openproviderUsername = process.env.OPENPROVIDER_USERNAME || '';
-  const openproviderPassword = process.env.OPENPROVIDER_PASSWORD || '';
-
   let storedConfig: Record<string, any> = {};
+  let registrarConfig: Record<string, any> = {};
   try {
-    const result = await getAdminDocument('settings', 'api_keys');
-    storedConfig = result.data || {};
+    const [apiKeys, registrarSettings] = await Promise.all([
+      getAdminDocument('settings', 'api_keys'),
+      getAdminDocument('hosting_config', 'registrar_settings'),
+    ]);
+    storedConfig = apiKeys.data || {};
+    registrarConfig = registrarSettings.data?.openprovider || {};
   } catch (error) {
-    console.warn('Error reading domain config from Firestore settings/api_keys:', error);
+    console.warn('Error reading Openprovider config from Firestore:', error);
   }
 
-  const domainApiType = envDomainApiType
-    || String(storedConfig.domainApiType || '').trim().toLowerCase()
-    || (openproviderUsername ? 'openprovider' : dynadotApiKey ? 'dynadot' : 'dummy');
-
-  const domainApiKey = domainApiType === 'openprovider'
-    ? openproviderUsername || storedConfig.openproviderUsername || storedConfig.domainApiKey || ''
-    : dynadotApiKey || storedConfig.dynadotApiKey || storedConfig.domainApiKey || '';
+  const domainApiKey = process.env.OPENPROVIDER_USERNAME
+    || registrarConfig.username
+    || storedConfig.openproviderUsername
+    || '';
+  const openproviderPassword = process.env.OPENPROVIDER_PASSWORD
+    || registrarConfig.password
+    || storedConfig.openproviderPassword
+    || '';
+  const openproviderSandbox = process.env.OPENPROVIDER_SANDBOX_MODE !== undefined
+    ? process.env.OPENPROVIDER_SANDBOX_MODE === 'true'
+    : registrarConfig.isSandbox !== false;
 
   return {
-    domainApiType,
+    domainApiType: 'openprovider',
     domainApiKey,
-    openproviderPassword: domainApiType === 'openprovider' ? openproviderPassword : undefined,
+    openproviderPassword,
+    openproviderSandbox,
   };
 }

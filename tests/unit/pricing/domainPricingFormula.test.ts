@@ -41,7 +41,7 @@ describe('Domain Pricing Formula', () => {
     })).toBe(1337);
   });
 
-  it('decimal Dynadot price rounds correctly', () => {
+  it('decimal registrar quote rounds correctly', () => {
     expect(calculateCustomerPriceBdt({
       registerPriceUsd: 9.99,
       domainMarkupPercent: 15,

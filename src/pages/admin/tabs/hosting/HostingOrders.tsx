@@ -156,22 +156,31 @@ export default function HostingOrders() {
 
       if (response.ok && data.success) {
         toast.success(data.message);
-        setSelectedOrder({
+        const fulfillmentStatus = data.fulfillmentResult?.status;
+        const updatedOrder = {
           ...selectedOrder,
           paymentStatus: paymentAction === 'accept' ? 'verified' : 'rejected',
           paymentVerificationStatus: paymentAction === 'accept' ? 'verified' : 'rejected',
-          providerStatus: paymentAction === 'accept' ? 'processing' : 'cancelled',
-        });
+          status: fulfillmentStatus === 'pending' ? 'fulfillment_pending' : fulfillmentStatus || selectedOrder.status,
+          providerStatus: fulfillmentStatus || (paymentAction === 'accept' ? 'processing' : 'cancelled'),
+        } as HostingOrder;
+        setSelectedOrder(updatedOrder);
+        setOrders(prev => prev.map(order => order.id === updatedOrder.id ? updatedOrder : order));
         setShowPaymentConfirm(false);
         setPaymentAction(null);
         setRejectionReason('');
       } else if (data.alreadyVerified) {
         toast.success('Payment has already been verified.');
-        setSelectedOrder({
+        const fulfillmentStatus = data.fulfillmentResult?.status;
+        const updatedOrder = {
           ...selectedOrder,
           paymentStatus: 'verified',
           paymentVerificationStatus: 'verified',
-        });
+          status: fulfillmentStatus === 'pending' ? 'fulfillment_pending' : fulfillmentStatus || selectedOrder.status,
+          providerStatus: fulfillmentStatus || selectedOrder.providerStatus,
+        } as HostingOrder;
+        setSelectedOrder(updatedOrder);
+        setOrders(prev => prev.map(order => order.id === updatedOrder.id ? updatedOrder : order));
         setShowPaymentConfirm(false);
         setPaymentAction(null);
       } else {
@@ -422,6 +431,7 @@ export default function HostingOrders() {
       case 'completed': return 'bg-green-100 text-green-800 border border-green-200';
       case 'provisioning': return 'bg-purple-100 text-purple-800 border border-purple-200 animate-pulse';
       case 'processing': return 'bg-blue-100 text-blue-800 border border-blue-200';
+      case 'fulfillment_pending': return 'bg-amber-100 text-amber-800 border border-amber-200';
       case 'failed': return 'bg-red-100 text-red-800 border border-red-200';
       case 'cancelled': return 'bg-gray-100 text-gray-800 border border-gray-200';
       default: return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
@@ -623,7 +633,7 @@ export default function HostingOrders() {
                         {order.status === 'completed' && <CheckCircle className="w-3.5 h-3.5" />}
                         {order.status === 'processing' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                         {order.status === 'pending' && <Clock className="w-3.5 h-3.5" />}
-                        {order.status}
+                        {order.status === 'fulfillment_pending' ? 'Awaiting Registrar' : order.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -748,7 +758,7 @@ export default function HostingOrders() {
                     <div className="pt-2 flex items-center gap-3">
                       <span className="font-medium text-gray-900">Order Status:</span>
                       <span className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase", getStatusColor(selectedOrder.status))}>
-                        {selectedOrder.status}
+                        {selectedOrder.status === 'fulfillment_pending' ? 'Awaiting Registrar' : selectedOrder.status}
                       </span>
                     </div>
 
@@ -823,6 +833,16 @@ export default function HostingOrders() {
                                   <ActionIcon className="w-4 h-4" />
                                   {retryLabel}
                                 </button>
+                              </div>
+                            )}
+                            {selectedOrder.status === 'fulfillment_pending' && (
+                              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                                Openprovider accepted the domain request. Registration is not active yet; this order will not be submitted again automatically.
+                              </div>
+                            )}
+                            {selectedOrder.status === 'manual_review' && (
+                              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                                A provider result needs manual verification. Check the Openprovider panel and domain request details before retrying to avoid duplicate registration or transfer.
                               </div>
                             )}
                           </>
@@ -960,6 +980,7 @@ export default function HostingOrders() {
                               <select
                                 value={domain.status}
                                 onChange={(e) => updateServiceStatus('domainOrders', domain.id, e.target.value)}
+                                disabled={Boolean(domain.registrationId && ['REQ', 'UNKNOWN'].includes((domain.providerStatus || '').toUpperCase()))}
                                 className={cn("px-2 py-1 rounded text-xs font-medium uppercase border-none focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer", domain.status === 'active' || domain.status === 'registered' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}
                               >
                                 <option value="pending">Pending</option>
@@ -970,6 +991,27 @@ export default function HostingOrders() {
                                 <option value="suspended">Suspended</option>
                               </select>
                             </div>
+                            {(domain.registrationId || domain.providerCode || domain.providerHttpStatus || domain.providerRequestStartedAt || domain.fulfillmentError) && (
+                              <div className="mt-2 space-y-1 text-xs text-gray-600">
+                                <p>
+                                  Openprovider status: {domain.providerStatus || 'not returned'}
+                                  {domain.registrationId && ` · Registration ID: ${domain.registrationId}`}
+                                </p>
+                                {(domain.providerCode || domain.providerHttpStatus) && (
+                                  <p>
+                                    API code: {domain.providerCode || '-'} · HTTP: {domain.providerHttpStatus || '-'}
+                                  </p>
+                                )}
+                                <p>
+                                  Request sent: {domain.providerRequestStartedAt ? new Date(domain.providerRequestStartedAt).toLocaleString() : 'Not recorded'}
+                                  {' · '}
+                                  Response received: {domain.providerResponseReceivedAt ? new Date(domain.providerResponseReceivedAt).toLocaleString() : 'Not recorded'}
+                                </p>
+                              </div>
+                            )}
+                            {domain.fulfillmentError && (
+                              <p className="mt-1 text-xs text-amber-700">{domain.fulfillmentError}</p>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1180,9 +1222,3 @@ export default function HostingOrders() {
     </div>
   );
 }
-
-
-
-
-
-

@@ -25,7 +25,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db, auth, storage } from "../firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { compressImage } from "../lib/imageCompressor";
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
@@ -2046,7 +2046,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onConfirm: async () => {
         try {
           const prod = products.find(p => p.id === id);
-            await deleteDoc(doc(db, "products", id));
+          if (prod && prod.images && prod.images.length > 0) {
+            for (const imgUrl of prod.images) {
+              try {
+                const imgRef = ref(storage, imgUrl);
+                await deleteObject(imgRef);
+              } catch(e) { console.error("Failed to delete image", e); }
+            }
+          }
+          await deleteDoc(doc(db, "products", id));
             await logAuditAction('DELETE', 'Product', `Deleted product: ${prod?.name || id}`);
           toast.success("Product deleted");
           debouncedFetchData();
@@ -2458,61 +2466,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setConfirmModal({
       isOpen: true,
       title: "Bulk Delete Orders",
-      message: `Are you sure you want to delete ${selectedOrderIds.length} orders? This action cannot be undone.`,
+      message: `Are you sure you want to permanently delete ${selectedOrderIds.length} orders? This will restore stock, available serials, and remove associated transactions.`,
+      confirmText: "Delete Permanently",
+      confirmColor: "bg-red-600 hover:bg-red-700",
       onConfirm: async () => {
         try {
-          await Promise.all(
-            selectedOrderIds.map((id) => deleteDoc(doc(db, "orders", id))),
-          );
-          toast.success(`${selectedOrderIds.length} orders deleted`);
+          let count = 0;
+          for (const id of selectedOrderIds) {
+             const order = orders.find(o => o.id === id);
+             if (!order) continue;
+             
+             // 1. Delete associated transactions
+             const txSnap = await getDocs(query(collection(db, "transactions"), where("referenceId", "==", order.id)));
+             await Promise.all(txSnap.docs.map(d => deleteDoc(doc(db, "transactions", d.id))));
+             
+             // 2. Revert stock and available serials
+             if (order.type === "invoice" || order.type === "challan" || order.type === "sale" || order.type === "pos_sale") {
+                for (const item of order.items || []) {
+                   if (item.productId || item.id) {
+                      const prodRef = doc(db, "products", item.productId || item.id);
+                      const currentProd = products.find(p => p.id === (item.productId || item.id));
+                      if (currentProd) {
+                         const updates: any = {};
+                         updates.stock = (currentProd.stock || 0) + (item.quantity || 0);
+                         if (item.selectedSerials && item.selectedSerials.length > 0) {
+                            updates.availableSerials = [...(currentProd.availableSerials || []), ...item.selectedSerials];
+                         }
+                         await updateDoc(prodRef, updates);
+                      }
+                   }
+                }
+                // 3. Delete sold_serials records
+                const serialsSnap = await getDocs(query(collection(db, "sold_serials"), where("orderId", "==", order.id)));
+                await Promise.all(serialsSnap.docs.map(d => deleteDoc(doc(db, "sold_serials", d.id))));
+             }
+             
+             // 4. Finally delete the order itself
+             await deleteDoc(doc(db, 'orders', order.id));
+             count++;
+          }
+          await logAudit('DELETE', 'Order', `Bulk deleted ${count} orders`, profile?.displayName || profile?.email || 'Unknown Admin');
+          toast.success(`${count} orders deleted and stock reverted`);
           setSelectedOrderIds([]);
           debouncedFetchData();
         } catch (error) {
-          toast.error("Failed to delete some orders");
+          toast.error("Failed to fully delete some orders");
         }
       },
     });
   };
 
-  const handleBulkReturnOrders = async () => {
-    if (selectedOrderIds.length === 0) return;
-
-    setConfirmModal({
-      isOpen: true,
-      title: "Bulk Return Orders",
-      message: `Are you sure you want to mark ${selectedOrderIds.length} selected orders as "RETURNED"?`,
-      confirmText: "Mark Returned",
-      confirmColor: "bg-yellow-600 hover:bg-yellow-700",
-      onConfirm: async () => {
-        try {
-          await Promise.all(
-            selectedOrderIds.map(async (id) => {
-              const order = orders.find((o) => o.id === id);
-              await updateDoc(doc(db, "orders", id), { status: "returned" });
-
-              // Record Return Transaction
-              await addDoc(collection(db, "transactions"), {
-                type: "return",
-                amount: -(order?.total || 0),
-                date: new Date().toISOString(),
-                description: `Return for order ${order?.documentNumber || id}`,
-                entityId: "system",
-                entityName: "Sales Return",
-                referenceId: id,
-                createdAt: new Date().toISOString(),
-              });
-            }),
-          );
-          toast.success(`${selectedOrderIds.length} orders marked as returned`);
-          setSelectedOrderIds([]);
-          debouncedFetchData();
-        } catch (error) {
-          console.error("Error returning orders:", error);
-          toast.error("Failed to return some orders");
-        }
-      },
-    });
-  };
+  
 
   const handleBulkUpdateOrderStatus = (status: OrderStatus) => {
     if (selectedOrderIds.length === 0) return;
@@ -5630,7 +5634,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </header>
 
         {/* Content View */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main id="main-scroll-container" className="flex-1 overflow-y-auto p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <Suspense
               fallback={
@@ -5733,7 +5737,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   fetchData={fetchData}
                 />
               ) : activeTab === "quotations" ? (
-                <QuotationManager />
+                <QuotationManager users={users} />
               ) : activeTab === "build_requests" ? (
   <BuildRequestsTab />
 ) : activeTab === "orders" ? (
@@ -5754,7 +5758,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   setSelectedOrderIds={setSelectedOrderIds}
                   handleExportFilteredOrders={handleExportFilteredOrders}
                   handleBulkUpdateOrderStatus={handleBulkUpdateOrderStatus}
-                  handleBulkReturnOrders={handleBulkReturnOrders}
+                  
                   handleBulkExportOrders={handleBulkExportOrders}
                   handleBulkDeleteOrders={handleBulkDeleteOrders}
                   setSelectedLedgerEntity={setSelectedLedgerEntity}
@@ -5798,6 +5802,7 @@ handleReturnOrder={handleReturnOrder}
                 <SaleReturnTab />
               ) : activeTab === "purchases" ? (
                 <PurchasesTab
+                  users={users}
                   vendors={vendors}
                   products={products}
                   transactions={transactions}
@@ -5976,6 +5981,7 @@ handleReturnOrder={handleReturnOrder}
                 <VendorDueListTab />
               ) : activeTab === "sales" ? (
                 <SalesForm
+                    users={users}
                     products={products}
                     customers={customers}
                     transactions={transactions}

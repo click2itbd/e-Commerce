@@ -1,17 +1,14 @@
-import { logoBase64 } from "../../../lib/logoBase64";
-import React, { useState, useEffect } from "react";
-import { formatCurrency, cn, addWarranty, formatWarranty } from "../../../lib/utils";
-import { generateDocumentNumber } from "../../../lib/numbering";
-import { db } from "../../../firebase";
 import {
   collection,
-  getDocs,
   query,
+  getDocs,
+  where,
   orderBy,
   limit,
   addDoc,
   doc,
   updateDoc,
+  increment,
 } from "firebase/firestore";
 import { Product, Customer, PaymentAccount } from "../../../types";
 import toast from "react-hot-toast";
@@ -592,7 +589,7 @@ export const RetailPOS = () => {
         const prodRef = doc(db, "products", item.product.id);
         const updates: any = {};
 
-        updates.stock = Math.max(0, item.product.stock - item.quantity);
+        updates.stock = increment(-item.quantity);
 
         if (item.selectedVariant && item.product.variants) {
           updates.variants = item.product.variants.map((v: any) =>

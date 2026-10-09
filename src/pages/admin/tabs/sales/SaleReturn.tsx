@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../../firebase';
-import { collection, addDoc, updateDoc, doc, getDoc, getDocs, query, orderBy, where, limit } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDoc, getDocs, query, orderBy, where, limit, increment } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
@@ -250,8 +250,7 @@ export const SaleReturnTab: React.FC = () => {
           const productSnap = await getDoc(productRef);
           if (productSnap.exists()) {
             const currentProd = productSnap.data();
-            const newStock = (currentProd.stock || 0) + item.returnQty;
-            const updates: any = { stock: newStock };
+            const updates: any = { stock: increment(item.returnQty) };
 
             if (item.selectedReturnSerials && item.selectedReturnSerials.length > 0) {
               const currentAvail = currentProd.availableSerials || [];

@@ -14,7 +14,7 @@ import { generatePDF } from '../lib/pdf';
 import { sendEmail } from '../services/emailService';
 import { Pagination } from './common/Pagination';
 
-export const QuotationManager: React.FC = () => {
+export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) => {
   const { profile } = useAuth();
   const [quotations, setQuotations] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -112,7 +112,7 @@ export const QuotationManager: React.FC = () => {
           validUntil: formData.validUntil
         };
         await updateDoc(doc(db, 'orders', editingId), updateData);
-          await logAudit('EDIT', 'Quotation', `Edited quotation #${updateData.documentNumber || editingId}`, profile?.displayName || profile?.email || 'Admin');
+          await logAudit('EDIT', 'Quotation', `Edited quotation #${(updateData as any).documentNumber || editingId}`, profile?.displayName || profile?.email || 'Admin');
         setQuotations(quotations.map(q => q.id === editingId ? { ...q, ...updateData } : q));
         toast.success('Quotation updated successfully!');
       } else {
@@ -231,7 +231,7 @@ export const QuotationManager: React.FC = () => {
            q.customerPhone?.toLowerCase().includes(s);
   });
 
-  const handleDownloadPDF = async (q: Order, action: 'download' | 'print' | 'base64' = 'download') => { await generatePDF(q, 'quotation', {}, action === 'print' ? 'doc' : 'download'); };
+  const handleDownloadPDF = async (q: Order, action: 'download' | 'print' | 'base64' = 'download') => { await generatePDF(q, 'quotation', {} as any, action === 'print' ? 'doc' : 'download'); };
 ;
 
   const openEdit = (q: Order) => {
@@ -590,13 +590,18 @@ export const QuotationManager: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Prepared By</label>
-                <input 
-                  type="text"
-                  placeholder="Staff name"
-                  className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
+                <select
+                  className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none bg-white cursor-pointer" 
                   value={(formData as any).preparedBy || ''}
                   onChange={e => setFormData({ ...formData, preparedBy: e.target.value } as any)}
-                />
+                >
+                  <option value="">-- Select --</option>
+                  {users
+                    .filter(u => u.role === 'admin' || u.role === 'staff' || u.role === 'manager' || u.permissions?.length > 0)
+                    .map(u => (
+                    <option key={u.uid} value={u.displayName || u.email}>{u.displayName || u.email}</option>
+                  ))}
+                </select>
               </div>
               <div className="lg:col-span-4">
                 <label className="block text-sm font-bold text-gray-700 mb-1">Delivery Address</label>
@@ -1063,8 +1068,8 @@ export const QuotationManager: React.FC = () => {
                     <label className="block text-sm font-bold text-gray-700 mb-1">Brand (optional)</label>
                     <input 
                       className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none" 
-                      value={customItemForm.brand}
-                      onChange={e => setCustomItemForm({...customItemForm, brand: e.target.value})}
+                      value={(customItemForm as any).brand}
+                      onChange={e => setCustomItemForm({...customItemForm, brand: (e.target as any).value} as any)}
                       placeholder="e.g. Asus"
                     />
                   </div>

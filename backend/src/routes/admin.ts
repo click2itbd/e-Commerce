@@ -1,7 +1,6 @@
 import { Router, Response } from 'express';
 import { getAdminDocument, setAdminDocument, isUserAdmin } from '../firebase/admin';
 import { CpanelHostingProvider } from '../providers/hosting/CpanelHostingProvider';
-import { DynadotDomainProvider } from '../providers/domain/DynadotDomainProvider';
 import { OpenproviderDomainProvider } from '../providers/domain/OpenproviderDomainProvider';
 import { getCloudLinuxProvider } from '../providers/cloudlinux/CloudLinuxProvider';
 import { verifySmtpConnection } from '../services/email';
@@ -11,7 +10,6 @@ const adminRouter = Router();
 adminRouter.use(requireFirebaseAuth);
 
 const FORBIDDEN_SECRET_FIELDS = new Set([
-  'dynadotApiKey',
   'bkashAppKey',
   'bkashAppSecret',
   'bkashUsername',

@@ -1,63 +1,30 @@
 import { IDomainProvider } from './domain/IDomainProvider.js';
 import { IHostingProvider } from './hosting/IHostingProvider.js';
-import { DynadotDomainProvider } from './domain/DynadotDomainProvider.js';
 import { OpenproviderDomainProvider } from './domain/OpenproviderDomainProvider.js';
 import { CpanelHostingProvider } from './hosting/CpanelHostingProvider.js';
 import { ResellerClubHostingProvider } from './hosting/ResellerClubHostingProvider.js';
 
-export function getDomainProvider(config?: { domainApiType?: string; domainApiKey?: string; openproviderPassword?: string }): IDomainProvider {
-  const configuredType = config?.domainApiType || process.env.DOMAIN_API_TYPE;
-  const domainApiType = configuredType || (process.env.OPENPROVIDER_USERNAME ? 'openprovider' : (process.env.DYNADOT_API_KEY ? 'dynadot' : 'dummy'));
-  const domainApiKey = config?.domainApiKey || (
-    domainApiType === 'openprovider'
-      ? process.env.OPENPROVIDER_USERNAME || ''
-      : process.env.DYNADOT_API_KEY || ''
-  );
+export function getDomainProvider(config?: {
+  domainApiKey?: string;
+  openproviderPassword?: string;
+  openproviderSandbox?: boolean;
+}): IDomainProvider {
+  const domainApiKey = config?.domainApiKey || process.env.OPENPROVIDER_USERNAME || '';
   const openproviderPassword = config?.openproviderPassword || process.env.OPENPROVIDER_PASSWORD || '';
 
-  if (domainApiType === 'dummy' || !domainApiType) {
+  if (!domainApiKey || !openproviderPassword) {
     return {
-      checkAvailability: async () => { throw new Error('Domain provider not configured. Please configure a real domain provider in admin settings.'); },
-      getSuggestions: async () => { throw new Error('Domain provider not configured.'); },
-      registerDomain: async () => ({ success: false, domain: '', error: 'Domain provider not configured. Please configure a real domain provider in admin settings.' }),
-      renewDomain: async () => ({ success: false, domain: '', error: 'Domain provider not configured.' }),
-      getWhois: async () => ({ domain: '', error: 'Domain provider not configured.' })
+      checkAvailability: async () => { throw new Error('Openprovider credentials are not configured. Set them in Domain Registrars or backend environment.'); },
+      getSuggestions: async () => { throw new Error('Openprovider credentials are not configured.'); },
+      registerDomain: async () => ({ success: false, domain: '', error: 'Openprovider credentials are not configured.' }),
+      renewDomain: async () => ({ success: false, domain: '', error: 'Openprovider credentials are not configured.' }),
+      getWhois: async () => ({ domain: '', error: 'Openprovider credentials are not configured.' })
     };
   }
 
-  switch (domainApiType) {
-    case 'dynadot':
-      if (!domainApiKey) {
-        return {
-          checkAvailability: async () => { throw new Error('Dynadot API key not configured. Set DYNADOT_API_KEY in backend/.env'); },
-          getSuggestions: async () => { throw new Error('Dynadot API key not configured.'); },
-          registerDomain: async () => ({ success: false, domain: '', error: 'Dynadot API key not configured.' }),
-          renewDomain: async () => ({ success: false, domain: '', error: 'Dynadot API key not configured.' }),
-          getWhois: async () => ({ domain: '', error: 'Dynadot API key not configured.' })
-        };
-      }
-      return new DynadotDomainProvider(domainApiKey);
-    case 'openprovider':
-      if (!domainApiKey || !openproviderPassword) {
-         return {
-          checkAvailability: async () => { throw new Error('Openprovider credentials not configured.'); },
-          getSuggestions: async () => { throw new Error('Openprovider credentials not configured.'); },
-          registerDomain: async () => ({ success: false, domain: '', error: 'Openprovider credentials not configured.' }),
-          renewDomain: async () => ({ success: false, domain: '', error: 'Openprovider credentials not configured.' }),
-          getWhois: async () => ({ domain: '', error: 'Openprovider credentials not configured.' })
-        };
-      }
-      // true = isSandbox
-      return new OpenproviderDomainProvider(domainApiKey, openproviderPassword, process.env.OPENPROVIDER_SANDBOX_MODE === "true");
-    default:
-      return {
-        checkAvailability: async () => { throw new Error(`Unsupported domain provider: ${domainApiType}`); },
-        getSuggestions: async () => { throw new Error(`Unsupported domain provider: ${domainApiType}`); },
-        registerDomain: async () => ({ success: false, domain: '', error: `Unsupported domain provider: ${domainApiType}` }),
-        renewDomain: async () => ({ success: false, domain: '', error: `Unsupported domain provider: ${domainApiType}` }),
-        getWhois: async () => ({ domain: '', error: `Unsupported domain provider: ${domainApiType}` })
-      };
-  }
+  const isSandbox = config?.openproviderSandbox
+    ?? (process.env.OPENPROVIDER_SANDBOX_MODE === 'true');
+  return new OpenproviderDomainProvider(domainApiKey, openproviderPassword, isSandbox);
 }
 
 export function getHostingProvider(config?: { hostingApiType?: string; hostingApiKey?: string; hostingApiUrl?: string; hostingApiUsername?: string }): IHostingProvider {

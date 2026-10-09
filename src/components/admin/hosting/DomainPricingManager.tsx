@@ -18,6 +18,15 @@ interface DomainPricing {
   isActive: boolean;
 }
 
+interface DomainHubOrder {
+  id: string;
+  items?: Array<{ itemType?: string }>;
+  status?: string;
+  paymentStatus?: string;
+  createdAt?: string | number;
+  total?: number;
+}
+
 interface DomainPricingManagerProps {
   setActiveTab?: (tab: any) => void;
 }
@@ -36,7 +45,7 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
   const [liveOrders, setLiveOrders] = useState<any[]>([]);
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'orders'), (snap) => {
-      const allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const allOrders: DomainHubOrder[] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const hostingAndDomainOrders = allOrders.filter(order => 
         order.items && order.items.some((item: any) => 
           item.itemType === 'domain' || 
@@ -60,8 +69,8 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
   const completedOrders = useMemo(() =>
     liveOrders.filter(o => o.status === 'active' || o.status === 'completed' || o.status === 'delivered').length, [liveOrders]);
   const [globalSettings, setGlobalSettings] = useState({
-    usdToBdtRate: 121,
-    domainMarkupPercent: 15,
+    usdToBdtRate: 0,
+    domainMarkupPercent: 0,
     manualBkashNumber: '01700000000',
   });
   const [savingGlobal, setSavingGlobal] = useState(false);
@@ -116,8 +125,8 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
       if (publicSnap.exists()) {
         const sData = publicSnap.data();
         setGlobalSettings({
-          usdToBdtRate: Number(sData.usdToBdtRate) || 121,
-          domainMarkupPercent: Number(sData.domainMarkupPercent) || 15,
+          usdToBdtRate: Number(sData.usdToBdtRate) || 0,
+          domainMarkupPercent: Number(sData.domainMarkupPercent) || 0,
           manualBkashNumber: sData.manualBkashNumber || '01700000000',
         });
       } else {
@@ -125,8 +134,8 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
         if (siteSnap.exists()) {
           const sData = siteSnap.data();
           setGlobalSettings({
-            usdToBdtRate: Number((sData as any).usdToBdtRate) || 121,
-            domainMarkupPercent: Number((sData as any).domainMarkupPercent) || 15,
+            usdToBdtRate: Number((sData as any).usdToBdtRate) || 0,
+            domainMarkupPercent: Number((sData as any).domainMarkupPercent) || 0,
             manualBkashNumber: (sData as any).manualBkashNumber || '01700000000',
           });
         }
@@ -150,11 +159,16 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
 
   const handleSaveGlobal = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!Number.isFinite(globalSettings.usdToBdtRate) || globalSettings.usdToBdtRate <= 0
+      || !Number.isFinite(globalSettings.domainMarkupPercent) || globalSettings.domainMarkupPercent < 0) {
+      toast.error('Enter a positive USD to BDT rate and a non-negative markup percentage.');
+      return;
+    }
     setSavingGlobal(true);
     try {
       const payload = {
-        usdToBdtRate: Number(globalSettings.usdToBdtRate) || 121,
-        domainMarkupPercent: Number(globalSettings.domainMarkupPercent) || 15,
+        usdToBdtRate: Number(globalSettings.usdToBdtRate),
+        domainMarkupPercent: Number(globalSettings.domainMarkupPercent),
         manualBkashNumber: globalSettings.manualBkashNumber.trim() || '01700000000',
         updatedAt: new Date().toISOString(),
       };
@@ -194,12 +208,20 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const pricingData = {
+        tld: formData.tld,
+        registerPrice: formData.registerPrice,
+        renewPrice: formData.renewPrice,
+        transferPrice: formData.transferPrice,
+        currency: formData.currency,
+        isActive: formData.isActive,
+      };
       if (editingDocId) {
         // Use the actual Firestore document ID for updates
-        await updateDoc(doc(db, 'domainPricing', editingDocId), formData);
+        await updateDoc(doc(db, 'domainPricing', editingDocId), pricingData);
         toast.success('Domain pricing updated');
       } else {
-        await addDoc(collection(db, 'domainPricing'), formData);
+        await addDoc(collection(db, 'domainPricing'), pricingData);
         toast.success('Domain pricing added');
       }
       setIsAdding(false);
@@ -373,7 +395,7 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
                 value={globalSettings.usdToBdtRate}
                 onChange={e => setGlobalSettings({ ...globalSettings, usdToBdtRate: parseFloat(e.target.value) || 0 })}
                 className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-slate-800 font-black transition-all"
-                placeholder="121"
+                placeholder="Enter current exchange rate"
               />
             </div>
           </div>
@@ -394,7 +416,7 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
                 value={globalSettings.domainMarkupPercent}
                 onChange={e => setGlobalSettings({ ...globalSettings, domainMarkupPercent: parseFloat(e.target.value) || 0 })}
                 className="w-full pl-4 pr-9 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-slate-800 font-black transition-all"
-                placeholder="15"
+                placeholder="Enter markup percentage"
               />
             </div>
           </div>
@@ -434,12 +456,7 @@ export const DomainPricingManager: React.FC<DomainPricingManagerProps> = ({ setA
                 <span className="hidden sm:inline"><strong>Formula:</strong> Supplier Price (USD) × (1 + {globalSettings.domainMarkupPercent}% / 100) × ৳{globalSettings.usdToBdtRate} BDT</span>
                 <span className="sm:hidden"><strong>Formula Preview</strong></span>
               </div>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-slate-400">e.g. .com ($10.99) =</span>
-                <span className="font-black text-emerald-600 bg-emerald-100/50 px-3 py-1.5 rounded-lg border border-emerald-200">
-                  ৳{Math.round(10.99 * (1 + (globalSettings.domainMarkupPercent || 0) / 100) * (globalSettings.usdToBdtRate || 121))} BDT
-                </span>
-              </div>
+              <span className="text-xs text-slate-500">TLD supplier prices are fetched live from Openprovider.</span>
             </div>
           </div>
         </form>

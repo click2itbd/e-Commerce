@@ -2,6 +2,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const { getFirestore, updateDoc } = require("firebase-admin/firestore");
 const crypto = require("crypto");
+const openprovider = require('./openprovider');
 admin.initializeApp();
 
 async function isAdminUser(uid) {
@@ -22,7 +23,7 @@ async function isAdminUser(uid) {
 function sanitizeLogData(data) {
   if (!data || typeof data !== 'object') return data;
   const sanitized = { ...data };
-  const sensitiveFields = ['apiKey', 'dynadotApiKey', 'resendApiKey', 'bkashAppKey', 'bkashAppSecret', 'bkashUsername', 'bkashPassword', 'clnSecretKey', 'smtpPassword', 'hostingApiKey', 'whmApiToken', 'accessToken', 'id_token', 'authCode', 'password', 'secret'];
+  const sensitiveFields = ['apiKey', 'openproviderPassword', 'resendApiKey', 'bkashAppKey', 'bkashAppSecret', 'bkashUsername', 'bkashPassword', 'clnSecretKey', 'smtpPassword', 'hostingApiKey', 'whmApiToken', 'accessToken', 'id_token', 'authCode', 'password', 'secret'];
   for (const field of sensitiveFields) {
     if (field in sanitized) {
       sanitized[field] = '***REDACTED***';
@@ -346,7 +347,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
       </div>
     `);
 
-      // Check if this order contains domains and register them via Dynadot
+      // Check if this order contains domains and process them via Openprovider
       if (docSnap.exists) {
         const orderData = docSnap.data();
         if (orderData.items && orderData.items.length > 0) {
@@ -358,13 +359,11 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
 
 
           
-          if (domainItems.length > 0) {
-            // Fetch API settings
-            const settingsSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('settings').doc('api_keys').get();
-            const apiSettings = settingsSnap.exists ? settingsSnap.data() : null;
-            const apiKey = apiSettings?.dynadotApiKey;
-            const isSandbox = apiSettings?.isSandboxMode === true;
-            const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
+          if (domainItems.length > 0 || renewalItems.length > 0 || transferItems.length > 0) {
+            const domainDb = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+            const openproviderClient = await openprovider.createClient(domainDb);
+            const apiKey = openproviderClient.token;
+            const isSandbox = openproviderClient.isSandbox;
 
             if (apiKey) {
 
@@ -397,15 +396,12 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                   continue;
                 }
                 
-                // Call Dynadot Transfer Command
-                const dynadotUrl = `${baseUrl}?key=${apiKey}&command=transfer&domain=${domain}&authcode0=${encodeURIComponent(authCode)}`;
                 try {
-                  const regResponse = await fetch(dynadotUrl);
-                  const regData = await regResponse.json();
+                  const regData = await openprovider.transferDomain(openproviderClient, domain, authCode);
                   
                    // Log Transfer
                    await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('apiLogs').add({
-                     action: 'dynadot_transfer',
+                     action: 'openprovider_transfer',
                      domain,
                      orderId,
                      isSandbox,
@@ -427,7 +423,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     
                     if (!dOrdersSnap.empty) {
                       const dOrderRef = dOrdersSnap.docs[0].ref;
-                      const isSuccess = regData?.TransferResponse?.TransferResults?.[0]?.Status?.toLowerCase() === 'success';
+                      const isSuccess = Boolean(regData?.id || regData?.status);
                       
                       await dOrderRef.update({
                         status: isSuccess ? 'active' : 'failed',
@@ -485,15 +481,12 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                 const domain = item.domain;
                 const years = item.termYears || 1;
                 
-                // Call Dynadot Renew Command
-                const dynadotUrl = `${baseUrl}?key=${apiKey}&command=renew&domain=${domain}&duration=${years}`;
                 try {
-                  const regResponse = await fetch(dynadotUrl);
-                  const regData = await regResponse.json();
+                  const regData = await openprovider.renewDomain(openproviderClient, domain, years);
                   
                    // Log Registration
                    await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('apiLogs').add({
-                     action: 'dynadot_renew',
+                     action: 'openprovider_renew',
                      domain,
                      orderId,
                      isSandbox,
@@ -509,7 +502,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     
                     if (!dOrdersSnap.empty) {
                       const dOrderRef = dOrdersSnap.docs[0].ref;
-                      const isSuccess = regData?.RenewResponse?.RenewResults?.[0]?.Status?.toLowerCase() === 'success';
+                      const isSuccess = Boolean(regData?.status);
                       
                       await dOrderRef.update({
                         status: isSuccess ? 'active' : 'failed',
@@ -560,11 +553,14 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                 const domain = item.id.replace('domain_', '');
                 const years = item.termYears || 1;
                 
-                // Call Dynadot Register Command
-                const dynadotUrl = `${baseUrl}?key=${apiKey}&command=register&domain=${domain}&duration=${years}`;
                 try {
-                  const regResponse = await fetch(dynadotUrl);
-                  const regData = await regResponse.json();
+                  const regData = await openprovider.registerDomain(openproviderClient, {
+                    domain,
+                    years,
+                    contactId: item.contactId,
+                    nameServers: item.nameServers || item.nameservers || [],
+                    autoRenew: item.autoRenew,
+                  });
                   
                    // Log Registration
                    await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('apiLogs').add({
@@ -585,7 +581,7 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
                     
                     if (!dOrdersSnap.empty) {
                       const dOrderRef = dOrdersSnap.docs[0].ref;
-                      const isSuccess = regData?.RegisterResponse?.RegisterResults?.[0]?.Status?.toLowerCase() === 'success';
+                      const isSuccess = Boolean(regData?.id || regData?.status);
                       
                       await dOrderRef.update({
                         status: isSuccess ? 'active' : 'failed',
@@ -916,776 +912,179 @@ exports.paymentWebhook = functions.https.onRequest(async (req, res) => {
 
 
 
-exports.dynadotSearchProxy = functions.https.onCall(async (data, context) => {
+async function getDomainPricingSettings(db) {
+  const [publicConfig, apiKeys] = await Promise.all([
+    db.collection('settings').doc('public_config').get(),
+    db.collection('settings').doc('api_keys').get(),
+  ]);
+  const settings = {
+    ...(apiKeys.exists ? apiKeys.data() : {}),
+    ...(publicConfig.exists ? publicConfig.data() : {}),
+  };
+  const usdToBdtRate = Number(settings.usdToBdtRate);
+  const markupPercent = Number(settings.domainMarkupPercent);
+  if (!Number.isFinite(usdToBdtRate) || usdToBdtRate <= 0) {
+    throw new Error('Configure a valid USD to BDT exchange rate in domain pricing settings.');
+  }
+  if (!Number.isFinite(markupPercent) || markupPercent < 0) {
+    throw new Error('Configure a valid domain markup percentage in domain pricing settings.');
+  }
+  return { usdToBdtRate, markupPercent };
+}
+
+function customerPriceBdt(priceUsd, settings, years = 1) {
+  if (!Number.isFinite(priceUsd) || priceUsd <= 0 || !Number.isInteger(years) || years < 1) {
+    throw new Error('Openprovider returned an invalid domain quote.');
+  }
+  return Math.round(priceUsd * years * (1 + settings.markupPercent / 100) * settings.usdToBdtRate);
+}
+
+async function getOpenproviderQuote(db, tld, client = null) {
+  const providerClient = client || await openprovider.createClient(db);
+  const [quote, settings] = await Promise.all([
+    openprovider.getTldPricing(providerClient, tld),
+    getDomainPricingSettings(db),
+  ]);
+  if (quote.currency !== 'USD') throw new Error('Openprovider returned an unsupported currency.');
+  return { client: providerClient, quote, settings };
+}
+
+exports.openproviderSearchProxy = functions.https.onCall(async (data) => {
+  const payload = data?.data || data || {};
+  const domain = String(payload.domain || '').trim().toLowerCase();
+  if (!domain.includes('.')) throw new functions.https.HttpsError('invalid-argument', 'Invalid domain format.');
   try {
-    const payload = data.data || data; 
-    const domain = payload.domain;
-    
-    if (!domain) {
-      throw new functions.https.HttpsError('invalid-argument', 'Missing domain parameter');
-    }
-
     const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
-    const settingsSnap = await db.collection('settings').doc('api_keys').get();
-    const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
-    const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
-    const apiKeysData = settingsSnap.exists ? settingsSnap.data() : {};
-    const exchangeRate = parseFloat(apiKeysData.usdToBdtRate) || 120;
-    const markupPercent = parseFloat(apiKeysData.domainMarkupPercent) || 15;
+    const client = await openprovider.createClient(db);
+    const [availability] = await openprovider.checkAvailability(client, [domain]);
+    if (!availability) throw new Error('Openprovider returned no availability result.');
+    if (!availability.available) return { success: true, data: availability };
+    const tld = domain.slice(domain.indexOf('.') + 1);
+    const { quote, settings } = await getOpenproviderQuote(db, tld, client);
+    const price = customerPriceBdt(quote.registrationPrice, settings);
+    return { success: true, data: { ...availability, price, priceBdt: price, renewalPrice: customerPriceBdt(quote.renewalPrice, settings), currency: 'BDT' } };
+  } catch (error) {
+    console.error('[openproviderSearchProxy] Domain query failed:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Openprovider domain search failed.');
+  }
+});
 
-    console.log('[DynadotSearchProxy] Settings:', {
-      hasApiKey: !!apiKey,
-      isSandbox,
-      exchangeRate,
-      markupPercent,
-      domain
-    });
-
-    if (!apiKey) {
-      throw new functions.https.HttpsError('internal', 'Domain API key not configured.');
-    }
-
-    const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
-    
-    // Step 1: Check domain availability via search API
-    const searchUrl = `${baseUrl}?key=${apiKey}&command=search&domain0=${domain}`;
-    const searchResponse = await fetch(searchUrl);
-    if (!searchResponse.ok) {
-      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${searchResponse.status}`);
-    }
-    const searchText = await searchResponse.text();
-    let searchData;
-    try { 
-      searchData = JSON.parse(searchText); 
-    } catch(e) { 
-      throw new functions.https.HttpsError('internal', 'Failed to parse Dynadot search response.');
-    }
-
-    
-
-    const searchResult = searchData?.SearchResponse?.SearchResults?.[0];
-    if (!searchResult) {
-      throw new functions.https.HttpsError('not-found', 'No search results found for domain.');
-    }
-
-    const isAvailable = searchResult.Available?.toLowerCase() === 'yes';
-    const domainName = searchResult.Domain || searchResult.domain || domain;
-    
-    console.log('[DynadotSearchProxy] Availability:', {
-      rawAvailable: searchResult.Available,
-      isAvailable,
-      domainName
-    });
-    
-    // Extract TLD from domain
-    const tldMatch = domainName.match(/\.[^.]+$/);
-    const tld = tldMatch ? tldMatch[0] : '';
-    
-    console.log('[DynadotSearchProxy] Domain:', domainName, 'Available:', isAvailable, 'TLD:', tld);
-
-    // Step 2: Fetch TLD pricing from tld_price API
-    let registerPriceUsd = 0;
-    
-    if (tld) {
-      const tldUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tld)}&currency=USD`;
-      const tldResponse = await fetch(tldUrl);
-      
-      if (tldResponse.ok) {
-        const tldText = await tldResponse.text();
-        let tldData;
-        try { 
-          tldData = JSON.parse(tldText); 
-        } catch(e) { 
-          tldData = null; 
-        }
-
-        console.log('[DynadotSearchProxy] Extracted TLD:', tld);
-        
-
-        // Try multiple possible response structures
-        const tldPriceArray = 
-          tldData?.TldPriceResponse?.TldPrice ||
-          tldData?.TLDPricing?.TldPrice ||
-          tldData?.TldPrice ||
-          (Array.isArray(tldData) ? tldData : null);
-
-        if (tldPriceArray && Array.isArray(tldPriceArray)) {
-          const matchedTld = tldPriceArray.find(
-            item => item?.Tld?.toLowerCase() === tld.toLowerCase()
-          );
-
-          console.log('[DynadotSearchProxy] Matched TLD data:', JSON.stringify(matchedTld));
-
-          if (matchedTld?.Price?.Register) {
-            registerPriceUsd = parseFloat(matchedTld.Price.Register);
-            console.log('[DynadotSearchProxy] Register price:', registerPriceUsd);
-          } else if (matchedTld?.Price?.register) {
-            registerPriceUsd = parseFloat(matchedTld.Price.register);
-            console.log('[DynadotSearchProxy] Register price (lowercase):', registerPriceUsd);
-          }
-        }
-      }
-    }
-
-    // Step 3: Calculate final price
-    let priceUsd = 0;
-    let priceBdt = 0;
-    let status = isAvailable ? 'available' : 'taken';
-
-    if (registerPriceUsd > 0) {
-      const retailUsd = registerPriceUsd * (1 + markupPercent / 100);
-      priceUsd = Math.round(retailUsd * 100) / 100;
-      priceBdt = Math.round(retailUsd * exchangeRate);
-      
-      console.log('[DynadotSearchProxy] Calculated price:', {
-        registerPriceUsd,
-        retailUsd,
-        priceUsd,
-        priceBdt
-      });
-    } else {
-      console.log('[DynadotSearchProxy] No register price available for TLD:', tld);
-    }
-
-    // Return result in the expected format
+exports.openproviderTldPricing = functions.https.onCall(async (data) => {
+  const payload = data?.data || data || {};
+  const tld = String(payload.tld || '').trim().replace(/^\./, '').toLowerCase();
+  if (!tld) throw new functions.https.HttpsError('invalid-argument', 'Missing TLD parameter.');
+  try {
+    const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+    const { quote, settings } = await getOpenproviderQuote(db, tld);
     return {
-      SearchResponse: {
-        ResponseCode: '0',
-        SearchResults: [
-          {
-            DomainName: domainName,
-            Status: isAvailable ? 'success' : 'success',
-            Available: isAvailable ? 'yes' : 'no',
-            Price: registerPriceUsd > 0 ? priceUsd.toFixed(2) : '0',
-            priceBdt: priceBdt,
-            Currency: 'USD',
-            TLD: tld,
-            RegisterPrice: registerPriceUsd
-          }
-        ]
-      }
+      success: true,
+      tld: quote.tld,
+      currency: 'BDT',
+      registrationPrice: customerPriceBdt(quote.registrationPrice, settings),
+      renewalPrice: customerPriceBdt(quote.renewalPrice, settings),
+      transferPrice: customerPriceBdt(quote.transferPrice, settings),
+      restorePrice: customerPriceBdt(quote.restorePrice, settings),
     };
-
   } catch (error) {
-    console.error('Dynadot Search Proxy Error:', error);
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    throw new functions.https.HttpsError('internal', 'Domain search failed unexpectedly.');
+    console.error('[openproviderTldPricing] Quote failed:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Openprovider TLD pricing failed.');
   }
 });
 
-exports.dynadotTldPricing = functions.https.onCall(async (data, context) => {
+exports.openproviderTldPricingBatch = functions.https.onCall(async (data) => {
+  const payload = data?.data || data || {};
+  const tlds = Array.isArray(payload.tlds) ? [...new Set(payload.tlds)] : [];
+  if (!tlds.length) throw new functions.https.HttpsError('invalid-argument', 'Missing TLD list.');
   try {
-    const { tld } = data;
-    
-    if (!tld) {
-      throw new functions.https.HttpsError('invalid-argument', 'Missing TLD parameter');
-    }
-
     const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
-    const settingsSnap = await db.collection('settings').doc('api_keys').get();
-    const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
-    const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
-
-    if (!apiKey) {
-      throw new functions.https.HttpsError('internal', 'Domain API key not configured.');
-    }
-
-    const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
-    const dynadotUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tld)}&currency=USD`;
-
-    const response = await fetch(dynadotUrl);
-    if (!response.ok) {
-      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${response.status}`);
-    }
-    const rawText = await response.text();
-    
-    let apiData;
-    try {
-      apiData = JSON.parse(rawText);
-    } catch(e) {
-      throw new functions.https.HttpsError('internal', 'Failed to parse JSON response from Dynadot.');
-    }
-
-    
-
-    if (apiData?.ResponseCode === '0' && apiData?.TLDPricing) {
-      const tldData = apiData.TLDPricing;
-      return {
-        success: true,
-        tld: tld,
-        currency: 'USD',
-        registrationPrice: parseFloat(tldData.RegistrationPrice || tldData.registration_price || 0),
-        renewalPrice: parseFloat(tldData.RenewalPrice || tldData.renewal_price || 0),
-        transferPrice: parseFloat(tldData.TransferPrice || tldData.transfer_price || 0),
-        restorePrice: parseFloat(tldData.RestorePrice || tldData.restore_price || 0),
-      };
-    }
-
-    throw new functions.https.HttpsError('not-found', `TLD pricing not available for .${tld}`);
-  } catch (error) {
-    console.error('Dynadot TLD Pricing Error:', error);
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    throw new functions.https.HttpsError('internal', 'Failed to fetch TLD pricing.');
-  }
-});
-
-const DYNADOT_PRICING_UNAVAILABLE = 'Domain pricing is temporarily unavailable. Please try again shortly.';
-
-function throwPricingError(category, details) {
-  console.error('[dynadotTldPricingBatch]', category, details || '');
-  throw new functions.https.HttpsError('internal', DYNADOT_PRICING_UNAVAILABLE);
-}
-
-function classifyDynadotFailure(apiData, httpStatus) {
-  const responseCode =
-    apiData?.TldPriceResponse?.ResponseCode ??
-    apiData?.Response?.ResponseCode ??
-    apiData?.ResponseCode;
-  const errorText = String(
-    apiData?.TldPriceResponse?.Error ||
-    apiData?.Response?.Error ||
-    apiData?.Error ||
-    apiData?.TldPriceResponse?.Status ||
-    apiData?.SearchResponse?.Status ||
-    apiData?.SearchResponse?.Error ||
-    ''
-  ).toLowerCase();
-  const codeNum = Number(responseCode);
-
-  if (
-    httpStatus === 401 ||
-    httpStatus === 403 ||
-    errorText.includes('invalid_key') ||
-    errorText.includes('invalid key') ||
-    errorText.includes('authentication') ||
-    errorText.includes('unauthorized')
-  ) {
-    return 'DYNADOT_AUTHENTICATION_FAILURE';
-  }
-  if (
-    errorText.includes('permission') ||
-    errorText.includes('not authorized') ||
-    errorText.includes('access denied') ||
-    errorText.includes('not permitted')
-  ) {
-    return 'DYNADOT_PERMISSION_FAILURE';
-  }
-  if (
-    errorText.includes('sandbox') ||
-    errorText.includes('production key') ||
-    errorText.includes('wrong environment')
-  ) {
-    return 'SANDBOX_PRODUCTION_MISMATCH';
-  }
-  if (responseCode !== undefined && responseCode !== null && responseCode !== '' && codeNum !== 0) {
-    return 'DYNADOT_API_ERROR';
-  }
-  return null;
-}
-
-function extractTldPriceArray(apiData) {
-  if (Array.isArray(apiData?.TldPriceResponse?.TldPrice)) return apiData.TldPriceResponse.TldPrice;
-  if (Array.isArray(apiData?.TLDPricing?.TldPrice)) return apiData.TLDPricing.TldPrice;
-  if (Array.isArray(apiData?.TldPrice)) return apiData.TldPrice;
-  if (Array.isArray(apiData)) return apiData;
-  return null;
-}
-
-function normalizeTld(tld) {
-  return String(tld || '').trim().replace(/^\./, '').toLowerCase();
-}
-
-function matchTldEntry(tldPriceArray, tld) {
-  const needle = normalizeTld(tld);
-  return tldPriceArray.find((item) => normalizeTld(item?.Tld) === needle) || null;
-}
-
-function extractRegisterPriceUsd(matchedTld) {
-  const raw =
-    matchedTld?.Price?.Register ??
-    matchedTld?.Price?.register ??
-    matchedTld?.RegistrationPrice ??
-    matchedTld?.registration_price ??
-    0;
-  const value = parseFloat(raw);
-  return Number.isFinite(value) ? value : 0;
-}
-
-async function fetchDynadotTldPrice(baseUrl, apiKey, tld) {
-  const tldParam = normalizeTld(tld);
-  const dynadotUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tldParam)}&currency=USD`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
-
-  try {
-    const response = await fetch(dynadotUrl, { signal: controller.signal });
-    const rawText = await response.text();
-    let apiData;
-    try {
-      apiData = JSON.parse(rawText);
-    } catch (e) {
-      return { category: 'UNEXPECTED_DYNADOT_RESPONSE', httpStatus: response.status };
-    }
-
-    const classified = classifyDynadotFailure(apiData, response.status);
-    if (classified) {
-      return { category: classified, httpStatus: response.status, responseCode: apiData?.TldPriceResponse?.ResponseCode ?? apiData?.ResponseCode };
-    }
-
-    if (!response.ok) {
-      return { category: 'DYNADOT_API_ERROR', httpStatus: response.status };
-    }
-
-    const tldPriceArray = extractTldPriceArray(apiData);
-    if (!tldPriceArray) {
-      return { category: 'UNEXPECTED_DYNADOT_RESPONSE', httpStatus: response.status };
-    }
-
-    const matchedTld = matchTldEntry(tldPriceArray, tldParam);
-    if (!matchedTld) {
-      return { category: 'INVALID_TLD' };
-    }
-
-    const registerPriceUsd = extractRegisterPriceUsd(matchedTld);
-    if (!(registerPriceUsd > 0)) {
-      return { category: 'UNEXPECTED_DYNADOT_RESPONSE', httpStatus: response.status };
-    }
-
-    return { category: null, registerPriceUsd };
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      return { category: 'NETWORK_TIMEOUT' };
-    }
-    return { category: 'NETWORK_TIMEOUT', details: error?.message };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-exports.dynadotTldPricingBatch = functions.https.onCall(async (data, context) => {
-  try {
-    const payload = data?.data || data || {};
-    const tlds = Array.isArray(payload.tlds) ? payload.tlds : [];
-
-    if (!tlds.length) {
-      throwPricingError('INVALID_TLD', 'Missing tlds array');
-    }
-
-    const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
-    let settingsSnap;
-    try {
-      settingsSnap = await db.collection('settings').doc('api_keys').get();
-    } catch (error) {
-      throwPricingError('FIRESTORE_ACCESS_ERROR', error?.message);
-    }
-
-    const apiKeysData = settingsSnap.exists ? (settingsSnap.data() || {}) : {};
-    const apiKey = typeof apiKeysData.dynadotApiKey === 'string' ? apiKeysData.dynadotApiKey.trim() : '';
-    const exchangeRate = parseFloat(apiKeysData.usdToBdtRate);
-    const parsedMarkup = parseFloat(apiKeysData.domainMarkupPercent);
-    const markupConfigured = Number.isFinite(parsedMarkup) && parsedMarkup >= 0;
-    const markupPercent = markupConfigured ? parsedMarkup : 15;
-    const isSandbox = apiKeysData.isSandboxMode === true;
-
-    console.log('[dynadotTldPricingBatch] Config:', {
-      dynadotApiKeyConfigured: apiKey.length > 0 ? 'yes' : 'no',
-      exchangeRateConfigured: Number.isFinite(exchangeRate) && exchangeRate > 0 ? 'yes' : 'no',
-      markupConfigured: markupConfigured ? 'yes' : 'no',
-      markupSource: markupConfigured ? 'firestore' : 'default_15',
-      sandboxMode: isSandbox,
-      tldCount: tlds.length,
-    });
-
-    if (!settingsSnap.exists || !apiKey || !(exchangeRate > 0) || (Number.isFinite(parsedMarkup) && parsedMarkup < 0)) {
-      throwPricingError('FIRESTORE_CONFIGURATION_ERROR', {
-        documentExists: !!settingsSnap.exists,
-        dynadotApiKeyConfigured: apiKey.length > 0 ? 'yes' : 'no',
-        exchangeRateConfigured: Number.isFinite(exchangeRate) && exchangeRate > 0 ? 'yes' : 'no',
-        markupConfigured: markupConfigured ? 'yes' : 'no',
-      });
-    }
-
-    const baseUrl = isSandbox
-      ? 'https://api-sandbox.dynadot.com/api3.json'
-      : 'https://api.dynadot.com/api3.json';
-
-    const uniqueTlds = [];
-    const seen = new Set();
-    for (const tld of tlds) {
-      const normalized = normalizeTld(tld);
-      if (!normalized || seen.has(normalized)) continue;
-      seen.add(normalized);
-      uniqueTlds.push(normalized);
-    }
-
-    if (!uniqueTlds.length) {
-      throwPricingError('INVALID_TLD', 'No valid TLDs after normalization');
-    }
-
-    const results = await Promise.all(
-      uniqueTlds.map(async (tld) => {
-        const fetched = await fetchDynadotTldPrice(baseUrl, apiKey, tld);
-        if (fetched.category) {
-          console.error('[dynadotTldPricingBatch] TLD failed', { tld, category: fetched.category, httpStatus: fetched.httpStatus || null });
-          return { tld, category: fetched.category };
-        }
-        const retailUsd = fetched.registerPriceUsd * (1 + markupPercent / 100);
-        const customerPriceBdt = Math.round(retailUsd * exchangeRate);
-        return {
-          tld: `.${tld}`,
-          customerPriceBdt,
+    const client = await openprovider.createClient(db);
+    const settings = await getDomainPricingSettings(db);
+    const pricing = [];
+    const failed = [];
+    for (const value of tlds) {
+      const tld = String(value).trim().replace(/^\./, '').toLowerCase();
+      if (!tld) continue;
+      try {
+        const quote = await openprovider.getTldPricing(client, tld);
+        if (quote.currency !== 'USD') throw new Error('Unsupported Openprovider currency.');
+        pricing.push({
+          tld: quote.tld,
+          customerPriceBdt: customerPriceBdt(quote.registrationPrice, settings),
+          renewalPriceBdt: customerPriceBdt(quote.renewalPrice, settings),
+          transferPriceBdt: customerPriceBdt(quote.transferPrice, settings),
           currency: 'BDT',
-        };
-      })
-    );
-
-    const systemicCategories = new Set([
-      'DYNADOT_AUTHENTICATION_FAILURE',
-      'DYNADOT_PERMISSION_FAILURE',
-      'SANDBOX_PRODUCTION_MISMATCH',
-    ]);
-    const systemic = results.find((item) => item.category && systemicCategories.has(item.category));
-    if (systemic) {
-      throwPricingError(systemic.category, { tld: systemic.tld });
+        });
+      } catch (error) {
+        failed.push({ tld: `.${tld}`, error: error.message || 'Openprovider quote failed.' });
+      }
     }
-
-    const pricing = results
-      .filter((item) => !item.category && item.customerPriceBdt > 0)
-      .map(({ tld, customerPriceBdt, currency }) => ({ tld, customerPriceBdt, currency }));
-
-    if (!pricing.length) {
-      const firstFailure = results.find((item) => item.category);
-      throwPricingError(firstFailure?.category || 'INTERNAL_FUNCTION_EXCEPTION', {
-        failedTlds: results.map((item) => ({ tld: item.tld, category: item.category || null })),
-      });
-    }
-
-    return {
-      success: true,
-      pricing,
-    };
+    if (!pricing.length) throw new Error('Openprovider returned no TLD prices.');
+    return { success: true, pricing, failed };
   } catch (error) {
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    throwPricingError('INTERNAL_FUNCTION_EXCEPTION', error?.message);
+    console.error('[openproviderTldPricingBatch] Batch quote failed:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Openprovider batch pricing failed.');
   }
 });
 
-exports.getDomainRenewalPrice = functions.https.onCall(async (data, context) => {
+exports.getDomainRenewalPrice = functions.https.onCall(async (data) => {
+  const domain = String(data?.data?.domain || data?.domain || '').trim().toLowerCase();
+  if (!domain.includes('.')) throw new functions.https.HttpsError('invalid-argument', 'Invalid domain format.');
   try {
-    const payload = data.data || data;
-    const domain = payload.domain;
-    
-    if (!domain) {
-      throw new functions.https.HttpsError('invalid-argument', 'Missing domain parameter');
-    }
-
     const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
-    const settingsSnap = await db.collection('settings').doc('api_keys').get();
-    const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
-    const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
-    const apiKeysData = settingsSnap.exists ? settingsSnap.data() : {};
-    const exchangeRate = parseFloat(apiKeysData.usdToBdtRate) || 120;
-    const markupPercent = parseFloat(apiKeysData.domainMarkupPercent) || 15;
-
-    console.log('[DomainRenewalPrice] Settings:', {
-      hasApiKey: !!apiKey,
-      isSandbox,
-      exchangeRate,
-      markupPercent,
-      domain
-    });
-
-    if (!apiKey) {
-      throw new functions.https.HttpsError('internal', 'Domain API key not configured.');
-    }
-
-    const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
-    
-    const tldMatch = domain.match(/\.[^.]+$/);
-    const tld = tldMatch ? tldMatch[0] : '';
-    
-    if (!tld) {
-      throw new functions.https.HttpsError('invalid-argument', 'Invalid domain format');
-    }
-
-    console.log('[DomainRenewalPrice] Domain:', domain, 'TLD:', tld);
-
-    const tldUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tld)}&currency=USD`;
-    const tldResponse = await fetch(tldUrl);
-    
-    if (!tldResponse.ok) {
-      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${tldResponse.status}`);
-    }
-    
-    const tldText = await tldResponse.text();
-    let tldData;
-    try { 
-      tldData = JSON.parse(tldText); 
-    } catch(e) { 
-      throw new functions.https.HttpsError('internal', 'Failed to parse Dynadot TLD pricing response.');
-    }
-
-    
-
-    const tldPriceArray = 
-      tldData?.TldPriceResponse?.TldPrice ||
-      tldData?.TLDPricing?.TldPrice ||
-      tldData?.TldPrice ||
-      (Array.isArray(tldData) ? tldData : null);
-
-    if (!tldPriceArray || !Array.isArray(tldPriceArray)) {
-      throw new functions.https.HttpsError('not-found', `TLD pricing not available for ${tld}`);
-    }
-
-    const matchedTld = tldPriceArray.find(
-      item => item?.Tld?.toLowerCase() === tld.toLowerCase()
-    );
-
-    if (!matchedTld) {
-      throw new functions.https.HttpsError('not-found', `TLD ${tld} not found in Dynadot pricing`);
-    }
-
-    const renewPriceUsd = parseFloat(matchedTld.Price?.Renew || matchedTld.Price?.renew || 0);
-    
-    console.log('[DomainRenewalPrice] Matched TLD:', JSON.stringify(matchedTld));
-    console.log('[DomainRenewalPrice] Renew price USD:', renewPriceUsd);
-
-    if (renewPriceUsd <= 0) {
-      throw new functions.https.HttpsError('not-found', `Renewal price not available for ${tld}`);
-    }
-
-    const retailUsd = renewPriceUsd * (1 + markupPercent / 100);
-    const priceUsd = Math.round(retailUsd * 100) / 100;
-    const priceBdt = Math.round(retailUsd * exchangeRate);
-
-    const maxDuration = matchedTld.MaxDuration || matchedTld.maxDuration || 10;
-
-    console.log('[DomainRenewalPrice] Calculated:', {
-      renewPriceUsd,
-      retailUsd,
-      priceUsd,
-      priceBdt,
-      maxDuration
-    });
-
-    return {
-      success: true,
-      domain,
-      tld,
-      renewalPriceBdt: priceBdt,
-      maxDuration: parseInt(maxDuration),
-      discountPercent: parseFloat(apiKeysData.domainRenewalDiscountPercent) || 0,
-    };
-
+    const { quote, settings } = await getOpenproviderQuote(db, domain.slice(domain.indexOf('.') + 1));
+    return { success: true, domain, tld: quote.tld, renewalPriceBdt: customerPriceBdt(quote.renewalPrice, settings), maxDuration: 10 };
   } catch (error) {
-    console.error('Domain Renewal Price Error:', error);
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    throw new functions.https.HttpsError('internal', 'Failed to fetch renewal price.');
+    console.error('[getDomainRenewalPrice] Quote failed:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Openprovider renewal quote failed.');
   }
 });
 
 exports.getDomainRenewalPriceBreakdown = functions.https.onCall(async (data, context) => {
   if (!context.auth || !await isAdminUser(context.auth.uid)) {
-    throw new functions.https.HttpsError('unauthenticated', 'Admin access required');
+    throw new functions.https.HttpsError('unauthenticated', 'Admin access required.');
   }
-
+  const domain = String(data?.domain || '').trim().toLowerCase();
+  if (!domain.includes('.')) throw new functions.https.HttpsError('invalid-argument', 'Invalid domain format.');
   try {
-    const { domain } = data;
-    
-    if (!domain) {
-      throw new functions.https.HttpsError('invalid-argument', 'Missing domain parameter');
-    }
-
     const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
-    const settingsSnap = await db.collection('settings').doc('api_keys').get();
-    const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
-    const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
-    const apiKeysData = settingsSnap.exists ? settingsSnap.data() : {};
-    const exchangeRate = parseFloat(apiKeysData.usdToBdtRate) || 120;
-    const markupPercent = parseFloat(apiKeysData.domainMarkupPercent) || 15;
-
-    if (!apiKey) {
-      throw new functions.https.HttpsError('internal', 'Domain API key not configured.');
-    }
-
-    const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
-    
-    const tldMatch = domain.match(/\.[^.]+$/);
-    const tld = tldMatch ? tldMatch[0] : '';
-    
-    if (!tld) {
-      throw new functions.https.HttpsError('invalid-argument', 'Invalid domain format');
-    }
-
-    const tldUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tld)}&currency=USD`;
-    const tldResponse = await fetch(tldUrl);
-    
-    if (!tldResponse.ok) {
-      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${tldResponse.status}`);
-    }
-    
-    const tldText = await tldResponse.text();
-    let tldData;
-    try { 
-      tldData = JSON.parse(tldText); 
-    } catch(e) { 
-      throw new functions.https.HttpsError('internal', 'Failed to parse Dynadot TLD pricing response.');
-    }
-
-    const tldPriceArray = 
-      tldData?.TldPriceResponse?.TldPrice ||
-      tldData?.TLDPricing?.TldPrice ||
-      tldData?.TldPrice ||
-      (Array.isArray(tldData) ? tldData : null);
-
-    if (!tldPriceArray || !Array.isArray(tldPriceArray)) {
-      throw new functions.https.HttpsError('not-found', `TLD pricing not available for ${tld}`);
-    }
-
-    const matchedTld = tldPriceArray.find(
-      item => item?.Tld?.toLowerCase() === tld.toLowerCase()
-    );
-
-    if (!matchedTld) {
-      throw new functions.https.HttpsError('not-found', `TLD ${tld} not found in Dynadot pricing`);
-    }
-
-    const renewPriceUsd = parseFloat(matchedTld.Price?.Renew || matchedTld.Price?.renew || 0);
-    
-    if (renewPriceUsd <= 0) {
-      throw new functions.https.HttpsError('not-found', `Renewal price not available for ${tld}`);
-    }
-
-    const retailUsd = renewPriceUsd * (1 + markupPercent / 100);
-    const priceUsd = Math.round(retailUsd * 100) / 100;
-    const priceBdt = Math.round(retailUsd * exchangeRate);
-    const markupAmount = retailUsd - renewPriceUsd;
-
+    const { client, quote, settings } = await getOpenproviderQuote(db, domain.slice(domain.indexOf('.') + 1));
     return {
       success: true,
       domain,
-      tld,
-      supplierPriceUsd: renewPriceUsd,
-      markupPercent,
-      markupAmountUsd: Math.round(markupAmount * 100) / 100,
-      sellingPriceUsd: priceUsd,
-      exchangeRate,
-      sellingPriceBdt: priceBdt,
-      isSandbox,
-      discountPercent: parseFloat(apiKeysData.domainRenewalDiscountPercent) || 0,
+      tld: quote.tld,
+      supplierPriceUsd: quote.renewalPrice,
+      markupPercent: settings.markupPercent,
+      markupAmountUsd: quote.renewalPrice * settings.markupPercent / 100,
+      sellingPriceUsd: quote.renewalPrice * (1 + settings.markupPercent / 100),
+      exchangeRate: settings.usdToBdtRate,
+      sellingPriceBdt: customerPriceBdt(quote.renewalPrice, settings),
+      isSandbox: client.isSandbox,
     };
-
   } catch (error) {
-    console.error('Domain Renewal Price Breakdown Error:', error);
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    throw new functions.https.HttpsError('internal', 'Failed to fetch renewal price breakdown.');
+    console.error('[getDomainRenewalPriceBreakdown] Quote failed:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Openprovider renewal quote failed.');
   }
 });
 
 exports.createDomainRenewalOrder = functions.https.onCall(async (data, context) => {
+  const { domain, renewalPeriod, customerName, customerEmail, customerPhone, paymentMethod, transactionId } = data || {};
+  if (!domain || !renewalPeriod || !customerName || !customerEmail || !customerPhone) {
+    throw new functions.https.HttpsError('invalid-argument', 'Required renewal order fields are missing.');
+  }
   try {
-    const { domain, renewalPeriod, customerName, customerEmail, customerPhone, paymentMethod, transactionId } = data;
-    
-    const missingFields = [];
-    if (!domain) missingFields.push('domain');
-    if (!renewalPeriod) missingFields.push('renewalPeriod');
-    if (!customerName) missingFields.push('customerName');
-    if (!customerEmail) missingFields.push('customerEmail');
-    if (!customerPhone) missingFields.push('customerPhone');
-
-    if (missingFields.length > 0) {
-      throw new functions.https.HttpsError('invalid-argument', `Missing required fields: ${missingFields.join(', ')}`);
-    }
-
     const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
-    const settingsSnap = await db.collection('settings').doc('api_keys').get();
-    const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
-    const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
-    const apiKeysData = settingsSnap.exists ? settingsSnap.data() : {};
-    const exchangeRate = parseFloat(apiKeysData.usdToBdtRate) || 120;
-    const markupPercent = parseFloat(apiKeysData.domainMarkupPercent) || 15;
-
-    if (!apiKey) {
-      throw new functions.https.HttpsError('internal', 'Domain API key not configured.');
-    }
-
-    const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
-    
-    const tldMatch = domain.match(/\.[^.]+$/);
-    const tld = tldMatch ? tldMatch[0] : '';
-    
-    if (!tld) {
-      throw new functions.https.HttpsError('invalid-argument', 'Invalid domain format');
-    }
-
-    const tldUrl = `${baseUrl}?key=${apiKey}&command=tld_price&tld=${encodeURIComponent(tld)}&currency=USD`;
-    const tldResponse = await fetch(tldUrl);
-    
-    if (!tldResponse.ok) {
-      throw new functions.https.HttpsError('internal', `Dynadot API HTTP Error ${tldResponse.status}`);
-    }
-    
-    const tldText = await tldResponse.text();
-    let tldData;
-    try { 
-      tldData = JSON.parse(tldText); 
-    } catch(e) { 
-      throw new functions.https.HttpsError('internal', 'Failed to parse Dynadot TLD pricing response.');
-    }
-
-    const tldPriceArray = 
-      tldData?.TldPriceResponse?.TldPrice ||
-      tldData?.TLDPricing?.TldPrice ||
-      tldData?.TldPrice ||
-      (Array.isArray(tldData) ? tldData : null);
-
-    if (!tldPriceArray || !Array.isArray(tldPriceArray)) {
-      throw new functions.https.HttpsError('not-found', `TLD pricing not available for ${tld}`);
-    }
-
-    const matchedTld = tldPriceArray.find(
-      item => item?.Tld?.toLowerCase() === tld.toLowerCase()
-    );
-
-    if (!matchedTld) {
-      throw new functions.https.HttpsError('not-found', `TLD ${tld} not found in Dynadot pricing`);
-    }
-
-    const renewPriceUsd = parseFloat(matchedTld.Price?.Renew || matchedTld.Price?.renew || 0);
-    
-    if (renewPriceUsd <= 0) {
-      throw new functions.https.HttpsError('not-found', `Renewal price not available for ${tld}`);
-    }
-
-    const retailUsd = renewPriceUsd * (1 + markupPercent / 100);
-    const priceUsd = Math.round(retailUsd * 100) / 100;
-    const priceBdt = Math.round(retailUsd * exchangeRate);
-    
-    const discountPercent = parseFloat(apiKeysData.domainRenewalDiscountPercent) || 0;
-    const discountMultiplier = renewalPeriod > 1 ? (1 - (discountPercent / 100)) : 1;
-    const totalBdt = Math.round(priceBdt * renewalPeriod * discountMultiplier);
-
-    const docType = 'INV';
-    const docNumber = await generateDocumentNumber(docType);
-
+    const years = Number(renewalPeriod);
+    const { quote, settings } = await getOpenproviderQuote(db, String(domain).slice(String(domain).indexOf('.') + 1));
+    const totalBdt = customerPriceBdt(quote.renewalPrice, settings, years);
+    const documentNumber = await generateDocumentNumber('INV');
     const orderData = {
       userId: context.auth?.uid || 'guest',
       type: 'domain_renewal',
-      documentNumber: docNumber,
+      documentNumber,
       domain,
-      tld,
-      renewalPriceBdt: priceBdt,
-      renewalPeriod,
+      tld: quote.tld,
+      renewalPriceBdt: customerPriceBdt(quote.renewalPrice, settings),
+      renewalPeriod: years,
       totalBdt,
       status: 'pending_payment',
       paymentStatus: 'pending',
@@ -1698,23 +1097,15 @@ exports.createDomainRenewalOrder = functions.https.onCall(async (data, context) 
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-
     const orderRef = await addDoc(collection(db, 'domain_renewals'), orderData);
-
-    return {
-      success: true,
-      orderId: orderRef.id,
-      order: orderData,
-    };
-
+    return { success: true, orderId: orderRef.id, order: orderData };
   } catch (error) {
-    console.error('Create Domain Renewal Order Error:', error);
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    throw new functions.https.HttpsError('internal', 'Failed to create renewal order.');
+    console.error('[createDomainRenewalOrder] Failed:', error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to create renewal order.');
   }
 });
+
 
 exports.validateHostingPrice = functions.https.onCall(async (data, context) => {
   try {
@@ -1754,119 +1145,29 @@ exports.validateHostingPrice = functions.https.onCall(async (data, context) => {
   }
 });
 
-exports.dynadotProxy = functions.https.onCall(async (data, context) => {
-  const { command, domain, extraParams } = data;
-  
-  if (!context.auth || !await isAdminUser(context.auth.uid)) {
-    throw new functions.https.HttpsError('unauthenticated', 'Admin access required for domain operations.');
-  }
-
-  if (!command || !domain) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing command or domain');
-  }
-
-  const adminCmds = ['register', 'renew', 'set_ns', 'delete'];
-  if (!adminCmds.includes(command)) {
-    throw new functions.https.HttpsError('invalid-argument', 'Command not allowed.');
-  }
-
-  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
-
-  try {
-    const settingsSnap = await db.collection('settings').doc('api_keys').get();
-    const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
-    const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
-
-    if (!apiKey) {
-      throw new functions.https.HttpsError('internal', 'Domain action failed.');
-    }
-
-    const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
-    let dynadotUrl = `${baseUrl}?key=${apiKey}&command=${command}&domain=${domain}`;
-    
-    if (extraParams && typeof extraParams === 'object') {
-      for (const [k, v] of Object.entries(extraParams)) {
-        dynadotUrl += `&${k}=${v}`;
-      }
-    }
-
-    const response = await fetch(dynadotUrl);
-    const rawText = await response.text(); 
-    let apiData;
-    try { apiData = JSON.parse(rawText); } catch(e) { throw new functions.https.HttpsError('internal', 'Domain action failed.'); }
-
-    await db.collection('apiLogs').add({
-      action: 'dynadot_' + command,
-      domain,
-      isSandbox,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      response: sanitizeLogData(apiData)
-    });
-
-    return apiData;
-  } catch (error) {
-    throw new functions.https.HttpsError('internal', 'Domain action failed.');
-  }
-});
-
-
 exports.manageDomain = functions.https.onCall(async (data, context) => {
-  // Verify authentication
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'You must be logged in to manage domains.');
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'You must be logged in to manage domains.');
+  const { command, domain, extraParams } = data || {};
+  if (!domain || !['set_ns', 'renew'].includes(command)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid domain command or domain.');
   }
-
-  const { command, domain, extraParams } = data;
-  const uid = context.auth.uid;
-
-  if (!command || !domain) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing command or domain.');
-  }
-
-  // Allow only certain commands
-  if (['set_ns', 'renew'].indexOf(command) === -1) {
-    throw new functions.https.HttpsError('invalid-argument', 'Invalid command.');
-  }
-
-  // Verify ownership of the domain
-  const dOrdersSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('domainOrders')
-    .where('userId', '==', uid)
+  const db = getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+  const owned = await db.collection('domainOrders')
+    .where('userId', '==', context.auth.uid)
     .where('domain', '==', domain)
     .get();
-
-  if (dOrdersSnap.empty) {
-    throw new functions.https.HttpsError('permission-denied', 'You do not own this domain.');
-  }
-
-  // Fetch API settings
-  const settingsSnap = await getFirestore('ai-studio-422fbad2-d827-4e69-8599-aed85390d277').collection('settings').doc('api_keys').get();
-  const apiSettings = settingsSnap.exists ? settingsSnap.data() : null;
-  const apiKey = apiSettings?.dynadotApiKey;
-  const isSandbox = apiSettings?.isSandboxMode === true;
-
-  if (!apiKey) {
-    throw new functions.https.HttpsError('internal', 'API key not configured.');
-  }
-
-  const baseUrl = isSandbox ? 'https://api-sandbox.dynadot.com/api3.json' : 'https://api.dynadot.com/api3.json';
-
-  let dynadotUrl = `${baseUrl}?key=${apiKey}&command=${command}&domain=${domain}`;
-  
-  if (extraParams && typeof extraParams === 'object') {
-    for (const [k, v] of Object.entries(extraParams)) {
-      dynadotUrl += `&${k}=${v}`;
-    }
-  }
-
+  if (owned.empty) throw new functions.https.HttpsError('permission-denied', 'You do not own this domain.');
   try {
-    const response = await fetch(dynadotUrl);
-    const result = await response.json();
-    return result;
+    const client = await openprovider.createClient(db);
+    if (command === 'renew') return await openprovider.renewDomain(client, domain, Number(extraParams?.duration || 1));
+    const response = await openprovider.setNameservers(client, domain, [extraParams?.ns0, extraParams?.ns1, extraParams?.ns2, extraParams?.ns3]);
+    return response.data;
   } catch (error) {
-    console.error('manageDomain Error:', error);
-    throw new functions.https.HttpsError('internal', 'Error communicating with Dynadot API.');
+    console.error('[manageDomain] Openprovider request failed:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Openprovider domain request failed.');
   }
 });
+
 
 exports.cloudLinuxProxy = functions.https.onCall(async (data, context) => {
   // Only admins can interact with CloudLinux API for adding/removing licenses
@@ -2349,35 +1650,15 @@ exports.testApiConnection = functions.https.onCall(async (data, context) => {
     // ── DOMAIN TEST ──────────────────────────────────────────────────────
     if (type === 'domain') {
       try {
-        const settingsSnap = await db.collection('settings').doc('api_keys').get();
-        const apiKey = settingsSnap.exists ? settingsSnap.data()?.dynadotApiKey : null;
-        if (!apiKey) {
-          return { success: false, message: 'Dynadot API key is not configured.' };
-        }
-        const isSandbox = settingsSnap.exists ? settingsSnap.data()?.isSandboxMode === true : false;
-        const baseUrl = isSandbox
-          ? 'https://api-sandbox.dynadot.com/api3.json'
-          : 'https://api.dynadot.com/api3.json';
-        const url = baseUrl + '?key=' + apiKey + '&command=search&domain0=test-click2itbd.com';
-        const response = await fetch(url);
-        if (!response.ok) {
-          return { success: false, message: 'HTTP ' + response.status + ' error from Dynadot API.' };
-        }
-        const rawText = await response.text();
-        try {
-          const apiData = JSON.parse(rawText);
-          if (apiData?.ResponseCode === '0' || apiData?.SearchResponse?.ResponseCode === '0') {
-            return { success: true, message: 'Connected to Dynadot successfully.' };
-          } else {
-            return { success: false, message: apiData?.SearchResponse?.Status || 'Dynadot returned an error.' };
-          }
-        } catch (e) {
-          return { success: false, message: 'Invalid JSON response from Dynadot.' };
-        }
+        const client = await openprovider.createClient(db);
+        return {
+          success: true,
+          message: `Connected to Openprovider ${client.isSandbox ? 'CTE sandbox' : 'production'} successfully.`,
+        };
       } catch (err) {
         if (err instanceof functions.https.HttpsError) throw err;
         console.error('[testApiConnection] domain error:', err.message);
-        return { success: false, message: err.message || 'Dynadot connection test failed.' };
+        return { success: false, message: err.message || 'Openprovider connection test failed.' };
       }
     }
 
@@ -2562,7 +1843,7 @@ exports.adminApiConfig = functions.https.onCall(async (data, context) => {
   const docRef = db.collection('settings').doc('api_keys');
 
   const secretFields = [
-    'dynadotApiKey', 'hostingApiKey', 'whmApiToken', 'resendApiKey',
+    'openproviderPassword', 'dynadotApiKey', 'hostingApiKey', 'whmApiToken', 'resendApiKey',
     'bkashAppKey', 'bkashAppSecret', 'bkashUsername', 'bkashPassword',
     'sandbox_bkashAppKey', 'sandbox_bkashAppSecret', 'sandbox_bkashUsername', 'sandbox_bkashPassword',
     'production_bkashAppKey', 'production_bkashAppSecret', 'production_bkashUsername', 'production_bkashPassword',

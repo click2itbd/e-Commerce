@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, doc, query, orderBy, where, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, query, orderBy, where, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
 import { RefreshCw, CheckCircle, RotateCcw, Search, Filter, AlertTriangle } from 'lucide-react';
@@ -12,7 +12,14 @@ interface DomainOrder {
   userId: string;
   orderId?: string;
   registrarOrderId?: string;
-  status: 'pending' | 'registered' | 'failed' | 'expiring' | 'expired' | 'renewing';
+  registrationId?: string;
+  providerStatus?: string;
+  providerCode?: string;
+  providerHttpStatus?: number;
+  providerRequestStartedAt?: string;
+  providerResponseReceivedAt?: string;
+  fulfillmentError?: string;
+  status: 'pending' | 'active' | 'registered' | 'failed' | 'expiring' | 'expired' | 'renewing' | 'manual_review';
   registeredAt?: string;
   expiresAt?: string;
   autoRenew?: boolean;
@@ -140,6 +147,13 @@ export const DomainOrdersManager: React.FC = () => {
 
   const getNeedsAttentionBadge = (order: DomainOrder) => {
     if (order.status !== 'pending') return null;
+    if (order.registrationId && ['REQ', 'UNKNOWN'].includes((order.providerStatus || '').toUpperCase())) {
+      return (
+        <span className="px-2 py-1 rounded text-xs font-bold bg-amber-100 text-amber-700">
+          Awaiting Registrar
+        </span>
+      );
+    }
     const updatedAt = order.updatedAt || order.createdAt;
     if (!updatedAt) return null;
     const diffMinutes = (Date.now() - new Date(updatedAt).getTime()) / 1000 / 60;
@@ -214,6 +228,24 @@ export const DomainOrdersManager: React.FC = () => {
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
                         <span className="font-bold">{order.domain}</span>
+                        {(order.registrationId || order.providerCode || order.providerHttpStatus || order.providerRequestStartedAt || order.fulfillmentError) && (
+                          <span className="text-xs text-gray-500">
+                            Openprovider {order.providerStatus || 'status not returned'}
+                            {order.registrationId && ` · ID ${order.registrationId}`}
+                            {(order.providerCode || order.providerHttpStatus) && ` · Code ${order.providerCode || '-'} / HTTP ${order.providerHttpStatus || '-'}`}
+                          </span>
+                        )}
+                        {(order.providerRequestStartedAt || order.fulfillmentError) && (
+                          <span className="text-xs text-gray-500">
+                            Request sent {order.providerRequestStartedAt ? new Date(order.providerRequestStartedAt).toLocaleString() : 'not recorded'}
+                            {order.providerResponseReceivedAt
+                              ? ` · Response received ${new Date(order.providerResponseReceivedAt).toLocaleString()}`
+                              : ' · No response recorded'}
+                          </span>
+                        )}
+                        {order.fulfillmentError && (
+                          <span className="text-xs text-amber-700">{order.fulfillmentError}</span>
+                        )}
                         {expiryStatus && (
                           <span className={`text-xs px-2 py-0.5 rounded mt-1 w-fit ${expiryStatus.className}`}>
                             {expiryStatus.label}
@@ -253,7 +285,11 @@ export const DomainOrdersManager: React.FC = () => {
                             <RefreshCw size={16} />
                           </button>
                         )}
-                        {(order.status === 'pending' || order.status === 'failed') && (
+                        {(order.status === 'pending' || order.status === 'failed') && !(
+                          order.status === 'pending' &&
+                          order.registrationId &&
+                          ['REQ', 'UNKNOWN'].includes((order.providerStatus || '').toUpperCase())
+                        ) && (
                           <button
                             onClick={() => handleMarkAsCompleted(order)}
                             disabled={actionLoading === order.id}

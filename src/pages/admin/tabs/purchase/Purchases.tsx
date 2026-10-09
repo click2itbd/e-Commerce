@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc, setDoc, where } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc, setDoc, where, increment } from 'firebase/firestore';
 import { db, auth } from '../../../../firebase';
 import { Product, Vendor, Transaction, SiteSettings, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, type WarrantyUnit } from '../../../../lib/utils';
@@ -70,6 +70,7 @@ interface PurchaseRecord {
 }
 
 interface PurchasesProps {
+  users?: any[];
   vendors?: Vendor[];
   products?: Product[];
   transactions?: Transaction[];
@@ -80,6 +81,7 @@ interface PurchasesProps {
 }
 
 const Purchases: React.FC<PurchasesProps> = ({
+  users = [],
   vendors: initialVendors = [],
   products: initialProducts = [],
   settings,
@@ -671,7 +673,11 @@ const Purchases: React.FC<PurchasesProps> = ({
                 const prodRef = doc(db, 'products', item.id);
                 const pData = products.find((p: any) => p.id === item.id);
                 if (pData) {
-                    await updateDoc(prodRef, { stock: Math.max(0, (Number(pData.stock) || 0) - (Number(item.quantity) || 0)) });
+                    const qtyToRevert = Number(item.quantity) || 0;
+const revertedStock = Math.max(0, (Number(pData.stock) || 0) - qtyToRevert);
+await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
+                    // IMPORTANT: Update local state so the adding logic later uses the reverted stock!
+                    pData.stock = revertedStock;
                 }
             }
          }
@@ -757,7 +763,7 @@ const Purchases: React.FC<PurchasesProps> = ({
              currentProduct.variants = existingVariants;
           } else {
              if (item.salesPrice) updates.price = Number(item.salesPrice);
-             if (item.sku && !currentProduct.sku) updates.sku = item.sku;
+             if (item.sku) updates.sku = item.sku;
           }
 
           if (item.hasWarranty && itemWarrantyMonths(item) > 0) {
@@ -1099,13 +1105,18 @@ const Purchases: React.FC<PurchasesProps> = ({
                     <label className="block font-bold text-gray-700 uppercase mb-1">
                       Prepared By (Staff)
                     </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Fahad, Atik..."
+                    <select
                       value={purchaseForm.createdBy || ''}
                       onChange={e => setPurchaseForm({ ...purchaseForm, createdBy: e.target.value })}
-                      className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-900 focus:ring-[#EF4444]"
-                    />
+                      className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-900 focus:ring-[#EF4444] bg-white cursor-pointer"
+                    >
+                      <option value="">-- Select --</option>
+                      {users
+                        .filter(u => u.role === 'admin' || u.role === 'staff' || u.role === 'manager' || u.permissions?.length > 0)
+                        .map(u => (
+                        <option key={u.uid} value={u.displayName || u.email}>{u.displayName || u.email}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block font-bold text-gray-700 uppercase mb-1">
@@ -1365,7 +1376,28 @@ const Purchases: React.FC<PurchasesProps> = ({
                               </div>
                               
                               {/* Scanned Badges */}
-                              {Array.isArray(item.newSerials) && item.newSerials.length > 0 && (
+                              {!item.hasSerialTracking && (
+                            <div className="border-t border-gray-100 pt-2 mt-2">
+                               <div className="flex gap-2 items-center">
+                                  <label className="text-[10px] font-bold text-gray-500 uppercase whitespace-nowrap">Barcode / SKU</label>
+                                  <input 
+                                    type="text" 
+                                    placeholder="Enter Barcode"
+                                    value={item.sku || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPurchaseForm(prev => ({
+                                        ...prev,
+                                        items: prev.items.map(i => i.id === item.id ? { ...i, sku: val } : i)
+                                      }))
+                                    }}
+                                    className="w-full border border-gray-200 rounded px-2 py-1 text-xs font-bold text-gray-800 focus:ring-1 focus:ring-blue-500 outline-none"
+                                  />
+                               </div>
+                            </div>
+                          )}
+                          
+                          {Array.isArray(item.newSerials) && item.newSerials.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5 mt-2 bg-gray-50 p-2 rounded-lg border border-gray-100">
                                   {item.newSerials.map((serial, sIdx) => (
                                     <span key={sIdx} className="inline-flex items-center gap-1 bg-white border border-gray-200 text-gray-700 text-[10px] font-mono px-2 py-1 rounded-md shadow-sm">
@@ -1891,7 +1923,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                                      const prodRef = doc(db, 'products', item.id);
                                      const pData = products.find((p: any) => p.id === item.id);
                                      if (pData) {
-                                         await updateDoc(prodRef, { stock: Math.max(0, (Number(pData.stock) || 0) - (Number(item.quantity) || 0)) });
+                                         await updateDoc(prodRef, { stock: increment(-(Number(item.quantity) || 0)) });
                                      }
                                  }
                                  const snap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', pur.id)));

@@ -224,7 +224,7 @@ export const HostingCheckout: React.FC = () => {
 
       const orderData = {
         userId: user?.uid || 'guest',
-        items: items.map(item => ({ ...item, isDigital: true })),
+        items: items.map(({ eppCode: _eppCode, authCode: _authCode, ...item }) => ({ ...item, isDigital: true })),
         total: grandTotal,
         shippingCost,
         status: 'pending',
@@ -303,9 +303,10 @@ export const HostingCheckout: React.FC = () => {
           domain: tItem.domain || tItem.id.replace('domain_transfer_', ''),
           tld: (tItem.domain || tItem.id.replace('domain_transfer_', '')).split('.').pop() || '',
           termYears: tItem.termYears || 1,
+          years: tItem.termYears || 1,
           price: tItem.price,
           status: 'pending',
-          action: 'transfer',
+          type: 'transfer',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
@@ -925,7 +926,6 @@ export const HostingCheckout: React.FC = () => {
     </Layout>
   );
 };
-
 
 
 

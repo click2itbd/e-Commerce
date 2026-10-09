@@ -12,34 +12,26 @@ interface DomainResultCardProps {
   onSearchAlternative: (domain: string) => void;
 }
 
-const DOMAIN_YEAR_DISCOUNTS: Record<number, number> = {
-  1: 0,
-  2: 5,   // 5% discount
-  3: 10,  // 10% discount
-  4: 12,  // 12% discount
-  5: 15,  // 15% discount
-};
-
 export const DomainResultCard: React.FC<DomainResultCardProps> = ({ result, pricing, onSearchAlternative }) => {
   const { addToCart } = useCart();
   const navigate = useNavigate();
   const [selectedYears, setSelectedYears] = useState<number>(1);
 
-  const baseAnnualPrice = Number(result.price) || Number(pricing?.registerPrice) || 1200;
-  const currency = pricing?.currency || 'BDT';
-  const discountPercent = DOMAIN_YEAR_DISCOUNTS[selectedYears] || 0;
-  
-  // Total calculated price with multi-year discount
-  const rawTotal = baseAnnualPrice * selectedYears;
-  const discountedTotal = Math.round(rawTotal * (1 - discountPercent / 100));
+  const quotedPrice = Number(result.priceBdt ?? result.price ?? pricing?.registerPrice);
+  const baseAnnualPrice = Number.isFinite(quotedPrice) && quotedPrice > 0 ? quotedPrice : null;
+  const totalPrice = (baseAnnualPrice || 0) * selectedYears;
 
   const handleAddToCart = () => {
+    if (baseAnnualPrice === null) {
+      toast.error('Live Openprovider pricing is unavailable for this domain.');
+      return;
+    }
     const tld = result.domain.split('.').pop() || '';
     const product = {
       id: `domain_${result.domain}_${selectedYears}yr`,
       name: `Domain Registration - ${result.domain} (${selectedYears} ${selectedYears === 1 ? 'Year' : 'Years'})`,
       description: `${selectedYears} Year${selectedYears > 1 ? 's' : ''} Registration (Includes WHOIS Privacy)`,
-      price: discountedTotal,
+      price: totalPrice,
       category: 'Hosting & Domains',
       stock: 9999,
       images: [],
@@ -106,24 +98,21 @@ export const DomainResultCard: React.FC<DomainResultCardProps> = ({ result, pric
                 onChange={(e) => setSelectedYears(Number(e.target.value))}
                 className="bg-gray-800 text-white text-xs font-bold px-3 py-2 rounded-xl border border-gray-700 outline-none cursor-pointer hover:border-green-500 transition-colors"
               >
-                <option value={1}>1 Year (Regular)</option>
-                <option value={2}>2 Years (Save 5%)</option>
-                <option value={3}>3 Years (Save 10%) 🔥</option>
-                <option value={4}>4 Years (Save 12%)</option>
-                <option value={5}>5 Years (Save 15%) ⭐</option>
+                <option value={1}>1 Year</option>
+                <option value={2}>2 Years</option>
+                <option value={3}>3 Years</option>
+                <option value={4}>4 Years</option>
+                <option value={5}>5 Years</option>
               </select>
             </div>
 
             {/* Price display */}
             <div className="text-right">
               <div className="font-bold text-xl text-white">
-                ৳{discountedTotal.toLocaleString()}
+                {baseAnnualPrice === null ? 'Price unavailable' : `৳${totalPrice.toLocaleString()}`}
               </div>
               <div className="text-xs text-gray-400">
                 for {selectedYears} {selectedYears === 1 ? 'year' : 'years'}
-                {discountPercent > 0 && (
-                  <span className="text-emerald-400 ml-1 font-semibold">({discountPercent}% off)</span>
-                )}
               </div>
             </div>
           </div>
@@ -132,6 +121,7 @@ export const DomainResultCard: React.FC<DomainResultCardProps> = ({ result, pric
         {isAvailable && (
           <button
             onClick={handleAddToCart}
+            disabled={baseAnnualPrice === null}
             className="bg-[#10b981] hover:bg-[#059669] text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] hover:-translate-y-0.5"
           >
             <ShoppingCart size={16} /> Add to Cart

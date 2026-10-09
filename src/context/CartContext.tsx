@@ -5,6 +5,14 @@ import { doc, getDoc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { useSettings } from './SettingsContext';
 import { useAuth } from './AuthContext';
 
+const withoutTransferSecrets = <T extends object>(item: T): Omit<T, 'eppCode' | 'authCode'> => {
+  const { eppCode: _eppCode, authCode: _authCode, ...safeItem } = item as T & {
+    eppCode?: string;
+    authCode?: string;
+  };
+  return safeItem as Omit<T, 'eppCode' | 'authCode'>;
+};
+
 interface CartContextType {
   items: CartItem[];
   addToCart: (product: Product | any) => void;
@@ -28,7 +36,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('cart');
-    return saved ? JSON.parse(saved) : [];
+    return saved ? JSON.parse(saved).map(withoutTransferSecrets) : [];
   });
 
   const [appliedDiscount, setAppliedDiscount] = useState<DiscountCode | null>(() => {
@@ -72,14 +80,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [appliedDiscount]);
 
   const addToCart = (product: Product) => {
+    const safeProduct = withoutTransferSecrets(product);
     setItems(prev => {
-      const existing = prev.find(item => item.id === product.id);
+      const existing = prev.find(item => item.id === safeProduct.id);
       if (existing) {
         return prev.map(item =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === safeProduct.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { ...safeProduct, quantity: 1 }];
     });
   };
 
@@ -94,7 +103,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateCartItem = (productId: string, updates: Partial<CartItem>) => {
-    setItems(prev => prev.map(item => item.id === productId ? { ...item, ...updates } : item));
+    const safeUpdates = withoutTransferSecrets(updates);
+    setItems(prev => prev.map(item => item.id === productId ? { ...item, ...safeUpdates } : item));
   };
 
   const clearCart = () => {
@@ -176,7 +186,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             userId: user.uid,
             userEmail: user.email || '',
             userName: user.displayName || '',
-            items,
+            items: items.map(withoutTransferSecrets),
             total,
             updatedAt: new Date().toISOString()
           });
@@ -204,6 +214,4 @@ export const useCart = () => {
   if (!context) throw new Error('useCart must be used within a CartProvider');
   return context;
 };
-
-
 

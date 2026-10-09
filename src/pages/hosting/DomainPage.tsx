@@ -6,7 +6,6 @@ import { PageHeader } from '../../components/hosting/PageHeader';
 import { SEO } from '../../components/SEO';
 import DomainPricingSection from '../hosting-sections/DomainPricingSection';
 import { Search, Shield, ShieldCheck, Settings, RefreshCw, ArrowRight, Loader2, CheckCircle, XCircle, ShoppingCart } from 'lucide-react';
-import { checkDomainAvailability } from '../../services/hostingApi';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '../../lib/utils';
 
@@ -20,7 +19,6 @@ const DomainPage = () => {
   const [searchQuery, setSearchQuery] = useState(preselectedTld ? `.${preselectedTld.replace(/^\./, '')}` : '');
   const [selectedTld, setSelectedTld] = useState('.com');
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResult, setSearchResult] = useState<DomainAvailabilityResponse | null>(null);
 
   const POPULAR_TLDS = ['.com', '.net', '.org', '.com.bd', '.xyz', '.store', '.online'];
 
@@ -68,7 +66,7 @@ const DomainPage = () => {
           <div className="bg-white rounded-xl md:rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden flex items-stretch max-w-3xl mx-auto mb-4 md:mb-6">
             <form onSubmit={handleSearch} className="flex-grow flex items-stretch">
               <div className="flex items-center pl-3 md:pl-5 text-gray-400">
-                <Search size={18} md:size={20} />
+                <Search size={18} className="md:w-5 md:h-5" />
               </div>
               <input
                 type="text"
@@ -93,7 +91,7 @@ const DomainPage = () => {
                   className="flex items-center gap-2 text-white font-bold px-5 md:px-7 h-[40px] md:h-[44px] rounded-xl transition-all active:scale-95 hover:opacity-90 disabled:opacity-70 my-auto"
                   style={{ background: 'linear-gradient(135deg, #f97316, #ea6100)' }}
                 >
-                  {isSearching ? <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" /> : <Search size={16} md:size={18} />} 
+                  {isSearching ? <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" /> : <Search size={16} className="md:w-[18px] md:h-[18px]" />}
                   <span className="hidden sm:inline">{isSearching ? 'Checking...' : 'Search Now'}</span>
                 </button>
               </div>

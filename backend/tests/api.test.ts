@@ -75,7 +75,6 @@ describe('Backend API', () => {
     process.env.NODE_ENV = 'test';
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY = '';
     process.env.EXPRESS_API_KEY = 'test-api-key';
-    process.env.DYNADOT_API_KEY = 'test-dynadot-key';
     process.env.WHM_API_TOKEN = 'test-whm-token';
     process.env.WHM_API_URL = 'https://test-whm.com:2087';
     process.env.WHM_USERNAME = 'root';

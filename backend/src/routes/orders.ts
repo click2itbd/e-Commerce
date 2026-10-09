@@ -116,15 +116,19 @@ ordersRouter.post('/admin/:orderId/payment/verify', requireFirebaseAuth, async (
     if (orderData.paymentStatus === 'verified') {
       if (action === 'accept') {
         let retryFulfillmentError: string | null = null;
+        let fulfillmentResult;
         try {
-          await fulfillOrder(orderId, adminUid);
+          fulfillmentResult = await fulfillOrder(orderId, adminUid);
         } catch (e: any) {
           retryFulfillmentError = e.message || 'Fulfillment retry failed';
         }
         return res.json({
           success: true,
           alreadyVerified: true,
-          message: 'Fulfillment retry requested successfully.',
+          message: fulfillmentResult?.status === 'pending'
+            ? 'The registrar request is still pending; it was not submitted again.'
+            : 'Fulfillment retry requested successfully.',
+          fulfillmentResult,
           fulfillmentError: retryFulfillmentError || undefined,
         });
       }
@@ -386,8 +390,9 @@ ordersRouter.post('/admin/:orderId/payment/verify', requireFirebaseAuth, async (
       }
 
       let fulfillmentError: string | null = null;
+      let fulfillmentResult;
       try {
-        const fulfillmentResult = await fulfillOrder(orderId, adminUid);
+        fulfillmentResult = await fulfillOrder(orderId, adminUid);
         console.log(`[Orders] Fulfillment started for order ${orderId}:`, fulfillmentResult);
       } catch (err: any) {
         fulfillmentError = err.message || 'Unknown fulfillment error';
@@ -396,8 +401,11 @@ ordersRouter.post('/admin/:orderId/payment/verify', requireFirebaseAuth, async (
 
       return res.json({
         success: true,
-        message: 'Payment verified successfully. Order is now processing.',
+        message: fulfillmentResult?.status === 'pending'
+          ? 'Payment verified. The registrar accepted the request, but registration is not active yet.'
+          : 'Payment verified successfully. Order is now processing.',
         emailSent,
+        fulfillmentResult,
         fulfillmentError: fulfillmentError || undefined,
       });
     }
@@ -576,4 +584,3 @@ ordersRouter.post('/admin/service-status', requireFirebaseAuth, async (req: any,
 });
 
 export default ordersRouter;
-

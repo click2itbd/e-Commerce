@@ -39,6 +39,7 @@ export interface ProductVariant {
 
 export interface Product {
   costPrice?: number;
+  unit?: string;
   sku?: string;
   lowStockThreshold?: number;
   isFreeShipping?: boolean;
@@ -592,11 +593,18 @@ export interface DomainOrder {
   tld: string;
   userId: string;
   orderId: string;
-  status: 'pending' | 'active' | 'suspended' | 'cancelled';
+  status: 'pending' | 'active' | 'suspended' | 'cancelled' | 'failed' | 'registered' | 'manual_review';
   years: number;
   autoRenew: boolean;
   nameservers: string[];
   price: number;
+  registrationId?: string;
+  providerStatus?: string;
+  providerCode?: string;
+  providerHttpStatus?: number;
+  providerRequestStartedAt?: string;
+  providerResponseReceivedAt?: string;
+  fulfillmentError?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -611,6 +619,8 @@ export interface HostingAccount {
   status: 'pending' | 'active' | 'suspended' | 'cancelled';
   billingCycle: 'monthly' | 'yearly';
   autoRenew: boolean;
+  serverIp?: string;
+  controlPanelUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -621,7 +631,7 @@ export interface HostingOrder {
   items: any[];
   total: number;
   shippingCost: number;
-  status: 'pending' | 'processing' | 'completed' | 'cancelled';
+  status: 'pending' | 'processing' | 'provisioning' | 'fulfillment_pending' | 'completed' | 'cancelled' | 'failed' | 'manual_review';
   type: 'invoice';
   documentNumber: string;
   customerName: string;
@@ -630,6 +640,10 @@ export interface HostingOrder {
   shippingAddress: string;
   company: string;
   paymentMethod: string;
+  transactionId?: string;
+  paymentStatus?: string;
+  paymentVerificationStatus?: string;
+  providerStatus?: string;
   createdAt: string;
 }
 

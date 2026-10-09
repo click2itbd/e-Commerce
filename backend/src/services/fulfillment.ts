@@ -3,7 +3,7 @@ import { sendEmail } from './email.js';
 import { getDomainProvider, getHostingProvider } from '../providers/providerFactory.js';
 import { getDomainPricingSettings } from './domainPricing.js';
 import { resolveDomainProvider } from './btclConfig.js';
-import { ProviderError } from '../providers/domain/DynadotDomainProvider.js';
+import { ProviderError } from '../providers/domain/DomainProviderError.js';
 import { classifyHostingError } from './hosting.js';
 import { config } from '../config/index.js';
 import { getDomainProviderConfig } from './domainProviderConfig.js';
@@ -11,7 +11,7 @@ import { getDomainProviderConfig } from './domainProviderConfig.js';
 export interface FulfillmentResult {
   success: boolean;
   orderId: string;
-  status: 'completed' | 'failed' | 'manual_review';
+  status: 'completed' | 'failed' | 'manual_review' | 'pending';
   domainResults: FulfillmentItemResult[];
   hostingResults: FulfillmentItemResult[];
   error?: string;
@@ -77,15 +77,19 @@ export async function fulfillOrder(orderId: string, actorUid: string): Promise<F
 
   let hasFailure = false;
   let hasManualReview = false;
+  let hasPending = false;
 
   for (const docSnap of domainOrdersSnap.docs) {
     const domainData = docSnap.data();
     const result = await fulfillDomainOrder(docSnap.id, domainData, actorUid);
     domainResults.push(result);
     if (!result.success) {
-      hasFailure = true;
       if (result.status === 'manual_review') {
         hasManualReview = true;
+      } else if (result.status === 'pending') {
+        hasPending = true;
+      } else {
+        hasFailure = true;
       }
     }
   }
@@ -95,29 +99,38 @@ export async function fulfillOrder(orderId: string, actorUid: string): Promise<F
     const result = await fulfillHostingAccount(docSnap.id, hostingData, actorUid);
     hostingResults.push(result);
     if (!result.success) {
-      hasFailure = true;
       if (result.status === 'manual_review') {
         hasManualReview = true;
+      } else if (result.status === 'pending') {
+        hasPending = true;
+      } else {
+        hasFailure = true;
       }
     }
   }
 
-  let finalStatus: 'completed' | 'failed' | 'manual_review';
+  let finalStatus: FulfillmentResult['status'];
   if (hasManualReview) {
     finalStatus = 'manual_review';
   } else if (hasFailure) {
     finalStatus = 'failed';
+  } else if (hasPending) {
+    finalStatus = 'pending';
   } else {
     finalStatus = 'completed';
   }
 
+  const auditAction = finalStatus === 'pending' ? 'fulfillment_pending' : 'fulfillment_completed';
+  const orderStatus = finalStatus === 'pending' ? 'fulfillment_pending' : finalStatus;
+  const auditMessage = finalStatus === 'pending'
+    ? 'Openprovider accepted the domain request; registration is not active yet.'
+    : finalStatus === 'completed' ? null : 'Some items failed fulfillment';
   await orderRef.update({
-    status: finalStatus,
+    status: orderStatus,
     providerStatus: finalStatus,
     updatedAt: now,
   });
-
-  await writeAuditLog(db, orderId, 'fulfillment_completed', actorUid, 'processing', finalStatus, null, finalStatus === 'completed' ? null : 'Some items failed fulfillment');
+  await writeAuditLog(db, orderId, auditAction, actorUid, 'processing', orderStatus, null, auditMessage);
 
   if (finalStatus === 'completed' && orderData.customerEmail) {
     const subject = `Order Completed - #${orderId.slice(0, 8)}`;
@@ -169,22 +182,52 @@ export async function fulfillOrder(orderId: string, actorUid: string): Promise<F
     status: finalStatus,
     domainResults,
     hostingResults,
-    error: finalStatus === 'completed' ? undefined : 'Some items failed fulfillment',
+    error: finalStatus === 'completed'
+      ? undefined
+      : finalStatus === 'pending'
+        ? 'Registrar accepted the request; confirmation is pending.'
+        : 'Some items failed fulfillment',
   };
 }
 
 async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorUid: string): Promise<FulfillmentItemResult> {
   const db = getAdminDb();
   const now = new Date().toISOString();
+  const isTransferOrder = domainData.type === 'transfer' || domainData.action === 'transfer';
+  const itemAction = domainData.type === 'renewal' || domainData.action === 'renewal'
+    ? 'renew'
+    : isTransferOrder ? 'transfer' : 'register';
 
   if (domainData.status === 'active' || domainData.status === 'registered') {
     return {
       itemId: domainOrderId,
       type: 'domain',
-      action: domainData.type === 'renewal' ? 'renew' : domainData.type === 'transfer' ? 'transfer' : 'register',
+      action: itemAction,
       success: true,
       status: domainData.status,
       error: 'Already fulfilled',
+    };
+  }
+
+  if (domainData.status === 'pending' && domainData.registrationId) {
+    return {
+      itemId: domainOrderId,
+      type: 'domain',
+      action: itemAction,
+      success: false,
+      status: 'pending',
+      error: 'The registrar accepted this domain request; it will not be submitted a second time.',
+    };
+  }
+
+  if (isTransferOrder && domainData.transferSubmissionIndeterminate) {
+    return {
+      itemId: domainOrderId,
+      type: 'domain',
+      action: 'transfer',
+      success: false,
+      status: 'manual_review',
+      error: 'The transfer request may have reached Openprovider, but no definitive response was recorded. Check Openprovider before retrying to avoid a duplicate transfer.',
     };
   }
 
@@ -198,7 +241,7 @@ async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorU
     return {
       itemId: domainOrderId,
       type: 'domain',
-      action: domainData.type === 'renewal' ? 'renew' : domainData.type === 'transfer' ? 'transfer' : 'register',
+      action: itemAction,
       success: false,
       status: domainData.status,
       error: `Domain status '${domainData.status}' is not eligible for fulfillment`,
@@ -206,35 +249,56 @@ async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorU
   }
 
   const config = await getDomainProviderConfig();
-  const { provider } = await resolveDomainProvider(domainData.domain, { domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+  const { provider } = await resolveDomainProvider(domainData.domain, config);
 
   let result: any;
   let action: 'register' | 'renew' | 'transfer' = 'register';
   let errorCode: string | undefined;
+  let transferAuthCodeRef: any;
+  let transferSubmissionMarked = false;
 
   try {
-    if (domainData.type === 'transfer') {
+    if (isTransferOrder) {
       action = 'transfer';
-      const authCode = domainData.authCode;
+      transferAuthCodeRef = db.collection('transferAuthCodes').doc(`${domainData.orderId}_${domainData.domain}`);
+      const authCodeSnap = await transferAuthCodeRef.get();
+      const authCodeData = authCodeSnap.exists ? authCodeSnap.data() : null;
+      const expiresAt = authCodeData?.expiresAt?.toDate
+        ? authCodeData.expiresAt.toDate()
+        : authCodeData?.expiresAt ? new Date(authCodeData.expiresAt) : null;
+      const authCode = expiresAt && expiresAt.getTime() <= Date.now() ? null : authCodeData?.authCode;
       if (!authCode) {
+        const message = expiresAt
+          ? 'The transfer authorization code has expired. Please submit a fresh EPP/Auth code.'
+          : 'Auth code is required for transfer';
         await db.collection('domainOrders').doc(domainOrderId).update({
           status: 'manual_review',
-          fulfillmentError: 'Auth code is required for transfer',
+          fulfillmentError: message,
           updatedAt: now,
         });
-        await writeAuditLog(db, domainOrderId, 'fulfillment_failed', actorUid, domainData.status, 'manual_review', 'validation_error', 'Auth code is required for transfer');
+        await writeAuditLog(db, domainOrderId, 'fulfillment_failed', actorUid, domainData.status, 'manual_review', 'validation_error', message);
         return {
           itemId: domainOrderId,
           type: 'domain',
           action: 'transfer',
           success: false,
           status: 'manual_review',
-          error: 'Auth code is required for transfer',
+          error: message,
           errorCode: 'validation_error',
         };
       }
-      result = await (provider as any).transferDomain?.(domainData.domain, authCode, domainData.years || 1);
-    } else if (domainData.type === 'renewal') {
+      if (!provider.transferDomain) {
+        throw new Error('The configured registrar does not support domain transfers.');
+      }
+      await db.collection('domainOrders').doc(domainOrderId).update({
+        transferRequestStartedAt: now,
+        transferSubmissionIndeterminate: true,
+        providerResponseReceivedAt: null,
+        updatedAt: now,
+      });
+      transferSubmissionMarked = true;
+      result = await provider.transferDomain(domainData.domain, authCode, domainData.years || domainData.termYears || 1);
+    } else if (domainData.type === 'renewal' || domainData.action === 'renewal') {
       action = 'renew';
       result = await provider.renewDomain(domainData.domain, domainData.renewalPeriod || 1);
     } else {
@@ -255,6 +319,9 @@ async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorU
       status: 'manual_review',
       fulfillmentError: errorMessage,
       errorCode,
+      ...(action === 'transfer' ? {
+        transferSubmissionIndeterminate: transferSubmissionMarked,
+      } : {}),
       retryCount: (domainData.retryCount || 0) + 1,
       lastRetryAt: now,
       updatedAt: now,
@@ -274,21 +341,57 @@ async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorU
   }
 
   const isSuccess = result?.success || false;
-  const newStatus = isSuccess ? 'active' : 'failed';
+  const providerStatus = String(result?.status || '').toUpperCase();
+  const isProviderPending = (action === 'register' || action === 'transfer')
+    && isSuccess
+    && ['REQ', 'UNKNOWN'].includes(providerStatus);
+  const transferSubmissionIndeterminate = action === 'transfer'
+    && Boolean(result?.requestStartedAt)
+    && (!result?.responseReceivedAt
+      || (!isSuccess && result?.providerHttpStatus >= 200 && result?.providerHttpStatus < 300 && result?.providerCode === '0'));
+  const newStatus = transferSubmissionIndeterminate
+    ? 'manual_review'
+    : isProviderPending ? 'pending' : isSuccess ? 'active' : 'failed';
+  const providerMessage = isProviderPending
+    ? result?.error || 'Openprovider accepted the request; registration is not active yet.'
+    : transferSubmissionIndeterminate
+      ? 'The transfer request may have reached Openprovider, but no definitive result was returned. Check Openprovider before retrying.'
+      : result?.error || null;
 
   await db.collection('domainOrders').doc(domainOrderId).update({
     status: newStatus,
     registrationId: result?.registrationId || result?.transferId || domainData.registrationId || null,
+    transferId: result?.transferId || domainData.transferId || null,
     expiresAt: result?.expiresAt || domainData.expiresAt || null,
     newExpiryDate: result?.newExpiryDate || null,
-    error: result?.error || null,
+    error: providerMessage,
+    fulfillmentError: providerMessage,
     providerStatus: result?.status || null,
+    providerCode: result?.providerCode || null,
+    providerHttpStatus: result?.providerHttpStatus || null,
+    providerRequestStartedAt: result?.requestStartedAt || null,
+    providerResponseReceivedAt: result?.responseReceivedAt || null,
+    ...(action === 'transfer' ? {
+      transferRequestStartedAt: result?.requestStartedAt || null,
+      transferSubmissionIndeterminate,
+    } : {}),
     updatedAt: now,
   });
+  if (action === 'transfer' && isSuccess && transferAuthCodeRef) {
+    try {
+      await transferAuthCodeRef.delete();
+    } catch (error) {
+      console.error('[Fulfillment] Failed to remove consumed transfer authorization code:', {
+        domainOrderId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
-  await writeAuditLog(db, domainOrderId, isSuccess ? 'fulfilled' : 'fulfillment_failed', actorUid, domainData.status, newStatus, null, result?.error || null);
+  const auditResult = isProviderPending ? 'fulfillment_pending' : isSuccess ? 'fulfilled' : 'fulfillment_failed';
+  await writeAuditLog(db, domainOrderId, auditResult, actorUid, domainData.status, newStatus, result?.providerCode || null, providerMessage);
 
-  if (isSuccess && domainData.customerEmail) {
+  if (isSuccess && !isProviderPending && domainData.customerEmail) {
     const subject = action === 'renew' ? `Domain Renewed - ${domainData.domain}` :
                    action === 'transfer' ? `Domain Transferred - ${domainData.domain}` :
                    `Domain Registered - ${domainData.domain}`;
@@ -307,10 +410,10 @@ async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorU
     itemId: domainOrderId,
     type: 'domain',
     action,
-    success: isSuccess,
+    success: isSuccess && !isProviderPending,
     status: newStatus,
-    error: result?.error,
-    errorCode: isSuccess ? undefined : errorCode,
+    error: providerMessage || undefined,
+    errorCode: isSuccess && !isProviderPending ? undefined : errorCode || result?.providerCode,
     providerResult: result,
   };
 }

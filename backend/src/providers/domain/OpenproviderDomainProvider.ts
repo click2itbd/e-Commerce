@@ -87,8 +87,15 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     });
 
     const result: any = await response.json();
+    if (result && typeof result === 'object') {
+      Object.defineProperty(result, '_providerHttpStatus', { value: response.status });
+    }
     if (!response.ok || (result.code !== undefined && result.code !== 0)) {
-      throw new Error(result.desc || `Openprovider API Error: ${response.status}`);
+      const error: any = new Error(result.desc || `Openprovider API Error: ${response.status}`);
+      error.providerHttpStatus = response.status;
+      error.providerCode = result.code === undefined ? undefined : String(result.code);
+      error.responseReceivedAt = new Date().toISOString();
+      throw error;
     }
     return result;
   }
@@ -168,13 +175,17 @@ export class OpenproviderDomainProvider implements IDomainProvider {
         return { price, currency: String(currency).toUpperCase() };
       };
 
-      const [regPrice, renewPrice, transferPrice] = await Promise.all([
+      const [regPrice, renewPrice, transferPrice, restorePrice] = await Promise.all([
         getOpPrice('create'),
         getOpPrice('renew'),
-        getOpPrice('transfer')
+        getOpPrice('transfer'),
+        getOpPrice('restore')
       ]);
       
-      if (regPrice.currency !== 'USD' || renewPrice.currency !== regPrice.currency || transferPrice.currency !== regPrice.currency) {
+      if (regPrice.currency !== 'USD'
+        || renewPrice.currency !== regPrice.currency
+        || transferPrice.currency !== regPrice.currency
+        || restorePrice.currency !== regPrice.currency) {
         throw new Error(`Unsupported or inconsistent Openprovider reseller currency for .${cleanTld}`);
       }
 
@@ -184,7 +195,7 @@ export class OpenproviderDomainProvider implements IDomainProvider {
         registrationPrice: regPrice.price,
         renewalPrice: renewPrice.price,
         transferPrice: transferPrice.price,
-        restorePrice: 0,
+        restorePrice: restorePrice.price,
       };
       this.tldPricingCache.set(cleanTld, { value: pricing, expiresAt: Date.now() + 60 * 60 * 1000 });
       return pricing;
@@ -205,7 +216,9 @@ export class OpenproviderDomainProvider implements IDomainProvider {
         pricing.push({
           tld: tldPrice.tld,
           supplierPriceUsd: tldPrice.registrationPrice,
-          currency: tldPrice.currency
+          currency: tldPrice.currency,
+          supplierRenewalPriceUsd: tldPrice.renewalPrice,
+          supplierTransferPriceUsd: tldPrice.transferPrice,
         });
       } catch (error: any) {
         failed.push({ tld, error: error.message || 'Failed to fetch TLD pricing' });
@@ -221,11 +234,22 @@ export class OpenproviderDomainProvider implements IDomainProvider {
       : '';
     const handle = contactHandle || this.defaultHandle;
 
+    let requestStartedAt: string | undefined;
+    let responseReceivedAt: string | undefined;
+    let providerHttpStatus: number | undefined;
     try {
       if (!handle) {
         throw new Error('Set OPENPROVIDER_DEFAULT_HANDLE or provide a valid Openprovider contact handle before registering domains.');
       }
 
+      await this.authenticate();
+      requestStartedAt = new Date().toISOString();
+      console.info('[Openprovider] Domain registration request started', {
+        domain: request.domain,
+        operation: 'create',
+        requestStartedAt,
+      });
+      const nameServers = request.nameServers?.filter(Boolean) || [];
       const response = await this.fetchApi('/domains', {
         method: 'POST',
         body: JSON.stringify({
@@ -235,24 +259,63 @@ export class OpenproviderDomainProvider implements IDomainProvider {
           admin_handle: handle,
           tech_handle: handle,
           billing_handle: handle,
-          name_servers: request.nameServers?.map(name => ({ name })) || [],
+          ...(nameServers.length > 0
+            ? { name_servers: nameServers.map(name => ({ name })) }
+            : { ns_group: 'dns-openprovider' }),
           autorenew: request.autoRenew ? 'on' : 'off'
         })
       });
+      providerHttpStatus = response._providerHttpStatus;
+      responseReceivedAt = new Date().toISOString();
       if (!response.data?.id) {
         throw new Error('Openprovider did not return a domain registration ID.');
       }
 
+      const responseStatus = typeof response.data.status === 'string'
+        ? response.data.status.toUpperCase()
+        : '';
+      const status = responseStatus === 'ACT' || responseStatus === 'REQ' ? responseStatus : 'UNKNOWN';
+      const registrationId = String(response.data.id);
+      console.info('[Openprovider] Domain registration response received', {
+        domain: request.domain,
+        operation: 'create',
+        providerHttpStatus,
+        providerCode: String(response.code ?? '0'),
+        registrationId,
+        status,
+        responseReceivedAt,
+      });
       return {
         success: true,
         domain: request.domain,
-        registrationId: response.data?.id?.toString() || '',
+        registrationId,
+        status,
+        providerHttpStatus,
+        providerCode: String(response.code ?? '0'),
+        requestStartedAt,
+        responseReceivedAt,
+        ...(status !== 'ACT' && status !== 'REQ'
+          ? { error: `Openprovider accepted the request but returned an unrecognized status: ${status}.` }
+          : {}),
       };
     } catch (error: any) {
+      console.error('[Openprovider] Domain registration failed', {
+        domain: request.domain,
+        operation: 'create',
+        requestStartedAt: requestStartedAt || null,
+        providerHttpStatus: error.providerHttpStatus || providerHttpStatus,
+        providerCode: error.providerCode,
+        responseReceivedAt: error.responseReceivedAt || responseReceivedAt,
+        error: error.message,
+      });
       return {
         success: false,
         domain: request.domain,
-        error: error.message
+        error: error.message,
+        providerHttpStatus: error.providerHttpStatus || providerHttpStatus,
+        providerCode: error.providerCode,
+        requestStartedAt,
+        responseReceivedAt: error.responseReceivedAt || responseReceivedAt,
       };
     }
   }
@@ -300,32 +363,83 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     const domainObj = this.splitDomain(domain);
     const handle = this.defaultHandle;
 
+    let requestStartedAt: string | undefined;
+    let responseReceivedAt: string | undefined;
+    let providerHttpStatus: number | undefined;
+    let providerCode: string | undefined;
     try {
+      if (!handle) {
+        throw new Error('Set OPENPROVIDER_DEFAULT_HANDLE before transferring domains.');
+      }
+
+      await this.authenticate();
+      requestStartedAt = new Date().toISOString();
+      console.info('[Openprovider] Domain transfer request started', {
+        domain,
+        operation: 'transfer',
+        requestStartedAt,
+      });
       const response = await this.fetchApi('/domains/transfer', {
         method: 'POST',
         body: JSON.stringify({
           domain: domainObj,
           auth_code: authCode,
+          period: years || 1,
           owner_handle: handle,
           admin_handle: handle,
           tech_handle: handle,
           billing_handle: handle
         })
       });
+      providerHttpStatus = response._providerHttpStatus;
+      providerCode = String(response.code ?? '0');
+      responseReceivedAt = new Date().toISOString();
       if (!response.data?.id) {
         throw new Error('Openprovider did not return a domain transfer ID.');
       }
 
+      const rawStatus = typeof response.data.status === 'string'
+        ? response.data.status.toUpperCase()
+        : '';
+      const status = rawStatus === 'ACT' || rawStatus === 'REQ' ? rawStatus : 'UNKNOWN';
+      const transferId = String(response.data.id);
+      console.info('[Openprovider] Domain transfer response received', {
+        domain,
+        operation: 'transfer',
+        providerHttpStatus,
+        providerCode,
+        transferId,
+        status,
+        responseReceivedAt,
+      });
       return {
         success: true,
-        domain: domain,
-        transferId: response.data?.id?.toString() || ''
+        domain,
+        transferId,
+        status,
+        providerHttpStatus,
+        providerCode,
+        requestStartedAt,
+        responseReceivedAt,
       };
     } catch (error: any) {
+      console.error('[Openprovider] Domain transfer failed', {
+        domain,
+        operation: 'transfer',
+        requestStartedAt: requestStartedAt || null,
+        providerHttpStatus: error.providerHttpStatus || providerHttpStatus,
+        providerCode: error.providerCode || providerCode,
+        responseReceivedAt: error.responseReceivedAt || responseReceivedAt,
+        error: error.message,
+      });
       return {
         success: false,
-        domain: domain,
-        error: error.message
+        domain,
+        error: error.message,
+        providerHttpStatus: error.providerHttpStatus || providerHttpStatus,
+        providerCode: error.providerCode || providerCode,
+        requestStartedAt,
+        responseReceivedAt: error.responseReceivedAt || responseReceivedAt,
       };
     }
   }

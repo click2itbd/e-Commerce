@@ -7,7 +7,7 @@ import {
   DomainTransferResult,
   WhoisResult,
 } from './IDomainProvider';
-import { ProviderError } from './DynadotDomainProvider';
+import { ProviderError } from './DomainProviderError';
 
 /**
  * BTCL (.bd registry) domain provider.

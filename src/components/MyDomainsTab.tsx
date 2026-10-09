@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { Globe, Server, Save, Loader2, CalendarClock, Settings } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { apiPost } from '../services/apiClient';
+import { getDomainRenewalPrice } from '../services/domainApi';
 
 export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
   const [domains, setDomains] = useState<any[]>([]);
@@ -24,22 +25,27 @@ export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
   }, [currentUser]);
 
   
-  const handleRenewDomain = (domainOrder: any) => {
-    addToCart({
-      id: `renew_${domainOrder.domain}`,
-      name: `Domain Renewal - ${domainOrder.domain}`,
-      description: '1 Year Renewal',
-      price: domainOrder.price || 1200,
-      category: 'Hosting & Domains',
-      stock: 999,
-      images: [],
-      createdAt: new Date().toISOString(),
-      itemType: 'domain_renewal',
-      domain: domainOrder.domain,
-      termYears: 1
-    } as any);
-    toast.success('Renewal added to cart');
-    navigate('/hosting/checkout');
+  const handleRenewDomain = async (domainOrder: any) => {
+    try {
+      const quote = await getDomainRenewalPrice(domainOrder.domain);
+      addToCart({
+        id: `renew_${domainOrder.domain}`,
+        name: `Domain Renewal - ${domainOrder.domain}`,
+        description: '1 Year Renewal',
+        price: quote.renewalPriceBdt,
+        category: 'Hosting & Domains',
+        stock: 999,
+        images: [],
+        createdAt: new Date().toISOString(),
+        itemType: 'domain_renewal',
+        domain: domainOrder.domain,
+        termYears: 1
+      } as any);
+      toast.success('Renewal added to cart');
+      navigate('/hosting/checkout');
+    } catch (error: any) {
+      toast.error(error.message || 'Could not load the live Openprovider renewal price.');
+    }
   };
 
   const fetchDomains = async () => {
@@ -215,4 +221,3 @@ export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
     </div>
   );
 };
-

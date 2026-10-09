@@ -306,7 +306,9 @@ service cloud.firestore {
     match /products/{productId} {
       allow read: if true;
       allow create: if hasStaffAccess() && isValidProduct(request.resource.data);
-      allow update: if hasStaffAccess() && isValidProduct(request.resource.data);
+      allow update: if hasStaffAccess() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
+      );
       allow delete: if isAdmin();
     }
 
@@ -519,7 +521,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /counters/{counterId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow update: if hasStaffAccess() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastNumber']) &&
+        request.resource.data.lastNumber == resource.data.lastNumber + 1
+      );
+      allow create: if true;
     }
 
     match /domainOrders/{orderId} {

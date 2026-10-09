@@ -4,7 +4,7 @@ import { useCart } from '../../context/CartContext';
 import { Layout } from '../../components/Layout';
 import { PageHeader } from '../../components/hosting/PageHeader';
 import { SEO } from '../../components/SEO';
-import { ArrowRight, Lock, Unlock, Key, RefreshCw, Shield, HelpCircle, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { ArrowRight, Lock, Unlock, Key, RefreshCw, Shield, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { checkTransferEligibility, getTldPricing } from '../../services/domainApi';
 import { getDomainPricing } from '../../services/hostingApi';
@@ -14,7 +14,6 @@ const DomainTransferPage = () => {
   const { addToCart } = useCart();
   
   const [domainName, setDomainName] = useState('');
-  const [authCode, setAuthCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [validationError, setValidationError] = useState('');
@@ -65,11 +64,6 @@ const DomainTransferPage = () => {
       }
     }
 
-    if (!authCode.trim()) {
-      setValidationError('Please enter your Auth/EPP Code');
-      return;
-    }
-
     setIsProcessing(true);
 
     try {
@@ -110,7 +104,6 @@ const DomainTransferPage = () => {
         domain: normalized,
         domainTld: tld,
         termYears: 1,
-        eppCode: authCode,
       };
       
       addToCart(transferProduct as any);
@@ -146,15 +139,15 @@ const DomainTransferPage = () => {
                 <h3 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Why transfer to us?</h3>
                 <ul className="space-y-4 sm:space-y-5">
                   <li className="flex items-start gap-3">
-                    <RefreshCw className="text-blue-300 flex-shrink-0 mt-0.5" size={18} sm:size={20} />
+                    <RefreshCw className="text-blue-300 flex-shrink-0 mt-0.5 sm:w-5 sm:h-5" size={18} />
                     <span className="text-sm sm:text-base">Includes a <strong>free 1-year extension</strong> on your current registration.</span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <Shield className="text-blue-300 flex-shrink-0 mt-0.5" size={18} sm:size={20} />
+                    <Shield className="text-blue-300 flex-shrink-0 mt-0.5 sm:w-5 sm:h-5" size={18} />
                     <span className="text-sm sm:text-base"><strong>Free WHOIS Privacy</strong> to keep your personal info hidden.</span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <Lock className="text-blue-300 flex-shrink-0 mt-0.5" size={18} sm:size={20} />
+                    <Lock className="text-blue-300 flex-shrink-0 mt-0.5 sm:w-5 sm:h-5" size={18} />
                     <span className="text-sm sm:text-base">No hidden fees. <strong>Transparent renewal pricing</strong> forever.</span>
                   </li>
                 </ul>
@@ -198,30 +191,18 @@ const DomainTransferPage = () => {
                     />
                   </div>
 
-                  <div>
-                    <label htmlFor="authCode" className="block text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
-                      <span>Auth/EPP Code *</span>
+                  <div className="flex items-start gap-2 rounded-xl bg-blue-50 p-4 text-sm text-blue-800">
+                    <Key size={18} className="mt-0.5 flex-shrink-0" />
+                    <p>
+                      You will enter your Auth/EPP code securely at checkout. It will not be saved in your cart.
                       <button
                         type="button"
                         onClick={() => setShowHelpModal(true)}
-                        className="text-xs text-blue-600 hover:underline cursor-pointer flex items-center gap-1"
+                        className="ml-1 font-semibold underline"
                       >
-                        <HelpCircle size={12} /> Where do I get this?
+                        Where do I get this?
                       </button>
-                    </label>
-                    <input
-                      type="text"
-                      id="authCode"
-                      value={authCode}
-                      onChange={(e) => {
-                        setAuthCode(e.target.value.trim());
-                        setValidationError('');
-                      }}
-                      placeholder="Enter your Auth/EPP Code"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none text-sm sm:text-base"
-                      required
-                    />
-                    <p className="text-xs text-gray-400 mt-1">This code is required by your current registrar to authorize the transfer.</p>
+                    </p>
                   </div>
 
                   {/* Transfer Checklist */}
@@ -259,9 +240,9 @@ const DomainTransferPage = () => {
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 sm:py-4 px-6 rounded-xl transition-colors duration-200 flex justify-center items-center gap-2 disabled:opacity-70 text-sm sm:text-base"
                   >
                     {isProcessing ? (
-                      <RefreshCw className="animate-spin" size={18} sm:size={20} />
+                      <RefreshCw className="animate-spin sm:w-5 sm:h-5" size={18} />
                     ) : (
-                      <>Transfer Now <ArrowRight size={18} sm:size={20} /></>
+                      <>Continue to Checkout <ArrowRight size={18} className="sm:w-5 sm:h-5" /></>
                     )}
                   </button>
                 </form>
@@ -290,7 +271,7 @@ const DomainTransferPage = () => {
             {/* Step 1 */}
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-full flex items-center justify-center border-4 border-blue-50 mb-4 sm:mb-6 shadow-xl shadow-blue-500/10">
-                <Unlock className="text-blue-500" size={28} sm:size={36} />
+                <Unlock className="text-blue-500 sm:w-9 sm:h-9" size={28} />
               </div>
               <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3">1. Unlock Domain</h3>
               <p className="text-gray-600 px-2 sm:px-4 text-sm sm:text-base">
@@ -301,7 +282,7 @@ const DomainTransferPage = () => {
             {/* Step 2 */}
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-full flex items-center justify-center border-4 border-blue-50 mb-4 sm:mb-6 shadow-xl shadow-blue-500/10">
-                <Key className="text-blue-500" size={28} sm:size={36} />
+                <Key className="text-blue-500 sm:w-9 sm:h-9" size={28} />
               </div>
               <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3">2. Get Auth Code</h3>
               <p className="text-gray-600 px-2 sm:px-4 text-sm sm:text-base">
@@ -312,7 +293,7 @@ const DomainTransferPage = () => {
             {/* Step 3 */}
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-full flex items-center justify-center border-4 border-blue-50 mb-4 sm:mb-6 shadow-xl shadow-blue-500/10">
-                <CheckCircle2 className="text-blue-500" size={28} sm:size={36} />
+                <CheckCircle2 className="text-blue-500 sm:w-9 sm:h-9" size={28} />
               </div>
               <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3">3. Initiate Transfer</h3>
               <p className="text-gray-600 px-2 sm:px-4 text-sm sm:text-base">
@@ -385,4 +366,3 @@ const DomainTransferPage = () => {
 };
 
 export default DomainTransferPage;
-

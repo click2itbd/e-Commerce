@@ -5,7 +5,7 @@ import { DomainAvailabilityResult, DomainRegistrationRequest, DomainRegistration
 import { sendEmail } from '../services/email';
 import { getAdminDocument, isUserAdmin } from '../firebase/admin';
 import { getDomainPricingSettings, calculateCustomerPriceBdt } from '../services/domainPricing';
-import { ProviderError } from '../providers/domain/DynadotDomainProvider';
+import { ProviderError } from '../providers/domain/DomainProviderError';
 import { BtclDomainProvider, isBdDomain } from '../providers/domain/BtclDomainProvider';
 import { resolveDomainProvider, getBtclConfig, saveBtclConfig, maskBtclConfig } from '../services/btclConfig';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth';
@@ -23,6 +23,7 @@ interface DomainPricing {
 
 const domainRouter = Router();
 let domainPricingCache: { expiresAt: number; data: DomainPricing[] } | null = null;
+const PRICED_TLDS = ['com', 'net', 'org', 'xyz', 'io', 'co', 'dev', 'online', 'info', 'biz', 'store'];
 
 domainRouter.get('/check', async (req: any, res: Response) => {
   try {
@@ -30,7 +31,7 @@ domainRouter.get('/check', async (req: any, res: Response) => {
     if (!domains.length) return res.json({ success: false, error: 'domains array is required' });
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const results: DomainAvailabilityResult[] = await provider.checkAvailability(domains);
     return res.json({ success: true, data: results });
   } catch (error: any) {
@@ -45,7 +46,7 @@ domainRouter.post('/check', async (req: any, res: Response) => {
     if (!domains.length) return res.json({ success: false, error: 'domains array is required' });
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const pricingSettings = await getDomainPricingSettings();
     const results: DomainAvailabilityResult[] = await provider.checkAvailability(domains);
 
@@ -66,7 +67,13 @@ domainRouter.post('/check', async (req: any, res: Response) => {
           const quote = await pricingPromise;
           if (quote.currency !== 'USD' || !Number.isFinite(quote.registrationPrice) || quote.registrationPrice <= 0
             || !Number.isFinite(quote.renewalPrice) || quote.renewalPrice <= 0) {
-            return { ...r, error: 'A valid registration and renewal price is unavailable for this domain.' };
+            return {
+              ...r,
+              price: undefined,
+              priceBdt: undefined,
+              renewalPrice: undefined,
+              error: 'A valid registration and renewal price is unavailable for this domain.',
+            };
           }
 
           const registrationPriceBdt = calculateCustomerPriceBdt(quote.registrationPrice, pricingSettings);
@@ -78,18 +85,23 @@ domainRouter.post('/check', async (req: any, res: Response) => {
             currency: 'BDT',
           };
         } catch (error: any) {
-          return { ...r, error: error?.message || 'Failed to fetch domain pricing.' };
+          return {
+            ...r,
+            price: undefined,
+            priceBdt: undefined,
+            renewalPrice: undefined,
+            error: error?.message || 'Failed to fetch domain pricing.',
+          };
         }
       }
 
-      if (r.currency === 'BDT' && Number.isFinite(r.price) && (r.price || 0) > 0) {
-        return { ...r, priceBdt: r.price };
-      }
-      if (r.currency === 'USD' && Number.isFinite(r.price) && (r.price || 0) > 0) {
-        const priceBdt = calculateCustomerPriceBdt(r.price as number, pricingSettings);
-        return { ...r, price: priceBdt, priceBdt, currency: 'BDT' };
-      }
-      return { ...r, price: undefined, priceBdt: undefined, renewalPrice: undefined };
+      return {
+        ...r,
+        price: undefined,
+        priceBdt: undefined,
+        renewalPrice: undefined,
+        error: 'Live Openprovider pricing is unavailable for this domain.',
+      };
     }));
 
     return res.json({ success: true, data: enriched });
@@ -105,7 +117,7 @@ domainRouter.post('/suggestions', async (req: any, res: Response) => {
     if (!domain) return res.json({ success: false, error: 'domain is required' });
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const suggestions = await provider.getSuggestions(domain);
     return res.json({ success: true, data: suggestions });
   } catch (error: any) {
@@ -138,7 +150,7 @@ domainRouter.post('/register', async (req: any, res: Response) => {
     }
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const pricingSettings = await getDomainPricingSettings();
 
     let supplierPriceUsd: number;
@@ -154,12 +166,13 @@ domainRouter.post('/register', async (req: any, res: Response) => {
       return res.status(502).json({ success: false, error: error?.message || 'Failed to fetch domain registration price' });
     }
 
-    const customerPriceBdt = calculateCustomerPriceBdt(supplierPriceUsd, pricingSettings);
+    const years = request.years || 1;
+    const customerPriceBdt = calculateCustomerPriceBdt(supplierPriceUsd * years, pricingSettings);
 
     const orderRef = db.collection('domainOrders').doc();
     await orderRef.set({
       domain: request.domain,
-      years: request.years || 1,
+      years,
       status: 'pending_payment',
       contactId: request.contactId || null,
       nameServers: request.nameServers || [],
@@ -178,7 +191,7 @@ domainRouter.post('/register', async (req: any, res: Response) => {
       data: { 
         orderId: orderRef.id, 
         domain: request.domain, 
-        years: request.years || 1,
+        years,
         customerPriceBdt,
         status: 'pending_payment',
         idempotencyKey,
@@ -196,7 +209,7 @@ domainRouter.post('/whois', async (req: any, res: Response) => {
     if (!domain) return res.json({ success: false, error: 'domain is required' });
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const result: WhoisResult = await provider.getWhois(domain);
     return res.json({ success: true, data: result });
   } catch (error: any) {
@@ -211,18 +224,50 @@ domainRouter.get('/pricing', async (req: any, res: Response) => {
   }
 
   try {
-    const db = getAdminDb();
-    const snap = await db.collection('domainPricing').orderBy('tld', 'asc').get();
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as DomainPricing[];
-    domainPricingCache = { expiresAt: Date.now() + 60_000, data };
-    return res.json({ success: true, data });
-  } catch (error: any) {
-    console.error('Failed to fetch domain pricing from database:', error.message);
-    domainPricingCache = { expiresAt: Date.now() + 15_000, data: [] };
-  }
+    const config = await getDomainConfig();
+    const provider = getDomainProvider(config);
+    if (!provider.getTldPricing) {
+      return res.status(503).json({ success: false, error: 'Openprovider TLD pricing is unavailable.' });
+    }
+    const pricingSettings = await getDomainPricingSettings();
+    const data: DomainPricing[] = [];
+    const failed: Array<{ tld: string; error: string }> = [];
 
-  // If no pricing is found in the database, return an empty array instead of hardcoded fallbacks
-  return res.json({ success: true, data: [] });
+    for (const tld of PRICED_TLDS) {
+      try {
+        const quote = await provider.getTldPricing(tld);
+        if (quote.currency !== 'USD'
+          || !Number.isFinite(quote.registrationPrice) || quote.registrationPrice <= 0
+          || !Number.isFinite(quote.renewalPrice) || quote.renewalPrice <= 0
+          || !Number.isFinite(quote.transferPrice) || quote.transferPrice <= 0) {
+          throw new Error('Openprovider returned an invalid price quote.');
+        }
+        data.push({
+          tld: quote.tld,
+          registerPrice: calculateCustomerPriceBdt(quote.registrationPrice, pricingSettings),
+          renewPrice: calculateCustomerPriceBdt(quote.renewalPrice, pricingSettings),
+          transferPrice: calculateCustomerPriceBdt(quote.transferPrice, pricingSettings),
+          currency: 'BDT',
+          isActive: true,
+        });
+      } catch (error: any) {
+        failed.push({ tld: `.${tld}`, error: error?.message || 'Failed to fetch TLD pricing.' });
+      }
+    }
+
+    if (!data.length) {
+      return res.status(502).json({
+        success: false,
+        error: 'Openprovider did not return pricing for any supported TLD.',
+        failed,
+      });
+    }
+    domainPricingCache = { expiresAt: Date.now() + 60_000, data };
+    return res.json({ success: true, data, failed });
+  } catch (error: any) {
+    console.error('Failed to fetch live domain pricing from Openprovider:', error);
+    return res.status(502).json({ success: false, error: error?.message || 'Failed to fetch domain pricing.' });
+  }
 });
 
 domainRouter.post('/renew', async (req: any, res: Response) => {
@@ -231,7 +276,7 @@ domainRouter.post('/renew', async (req: any, res: Response) => {
     if (!domain) return res.json({ success: false, error: 'domain is required' });
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const result = await provider.renewDomain(domain, years || 1);
 
     const db = getAdminDb();
@@ -256,7 +301,7 @@ domainRouter.post('/test-connection', async (req: any, res: Response) => {
   try {
     const config = await getDomainConfig();
     providerType = config.domainApiType || 'dummy';
-    const provider = getDomainProvider({ domainApiType: providerType, domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     if (provider.testConnection) {
       const result = await provider.testConnection();
       return res.json({ ...result, providerType });
@@ -282,7 +327,7 @@ domainRouter.post('/tld-pricing', async (req: any, res: Response) => {
     if (!tld) return res.json({ success: false, error: 'tld is required' });
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const result = await (provider as any).getTldPricing?.(tld);
     if (!result) {
       return res.json({ success: false, error: 'TLD pricing not available for this provider' });
@@ -314,7 +359,7 @@ domainRouter.post('/tld-pricing-batch', async (req: any, res: Response) => {
     if (!Array.isArray(tlds) || !tlds.length) return res.json({ success: false, error: 'tlds array is required' });
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const result = await (provider as any).getBatchTldPricing?.(tlds);
     if (!result) {
       return res.json({ success: false, error: 'Batch TLD pricing not available for this provider' });
@@ -331,6 +376,12 @@ domainRouter.post('/tld-pricing-batch', async (req: any, res: Response) => {
     const pricing = result.pricing.map((item: any) => ({
       tld: item.tld,
       customerPriceBdt: calculateCustomerPriceBdt(item.supplierPriceUsd, pricingSettings),
+      renewalPriceBdt: item.supplierRenewalPriceUsd === undefined
+        ? undefined
+        : calculateCustomerPriceBdt(item.supplierRenewalPriceUsd, pricingSettings),
+      transferPriceBdt: item.supplierTransferPriceUsd === undefined
+        ? undefined
+        : calculateCustomerPriceBdt(item.supplierTransferPriceUsd, pricingSettings),
       currency: 'BDT',
     }));
 
@@ -347,7 +398,7 @@ domainRouter.post('/renewal-price', async (req: any, res: Response) => {
     if (!domain) return res.json({ success: false, error: 'domain is required' });
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const result = await (provider as any).getRenewalPrice?.(domain);
     if (!result) {
       return res.json({ success: false, error: 'Renewal price not available for this provider' });
@@ -380,7 +431,7 @@ domainRouter.post('/renewal-price-breakdown', async (req: any, res: Response) =>
     if (!domain) return res.json({ success: false, error: 'domain is required' });
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const result = await (provider as any).getRenewalPriceBreakdown?.(domain);
     if (!result) {
       return res.json({ success: false, error: 'Renewal price breakdown not available for this provider' });
@@ -437,7 +488,7 @@ domainRouter.post('/renewal-order', async (req: any, res: Response) => {
     }
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const pricingSettings = await getDomainPricingSettings();
 
     const renewalPeriod = Number(params.renewalPeriod);
@@ -523,7 +574,7 @@ domainRouter.post('/transfer', async (req: any, res: Response) => {
     }
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     const pricingSettings = await getDomainPricingSettings();
 
     let supplierPriceUsd: number;
@@ -584,12 +635,12 @@ domainRouter.post('/transfer/check-eligibility', async (req: any, res: Response)
     if (!domain) return res.json({ success: false, error: 'domain is required' });
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
 
     let eligible = false;
     let reason = 'Domain provider not configured';
 
-    if (['dynadot', 'openprovider'].includes(config.domainApiType) && provider.checkAvailability) {
+    if (provider.checkAvailability) {
       const results = await provider.checkAvailability([domain]);
       const result = results[0];
       if (result && !result.available && !result.error) {
@@ -648,7 +699,7 @@ domainRouter.post('/fulfill', requireFirebaseAuth, async (req: any, res: Respons
     }
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
 
     let result;
     let fulfillmentType = orderType;
@@ -920,12 +971,27 @@ domainRouter.post('/transfer-auth-codes', requireFirebaseAuth, async (req: any, 
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
+    const transferDomains = new Set(
+      (Array.isArray(orderData?.items) ? orderData.items : [])
+        .filter((item: any) => item.itemType === 'domain_transfer')
+        .map((item: any) => String(item.domain || item.id?.replace(/^domain_transfer_/, '') || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const validatedCodes = authCodes.map((entry: any) => ({
+      domain: String(entry?.domain || '').trim().toLowerCase(),
+      authCode: String(entry?.authCode || '').trim(),
+    }));
+    if (
+      validatedCodes.some((entry: any) => !entry.domain || !transferDomains.has(entry.domain) || entry.authCode.length < 5)
+      || validatedCodes.length !== transferDomains.size
+      || new Set(validatedCodes.map((entry: any) => entry.domain)).size !== transferDomains.size
+    ) {
+      return res.status(400).json({ success: false, error: 'Provide a valid Auth/EPP code for every domain transfer in this order.' });
+    }
+
     const batch = db.batch();
 
-    for (const codeData of authCodes) {
-      const { domain, authCode } = codeData;
-      if (!domain || !authCode) continue;
-      
+    for (const { domain, authCode } of validatedCodes) {
       const docRef = db.collection('transferAuthCodes').doc(`${orderId}_${domain}`);
       batch.set(docRef, {
         orderId,
@@ -1006,7 +1072,7 @@ domainRouter.get('/balance', requireFirebaseAuth, async (req: any, res: Response
     }
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     
     if (provider.getBalance) {
       const result = await provider.getBalance();
@@ -1027,7 +1093,7 @@ domainRouter.post('/sync-pricing', requireFirebaseAuth, async (req: any, res: Re
     }
 
     const config = await getDomainConfig();
-    const provider = getDomainProvider({ domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const provider = getDomainProvider(config);
     
     if (!provider.getTldPricing) {
       return res.json({ success: false, error: 'Pricing sync not supported by provider' });

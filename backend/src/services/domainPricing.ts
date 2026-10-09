@@ -1,5 +1,4 @@
 import { getAdminDocument } from '../firebase/admin';
-import { config } from '../config/index.js';
 
 export interface PricingSettings {
   usdToBdtRate: number;
@@ -7,23 +6,20 @@ export interface PricingSettings {
 }
 
 export async function getDomainPricingSettings(): Promise<PricingSettings> {
-  try {
-    const result = await getAdminDocument('settings', 'api_keys');
-    const data = result.data || {};
+  const publicSettings = await getAdminDocument('settings', 'public_config');
+  const privateSettings = await getAdminDocument('settings', 'api_keys');
+  const settings = { ...(privateSettings.data || {}), ...(publicSettings.data || {}) };
+  const usdToBdtRate = Number(settings.usdToBdtRate);
+  const markupPercent = Number(settings.domainMarkupPercent);
 
-    const usdToBdtRate = parseFloat(String(data.usdToBdtRate)) || config.dynadot.exchangeRate || 120;
-    const markupPercent = parseFloat(String(data.domainMarkupPercent)) || config.dynadot.markupPercent || 15;
-
-    return {
-      usdToBdtRate,
-      markupPercent,
-    };
-  } catch (error) {
-    return {
-      usdToBdtRate: config.dynadot.exchangeRate || 120,
-      markupPercent: config.dynadot.markupPercent || 15,
-    };
+  if (!Number.isFinite(usdToBdtRate) || usdToBdtRate <= 0) {
+    throw new Error('Configure a valid USD to BDT exchange rate in domain pricing settings.');
   }
+  if (!Number.isFinite(markupPercent) || markupPercent < 0) {
+    throw new Error('Configure a valid domain markup percentage in domain pricing settings.');
+  }
+
+  return { usdToBdtRate, markupPercent };
 }
 
 export function calculateCustomerPriceBdt(supplierPriceUsd: number, settings: PricingSettings): number {

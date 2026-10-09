@@ -1611,7 +1611,7 @@ export const Settings = () => {
                       <input
                         type="number"
                         step="0.01"
-                        value={apiKeys.usdToBdtRate || 120}
+                        value={apiKeys.usdToBdtRate ?? ''}
                         onChange={(e) =>
                           setApiKeys({
                             ...apiKeys,
@@ -1636,7 +1636,7 @@ export const Settings = () => {
                         step="0.1"
                         min="0"
                         max="100"
-                        value={apiKeys.domainMarkupPercent ?? 15}
+                        value={apiKeys.domainMarkupPercent ?? ''}
                         onChange={(e) =>
                           setApiKeys({
                             ...apiKeys,
@@ -1713,11 +1713,10 @@ export const Settings = () => {
                   <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
                     <h4 className="text-sm font-bold text-blue-900 mb-2">Pricing Preview</h4>
                     <div className="text-xs text-blue-800 space-y-1 font-mono">
-                      <p className="font-bold text-blue-700">Domain Pricing (margin: {apiKeys.domainMarkupPercent ?? 15}%)</p>
-                      <p>Wholesale: $10.00 USD</p>
-                      <p>Exchange Rate: {apiKeys.usdToBdtRate || 120} BDT/USD</p>
-                      <p>Retail USD: ${((10 * (1 + (apiKeys.domainMarkupPercent ?? 15) / 100)).toFixed(2))}</p>
-                      <p className="font-bold">Final BDT: ৳{Math.round(10 * (apiKeys.usdToBdtRate || 120) * (1 + (apiKeys.domainMarkupPercent ?? 15) / 100)).toLocaleString()}</p>
+                      <p className="font-bold text-blue-700">Domain Pricing</p>
+                      <p>Supplier prices are fetched live from Openprovider.</p>
+                      <p>USD to BDT rate: {apiKeys.usdToBdtRate || 'Not configured'}</p>
+                      <p>Markup: {apiKeys.domainMarkupPercent ?? 'Not configured'}%</p>
                     </div>
                     <div className="text-xs text-blue-800 space-y-1 font-mono mt-3 pt-3 border-t border-blue-200">
                       <p className="font-bold text-blue-700">Hosting Pricing (margin: {apiKeys.hostingMarkupPercent ?? 35}%)</p>
@@ -1958,4 +1957,3 @@ export const Settings = () => {
     </div>
   );
 };
-
