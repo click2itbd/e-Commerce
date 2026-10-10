@@ -129,20 +129,29 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
     if (!file) return;
     setIsUploading(true);
     const loadingToast = toast.loading('Uploading banner...');
+    
+    const CPANEL_UPLOAD_URL = "https://click2itbd.com/upload.php";
     try {
-      const storageRef = ref(storage, `banners/${Date.now()}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-      uploadTask.on('state_changed', null, 
-        () => { toast.error('Upload failed'); setIsUploading(false); toast.dismiss(loadingToast); },
-        async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref);
-          setBannerForm(prev => ({ ...prev, imageUrl: url }));
-          setIsUploading(false);
-          toast.success('Banner uploaded!');
-          toast.dismiss(loadingToast);
-        }
-      );
-    } catch (error) { toast.error('Upload error'); setIsUploading(false); toast.dismiss(loadingToast); }
+      const uploadData = new FormData();
+      uploadData.append('image', file);
+      const res = await fetch(CPANEL_UPLOAD_URL, {
+        method: 'POST',
+        body: uploadData
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBannerForm(prev => ({ ...prev, imageUrl: data.url }));
+        toast.success('Banner uploaded!');
+      } else {
+        throw new Error(data.message || 'Upload failed');
+      }
+    } catch (error: any) {
+      console.error(error);
+      toast.error('Upload error: ' + error.message);
+    } finally {
+      setIsUploading(false);
+      toast.dismiss(loadingToast);
+    }
   };
 
   const handleDeleteBanner = async (id: string) => {

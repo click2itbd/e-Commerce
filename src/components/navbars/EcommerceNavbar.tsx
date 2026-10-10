@@ -386,7 +386,7 @@ export const EcommerceNavbar: React.FC = () => {
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="md:hidden border-t border-gray-700 p-4 bg-black">
+        <div className="md:hidden border-t border-gray-700 p-4 bg-black max-h-[calc(100vh-60px)] overflow-y-auto">
           <div className="flex flex-col gap-4">
             <form onSubmit={handleSearch} className="flex w-full items-center bg-[#333333] rounded-full overflow-hidden border border-[#444] focus-within:border-gray-400 transition-all px-4 mb-2">
               <Search size={18} className="text-gray-400" />
