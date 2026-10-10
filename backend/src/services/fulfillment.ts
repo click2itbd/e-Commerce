@@ -523,6 +523,7 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
               .replace(/\{\{domain\}\}/g, hostingData.domain)
               .replace(/\{\{customerName\}\}/g, customerName || 'Valued Customer')
               .replace(/\{\{username\}\}/g, result.providerAccountId || '')
+                .replace(/\{\{password\}\}/g, result.password || '')
               .replace(/\{\{cPanelUrl\}\}/g, result.cPanelUrl || '');
           }
           if (tData.heading) heading = tData.heading;
@@ -532,6 +533,7 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
               .replace(/\{\{domain\}\}/g, hostingData.domain)
               .replace(/\{\{customerName\}\}/g, customerName || 'Valued Customer')
               .replace(/\{\{username\}\}/g, result.providerAccountId || '')
+                .replace(/\{\{password\}\}/g, result.password || '')
               .replace(/\{\{cPanelUrl\}\}/g, result.cPanelUrl || '')
               .replace(/\{\{nameservers\}\}/g, (result.nameservers || []).join(', '));
           }

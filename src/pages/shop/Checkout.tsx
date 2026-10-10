@@ -232,6 +232,7 @@ export const Checkout: React.FC = () => {
 
       const orderData = {
         userId: currentUserId,
+        platform: 'ecommerce',
         items,
         total: grandTotal,
         shippingCost,
@@ -259,6 +260,23 @@ export const Checkout: React.FC = () => {
       
       const domainItems = items.filter(item => item.itemType === 'domain' || item.itemType === 'domain_transfer');
       const hostingItems = items.filter(item => item.itemType === 'hosting');
+
+      const sslItems = items.filter(item => item.itemType === 'ssl');
+      for (const sslItem of sslItems) {
+        const sOrderRef = doc(collection(db, 'sslOrders'));
+        batch.set(sOrderRef, {
+          userId: user?.uid || 'guest',
+          orderId: newOrderRef.id,
+          productId: sslItem.id.split('_')[0] + '_' + sslItem.id.split('_')[1],
+          name: sslItem.name,
+          termYears: sslItem.termYears || 1,
+          price: sslItem.price,
+          status: 'pending_configuration',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
       
       const productItems = items.filter(item => !item.itemType || item.itemType === 'product');
       for (const pItem of productItems) {

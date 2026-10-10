@@ -43,6 +43,8 @@ const ServicesPage = lazy(() => import('./pages/hosting/ServicesPage'));
 const PricingPage = lazy(() => import('./pages/hosting/PricingPage'));
 const DomainPage = lazy(() => import('./pages/hosting/DomainPage'));
 const DomainSearchResults = lazy(() => import('./pages/hosting/DomainSearchResults'));
+const BulkDomainSearch = lazy(() => import('./pages/hosting/BulkDomainSearch'));
+const SslPage = lazy(() => import('./pages/hosting/SslPage'));
 const BdDomainPage = lazy(() => import('./pages/hosting/BdDomainPage'));
 const SupportPage = lazy(() => import('./pages/hosting/SupportPage'));
 const TermsOfService = lazy(() => import('./pages/policies/TermsOfService'));
@@ -126,6 +128,8 @@ export default function App() {
                       <Route path="/pricing" element={<LazyWrapper><PricingPage /></LazyWrapper>} />
                       <Route path="/domain" element={<LazyWrapper><DomainPage /></LazyWrapper>} />
                       <Route path="/domain/search" element={<LazyWrapper><DomainSearchResults /></LazyWrapper>} />
+                      <Route path="/domain/bulk" element={<LazyWrapper><BulkDomainSearch /></LazyWrapper>} />
+                      <Route path="/ssl" element={<LazyWrapper><SslPage /></LazyWrapper>} />
                       <Route path="/domain/bd" element={<LazyWrapper><BdDomainPage /></LazyWrapper>} />
                       <Route path="/domain/transfer" element={<LazyWrapper><DomainTransferPage /></LazyWrapper>} />
                       <Route path="/domain-renewal" element={<LazyWrapper><DomainRenewal /></LazyWrapper>} />

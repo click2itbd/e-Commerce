@@ -140,7 +140,7 @@ export interface CartItem extends Product {
   quantity: number;
   discount?: number;
   selectedSerials?: string[];
-  itemType?: 'product' | 'domain' | 'hosting' | 'domain_transfer' | 'domain_renewal';
+  itemType?: 'product' | 'domain' | 'hosting' | 'domain_transfer' | 'domain_renewal' | 'ssl';
   domainTld?: string;
   billingCycle?: 'monthly' | 'yearly';
   termYears?: number;
@@ -615,12 +615,16 @@ export interface HostingAccount {
   orderId: string;
   planId: string;
   domain: string;
-  provider: string;
-  status: 'pending' | 'active' | 'suspended' | 'cancelled';
-  billingCycle: 'monthly' | 'yearly';
+  provider?: string;
+  status: string;
+  billingCycle?: string;
   autoRenew: boolean;
   serverIp?: string;
   controlPanelUrl?: string;
+  providerAccountId?: string;
+  expiresAt?: string;
+  diskUsageGb?: number;
+  bandwidthUsageGb?: number;
   createdAt: string;
   updatedAt: string;
 }

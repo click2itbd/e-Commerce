@@ -137,3 +137,12 @@ export function classifyHostingError(error: any): { code: string; message: strin
     message: msg || 'Unknown WHM error',
   };
 }
+
+
+export async function createHostingLoginSession(providerAccountId: string): Promise<string> {
+  const { provider } = await getHostingProviderWithSettings();
+  if (!provider.createLoginSession) {
+    throw new Error('This hosting provider does not support automated SSO login.');
+  }
+  return provider.createLoginSession(providerAccountId);
+}

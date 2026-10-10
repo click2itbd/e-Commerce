@@ -168,6 +168,7 @@ export class CpanelHostingProvider implements IHostingProvider {
       return {
         success: true,
         providerAccountId: username,
+        password,
         cPanelUrl: `https://${hostname}:2083`,
         nameservers: accountData.nameservers || ['ns1.click2itbd.com', 'ns2.click2itbd.com'],
         error: undefined,
@@ -177,6 +178,31 @@ export class CpanelHostingProvider implements IHostingProvider {
         success: false,
         error: error.message || 'Failed to create hosting account',
       };
+    }
+  }
+
+  
+  async createLoginSession(providerAccountId: string): Promise<string> {
+    if (!providerAccountId) {
+      throw new ProviderError('validation_error', 'Provider account ID is required');
+    }
+
+    try {
+      const result = await this.whmRequest('create_user_session', {
+        'api.version': '1',
+        user: providerAccountId,
+        service: 'cpaneld'
+      });
+      
+      const url = result?.data?.url || (result?.metadata && result.metadata.url) || (result?.data && result.data.cp_security_token ? `${this.apiUrl.split('/json-api')[0]}/login/?session=${result.data.session}&login=${result.data.cp_security_token}` : null);
+      if (!url) {
+        // If WHM returns success but url is nested
+        if (result?.data && result.data.url) return result.data.url;
+        throw new Error('Failed to generate session URL from WHM');
+      }
+      return url;
+    } catch (error: any) {
+      throw new ProviderError('whm_api_error', error.message || 'Failed to create cPanel login session');
     }
   }
 

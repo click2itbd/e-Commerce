@@ -1018,10 +1018,26 @@ domainRouter.post('/manage', requireFirebaseAuth, async (req: any, res: Response
       return res.status(400).json({ success: false, error: 'command and domain are required' });
     }
 
-    const allowedCommands = ['set_ns', 'renew'];
+    
+    const allowedCommands = ['set_ns', 'renew', 'get_details', 'set_lock', 'get_dns', 'update_dns', 'update_contacts', 'set_whois_privacy'];
     if (!allowedCommands.includes(command)) {
       return res.status(400).json({ success: false, error: 'Invalid command' });
     }
+
+    // SECURITY CHECK: Verify Ownership
+    const db = getAdminDb();
+    const snap = await db.collection('domainOrders').where('domain', '==', domain).where('status', '==', 'active').get();
+    if (snap.empty) {
+      return res.status(404).json({ success: false, error: 'Domain not found or not active in your account' });
+    }
+    const domainDoc = snap.docs[0].data();
+    if (domainDoc.userId !== req.user.uid) {
+      const isAdmin = await isUserAdmin(req.user.uid);
+      if (!isAdmin) {
+        return res.status(403).json({ success: false, error: 'Unauthorized. You do not own this domain.' });
+      }
+    }
+
 
     const config = await getDomainConfig();
     const { provider, viaBtcl } = await resolveDomainProvider(domain, { domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
@@ -1031,30 +1047,69 @@ domainRouter.post('/manage', requireFirebaseAuth, async (req: any, res: Response
       return res.json({ success: false, manualRequired: true, error: 'BTCL API is not enabled. Request queued for manual update.' });
     }
     
+    
+    let result: any;
     if (command === 'set_ns') {
-      const result = await (provider as any).setNameservers(domain, extraParams?.ns0, extraParams?.ns1, extraParams?.ns2, extraParams?.ns3);
+      result = await (provider as any).setNameservers(domain, extraParams?.ns0, extraParams?.ns1, extraParams?.ns2, extraParams?.ns3);
       if (result.success) {
-        // Update Firestore
         try {
           const db = getAdminDb();
-          const domainsRef = db.collection('domainOrders');
-          const snap = await domainsRef.where('domain', '==', domain).where('status', '==', 'active').get();
-          
+          const snap = await db.collection('domainOrders').where('domain', '==', domain).where('status', '==', 'active').get();
           if (!snap.empty) {
-            const doc = snap.docs[0];
-            const newNs = [extraParams?.ns0, extraParams?.ns1, extraParams?.ns2, extraParams?.ns3].filter(Boolean);
-            await doc.ref.update({ nameServers: newNs, nameservers: newNs, updatedAt: new Date() });
+            await snap.docs[0].ref.update({ nameservers: { ns0: extraParams?.ns0, ns1: extraParams?.ns1, ns2: extraParams?.ns2, ns3: extraParams?.ns3 } });
           }
-        } catch (dbErr) {
-          console.error('Failed to update Firestore after set_ns:', dbErr);
-        }
+        } catch (e) { console.error(e); }
       }
       return res.json({ success: result.success, data: result, error: result.error });
     }
-    
+
     if (command === 'renew') {
-      const result = await provider.renewDomain(domain, extraParams?.duration || 1);
+      result = await provider.renewDomain(domain, extraParams?.duration || 1);
       return res.json({ success: result.success, data: result, error: result.error });
+    }
+
+    if (command === 'get_details') {
+      if (!(provider as any).getDomainDetails) return res.status(400).json({ success: false, error: 'Not supported' });
+      result = await (provider as any).getDomainDetails(domain);
+      return res.json({ success: result.success, data: result.data, error: result.error });
+    }
+
+    
+    if (command === 'get_dns') {
+      if (!(provider as any).getDnsZone) return res.status(400).json({ success: false, error: 'Not supported' });
+      result = await (provider as any).getDnsZone(domain);
+      return res.json({ success: result.success, data: result.data, error: result.error });
+    }
+
+    if (command === 'update_dns') {
+      if (!(provider as any).updateDnsRecords) return res.status(400).json({ success: false, error: 'Not supported' });
+      result = await (provider as any).updateDnsRecords(domain, extraParams?.records || []);
+      return res.json({ success: result.success, error: result.error });
+    }
+
+    if (command === 'set_lock') {
+      if (!(provider as any).updateDomainLock) return res.status(400).json({ success: false, error: 'Not supported' });
+      result = await (provider as any).updateDomainLock(domain, extraParams?.isLocked);
+      return res.json({ success: result.success, error: result.error });
+    }
+
+    if (command === 'set_whois_privacy') {
+      if (!(provider as any).updateWhoisPrivacy) return res.status(400).json({ success: false, error: 'Not supported' });
+      result = await (provider as any).updateWhoisPrivacy(domain, !!extraParams?.isEnabled);
+      return res.json({ success: result.success, error: result.error });
+    }
+
+    if (command === 'update_contacts') {
+      if (!(provider as any).createCustomerHandle || !(provider as any).updateDomainContacts) {
+        return res.status(400).json({ success: false, error: 'Not supported' });
+      }
+      try {
+        const handle = await (provider as any).createCustomerHandle(extraParams?.contact || {});
+        result = await (provider as any).updateDomainContacts(domain, handle);
+        return res.json({ success: result.success, handle, error: result.error });
+      } catch (err: any) {
+        return res.status(400).json({ success: false, error: err?.message || 'Failed to update contacts' });
+      }
     }
 
     return res.status(400).json({ success: false, error: 'Unsupported command' });
@@ -1206,3 +1261,71 @@ domainRouter.post('/btcl/test', requireFirebaseAuth, async (req: any, res: Respo
 });
 
 export default domainRouter;
+
+
+// SpamExperts Endpoints
+domainRouter.post('/spamexperts/provision', requireFirebaseAuth, async (req: any, res: Response) => {
+  try {
+    const { domain, email } = req.body;
+    if (!domain) return res.status(400).json({ success: false, error: 'domain is required' });
+
+    const db = getAdminDb();
+    const snap = await db.collection('domainOrders').where('domain', '==', domain).where('status', '==', 'active').get();
+    if (snap.empty) {
+      return res.status(404).json({ success: false, error: 'Active domain not found in your account' });
+    }
+    const domainDoc = snap.docs[0].data();
+    if (domainDoc.userId !== req.user.uid) {
+      const isAdmin = await isUserAdmin(req.user.uid);
+      if (!isAdmin) return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const config = await getDomainConfig();
+    const provider = getDomainProvider(config);
+    if (!(provider as any).provisionSpamExperts) {
+      return res.status(400).json({ success: false, error: 'SpamExperts not supported by configured registrar' });
+    }
+
+    const result = await (provider as any).provisionSpamExperts(domain, email || req.user.email || 'admin@' + domain);
+    if (result.success) {
+      await snap.docs[0].ref.update({
+        spamExpertsEnabled: true,
+        spamExpertsUpdatedAt: new Date().toISOString()
+      });
+    }
+    return res.json(result);
+  } catch (error: any) {
+    console.error('SpamExperts provision error:', error);
+    return res.status(500).json({ success: false, error: error?.message || 'Internal server error' });
+  }
+});
+
+domainRouter.get('/spamexperts/sso', requireFirebaseAuth, async (req: any, res: Response) => {
+  try {
+    const domain = req.query.domain as string;
+    if (!domain) return res.status(400).json({ success: false, error: 'domain query parameter is required' });
+
+    const db = getAdminDb();
+    const snap = await db.collection('domainOrders').where('domain', '==', domain).where('status', '==', 'active').get();
+    if (snap.empty) {
+      return res.status(404).json({ success: false, error: 'Active domain not found' });
+    }
+    const domainDoc = snap.docs[0].data();
+    if (domainDoc.userId !== req.user.uid) {
+      const isAdmin = await isUserAdmin(req.user.uid);
+      if (!isAdmin) return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const config = await getDomainConfig();
+    const provider = getDomainProvider(config);
+    if (!(provider as any).getSpamExpertsLoginUrl) {
+      return res.status(400).json({ success: false, error: 'SpamExperts not supported' });
+    }
+
+    const result = await (provider as any).getSpamExpertsLoginUrl(domain);
+    return res.json(result);
+  } catch (error: any) {
+    console.error('SpamExperts SSO error:', error);
+    return res.status(500).json({ success: false, error: error?.message || 'Internal server error' });
+  }
+});

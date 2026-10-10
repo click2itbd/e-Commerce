@@ -421,18 +421,13 @@ export const ProductDetails: React.FC = () => {
 
               </div>
 
-            {/* Key Features */}
-            {product.specs && Object.keys(product.specs).length > 0 && (
+            {/* Short Description */}
+            {product.description && (
               <div className="mb-8">
-                <h3 className="font-bold text-[#081621] mb-3">Key Features:</h3>
-                <ul className="space-y-2">
-                  {sortSpecs(Object.entries(product.specs)).slice(0, 5).map(([key, value]) => (
-                    <li key={key} className="flex gap-2 text-sm text-gray-700">
-                      <span className="w-1 h-1 bg-gray-400 rounded-full mt-2 shrink-0"></span>
-                      <span className="font-medium text-gray-800">{key}:</span> {value}
-                    </li>
-                  ))}
-                </ul>
+                <h3 className="font-bold text-[#081621] mb-2 text-sm">Description:</h3>
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap line-clamp-4">
+                  {product.description.replace(/<[^>]*>?/gm, '')}
+                </p>
               </div>
             )}
 

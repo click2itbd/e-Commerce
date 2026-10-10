@@ -1,13 +1,16 @@
-﻿const fs = require('fs');
-let c = fs.readFileSync('src/App.tsx', 'utf8');
-const nl = c.includes('\r\n') ? '\r\n' : '\n';
-c = c.replace(/\r\n/g, '\n');
+const fs = require('fs');
+let code = fs.readFileSync('src/App.tsx', 'utf8');
 
-if (!c.includes('UsedItems')) {
-  c = c.replace("const Brands = lazy(() => import('./pages/shop/Brands'));", "const Brands = lazy(() => import('./pages/shop/Brands'));\nconst UsedItems = lazy(() => import('./pages/shop/UsedItems'));");
-  c = c.replace('<Route path="/brands" element={<LazyWrapper><Brands /></LazyWrapper>} />', '<Route path="/brands" element={<LazyWrapper><Brands /></LazyWrapper>} />\n                        <Route path="/used-items" element={<LazyWrapper><UsedItems /></LazyWrapper>} />');
-  fs.writeFileSync('src/App.tsx', c.replace(/\n/g, nl));
-  console.log('App.tsx updated');
-} else {
-  console.log('Already in App.tsx');
+if (!code.includes('BulkDomainSearch')) {
+  code = code.replace(
+    "const DomainSearchResults = lazy(() => import('./pages/hosting/DomainSearchResults'));",
+    "const DomainSearchResults = lazy(() => import('./pages/hosting/DomainSearchResults'));\nconst BulkDomainSearch = lazy(() => import('./pages/hosting/BulkDomainSearch'));"
+  );
+  
+  code = code.replace(
+    "<Route path=\"/domain/search\" element={<LazyWrapper><DomainSearchResults /></LazyWrapper>} />",
+    "<Route path=\"/domain/search\" element={<LazyWrapper><DomainSearchResults /></LazyWrapper>} />\n                      <Route path=\"/domain/bulk\" element={<LazyWrapper><BulkDomainSearch /></LazyWrapper>} />"
+  );
+  
+  fs.writeFileSync('src/App.tsx', code);
 }

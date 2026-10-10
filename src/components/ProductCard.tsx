@@ -206,7 +206,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                   
                 </div>
 
-                <div className="space-y-4 mb-8">
+                <div className="space-y-4 mb-6">
                   {product.brand && (
                     <div className="flex gap-4 border-b border-gray-100 pb-2">
                       <span className="text-gray-500 text-sm font-medium w-24">Brand:</span>
@@ -221,7 +221,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                   )}
                 </div>
 
-                <div className="mt-auto flex gap-3">
+                {product.description && (
+                  <div className="mb-6">
+                    <p className="text-sm text-gray-600 line-clamp-3">
+                      {product.description.replace(/<[^>]*>?/gm, '')}
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-6 flex gap-3">
                   <button
                     onClick={(e) => {
                       handleAddToCart(e);

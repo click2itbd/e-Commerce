@@ -286,7 +286,8 @@ const EcommerceDashboard: React.FC = () => {
             {renderNavBtn('inquiries', 'Inquiries', HelpCircle)}
               {renderNavBtn('projects', 'Projects & Quotes', FileText)}
             {renderNavBtn('returns', 'Returns', RefreshCcw)}
-            {renderNavBtn('shipping', 'Shipping', Truck)}
+            {renderNavBtn('shipping', 'Shipping Setting', Truck)}
+            {renderNavBtn('deliveries', 'Live Deliveries', Truck)}
           </NavGroup>
           <NavGroup title="System">
             {renderNavBtn('settings', 'Settings', Settings)}
@@ -401,6 +402,8 @@ const EcommerceDashboard: React.FC = () => {
                 <EcommerceReturns />
               ) : activeTab === 'shipping' ? (
                 <EcommerceShipping />
+              ) : activeTab === 'deliveries' ? (
+                <EcommerceDeliveries />
               ) : activeTab === 'projects' ? (
                   <EcommerceProjects />
                 ) : activeTab === 'abandonedCarts' ? (

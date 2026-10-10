@@ -49,6 +49,7 @@ export const Settings = () => {
     | "review_integrations"
     | "external_ecommerce"
     | "domain_reseller"
+    | "courier"
       | "pages"
       | "pc_builder"
       | "pc_builder_fake"

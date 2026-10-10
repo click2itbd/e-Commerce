@@ -224,6 +224,7 @@ export const HostingCheckout: React.FC = () => {
 
       const orderData = {
         userId: user?.uid || 'guest',
+        platform: 'hosting',
         items: items.map(({ eppCode: _eppCode, authCode: _authCode, ...item }) => ({ ...item, isDigital: true })),
         total: grandTotal,
         shippingCost,
@@ -249,6 +250,23 @@ export const HostingCheckout: React.FC = () => {
       batch.set(newOrderRef, orderData);
       
       
+      
+      const sslItems = items.filter(item => item.itemType === 'ssl');
+      for (const sslItem of sslItems) {
+        const sOrderRef = doc(collection(db, 'sslOrders'));
+        batch.set(sOrderRef, {
+          userId: user?.uid || 'guest',
+          orderId: newOrderRef.id,
+          productId: sslItem.id.split('_')[0] + '_' + sslItem.id.split('_')[1], // e.g. ssl_positive
+          name: sslItem.name,
+          termYears: sslItem.termYears || 1,
+          price: sslItem.price,
+          status: 'pending_configuration', // User needs to enter CSR later
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
       const domainItems = items.filter(item => item.itemType === 'domain');
       
       const renewalItems = items.filter(item => item.itemType === 'domain_renewal');

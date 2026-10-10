@@ -12,6 +12,7 @@ import {
   getHostingAccountUsage,
   changeHostingPlan,
   classifyHostingError,
+  createHostingLoginSession,
 } from '../services/hosting';
 import { HostingUsageStats } from '../providers/hosting/IHostingProvider';
 import { config } from '../config';
@@ -309,6 +310,27 @@ hostingRouter.delete('/cloudlinux/license', requireFirebaseAuth, async (req: any
   } catch (error: any) {
     console.error('CloudLinux license removal error:', error);
     return res.status(500).json({ success: false, error: error?.message || 'CloudLinux operation failed' });
+  }
+});
+
+
+hostingRouter.post('/sso', requireFirebaseAuth, async (req: any, res: Response) => {
+  try {
+    const { providerAccountId } = req.body;
+    if (!providerAccountId) {
+      return res.status(400).json({ success: false, error: 'providerAccountId is required' });
+    }
+
+    const db = getAdminDb();
+    const snap = await db.collection('hostingAccounts').where('providerAccountId', '==', providerAccountId).where('userId', '==', req.user.uid).get();
+    if (snap.empty) {
+      return res.status(403).json({ success: false, error: 'Hosting account not found or unauthorized' });
+    }
+
+    const url = await createHostingLoginSession(providerAccountId);
+    return res.json({ success: true, url });
+  } catch (error: any) {
+    return res.status(400).json({ success: false, error: error.message || 'Failed to generate SSO URL' });
   }
 });
 

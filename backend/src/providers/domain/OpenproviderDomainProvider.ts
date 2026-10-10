@@ -448,6 +448,130 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     return [];
   }
 
+
+
+  async getDnsZone(domain: string): Promise<any> {
+    await this.authenticate();
+    try {
+      const response = await this.fetchApi(`/dns/zones/${domain}?with_records=true`);
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      console.error('[Openprovider] getDnsZone error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async updateDnsRecords(domain: string, records: any[]): Promise<{ success: boolean; error?: string }> {
+    await this.authenticate();
+    try {
+      await this.fetchApi(`/dns/zones/${domain}`, {
+        method: 'PUT',
+        body: JSON.stringify({ records })
+      });
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Openprovider] updateDnsRecords error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async getDomainDetails(domain: string): Promise<any> {
+    const domainObj = this.splitDomain(domain);
+    await this.authenticate();
+    try {
+      const response = await this.fetchApi(`/domains/${domainObj.name}/${domainObj.extension}?with_auth_code=true`);
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      console.error('[Openprovider] getDomainDetails error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  
+  async updateWhoisPrivacy(domain: string, isEnabled: boolean): Promise<{ success: boolean; error?: string }> {
+    const domainObj = this.splitDomain(domain);
+    await this.authenticate();
+    try {
+      await this.fetchApi(`/domains/${domainObj.name}/${domainObj.extension}`, {
+        method: 'PUT',
+        body: JSON.stringify({ is_whois_privacy_enabled: isEnabled })
+      });
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Openprovider] updateWhoisPrivacy error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  
+  async createCustomerHandle(contact: any): Promise<string> {
+    await this.authenticate();
+    try {
+      const response = await this.fetchApi('/customers', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: {
+            first_name: contact.firstName,
+            last_name: contact.lastName
+          },
+          company_name: contact.companyName || '',
+          address: {
+            street: contact.address,
+            city: contact.city,
+            state: contact.state || contact.city,
+            zipcode: contact.zipcode,
+            country: contact.country || 'BD'
+          },
+          phone: {
+            country_code: contact.phoneCountryCode || '+880',
+            area_code: '',
+            subscriber_number: contact.phoneNumber || ''
+          },
+          email: contact.email
+        })
+      });
+      return response.data.handle;
+    } catch (error: any) {
+      console.error('[Openprovider] createCustomerHandle error:', error);
+      throw new Error(error.message || 'Failed to create customer handle');
+    }
+  }
+
+  async updateDomainContacts(domain: string, handle: string): Promise<{ success: boolean; error?: string }> {
+    const domainObj = this.splitDomain(domain);
+    await this.authenticate();
+    try {
+      await this.fetchApi(`/domains/${domainObj.name}/${domainObj.extension}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          owner_handle: handle,
+          admin_handle: handle,
+          tech_handle: handle,
+          billing_handle: handle
+        })
+      });
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Openprovider] updateDomainContacts error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async updateDomainLock(domain: string, isLocked: boolean): Promise<{ success: boolean; error?: string }> {
+    const domainObj = this.splitDomain(domain);
+    await this.authenticate();
+    try {
+      await this.fetchApi(`/domains/${domainObj.name}/${domainObj.extension}`, {
+        method: 'PUT',
+        body: JSON.stringify({ is_locked: isLocked })
+      });
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Openprovider] updateDomainLock error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   async getWhois(domain: string): Promise<WhoisResult> {
     return { domain, error: 'Whois not implemented yet' };
   }
@@ -578,4 +702,36 @@ export class OpenproviderDomainProvider implements IDomainProvider {
       };
     }
   }
+
+  async provisionSpamExperts(domain: string, email: string): Promise<{ success: boolean; data?: any; error?: string }> {
+    await this.authenticate();
+    try {
+      const response = await this.fetchApi('/spam-expert/domains', {
+        method: 'POST',
+        body: JSON.stringify({
+          domain_name: domain,
+          email: email
+        })
+      });
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      console.error('[Openprovider] provisionSpamExperts error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async getSpamExpertsLoginUrl(domain: string): Promise<{ success: boolean; url?: string; error?: string }> {
+    await this.authenticate();
+    try {
+      const response = await this.fetchApi(`/spam-expert/domains/${domain}/login-url`, {
+        method: 'POST'
+      });
+      const url = response.data?.url || response.data?.login_url || response.data;
+      return { success: true, url: typeof url === 'string' ? url : undefined };
+    } catch (error: any) {
+      console.error('[Openprovider] getSpamExpertsLoginUrl error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
 }

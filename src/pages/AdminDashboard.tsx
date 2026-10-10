@@ -78,6 +78,7 @@ const NotificationsPage = lazy(() =>
   })),
 );
 import { AdminNotifications } from "../components/AdminNotifications";
+import { EcommerceDeliveries } from "./ecommerceDashboard/EcommerceDeliveries";
 const AnalyticsDashboard = lazy(() =>
   import("../components/AnalyticsDashboard").then((m) => ({
     default: m.AnalyticsDashboard,
@@ -4440,6 +4441,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <span className="truncate">Customer</span>
               )}
             </button>
+
+            <button
+              onClick={() => {
+                setActiveTab("deliveries");
+                setIsMobileMenuOpen(false);
+              }}
+              className={cn(
+                "w-full flex items-center rounded-md text-[13px] transition-colors",
+                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
+                activeTab === "deliveries" ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50",
+              )}
+            >
+              <Truck size={16} className={activeTab === "deliveries" ? "text-blue-600" : "text-gray-400"} />
+              {!isSidebarCollapsed && (
+                <span className="truncate">Deliveries</span>
+              )}
+            </button>
+
             <button
               onClick={() => {
                 setActiveTab("customer_due_list");
@@ -5979,6 +5998,10 @@ handleReturnOrder={handleReturnOrder}
                 <CustomerDueListTab />
               ) : activeTab === "vendor_due_list" ? (
                 <VendorDueListTab />
+
+              ) : activeTab === "deliveries" ? (
+                <EcommerceDeliveries />
+
               ) : activeTab === "sales" ? (
                 <SalesForm
                     users={users}

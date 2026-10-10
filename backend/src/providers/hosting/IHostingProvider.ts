@@ -10,6 +10,7 @@ export interface HostingProvisionRequest {
 export interface HostingProvisionResult {
   success: boolean;
   providerAccountId?: string;
+  password?: string;
   cPanelUrl?: string;
   nameservers?: string[];
   error?: string;
@@ -33,5 +34,6 @@ export interface IHostingProvider {
   terminateAccount(providerAccountId: string): Promise<void>;
   getUsage(providerAccountId: string): Promise<HostingUsageStats>;
   changePlan(providerAccountId: string, newPlanCode: string): Promise<void>;
+  createLoginSession?(providerAccountId: string): Promise<string>;
   testConnection?(): Promise<{ success: boolean; code: string; message: string }>;
 }

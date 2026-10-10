@@ -136,7 +136,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
         note: `Order ${order.id.slice(0, 8)}`
       };
 
-      const res = await fetch('https://portal.steadfast.com.bd/api/v1/create_order', {
+      const res = await fetch('https://click2itbd.com/steadfast.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
