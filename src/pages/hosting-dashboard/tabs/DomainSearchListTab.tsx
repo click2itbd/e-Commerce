@@ -156,7 +156,17 @@ export function DomainSearchListTab({ state }) {
                     <tr key={order.id} className="hover:bg-indigo-50/30 transition-colors group">
                       <td className="py-4 px-6 font-bold text-indigo-600 flex items-center gap-2">
                         <Globe size={14} className="opacity-50" />
-                        {order.domain || 'N/A'}
+                        <span>{order.domain || 'N/A'}</span>
+                        {order.type === 'transfer' && (
+                          <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            Transfer
+                          </span>
+                        )}
+                        {(order.type === 'renewal' || order.action === 'renewal') && (
+                          <span className="bg-blue-100 text-blue-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            Renewal
+                          </span>
+                        )}
                       </td>
                       <td className="py-4 px-6 text-slate-600 font-medium">
                         {order.customerName || order.userId || 'N/A'}

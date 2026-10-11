@@ -24,10 +24,10 @@ const DeliverySequence = () => {
   }, []);
 
   const phases = [
-    { icon: <div className="text-6xl animate-bounce">??</div>, text: "Shopping..." },
-    { icon: <div className="text-6xl animate-pulse scale-125">?</div>, text: "Order Confirmed!" },
-    { icon: <div className="text-6xl animate-[slide_2s_ease-in-out_infinite] flex justify-center"><div className="-scale-x-100">??</div></div>, text: "On the way..." },
-    { icon: <div className="text-6xl animate-bounce">??</div>, text: "Delivered!" }
+    { icon: <div className="text-6xl animate-bounce">🛒</div>, text: "Shopping..." },
+    { icon: <div className="text-6xl animate-pulse scale-125">🎉</div>, text: "Order Confirmed!" },
+    { icon: <div className="text-6xl animate-[slide_2s_ease-in-out_infinite] flex justify-center"><div className="-scale-x-100">🚚</div></div>, text: "On the way..." },
+    { icon: <div className="text-6xl animate-bounce">📦</div>, text: "Delivered!" }
   ];
 
   return (

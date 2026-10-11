@@ -6,7 +6,7 @@ import { Employee } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { 
-  Briefcase, X, Upload, FileText, Plus, Search, 
+  Briefcase, User, X, Upload, FileText, Plus, Search, 
   Edit2, Trash2, Mail, Phone, Calendar, CreditCard, Shield 
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';

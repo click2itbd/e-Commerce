@@ -13,13 +13,14 @@ import {
   CheckCircle2, ArrowRight
 } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
-import { Order, Product, Customer, Transaction } from '../types';
+import { Order, Product, Customer, Transaction, ServiceRecord } from '../types';
 
 interface AnalyticsDashboardProps {
   orders?: Order[];
   products?: Product[];
   customers?: Customer[];
   transactions?: Transaction[];
+  serviceRecords?: ServiceRecord[];
 }
 
 const CATEGORY_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4'];

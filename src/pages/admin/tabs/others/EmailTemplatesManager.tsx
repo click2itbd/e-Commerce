@@ -10,7 +10,7 @@ import { useAuth } from '../../../../context/AuthContext';
 export interface EmailTemplateData {
   id: string;
   name: string;
-  category: 'hosting' | 'payment' | 'domain' | 'order' | 'support';
+  category: 'hosting' | 'payment' | 'domain' | 'order' | 'support' | 'system';
   subject: string;
   heading: string;
   badgeText: string;
@@ -628,4 +628,3 @@ export const EmailTemplatesManager: React.FC = () => {
 };
 
 export default EmailTemplatesManager;
-

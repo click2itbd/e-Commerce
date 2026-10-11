@@ -14,7 +14,9 @@ export const TopBrands = () => {
   useEffect(() => {
     const q = query(collection(db, 'store_brands'), orderBy('order', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const activeBrands = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(b => b.isActive !== false);
+      const activeBrands = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as { id: string; isActive?: boolean }))
+        .filter(b => b.isActive !== false);
       setBrands(activeBrands);
     });
     return () => unsubscribe();

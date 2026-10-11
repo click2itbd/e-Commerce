@@ -10,8 +10,8 @@ Options -Indexes
   RewriteRule ^api$ http://127.0.0.1:4000/api/ [P,L,E=Cache-Control:no-cache]
 
   # Route social media crawlers requesting /product/xxx to share.php
-  RewriteCond %{HTTP_USER_AGENT} (facebookexternalhit|Facebot|WhatsApp|Twitterbot|Pinterest|LinkedInBot|TelegramBot|Slackbot|Discordbot) [NC]
-  RewriteRule ^product/([a-zA-Z0-9_-]+)$ /share.php?id=$1 [L]
+  RewriteCond %{HTTP_USER_AGENT} (facebookexternalhit|Facebot|WhatsApp|Twitterbot|Pinterest|LinkedInBot|TelegramBot|Slackbot|Discordbot|SkypeUriPreview|Viber|kakaotalk-scrap|vkShare) [NC]
+  RewriteRule ^product/([a-zA-Z0-9_.-]+)/?$ /share.php?id=$1 [L,QSA]
 
   # Direct all other routes to React Single Page App (index.html)
   RewriteRule ^index\.html$ - [L,E=Cache-Control:no-cache]

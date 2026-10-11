@@ -274,13 +274,12 @@ export const Home: React.FC = () => {
       {/* About & SEO Description */}
 
       {/* New Beautiful PC Builder Banner */}
-      {/* New Beautiful PC Builder Banner */}
-      <section className="mt-16 mb-8">
-        <Link to={pcBuilderBanner?.targetUrl || "/pc-builder"} className="block relative overflow-hidden rounded-3xl shadow-2xl group w-full h-[250px] md:h-[400px]">
+      <section className="mt-12 md:mt-16 mb-8">
+        <Link to={pcBuilderBanner?.targetUrl || "/pc-builder"} className="block relative overflow-hidden rounded-2xl md:rounded-3xl shadow-lg md:shadow-2xl group w-full aspect-[16/9] sm:aspect-[1.85/1] md:aspect-[2.1/1] lg:aspect-[2.4/1]">
           <img 
-            src={pcBuilderBanner?.imageUrl || "https://images.unsplash.com/photo-1587202372634-32705e3bf49c?q=80&w=1200&auto=format&fit=crop"} 
+            src={pcBuilderBanner?.imageUrl || "/pc-builder-banner-v2.jpg"} 
             alt="PC Builder" 
-            className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" 
+            className="absolute inset-0 w-full h-full object-cover object-left sm:object-center group-hover:scale-[1.02] transition-transform duration-700" 
           />
         </Link>
       </section>

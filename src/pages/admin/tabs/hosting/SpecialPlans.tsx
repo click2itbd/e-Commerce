@@ -19,7 +19,7 @@ const SpecialPlansTab: React.FC = () => {
     name: '',
     price: 0,
     billingCycle: '',
-    features: [] as string[],
+    features: [] as (string | { name: string; value: string })[],
     popular: false,
     order: 0,
   });
@@ -120,6 +120,7 @@ const SpecialPlansTab: React.FC = () => {
                             onClick={() => {
                               setEditingSpecialPlan(plan);
                               setSpecialPlanFormData({
+                                serviceId: plan.serviceId || 'default-service',
                                 name: plan.name,
                                 price: plan.price,
                                 billingCycle: plan.billingCycle,
@@ -164,7 +165,7 @@ const SpecialPlansTab: React.FC = () => {
                     <button onClick={() => {
                       setIsAddingSpecialPlan(false);
                       setEditingSpecialPlan(null);
-                      setSpecialPlanFormData({ name: '', price: 0, billingCycle: '', features: [], popular: false, order: 0 });
+                      setSpecialPlanFormData({ serviceId: 'default-service', name: '', price: 0, billingCycle: '', features: [], popular: false, order: 0 });
                     }} className="text-gray-400 hover:text-gray-600">
                       <X size={24} />
                     </button>

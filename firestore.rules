@@ -554,6 +554,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /sslOrders/{orderId} {
+      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
+      allow create: if request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess()));
+      allow update: if hasStaffAccess() || (isAuthenticated() && isOwner(resource.data.userId));
+      allow delete: if isAdmin();
+    }
+
     match /provisioningLogs/{logId} {
       allow read: if hasManagerAccess();
       allow write: if false;

@@ -97,8 +97,8 @@ export function EmailTemplatesModule() {
         body: form.body.trim(),
         isActive: form.isActive,
         updatedAt: new Date().toISOString(),
+        ...(selected.createdAt ? {} : { createdAt: new Date().toISOString() }),
       };
-      if (!selected.createdAt) data.createdAt = new Date().toISOString();
       await setDoc(doc(db, 'emailTemplates', selected.id), data, { merge: true });
       toast.success('Template saved successfully');
       setShowModal(false);

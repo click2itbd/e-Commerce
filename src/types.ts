@@ -4,6 +4,7 @@ export type UserPermission = string; // Changed to string to support granular ta
 
 export interface UserProfile {
   uid: string;
+  name?: string;
   email: string;
   displayName: string;
   role: UserRole;
@@ -44,6 +45,13 @@ export interface Product {
   lowStockThreshold?: number;
   isFreeShipping?: boolean;
   model?: string;
+  imageUrl?: string;
+  vendorName?: string;
+  formFactor?: string;
+  length?: number;
+  height?: number;
+  tdp?: number;
+  condition?: string;
   id: string;
   name: string;
   description: string;
@@ -54,6 +62,8 @@ export interface Product {
   brand?: string;
   stock: number;
   isOutOfStock?: boolean;
+  isCustomService?: boolean;
+  isDigital?: boolean;
   isBundle?: boolean;
   bundleItems?: { productId: string; quantity: number }[];
   fbtProducts?: string[];
@@ -96,6 +106,12 @@ export interface Vendor {
   createdAt: string;
 }
 
+export interface Brand {
+  id: string;
+  name: string;
+  logoUrl?: string;
+}
+
 export interface PaymentAccount {
   id: string;
   type: string;
@@ -106,7 +122,7 @@ export interface PaymentAccount {
   createdAt: string;
 }
 
-export type TransactionType = 'sale' | 'purchase' | 'expense' | 'income' | 'payment_received' | 'payment_made' | 'money_receipt' | 'return' | 'opening_balance' | 'purchase_return' | 'deposit';
+export type TransactionType = 'sale' | 'purchase' | 'expense' | 'income' | 'payment_received' | 'payment_made' | 'money_receipt' | 'return' | 'opening_balance' | 'purchase_return' | 'deposit' | 'withdrawal' | 'transfer_in' | 'transfer_out' | 'salary' | 'sale_return';
 
 export interface Transaction {
   id: string;
@@ -120,7 +136,9 @@ export interface Transaction {
   documentNumber?: string;
   referenceId?: string; // Order ID or Invoice ID
   categoryId?: string;
+  category?: string;
   categoryName?: string;
+  reference?: string;
   createdAt: string;
   paymentMethod?: string;
   paymentAccountId?: string;
@@ -138,16 +156,28 @@ export interface TransactionCategory {
 
 export interface CartItem extends Product {
   quantity: number;
+  productId?: string;
+  product?: Product;
+  details?: Record<string, unknown>;
+  domain?: string;
+  originalPrice?: number | null;
+  isCustomService?: boolean;
+  planId?: string;
+  planSlug?: string;
+  eppCode?: string;
+  authCode?: string;
   discount?: number;
   selectedSerials?: string[];
-  itemType?: 'product' | 'domain' | 'hosting' | 'domain_transfer' | 'domain_renewal' | 'ssl';
+  itemType?: 'product' | 'domain' | 'hosting' | 'domain_transfer' | 'domain_renewal' | 'ssl' | 'service';
   domainTld?: string;
   billingCycle?: 'monthly' | 'yearly';
   termYears?: number;
+  baseAnnualPrice?: number;
+  baseMonthlyPrice?: number;
 }
 
-export type OrderStatus = 'pending' | 'processing' | 'accepted' | 'completed' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
-export type OrderType = 'invoice' | 'quotation' | 'challan';
+export type OrderStatus = 'pending' | 'processing' | 'accepted' | 'completed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'active';
+export type OrderType = 'invoice' | 'quotation' | 'challan' | 'sale' | 'pos_sale' | 'domain' | 'hosting' | 'pc_build' | 'pc_builder';
 
 export interface Customer {
   id: string;
@@ -175,6 +205,13 @@ export interface Order {
   shippingAddress: string;
   paymentMethod?: string;
   paymentReference?: string;
+  paymentStatus?: string;
+  paidAmount?: number;
+  previousDue?: number;
+  shippingInfo?: Record<string, unknown>;
+  domain?: string;
+  hostingServiceId?: string;
+  isPCBuild?: boolean;
   documentNumber?: string;
   workOrderNumber?: string;
   invoiceNumber?: string;
@@ -211,6 +248,7 @@ export interface SubCategory {
 export interface NavigationMenu {
   isFeatured?: boolean;
   imageUrl?: string;
+  title?: string;
   id: string;
   name: string;
   slug: string;
@@ -258,6 +296,7 @@ export interface SoldSerial {
 
 export interface ServiceRecord {
   id: string;
+  createdAt?: string;
   serialNumber: string;
   customerName: string;
   customerPhone: string;
@@ -266,7 +305,7 @@ export interface ServiceRecord {
   issueDescription: string;
   isWarranty: boolean;
   serviceCharge: number;
-  status: 'received' | 'in_progress' | 'sent_to_rma' | 'ready' | 'delivered';
+  status: 'received' | 'in_progress' | 'sent_to_rma' | 'repaired' | 'ready' | 'delivered';
   paymentStatus?: 'pending' | 'paid';
   paymentMethod?: string;
   medeaPayment?: string; // Additional field for Medea Payment track
@@ -287,6 +326,7 @@ export interface ApiSettings {
   cloudLinuxApiKey: string;
   vpsApiType: 'manual' | 'solusvm' | 'virtualizor';
   vpsApiKey: string;
+  hostingMarkupPercent?: number;
 }
 
 export interface SiteSettings {
@@ -405,6 +445,8 @@ export interface SiteSettings {
   // Review Widget Settings
   reviewRewardEnabled?: boolean;
   reviewRewardPercentage?: number;
+  steadfastApiKey?: string;
+  steadfastSecretKey?: string;
 
   updatedAt: string;
   [key: string]: any;
@@ -506,6 +548,8 @@ export interface DiscountCode {
   id: string;
   code: string;
   discountPercentage: number;
+  type?: 'percentage' | 'fixed' | 'free_shipping';
+  fixedAmount?: number;
   expiryDate: string;
   isActive: boolean;
   createdAt: string;
@@ -574,6 +618,8 @@ export interface Task {
   dueDate?: string;
   createdAt: string;
   userId?: string;
+  assignedTo?: string;
+  priority?: 'low' | 'medium' | 'high';
 }
 
 export interface SupportTicket {
@@ -595,6 +641,8 @@ export interface DomainOrder {
   userId: string;
   orderId: string;
   status: 'pending' | 'active' | 'suspended' | 'cancelled' | 'failed' | 'registered' | 'manual_review';
+  type?: 'register' | 'renewal' | 'transfer';
+  action?: 'register' | 'renewal' | 'transfer';
   years: number;
   autoRenew: boolean;
   nameservers: string[];

@@ -819,7 +819,7 @@ export default function HostingOrders() {
                               </button>
                             )}
 
-                            {(selectedOrder.status === 'provisioning' || selectedOrder.status === 'processing') && (
+                            {(selectedOrder.status === 'provisioning' || selectedOrder.status === 'processing' || selectedOrder.status === 'fulfillment_pending') && (
                               <div className="space-y-2">
                                 <button
                                   onClick={() => handleMarkCompletedOrder(selectedOrder)}
@@ -830,7 +830,9 @@ export default function HostingOrders() {
                                   Mark Completed (Live)
                                 </button>
                                 <p className="text-xs text-purple-600 font-medium text-center animate-pulse">
-                                  Provisioning in progress. Click Complete once verified.
+                                  {selectedOrder.status === 'fulfillment_pending'
+                                    ? 'Awaiting registrar transfer approval (5-7 days). Click Complete once verified.'
+                                    : 'Provisioning in progress. Click Complete once verified.'}
                                 </p>
                               </div>
                             )}
@@ -990,13 +992,24 @@ export default function HostingOrders() {
                           <div key={domain.id} className="p-4 bg-gray-50 border border-gray-100 rounded-xl">
                             <div className="flex justify-between items-start mb-2">
                               <div>
-                                <p className="font-bold text-gray-900 text-lg">{domain.domain}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-bold text-gray-900 text-lg">{domain.domain}</p>
+                                  {domain.type === 'transfer' && (
+                                    <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                      Transfer
+                                    </span>
+                                  )}
+                                  {(domain.type === 'renewal' || domain.action === 'renewal') && (
+                                    <span className="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                      Renewal
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-xs text-gray-500">{domain.years} Year(s) &bull; {`BDT ${domain.price.toLocaleString()}`}</p>
                               </div>
                               <select
                                 value={domain.status}
                                 onChange={(e) => updateServiceStatus('domainOrders', domain.id, e.target.value)}
-                                disabled={Boolean(domain.registrationId && ['REQ', 'UNKNOWN'].includes((domain.providerStatus || '').toUpperCase()))}
                                 className={cn("px-2 py-1 rounded text-xs font-medium uppercase border-none focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer", domain.status === 'active' || domain.status === 'registered' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}
                               >
                                 <option value="pending">Pending</option>

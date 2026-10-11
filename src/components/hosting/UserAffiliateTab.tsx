@@ -34,7 +34,7 @@ export function UserAffiliateTab() {
   const handlePayout = async () => {
     const available = commissions.filter(c => c.status === 'available').reduce((sum, c) => sum + c.commissionAmount, 0);
     if (available < 1000) {
-      toast.error('Minimum payout is ?1000');
+      toast.error('Minimum payout is ৳1000');
       return;
     }
     try {
@@ -90,7 +90,7 @@ export function UserAffiliateTab() {
       <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
         <div>
           <h3 className="font-bold text-gray-800">Request Payout</h3>
-          <p className="text-sm text-gray-500">Minimum payout amount is ?1000.</p>
+          <p className="text-sm text-gray-500">Minimum payout amount is ৳1000.</p>
         </div>
         <button 
           onClick={handlePayout}

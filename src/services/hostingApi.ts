@@ -53,6 +53,15 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 25000);
 
+  const abortListener = () => controller.abort();
+  if (options.signal) {
+    if (options.signal.aborted) {
+      controller.abort();
+    } else {
+      options.signal.addEventListener('abort', abortListener, { once: true });
+    }
+  }
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -75,6 +84,9 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
     return data;
   } finally {
     clearTimeout(timeoutId);
+    if (options.signal) {
+      options.signal.removeEventListener('abort', abortListener);
+    }
   }
 }
 

@@ -38,6 +38,7 @@ export const CategoryPage: React.FC = () => {
   const [selectedSpecs, setSelectedSpecs] = useState<Record<string, string[]>>({});
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const clearFilters = () => {
     setSelectedBrands([]);
@@ -159,8 +160,8 @@ export const CategoryPage: React.FC = () => {
     return Array.from(new Set(brands)).sort();
   }, [products]);
 
-  const availableSpecs = useMemo(() => {
-    const specs: Record<string, string[]> = {};
+  const availableSpecs = useMemo<Record<string, string[]>>(() => {
+    const specs: Record<string, Set<string>> = {};
     products.forEach(p => {
       if (p.specs) {
         Object.entries(p.specs).forEach(([key, val]) => {
@@ -169,7 +170,7 @@ export const CategoryPage: React.FC = () => {
         });
       }
     });
-    const formatted = {};
+    const formatted: Record<string, string[]> = {};
     Object.keys(specs).forEach(k => {
       formatted[k] = Array.from(specs[k]).sort();
     });
@@ -221,11 +222,11 @@ export const CategoryPage: React.FC = () => {
 
   return (
     <Layout>
-      <div className="bg-[#f8f9fa] min-h-screen pt-6 pb-20">
-        <div className="container mx-auto px-2 sm:px-4">
+      <div className="bg-[#f8f9fa] min-h-screen pt-4 sm:pt-6 pb-20">
+        <div className="w-full mx-auto">
           
           {/* Breadcrumbs */}
-          <div className="flex items-center gap-2 text-[13px] text-gray-500 mb-6 font-medium">
+          <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-[13px] text-gray-500 mb-4 sm:mb-6 font-medium min-w-0 overflow-x-auto whitespace-nowrap">
             <span className="hover:text-[#F97316] cursor-pointer transition-colors">Home</span>
             <ChevronRight size={14} className="text-gray-400" />
             <span className="capitalize hover:text-[#F97316] cursor-pointer transition-colors">{categorySlug?.replace(/-/g, ' ')}</span>
@@ -247,15 +248,25 @@ export const CategoryPage: React.FC = () => {
 
           
 
-          <div className="flex flex-col lg:flex-row gap-6">
+          <button
+            type="button"
+            aria-expanded={mobileFiltersOpen}
+            onClick={() => setMobileFiltersOpen(open => !open)}
+            className="lg:hidden w-full mb-3 flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-[#081621] shadow-sm"
+          >
+            <Filter size={16} />
+            {mobileFiltersOpen ? 'Hide Filters' : 'Show Filters'}
+          </button>
+
+          <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
             {/* Filters Sidebar */}
             <motion.aside 
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
-              className="w-full lg:w-64 shrink-0"
+              className={`w-full lg:w-64 shrink-0 ${mobileFiltersOpen ? 'block' : 'hidden lg:block'}`}
             >
-              <div className="bg-white p-5 rounded-md shadow-sm border border-gray-200 sticky top-24">
+              <div className="max-h-[65vh] overflow-y-auto bg-white p-4 sm:p-5 rounded-md shadow-sm border border-gray-200 lg:max-h-none lg:overflow-visible lg:sticky lg:top-24">
                 <div className="flex items-center gap-2 mb-6 pb-4 border-b border-gray-100">
                   <Filter size={18} className="text-[#081621]" />
                     <h2 className="font-bold text-[15px] text-[#081621] flex-1">Filter Options</h2>
@@ -399,7 +410,7 @@ export const CategoryPage: React.FC = () => {
 
             {/* Main Content */}
             <main className="flex-grow min-w-0">
-              <div className="bg-white p-4 rounded-md shadow-sm border border-gray-200 mb-6 flex flex-col sm:flex-row gap-2 sm:gap-4 justify-between items-center">
+              <div className="bg-white p-3 sm:p-4 rounded-md shadow-sm border border-gray-200 mb-4 sm:mb-6 flex flex-col sm:flex-row gap-2 sm:gap-4 justify-between items-center">
                 <div className="relative w-full sm:w-64">
                   <input 
                     type="text" 

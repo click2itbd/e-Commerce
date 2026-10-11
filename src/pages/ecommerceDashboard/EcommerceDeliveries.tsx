@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Search, RefreshCw, CheckCircle, XCircle, AlertCircle, Calendar, RefreshCcw, Package, ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Truck, Search, RefreshCw, CheckCircle, XCircle, AlertCircle, Calendar, RefreshCcw, Package, ShieldAlert, AlertTriangle, CheckCircle2, Key, X, ExternalLink } from 'lucide-react';
 import { fetchCourierRisk, CourierRiskReport } from '../../utils/courierRisk';
 import { collection, query, where, getDocs, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -13,11 +13,16 @@ export const EcommerceDeliveries = () => {
   const [loading, setLoading] = useState(true);
   const [trackingData, setTrackingData] = useState<Record<string, any>>({});
   const [loadingTracking, setLoadingTracking] = useState<Record<string, boolean>>({});
-  const { settings } = useSettings();
+  const { settings, updateSettings } = useSettings();
 
   const [fraudPhoneInput, setFraudPhoneInput] = useState('');
   const [fraudLoading, setFraudLoading] = useState(false);
   const [fraudReport, setFraudReport] = useState<CourierRiskReport | null>(null);
+  const [fraudError, setFraudError] = useState<string | null>(null);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [tempApiKey, setTempApiKey] = useState(settings?.steadfastApiKey || '');
+  const [tempSecretKey, setTempSecretKey] = useState(settings?.steadfastSecretKey || '');
+  const [savingKeys, setSavingKeys] = useState(false);
 
   useEffect(() => {
     // Listen to orders that have a tracking number
@@ -42,13 +47,18 @@ export const EcommerceDeliveries = () => {
 
   const checkStatus = async (trackingCode: string, orderId: string) => {
     if (!trackingCode) return;
+    if (!settings?.steadfastApiKey || !settings?.steadfastSecretKey) {
+      toast.error('Steadfast API Key কনফিগার করা নেই। Settings > Courier এ গিয়ে সেট করুন।');
+      return;
+    }
     
     setLoadingTracking(prev => ({ ...prev, [orderId]: true }));
     try {
-      const res = await fetch(`https://click2itbd.com/steadfast.php?action=status&tracking_code=${encodeURIComponent(trackingCode)}`, {
+      const baseUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://click2itbd.com';
+      const res = await fetch(`${baseUrl}/steadfast.php?action=status&tracking_code=${encodeURIComponent(trackingCode)}`, {
         headers: {
-          'Api-Key': settings?.steadfastApiKey || '',
-          'Secret-Key': settings?.steadfastSecretKey || ''
+          'Api-Key': settings.steadfastApiKey,
+          'Secret-Key': settings.steadfastSecretKey
         }
       });
       const data = await res.json();
@@ -106,6 +116,29 @@ export const EcommerceDeliveries = () => {
     return { todayCount, monthCount, cancelledCount, returnedCount };
   };
 
+  const handleSaveApiKeys = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tempApiKey.trim() || !tempSecretKey.trim()) {
+      toast.error('API Key এবং Secret Key দুটিই আবশ্যক');
+      return;
+    }
+    setSavingKeys(true);
+    try {
+      await updateSettings({
+        ...settings,
+        steadfastApiKey: tempApiKey.trim(),
+        steadfastSecretKey: tempSecretKey.trim()
+      });
+      toast.success('Steadfast API Key সফলভাবে সেভ হয়েছে!');
+      setShowApiKeyModal(false);
+      setFraudError(null);
+    } catch (err: any) {
+      toast.error(err.message || 'API Key সেভ করতে সমস্যা হয়েছে');
+    } finally {
+      setSavingKeys(false);
+    }
+  };
+
   const handleCheckFraud = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fraudPhoneInput.trim()) {
@@ -113,11 +146,14 @@ export const EcommerceDeliveries = () => {
       return;
     }
     setFraudLoading(true);
+    setFraudError(null);
+    setFraudReport(null);
     try {
       const report = await fetchCourierRisk(fraudPhoneInput, settings?.steadfastApiKey, settings?.steadfastSecretKey);
       setFraudReport(report);
       toast.success('কুরিয়ার রেকর্ড সফলভাবে যাচাই করা হয়েছে');
     } catch (err: any) {
+      setFraudError(err.message || 'যাচাই করতে সমস্যা হয়েছে');
       toast.error(err.message || 'যাচাই করতে সমস্যা হয়েছে');
     } finally {
       setFraudLoading(false);
@@ -139,32 +175,101 @@ export const EcommerceDeliveries = () => {
       <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm p-6 mb-8 bg-gradient-to-br from-indigo-50/40 via-white to-purple-50/30">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <div>
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <ShieldAlert className="text-indigo-600" size={20} />
-              কাস্টমার কুরিয়ার রিস্ক ও ফ্রড চেকার (Steadfast Courier)
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <ShieldAlert className="text-indigo-600" size={20} />
+                কাস্টমার কুরিয়ার রিস্ক ও ফ্রড চেকার (Steadfast Courier)
+              </h2>
+              {settings?.steadfastApiKey ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                  API Connected
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                  API Missing
+                </span>
+              )}
+            </div>
             <p className="text-xs text-gray-600 mt-1">
               যেকোনো কাস্টমারের ১১ ডিজিটের মোবাইল নম্বর লিখে তার পূর্ববর্তী পার্সেল ডেলিভারি ও রিটার্ন রেকর্ড যাচাই করুন।
             </p>
           </div>
-          <form onSubmit={handleCheckFraud} className="flex items-center gap-2 w-full md:w-auto">
-            <input
-              type="text"
-              placeholder="017XXXXXXXX"
-              value={fraudPhoneInput}
-              onChange={(e) => setFraudPhoneInput(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full md:w-64 font-mono"
-            />
+          <div className="flex items-center gap-2">
             <button
-              type="submit"
-              disabled={fraudLoading}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5 shadow-sm"
+              type="button"
+              onClick={() => {
+                setTempApiKey(settings?.steadfastApiKey || '');
+                setTempSecretKey(settings?.steadfastSecretKey || '');
+                setShowApiKeyModal(true);
+              }}
+              className="px-3 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+              title="Steadfast API Key & Secret Key সেট করুন"
             >
-              {fraudLoading ? <RefreshCw className="animate-spin" size={15} /> : <Search size={15} />}
-              {fraudLoading ? 'যাচাই হচ্ছে...' : 'চেক করুন'}
+              <Key size={14} className="text-indigo-600" />
+              <span>{settings?.steadfastApiKey ? 'API কী পরিবর্তন' : 'API কী সেট করুন'}</span>
             </button>
-          </form>
+            <form onSubmit={handleCheckFraud} className="flex items-center gap-2 w-full md:w-auto">
+              <input
+                type="text"
+                placeholder="017XXXXXXXX"
+                value={fraudPhoneInput}
+                onChange={(e) => setFraudPhoneInput(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full md:w-56 font-mono"
+              />
+              <button
+                type="submit"
+                disabled={fraudLoading}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5 shadow-sm"
+              >
+                {fraudLoading ? <RefreshCw className="animate-spin" size={15} /> : <Search size={15} />}
+                {fraudLoading ? 'যাচাই হচ্ছে...' : 'চেক করুন'}
+              </button>
+            </form>
+          </div>
         </div>
+
+        {/* API Key Missing Alert */}
+        {!settings?.steadfastApiKey && (
+          <div className="mb-4 p-3.5 bg-amber-50/90 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 text-xs">
+            <div className="flex items-start sm:items-center gap-2">
+              <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+              <span>
+                <strong>Steadfast API Key সেট করা হয়নি:</strong> লাইভ কুরিয়ার হিস্ট্রি পেতে আপনার Steadfast একাউন্টের API Key ও Secret Key যুক্ত করতে হবে।
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTempApiKey(settings?.steadfastApiKey || '');
+                setTempSecretKey(settings?.steadfastSecretKey || '');
+                setShowApiKeyModal(true);
+              }}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs shrink-0 transition-colors w-fit shadow-xs"
+            >
+              এখনই সেট করুন
+            </button>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {fraudError && (
+          <div className="mt-4 p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-xs flex items-start gap-3 animate-in fade-in duration-200">
+            <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-bold text-sm text-rose-900 mb-1">কুরিয়ার তথ্য পাওয়া যায়নি</p>
+              <p className="leading-relaxed">{fraudError}</p>
+            </div>
+            {!settings?.steadfastApiKey && (
+              <button
+                type="button"
+                onClick={() => setShowApiKeyModal(true)}
+                className="px-3 py-1 bg-rose-600 text-white rounded font-bold text-xs hover:bg-rose-700 transition-colors shrink-0"
+              >
+                API Key দিন
+              </button>
+            )}
+          </div>
+        )}
 
         {fraudReport && (
           <div className="mt-4 pt-4 border-t border-indigo-100 space-y-4 animate-in fade-in duration-300">
@@ -276,8 +381,8 @@ export const EcommerceDeliveries = () => {
                       <div className="text-xs text-gray-500 mt-1">{format(new Date(order.createdAt || 0), 'MMM dd, yyyy')}</div>
                     </td>
                     <td className="py-4 px-6">
-                      <div className="font-medium text-gray-900">{order.shippingInfo?.fullName}</div>
-                      <div className="text-sm text-gray-500">{order.shippingInfo?.phone}</div>
+                      <div className="font-medium text-gray-900">{String(order.shippingInfo?.fullName ?? '')}</div>
+                      <div className="text-sm text-gray-500">{String(order.shippingInfo?.phone ?? '')}</div>
                     </td>
                     <td className="py-4 px-6">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">
@@ -316,6 +421,84 @@ export const EcommerceDeliveries = () => {
           </table>
         </div>
       </div>
+      {/* Quick API Key Modal */}
+      {showApiKeyModal && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowApiKeyModal(false); }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-indigo-900 to-slate-900 text-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-indigo-300">
+                  <Key size={16} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">Steadfast API Credentials</h3>
+                  <p className="text-[11px] text-indigo-200">কুরিয়ার ট্র্যাকিং ও ফ্রড চেকার সেটআপ</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowApiKeyModal(false)}
+                className="p-1.5 hover:bg-white/10 rounded-lg text-gray-300 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveApiKeys} className="p-6 space-y-4">
+              <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-900 leading-relaxed">
+                Steadfast পোর্টাল (portal.steadfast.com.bd) এ লগইন করে <strong>Settings &gt; API</strong> থেকে আপনার কী দুটি কপি করে এখানে দিন।
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                  Api-Key
+                </label>
+                <input
+                  type="text"
+                  value={tempApiKey}
+                  onChange={(e) => setTempApiKey(e.target.value)}
+                  placeholder="Paste your Steadfast Api-Key"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                  Secret-Key
+                </label>
+                <input
+                  type="password"
+                  value={tempSecretKey}
+                  onChange={(e) => setTempSecretKey(e.target.value)}
+                  placeholder="Paste your Steadfast Secret-Key"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyModal(false)}
+                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingKeys}
+                  className="px-5 py-2 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50"
+                >
+                  {savingKeys ? 'সেভ হচ্ছে...' : 'সেভ করুন'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

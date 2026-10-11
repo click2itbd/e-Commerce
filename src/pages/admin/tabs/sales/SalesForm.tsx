@@ -800,7 +800,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             }
 
             await updateDoc(productRef, updates);
-            checkLowStock(currentProduct.name, newStock);
+            checkLowStock(currentProduct.name, Math.max(0, currentProduct.stock - item.quantity));
           }
         }
 
@@ -1253,7 +1253,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                                           const updated = servicePresets.filter((_, i) => i !== pi);
                                           setServicePresets(updated);
                                           localStorage.setItem('service_presets', JSON.stringify(updated));
-                                        }} className="text-red-400 hover:text-red-600 text-xs px-1">?</button>
+                                        }} className="text-red-400 hover:text-red-600 p-1 rounded" title="Delete preset"><Trash2 size={12} /></button>
                                       </div>
                                     ))}
                                     <div className="flex gap-1 mt-1">
@@ -1897,4 +1897,3 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     </div>
   );
 };
-

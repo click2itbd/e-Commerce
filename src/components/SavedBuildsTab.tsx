@@ -21,7 +21,7 @@ export const SavedBuildsTab: React.FC<{ userId: string }> = ({ userId }) => {
   const [builds, setBuilds] = useState<SavedBuild[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const { dispatch } = useCart();
+  const { addToCart } = useCart();
 
   useEffect(() => {
     fetchBuilds();
@@ -70,7 +70,7 @@ export const SavedBuildsTab: React.FC<{ userId: string }> = ({ userId }) => {
 
     let addedCount = 0;
     products.forEach(product => {
-      dispatch({ type: 'ADD_ITEM', payload: { product, quantity: 1 } });
+      addToCart(product);
       addedCount++;
     });
     toast.success(`Added ${addedCount} parts to cart!`);

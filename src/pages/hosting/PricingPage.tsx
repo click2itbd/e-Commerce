@@ -79,10 +79,10 @@ export default function PricingPage() {
         <WordPressCloudSection />
       </div>
 
-      {/* 3. High Performance KVM Cloud VPS (Hidden temporarily) */}
-      {/* <div className="w-full">
+      {/* 3. High Performance KVM Cloud VPS */}
+      <div className="w-full">
         <CloudVpsSection />
-      </div> */}
+      </div>
 
       {/* 4. CloudLinux OS License Pricing & Compare */}
       <div id="cloudlinux-license" className="w-full scroll-mt-20">

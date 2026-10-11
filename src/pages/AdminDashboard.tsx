@@ -397,6 +397,8 @@ import { formatCurrency, cn, addWarranty, formatWarranty } from "../lib/utils";
 import { useSettings } from "../context/SettingsContext";
 import { toast } from "react-hot-toast";
 import { generateDocumentNumber } from "../lib/numbering";
+import { getApiUrl } from "../services/apiClient";
+import { logAudit } from "../lib/audit";
 import { useNavigate } from "react-router-dom";
 
 export interface AdminDashboardProps {
@@ -1773,6 +1775,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             vendorId: "",
             variants: [],
             specs: {},
+            hasSerialTracking: false,
+            availableSerials: [],
+            warrantyMonths: 0,
           });
           debouncedFetchData();
         } catch (error) {
@@ -2366,7 +2371,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             createdAt: new Date().toISOString(),
           });
           
-          await logAudit('UPDATE', 'Order', `Processed full return for invoice #${order.documentNumber || order.id}`, profile?.displayName || profile?.email || 'Unknown Admin');
+          await logAudit('EDIT', 'Order', `Processed full return for invoice #${order.documentNumber || order.id}`, profile?.displayName || profile?.email || 'Unknown Admin');
           toast.success('Sale returned and stock restored successfully');
           fetchData();
         } catch (error) {
@@ -3110,6 +3115,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setIsAddingHostingPlan(false);
       setEditingHostingPlan(null);
       setHostingPlanFormData({
+        serviceId: "",
         name: "",
         price: 0,
         billingCycle: "/mo",
@@ -5892,7 +5898,7 @@ handleReturnOrder={handleReturnOrder}
                   setActiveTab={setActiveTab}
                 />
               ) : activeTab === "notifications" ? (
-                <NotificationsPage />
+                <NotificationsPage setActiveTab={setActiveTab} />
               ) : activeTab === "all_reports" &&
                 hasPermission("all_reports") ? (
                 <AllReportsTab setActiveTab={setActiveTab} />
@@ -6295,7 +6301,7 @@ handleReturnOrder={handleReturnOrder}
                                   </div>
                                   <div className="text-right">
                                     <div className="font-bold text-gray-900">
-                                      ?{Number(o.total || 0).toLocaleString()}
+                                      ৳{Number(o.total || 0).toLocaleString()}
                                     </div>
                                     <div className="text-[10px] font-semibold uppercase text-gray-400">
                                       {o.status}
@@ -6339,7 +6345,7 @@ handleReturnOrder={handleReturnOrder}
                                   </div>
                                   <div className="text-right">
                                     <div className="font-bold text-gray-900">
-                                      ?{Number(p.price || 0).toLocaleString()}
+                                      ৳{Number(p.price || 0).toLocaleString()}
                                     </div>
                                     <div
                                       className={`text-[10px] font-semibold uppercase ${p.stock > 0 ? "text-green-500" : "text-red-500"}`}

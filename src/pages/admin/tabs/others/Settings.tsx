@@ -15,7 +15,7 @@ import {
   BarChart2,
   Activity,
   CheckCircle,
-  AlertCircle, Cpu,
+  AlertCircle, Cpu, Truck,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn, formatCurrency } from "../../../../lib/utils";
@@ -50,6 +50,7 @@ export const Settings = () => {
     | "external_ecommerce"
     | "domain_reseller"
     | "courier"
+    | "analytics"
       | "pages"
       | "pc_builder"
       | "pc_builder_fake"
@@ -236,6 +237,11 @@ export const Settings = () => {
                 id: "analytics",
                 icon: BarChart2,
                 label: "Analytics & Tracking",
+              },
+              {
+                id: "courier",
+                icon: Truck,
+                label: "Courier (Steadfast)",
               },
             ].map((tab) => (
               <button
@@ -1917,6 +1923,70 @@ export const Settings = () => {
                   </div>
                 </div>
 
+              </div>
+            </div>
+          ) : settingsTab === "courier" ? (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+              <div className="bg-gradient-to-r from-emerald-600 to-teal-700 p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <Truck size={24} className="text-emerald-100" />
+                  <h3 className="text-xl font-bold">Courier & Fraud Prevention (Steadfast)</h3>
+                </div>
+                <p className="text-emerald-100 text-sm max-w-2xl">
+                  Connect your Steadfast Courier account API keys to enable real-time consignment tracking and automatic customer fraud / return ratio checks before dispatching parcels.
+                </p>
+              </div>
+
+              <div className="p-6 space-y-6 bg-gray-50/50">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex gap-3 text-sm text-emerald-800">
+                  <CheckCircle size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">কোথা থেকে API Key পাবেন?</p>
+                    <p className="text-xs text-emerald-700 mt-1">
+                      Steadfast Courier পোর্টালে লগইন করে Settings &gt; API তে যান। সেখান থেকে আপনার <strong>Api-Key</strong> এবং <strong>Secret-Key</strong> কপি করে নিচের বক্সে পেস্ট করুন।
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-lg border border-gray-200">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wider">
+                      Steadfast Api-Key
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsFormData.steadfastApiKey || ""}
+                      onChange={(e) =>
+                        setSettingsFormData({
+                          ...settingsFormData,
+                          steadfastApiKey: e.target.value.trim(),
+                        })
+                      }
+                      className="w-full text-sm border-gray-200 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-gray-50 transition-all font-mono py-2.5 px-3 border"
+                      placeholder="e.g. 7f8a9b2c3d4e..."
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">Steadfast API Key</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wider">
+                      Steadfast Secret-Key
+                    </label>
+                    <input
+                      type="password"
+                      value={settingsFormData.steadfastSecretKey || ""}
+                      onChange={(e) =>
+                        setSettingsFormData({
+                          ...settingsFormData,
+                          steadfastSecretKey: e.target.value.trim(),
+                        })
+                      }
+                      className="w-full text-sm border-gray-200 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-gray-50 transition-all font-mono py-2.5 px-3 border"
+                      placeholder="••••••••••••••••"
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">Steadfast Secret Key</p>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (

@@ -86,7 +86,7 @@ export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
     setLoadingDetails(true);
     setDomainDetails(null);
     try {
-      const response = await apiPost('/api/domain/manage', {
+      const response = await apiPost<{ success: boolean; data?: unknown; error?: string }>('/api/domain/manage', {
         command: 'get_details',
         domain: domainOrder.domain
       });
@@ -105,7 +105,7 @@ export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
   const handleToggleLock = async (domainOrder: any, currentStatus: boolean) => {
     const loadingToast = toast.loading(currentStatus ? 'Unlocking domain...' : 'Locking domain...');
     try {
-      const response = await apiPost('/api/domain/manage', {
+      const response = await apiPost<{ success: boolean; error?: string }>('/api/domain/manage', {
         command: 'set_lock',
         domain: domainOrder.domain,
         extraParams: { isLocked: !currentStatus }

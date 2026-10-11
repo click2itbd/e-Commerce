@@ -108,14 +108,14 @@ export const PCBuildNavbar: React.FC = () => {
   return (
     <header className="sticky top-0 z-[100] w-full text-slate-900 bg-white/70 backdrop-blur-2xl border-b border-slate-200/60 shadow-[0_1px_15px_rgba(0,0,0,0.03)]">
       
-      <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px] relative">
-        <div className="flex h-20 items-center justify-between gap-6">
+      <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-4 md:px-[50px] relative">
+        <div className="flex h-16 sm:h-20 items-center justify-between gap-2 sm:gap-6">
           {/* Logo */}
           <Link to="/pc-build" className="flex items-center gap-2 shrink-0 group relative">
             {settings.logoUrl ? (
-              <img src={settings.logoUrl} alt={settings.brandName} className="h-12 w-auto relative z-10 transition-transform group-hover:scale-105 duration-300" referrerPolicy="no-referrer" />
+              <img src={settings.logoUrl} alt={settings.brandName} className="h-10 sm:h-12 w-auto max-w-[150px] sm:max-w-none relative z-10 transition-transform group-hover:scale-105 duration-300" referrerPolicy="no-referrer" />
             ) : (
-              <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-12 w-auto object-contain relative z-10 transition-transform group-hover:scale-105 duration-300" />
+              <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-10 sm:h-12 w-auto max-w-[150px] sm:max-w-none object-contain relative z-10 transition-transform group-hover:scale-105 duration-300" />
             )}
           </Link>
 
@@ -134,7 +134,7 @@ export const PCBuildNavbar: React.FC = () => {
           </nav>
 
           {/* Search Bar - Live */}
-          <div className="hidden md:flex flex-1 max-w-md relative group z-50" ref={searchRef}>
+          <div className="hidden lg:flex flex-1 max-w-md relative group z-50" ref={searchRef}>
             <form onSubmit={handleSearchSubmit} className="relative w-full flex items-center">
               <input
                 type="text"
@@ -191,7 +191,7 @@ export const PCBuildNavbar: React.FC = () => {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-5 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-5 shrink-0">
             <Link to="/cart" className="relative p-2 text-slate-500 hover:text-slate-900 transition-colors group">
               <ShoppingCart size={22} className="relative z-10 group-hover:scale-110 transition-transform" />
               {cartItemCount > 0 && (
@@ -225,8 +225,8 @@ export const PCBuildNavbar: React.FC = () => {
               </Link>
             )}
 
-            <button className="lg:hidden text-slate-600 hover:text-violet-400" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            <button aria-label={isMenuOpen ? 'Close menu' : 'Open menu'} aria-expanded={isMenuOpen} className="lg:hidden p-2 text-slate-600 hover:text-violet-400" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+              {isMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
@@ -234,7 +234,7 @@ export const PCBuildNavbar: React.FC = () => {
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="lg:hidden bg-slate-100 border-t border-slate-200 shadow-2xl absolute w-full">
+        <div className="lg:hidden bg-slate-100 border-t border-slate-200 shadow-2xl absolute w-full max-h-[calc(100dvh-64px)] overflow-y-auto">
           <div className="px-4 py-4 space-y-4">
             <form onSubmit={handleSearchSubmit} className="relative">
               <input

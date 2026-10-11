@@ -6,7 +6,7 @@ import { Star, Trash2, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 
 const ReviewsTab: React.FC = () => {
-  const { hasPermission } = useAuth();
+  const { isAdmin, hasPermission } = useAuth();
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 

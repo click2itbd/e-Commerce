@@ -40,6 +40,9 @@ if ($action === 'status' && $tracking_code) {
 
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+curl_setopt($ch, CURLOPT_TIMEOUT, 20);
 
 if ($is_post) {
     $input = file_get_contents("php://input");
@@ -55,6 +58,13 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
 
 $response = curl_exec($ch);
 $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+if ($response === false) {
+    $err = curl_error($ch);
+    curl_close($ch);
+    http_response_code(502);
+    echo json_encode(["status" => 502, "message" => "CURL Error: " . $err]);
+    exit();
+}
 curl_close($ch);
 
 http_response_code($httpcode);

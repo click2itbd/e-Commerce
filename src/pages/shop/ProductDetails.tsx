@@ -267,28 +267,39 @@ export const ProductDetails: React.FC = () => {
 
   return (
     <Layout>
-      {product && (
-        <Helmet>
-          <title>{`${product.name} - ${settings?.siteName || 'Click2It'}`}</title>
-          <meta name="description" content={product.shortDescription?.replace(/<[^>]*>?/gm, '').slice(0, 160) || `${product.name} best price in Bangladesh`} />
-          
-          {/* Facebook & OpenGraph */}
-          <meta property="og:type" content="product" />
-          <meta property="og:title" content={product.name} />
-          <meta property="og:description" content={product.shortDescription?.replace(/<[^>]*>?/gm, '').slice(0, 200) || `Buy ${product.name} at best price in BD.`} />
-          <meta property="og:image" content={product.imageUrl || product.images?.[0] || ''} />
-          <meta property="og:url" content={typeof window !== 'undefined' ? window.location.href : ''} />
-          <meta property="og:site_name" content={settings?.siteName || 'Click2It'} />
-          <meta property="product:price:amount" content={String(product.price || 0)} />
-          <meta property="product:price:currency" content="BDT" />
+      {product && (() => {
+        const productImg = product.imageUrl || product.images?.[0] || 'https://click2itbd.com/logo.png';
+        const absoluteImg = productImg.startsWith('http') ? productImg : `https://click2itbd.com${productImg.startsWith('/') ? '' : '/'}${productImg}`;
+        const productUrl = typeof window !== 'undefined' ? window.location.href : `https://click2itbd.com/product/${product.id}`;
+        const productDesc = product.shortDescription?.replace(/<[^>]*>?/gm, '').slice(0, 200) || `Buy ${product.name} at best price in Bangladesh from CLICK2IT.`;
 
-          {/* Twitter Card */}
-          <meta name="twitter:card" content="summary_large_image" />
-          <meta name="twitter:title" content={product.name} />
-          <meta name="twitter:description" content={product.shortDescription?.replace(/<[^>]*>?/gm, '').slice(0, 200) || ''} />
-          <meta name="twitter:image" content={product.imageUrl || product.images?.[0] || ''} />
-        </Helmet>
-      )}
+        return (
+          <Helmet>
+            <title>{`${product.name} - ${settings?.siteName || 'CLICK2IT'}`}</title>
+            <meta name="description" content={productDesc} />
+            
+            {/* Facebook & OpenGraph */}
+            <meta property="og:type" content="product" />
+            <meta property="og:title" content={`${product.name} - ৳${(product.discountPrice || product.price || 0).toLocaleString()}`} />
+            <meta property="og:description" content={productDesc} />
+            <meta property="og:image" content={absoluteImg} />
+            <meta property="og:image:secure_url" content={absoluteImg} />
+            <meta property="og:image:type" content="image/jpeg" />
+            <meta property="og:image:width" content="600" />
+            <meta property="og:image:height" content="600" />
+            <meta property="og:url" content={productUrl} />
+            <meta property="og:site_name" content={settings?.siteName || 'CLICK2IT'} />
+            <meta property="product:price:amount" content={String(product.discountPrice || product.price || 0)} />
+            <meta property="product:price:currency" content="BDT" />
+
+            {/* Twitter Card */}
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:title" content={`${product.name} - ৳${(product.discountPrice || product.price || 0).toLocaleString()}`} />
+            <meta name="twitter:description" content={productDesc} />
+            <meta name="twitter:image" content={absoluteImg} />
+          </Helmet>
+        );
+      })()}
       <div className="container mx-auto px-2 sm:px-4 py-4 md:py-6 bg-white md:bg-transparent">
         
         {/* Breadcrumb */}
@@ -515,8 +526,13 @@ export const ProductDetails: React.FC = () => {
               {/* WhatsApp */}
               <button 
                 onClick={() => {
-                  const shareMsg = encodeURIComponent(`Check out ${product.name} (৳${product.price}):\n${window.location.href}`);
-                  window.open(`https://api.whatsapp.com/send?text=${shareMsg}`, '_blank');
+                  const productImg = product.imageUrl || product.images?.[0] || 'https://click2itbd.com/logo.png';
+                  const absoluteImg = productImg.startsWith('http') ? productImg : `https://click2itbd.com${productImg.startsWith('/') ? '' : '/'}${productImg}`;
+                  const activePrice = Number(product.discountPrice || product.price || 0);
+                  const cleanDesc = (product.shortDescription || product.description || '').replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim().slice(0, 160);
+                  const shareUrl = `https://click2itbd.com/share.php?id=${encodeURIComponent(product.id)}&title=${encodeURIComponent(product.name)}&price=${encodeURIComponent(activePrice)}&img=${encodeURIComponent(absoluteImg)}&desc=${encodeURIComponent(cleanDesc)}`;
+                  const shareMsg = `*${product.name}*\nPrice: ৳${activePrice.toLocaleString()}\n\n${shareUrl}`;
+                  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareMsg)}`, '_blank');
                 }} 
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366] hover:text-white transition-all text-xs font-semibold shadow-xs" 
                 title="Share on WhatsApp"
@@ -526,20 +542,47 @@ export const ProductDetails: React.FC = () => {
               </button>
 
               {/* Facebook */}
-              <button onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`, '_blank')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1877F2]/10 text-[#1877F2] hover:bg-[#1877F2] hover:text-white transition-all text-xs font-semibold shadow-xs" title="Facebook">
+              <button 
+                onClick={() => {
+                  const productImg = product.imageUrl || product.images?.[0] || 'https://click2itbd.com/logo.png';
+                  const absoluteImg = productImg.startsWith('http') ? productImg : `https://click2itbd.com${productImg.startsWith('/') ? '' : '/'}${productImg}`;
+                  const activePrice = Number(product.discountPrice || product.price || 0);
+                  const cleanDesc = (product.shortDescription || product.description || '').replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim().slice(0, 160);
+                  const shareUrl = `https://click2itbd.com/share.php?id=${encodeURIComponent(product.id)}&title=${encodeURIComponent(product.name)}&price=${encodeURIComponent(activePrice)}&img=${encodeURIComponent(absoluteImg)}&desc=${encodeURIComponent(cleanDesc)}`;
+                  window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
+                }} 
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1877F2]/10 text-[#1877F2] hover:bg-[#1877F2] hover:text-white transition-all text-xs font-semibold shadow-xs" 
+                title="Facebook"
+              >
                 <Facebook size={14} />
                 <span>Facebook</span>
               </button>
-              <button onClick={() => window.open(`fb-messenger://share/?link=${encodeURIComponent(window.location.href)}`, '_blank')} className="w-8 h-8 rounded-lg bg-[#00B2FF]/10 text-[#00B2FF] flex items-center justify-center hover:bg-[#00B2FF] hover:text-white transition-colors" title="Messenger">
+              <button 
+                onClick={() => {
+                  const productImg = product.imageUrl || product.images?.[0] || 'https://click2itbd.com/logo.png';
+                  const absoluteImg = productImg.startsWith('http') ? productImg : `https://click2itbd.com${productImg.startsWith('/') ? '' : '/'}${productImg}`;
+                  const activePrice = Number(product.discountPrice || product.price || 0);
+                  const cleanDesc = (product.shortDescription || product.description || '').replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim().slice(0, 160);
+                  const shareUrl = `https://click2itbd.com/share.php?id=${encodeURIComponent(product.id)}&title=${encodeURIComponent(product.name)}&price=${encodeURIComponent(activePrice)}&img=${encodeURIComponent(absoluteImg)}&desc=${encodeURIComponent(cleanDesc)}`;
+                  window.open(`fb-messenger://share/?link=${encodeURIComponent(shareUrl)}`, '_blank');
+                }} 
+                className="w-8 h-8 rounded-lg bg-[#00B2FF]/10 text-[#00B2FF] flex items-center justify-center hover:bg-[#00B2FF] hover:text-white transition-colors" 
+                title="Messenger"
+              >
                 <img src="https://img.icons8.com/color/48/facebook-messenger--v1.png" className="w-4 h-4 hover:brightness-0 hover:invert" alt="messenger" />
               </button>
               {/* Copy Link */}
               <button 
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(window.location.href);
+                    const productImg = product.imageUrl || product.images?.[0] || 'https://click2itbd.com/logo.png';
+                    const absoluteImg = productImg.startsWith('http') ? productImg : `https://click2itbd.com${productImg.startsWith('/') ? '' : '/'}${productImg}`;
+                    const activePrice = Number(product.discountPrice || product.price || 0);
+                    const cleanDesc = (product.shortDescription || product.description || '').replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim().slice(0, 160);
+                    const shareUrl = `https://click2itbd.com/share.php?id=${encodeURIComponent(product.id)}&title=${encodeURIComponent(product.name)}&price=${encodeURIComponent(activePrice)}&img=${encodeURIComponent(absoluteImg)}&desc=${encodeURIComponent(cleanDesc)}`;
+                    await navigator.clipboard.writeText(shareUrl);
                     setCopiedLink(true);
-                    toast.success('Product link copied to clipboard!');
+                    toast.success('Product preview link copied to clipboard!');
                     setTimeout(() => setCopiedLink(false), 2500);
                   } catch (err) {
                     toast.error('Failed to copy link');
@@ -561,10 +604,15 @@ export const ProductDetails: React.FC = () => {
               {typeof navigator !== 'undefined' && 'share' in navigator && (
                 <button
                   onClick={() => {
+                    const productImg = product.imageUrl || product.images?.[0] || 'https://click2itbd.com/logo.png';
+                    const absoluteImg = productImg.startsWith('http') ? productImg : `https://click2itbd.com${productImg.startsWith('/') ? '' : '/'}${productImg}`;
+                    const activePrice = Number(product.discountPrice || product.price || 0);
+                    const cleanDesc = (product.shortDescription || product.description || '').replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim().slice(0, 160);
+                    const shareUrl = `https://click2itbd.com/share.php?id=${encodeURIComponent(product.id)}&title=${encodeURIComponent(product.name)}&price=${encodeURIComponent(activePrice)}&img=${encodeURIComponent(absoluteImg)}&desc=${encodeURIComponent(cleanDesc)}`;
                     navigator.share({
                       title: product.name,
-                      text: `Check out ${product.name} at ৳${product.price}`,
-                      url: window.location.href
+                      text: `${product.name} - ৳${activePrice.toLocaleString()}`,
+                      url: shareUrl
                     }).catch(() => {});
                   }}
                   className="p-1.5 rounded-lg bg-gray-200/70 text-gray-700 hover:bg-gray-300 transition-colors"

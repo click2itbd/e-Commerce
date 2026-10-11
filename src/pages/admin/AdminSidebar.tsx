@@ -13,6 +13,7 @@ import {
   XCircle,
   Download,
   Upload,
+  Layers,
   Cpu,
   Users,
   Briefcase,

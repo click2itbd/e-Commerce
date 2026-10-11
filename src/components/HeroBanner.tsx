@@ -13,7 +13,7 @@ interface Banner {
   title: string;
   imageUrl: string;
   targetUrl: string;
-  position: 'hero_slider' | 'deal_of_the_day' | 'sidebar_ad' | 'footer_banner';
+  position: 'hero_slider' | 'deal_of_the_day' | 'sidebar_ad' | 'sidebar_ad_top' | 'sidebar_ad_bottom' | 'footer_banner';
   isActive: boolean;
   order: number;
 }
@@ -136,10 +136,10 @@ export const HeroBanner: React.FC = () => {
     return (
       <section className="mb-8">
         <div style={{ display: 'flex', gap: '12px' }}>
-          <div  className="w-full lg:flex-1 h-[250px] md:h-[350px] lg:h-[475px] bg-gray-200 rounded-xl animate-pulse" />
+          <div className="w-full lg:flex-1 aspect-[16/9] sm:aspect-[1.85/1] md:aspect-[2.1/1] lg:aspect-auto lg:h-[475px] bg-gray-200 rounded-xl animate-pulse" />
           <div style={{ width: '350px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '12px' }} className="hidden lg:flex">
-            <div  style={{ flex: 1 }} />
-            <div  style={{ flex: 1 }} />
+            <div style={{ flex: 1 }} />
+            <div style={{ flex: 1 }} />
           </div>
         </div>
       </section>
@@ -154,8 +154,7 @@ export const HeroBanner: React.FC = () => {
       <div className="flex flex-col lg:flex-row" style={{ gap: '12px' }}>
         {/* ─── Main Hero Slider ─────────────────────────────── */}
         <div
-          
-          className="relative w-full lg:flex-1 h-[250px] md:h-[350px] lg:h-[475px] rounded-xl overflow-hidden bg-gray-100 group cursor-pointer"
+          className="relative w-full lg:flex-1 aspect-[16/9] sm:aspect-[1.85/1] md:aspect-[2.1/1] lg:aspect-auto lg:h-[475px] rounded-xl overflow-hidden bg-gray-100 group cursor-pointer"
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
         >
@@ -177,11 +176,11 @@ export const HeroBanner: React.FC = () => {
                 <img
                   src={currentSlideData?.imageUrl ? resolveImageUrl(currentSlideData.imageUrl) : ''}
                   alt={currentSlideData?.title || 'Banner'}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover object-left sm:object-center"
                   loading="eager"
                   draggable={false}
                 />
-                </BannerLink>
+              </BannerLink>
             </motion.div>
           </AnimatePresence>
 

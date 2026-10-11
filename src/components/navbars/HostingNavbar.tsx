@@ -14,6 +14,8 @@ import {
   Tag,
   Shield,
   Layers,
+  Terminal,
+  Lock,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
@@ -75,20 +77,23 @@ export const HostingNavbar: React.FC = () => {
       subLinks: [
         { name: "Shared cPanel Hosting", path: "/pricing#shared-hosting", icon: Layers },
         { name: "WordPress Cloud", path: "/pricing#wordpress-cloud", icon: Shield },
+        { name: "Cloud VPS Servers", path: "/pricing#cloud-vps", icon: Terminal },
         { name: "CloudLinux License", path: "/pricing#cloudlinux-license", icon: Globe },
         { name: "Custom Package Builder", path: "/pricing#custom-package", icon: Tag },
         { name: "Compare All Features", path: "/pricing#compare-plans", icon: Layers },
       ],
     },
+    { name: "Cloud VPS", path: "/vps" },
     {
       name: "Domain",
       path: "/domain",
       subLinks: [
         { name: "Domain Registration", path: "/domain", icon: Globe },
         { name: "Domain Transfer", path: "/domain/transfer", icon: Globe },
+        { name: "Domain Lock & Security", path: "/domain/security", icon: Lock },
         { name: "Domain Renewal", path: "/domain-renewal", icon: Globe },
-          { name: "Bulk Domain Search", path: "/domain/bulk", icon: Globe },
-          { name: "SSL Certificates", path: "/ssl", icon: Shield },
+        { name: "Bulk Domain Search", path: "/domain/bulk", icon: Globe },
+        { name: "SSL Certificates", path: "/ssl", icon: Shield },
         { name: ".BD Domain Registration", path: "/domain/bd", icon: Globe },
       ],
     },
@@ -226,7 +231,7 @@ export const HostingNavbar: React.FC = () => {
                           className="group-hover:rotate-180 transition-transform duration-200"
                         />
                       </button>
-                      <div className="absolute top-full left-0 mt-2 w-52 bg-[#0d1d36] rounded-xl shadow-2xl border border-gray-700/60 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 transform translate-y-2 group-hover:translate-y-0 overflow-hidden">
+                      <div className="absolute top-full left-0 mt-2 w-56 bg-[#0d1d36] rounded-xl shadow-2xl border border-gray-700/60 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 transform translate-y-2 group-hover:translate-y-0 overflow-hidden">
                         <div className="p-2 space-y-1">
                           {link.subLinks.map((sub) => {
                             const IconComponent = sub.icon;
@@ -249,6 +254,7 @@ export const HostingNavbar: React.FC = () => {
                     <Link
                       key={link.name}
                       to={link.path}
+                      onClick={() => handleNavClick(link.path)}
                       className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                         isActive(link.path)
                           ? "text-blue-400 bg-blue-500/10"
@@ -366,7 +372,7 @@ export const HostingNavbar: React.FC = () => {
                 <Link
                   key={link.name}
                   to={link.path}
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  onClick={() => handleNavClick(link.path)}
                   className={`block px-3 py-2.5 rounded-lg text-sm font-semibold border-b border-gray-800/60 transition-colors ${
                     isActive(link.path)
                       ? "text-blue-400 bg-blue-500/10"

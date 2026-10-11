@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, doc, updateDoc, getDoc, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, getDoc, query, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Product, Order, Customer, Transaction, Vendor, NavigationMenu } from '../../types';
 import { logoBase64 } from '../../lib/logoBase64';
 import { 
-  Menu as MenuIcon, X, Activity, Package, ShoppingBag, Users, 
+  Menu as MenuIcon, X, Activity, Package, ShoppingBag, Users, type LucideIcon,
   Tag, Globe, Settings, ExternalLink, ArrowLeft, Star, CalendarPlus, MessageCircle, HelpCircle, Zap, RefreshCcw, Truck, ShoppingCart, PieChart as PieChartIcon, Layers, Heart, FileText
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -38,6 +38,7 @@ const TemplatesTab = lazy(() => import('../admin/tabs/templates/TemplatesTab').t
 const EcommerceWishlistAnalytics = lazy(() => import('./EcommerceWishlistAnalytics').then(m => ({ default: m.EcommerceWishlistAnalytics })));
 const EcommerceBlog = lazy(() => import('./EcommerceBlog').then(m => ({ default: m.EcommerceBlog })));
 const EcommerceProjects = lazy(() => import('./EcommerceProjects').then(m => ({ default: m.EcommerceProjects })));
+const EcommerceDeliveries = lazy(() => import('./EcommerceDeliveries').then(m => ({ default: m.EcommerceDeliveries })));
 
 const EcommerceDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -83,8 +84,6 @@ const EcommerceDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [customerTypeFilter, setCustomerTypeFilter] = useState('all');
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [customerFormData, setCustomerFormData] = useState<Partial<Customer>>({});
 
   // Fetch Data
   const fetchData = async () => {
@@ -150,7 +149,7 @@ const EcommerceDashboard: React.FC = () => {
       toast.error('Error: ' + error.message);
     }
   };
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+  const updateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
       const toastId = toast.loading('Updating status...');
       const orderRef = doc(db, 'orders', orderId);
@@ -200,10 +199,7 @@ const EcommerceDashboard: React.FC = () => {
     }
   };
   
-  const handleSaveCustomer = async () => {};
-  const handleDeleteCustomer = async () => {};
-
-  const renderNavBtn = (id: string, label: string, Icon: React.ElementType, badge?: string) => {
+  const renderNavBtn = (id: string, label: string, Icon: LucideIcon, badge?: string) => {
     const isActive = activeTab === id;
     return (
       <button 
@@ -358,6 +354,7 @@ const EcommerceDashboard: React.FC = () => {
               ) : activeTab === 'orders' ? (
                 <EcommerceOrders
                   orders={orders}
+                  setOrders={setOrders}
                   customers={customers}
                   updateOrderStatus={updateOrderStatus}
                     updateOrderPaymentStatus={updateOrderPaymentStatus}
@@ -365,22 +362,8 @@ const EcommerceDashboard: React.FC = () => {
                 />
               ) : activeTab === 'customers' ? (
                 <CustomersTab
-                  customers={customers}
                   setSelectedLedgerEntity={setSelectedLedgerEntity}
                   setActiveTab={setActiveTab}
-                  searchQuery={searchQuery}
-                  setSearchQuery={setSearchQuery}
-                  customerTypeFilter={customerTypeFilter}
-                  setCustomerTypeFilter={setCustomerTypeFilter}
-                  isAddingCustomer={isAddingCustomer}
-                  setIsAddingCustomer={setIsAddingCustomer}
-                  editingCustomer={editingCustomer}
-                  setEditingCustomer={setEditingCustomer}
-                  customerFormData={customerFormData}
-                  setCustomerFormData={setCustomerFormData}
-                  handleSaveCustomer={handleSaveCustomer}
-                  handleDeleteCustomer={handleDeleteCustomer}
-                  fetchData={fetchData}
                 />
               ) : activeTab === 'settings' ? (
                 <EcommerceSettings />

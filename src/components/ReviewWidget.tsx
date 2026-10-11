@@ -10,7 +10,10 @@ export const ReviewWidget: React.FC = () => {
 
    useEffect(() => {
     if (settings.reviewWidgetEnabled && settings.reviewWidgetConfig && widgetContainerRef.current) {
-      const sanitizedConfig = DOMPurify.sanitize(settings.reviewWidgetConfig, { USE_PROFILES: { html: true, attributes: { 'script': [] } } });
+      const sanitizedConfig = DOMPurify.sanitize(settings.reviewWidgetConfig, {
+        ADD_TAGS: ['script'],
+        ADD_ATTR: ['src', 'async', 'defer'],
+      });
       
       if (sanitizedConfig.includes('<script')) {
         const tempDiv = document.createElement('div');

@@ -22,7 +22,14 @@ import {
   X,
   Clock,
   Layers,
-  Terminal
+  Terminal,
+  Copy,
+  Check,
+  Eye,
+  EyeOff,
+  Cpu,
+  Globe,
+  Settings
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
@@ -70,6 +77,30 @@ export const ActiveHostingAccounts: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'pending' | 'terminated'>('all');
   const [planFilter, setPlanFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'shared' | 'vps'>('all');
+
+  // VPS Management Modal state
+  const [vpsModalAccount, setVpsModalAccount] = useState<HostingAccountItem | null>(null);
+  const [vpsForm, setVpsForm] = useState({
+    serverIp: '',
+    hostname: '',
+    os: '',
+    rootPassword: '',
+    status: 'active',
+  });
+  const [savingVps, setSavingVps] = useState(false);
+  const [showVpsRootPass, setShowVpsRootPass] = useState(false);
+  const [copiedVpsPass, setCopiedVpsPass] = useState(false);
+  const [copiedSshCmd, setCopiedSshCmd] = useState(false);
+
+  const isVps = (acc: HostingAccountItem) => {
+    return (
+      acc.type === 'vps' ||
+      acc.provider === 'vps' ||
+      Boolean(acc.vpsDetails) ||
+      acc.planId?.toLowerCase().includes('vps')
+    );
+  };
   
   // Usage tracking state: accountId -> stats
   const [usageStats, setUsageStats] = useState<Record<string, HostingUsageStats>>({});
@@ -110,7 +141,7 @@ export const ActiveHostingAccounts: React.FC = () => {
       } as HostingAccountItem));
       setAccounts(items);
 
-      const plans = plansSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const plans: { id: string; whmPackageName?: string }[] = plansSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setHostingPlans(plans);
       
       if (plans.length > 0) {
@@ -130,6 +161,7 @@ export const ActiveHostingAccounts: React.FC = () => {
   }, []);
 
   const handleFetchUsage = async (account: HostingAccountItem) => {
+    if (isVps(account)) return;
     const accId = account.providerAccountId || account.username || account.id;
     if (!accId) return;
 
@@ -148,7 +180,7 @@ export const ActiveHostingAccounts: React.FC = () => {
 
   const handleRefreshAllUsage = async () => {
     setRefreshingAll(true);
-    const activeAccounts = accounts.filter(a => a.status === 'active');
+    const activeAccounts = accounts.filter(a => a.status === 'active' && !isVps(a));
     let updatedCount = 0;
     for (const acc of activeAccounts) {
       try {
@@ -169,18 +201,21 @@ export const ActiveHostingAccounts: React.FC = () => {
   const handleToggleSuspend = async (account: HostingAccountItem) => {
     const isCurrentlySuspended = account.status === 'suspended';
     const actionText = isCurrentlySuspended ? 'unsuspend' : 'suspend';
+    const isAccountVps = isVps(account);
     
-    if (!window.confirm(`Are you sure you want to ${actionText.toUpperCase()} hosting for ${account.domain || account.username || account.id || 'Unknown Domain'}?`)) {
+    if (!window.confirm(`Are you sure you want to ${actionText.toUpperCase()} ${isAccountVps ? 'Cloud VPS' : 'hosting'} for ${account.domain || account.username || account.id || 'Unknown Domain'}?`)) {
       return;
     }
 
-    const toastId = toast.loading(`${actionText === 'suspend' ? 'Suspending' : 'Unsuspending'} cPanel account...`);
+    const toastId = toast.loading(`${actionText === 'suspend' ? 'Suspending' : 'Unsuspending'} account...`);
     try {
-      const accId = account.providerAccountId || account.username || account.id;
-      if (isCurrentlySuspended) {
-        await unsuspendHostingAccount(accId);
-      } else {
-        await suspendHostingAccount(accId);
+      if (!isAccountVps) {
+        const accId = account.providerAccountId || account.username || account.id;
+        if (isCurrentlySuspended) {
+          await unsuspendHostingAccount(accId);
+        } else {
+          await suspendHostingAccount(accId);
+        }
       }
 
       const newStatus = isCurrentlySuspended ? 'active' : 'suspended';
@@ -196,6 +231,93 @@ export const ActiveHostingAccounts: React.FC = () => {
       toast.error(`Failed to ${actionText}: ` + error.message, { id: toastId });
     }
   };
+
+  const handleOpenVpsModal = (account: HostingAccountItem) => {
+    setVpsModalAccount(account);
+    const vps = account.vpsDetails || {};
+    setVpsForm({
+      serverIp: account.serverIp || '',
+      hostname: vps.hostname || account.domain || '',
+      os: vps.os || 'Ubuntu 22.04 LTS',
+      rootPassword: vps.rootPassword || '',
+      status: account.status || 'active',
+    });
+    setShowVpsRootPass(false);
+  };
+
+  const handleSaveVps = async () => {
+    if (!vpsModalAccount) return;
+    setSavingVps(true);
+    try {
+      const updatedVpsDetails = {
+        ...(vpsModalAccount.vpsDetails || {}),
+        hostname: vpsForm.hostname.trim(),
+        os: vpsForm.os,
+        rootPassword: vpsForm.rootPassword.trim(),
+      };
+
+      await updateDoc(doc(db, 'hostingAccounts', vpsModalAccount.id), {
+        serverIp: vpsForm.serverIp.trim(),
+        domain: vpsForm.hostname.trim() || vpsModalAccount.domain,
+        status: vpsForm.status,
+        vpsDetails: updatedVpsDetails,
+        updatedAt: new Date().toISOString(),
+      });
+
+      setAccounts(prev => prev.map(a => a.id === vpsModalAccount.id ? {
+        ...a,
+        serverIp: vpsForm.serverIp.trim(),
+        domain: vpsForm.hostname.trim() || a.domain,
+        status: vpsForm.status,
+        vpsDetails: updatedVpsDetails,
+      } : a));
+
+      toast.success('VPS configuration updated successfully!');
+      setVpsModalAccount(null);
+    } catch (err: any) {
+      console.error('Save VPS error:', err);
+      toast.error('Failed to update VPS: ' + err.message);
+    } finally {
+      setSavingVps(false);
+    }
+  };
+
+  const handleSendVpsActivationEmail = async (account: HostingAccountItem) => {
+    if (!account.serverIp) {
+      toast.error('Please assign a Dedicated Server IP first before sending activation email.');
+      return;
+    }
+    const customerEmail = account.customerEmail;
+    if (!customerEmail) {
+      const email = window.prompt(`Customer email not found. Enter email address for ${account.domain || account.id}:`);
+      if (!email) return;
+      account.customerEmail = email;
+    }
+
+    const toastId = toast.loading('Sending VPS activation email...');
+    try {
+      const vps = account.vpsDetails || {};
+      const success = await sendServiceActivationEmail(account.orderId || account.id, account.customerEmail, {
+        domain: vps.hostname || account.domain || account.planId,
+        serverIp: account.serverIp,
+        isVps: true,
+        hostname: vps.hostname || account.domain,
+        os: vps.os || 'Ubuntu 22.04 LTS',
+        serverLocation: vps.serverLocation || 'Dhaka BDIX / Global',
+        rootPassword: vps.rootPassword,
+        sshCommand: `ssh root@${account.serverIp}`,
+      });
+
+      if (success) {
+        toast.success(`VPS credentials email sent to ${account.customerEmail}!`, { id: toastId });
+      } else {
+        toast.error('Failed to send activation email.', { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error('Error: ' + err.message, { id: toastId });
+    }
+  };
+
 
     const handleTerminate = async (account: HostingAccountItem) => {
     if (!isAdmin) { toast.error('You do not have permission to delete this.'); return; }
@@ -349,19 +471,24 @@ export const ActiveHostingAccounts: React.FC = () => {
       acc.customerName?.toLowerCase().includes(q) ||
       acc.customerEmail?.toLowerCase().includes(q) ||
       acc.username?.toLowerCase().includes(q) ||
-      acc.planId?.toLowerCase().includes(q);
+      acc.planId?.toLowerCase().includes(q) ||
+      acc.serverIp?.toLowerCase().includes(q) ||
+      acc.vpsDetails?.hostname?.toLowerCase().includes(q);
 
     const matchStatus = statusFilter === 'all' || acc.status === statusFilter;
     const matchPlan = planFilter === 'all' || acc.planId?.toLowerCase() === planFilter.toLowerCase();
+    const isThisVps = isVps(acc);
+    const matchType = typeFilter === 'all' || (typeFilter === 'vps' ? isThisVps : !isThisVps);
 
-    return matchQuery && matchStatus && matchPlan;
+    return matchQuery && matchStatus && matchPlan && matchType;
   });
 
   // Calculate metrics
   const totalCount = accounts.length;
   const activeCount = accounts.filter(a => a.status === 'active').length;
+  const vpsCount = accounts.filter(isVps).length;
   const suspendedCount = accounts.filter(a => a.status === 'suspended').length;
-  const pendingCount = accounts.filter(a => a.status === 'pending' || a.status === 'provisioning').length;
+  const pendingCount = accounts.filter(a => a.status === 'pending' || a.status === 'pending_setup' || a.status === 'provisioning').length;
 
   return (
     <div className="space-y-6">
@@ -400,44 +527,54 @@ export const ActiveHostingAccounts: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
+          <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Accounts</p>
-            <p className="text-2xl font-black text-gray-900 mt-0.5">{totalCount}</p>
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Total Servers</p>
+            <p className="text-xl font-black text-gray-900 mt-0.5">{totalCount}</p>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
+          <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Live</p>
-            <p className="text-2xl font-black text-emerald-600 mt-0.5">{activeCount}</p>
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Active cPanel</p>
+            <p className="text-xl font-black text-emerald-600 mt-0.5">{activeCount}</p>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+        <div className="bg-white p-4 rounded-2xl border border-purple-100 shadow-sm flex items-center gap-3 bg-gradient-to-br from-purple-50/30 to-white">
+          <div className="p-2.5 bg-purple-100 text-purple-700 rounded-xl shadow-xs">
+            <Terminal className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-purple-700 uppercase tracking-wider">Cloud VPS</p>
+            <p className="text-xl font-black text-purple-900 mt-0.5">{vpsCount}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
+          <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
             <ShieldAlert className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Suspended</p>
-            <p className="text-2xl font-black text-amber-600 mt-0.5">{suspendedCount}</p>
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Suspended</p>
+            <p className="text-xl font-black text-amber-600 mt-0.5">{suspendedCount}</p>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
+          <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending Provision</p>
-            <p className="text-2xl font-black text-purple-600 mt-0.5">{pendingCount}</p>
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Pending Setup</p>
+            <p className="text-xl font-black text-indigo-600 mt-0.5">{pendingCount}</p>
           </div>
         </div>
       </div>
@@ -448,14 +585,24 @@ export const ActiveHostingAccounts: React.FC = () => {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="Search domain, username, email..."
+            placeholder="Search domain, IP, hostname, email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500 focus:bg-white transition-all"
           />
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto flex-wrap">
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as any)}
+            className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 outline-none focus:border-blue-500"
+          >
+            <option value="all">All Server Types</option>
+            <option value="shared">Shared cPanel Hosting</option>
+            <option value="vps">Cloud VPS Servers</option>
+          </select>
+
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
@@ -463,8 +610,8 @@ export const ActiveHostingAccounts: React.FC = () => {
           >
             <option value="all">All Status</option>
             <option value="active">Active Only</option>
+            <option value="pending_setup">Pending Setup</option>
             <option value="suspended">Suspended</option>
-            <option value="pending">Pending</option>
             <option value="terminated">Terminated</option>
           </select>
 
@@ -511,6 +658,140 @@ export const ActiveHostingAccounts: React.FC = () => {
                 </tr>
               ) : (
                 filteredAccounts.map((account) => {
+                  if (isVps(account)) {
+                    const vps = account.vpsDetails || {};
+                    const hostname = vps.hostname || account.domain || account.planId || 'Cloud VPS';
+                    const hasIp = Boolean(account.serverIp);
+
+                    return (
+                      <tr key={account.id} className="hover:bg-purple-50/40 transition-colors bg-purple-50/10">
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                              <Terminal size={16} />
+                            </div>
+                            <div>
+                              <div className="font-bold text-gray-900 flex items-center gap-1.5">
+                                <span>{hostname}</span>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 uppercase tracking-wide">
+                                  VPS
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-500 font-mono flex items-center gap-2 mt-0.5">
+                                <span className={cn("font-semibold", hasIp ? "text-purple-700" : "text-amber-600")}>
+                                  IP: {account.serverIp || 'Not Assigned'}
+                                </span>
+                                <span>•</span>
+                                <span>{vps.os || 'Linux'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <div>
+                            <span className="px-2.5 py-0.5 rounded-md bg-purple-100 text-purple-800 text-xs font-bold uppercase tracking-wide">
+                              {account.planId || 'Cloud VPS'}
+                            </span>
+                            <p className="text-xs text-gray-500 mt-1 capitalize font-medium">
+                              {account.billingCycle || 'Monthly'} Cycle • {vps.serverLocation || 'BDIX / Global'}
+                            </p>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <div className="space-y-1">
+                            <div className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                              <Cpu size={13} className="text-purple-600" />
+                              <span>{vps.cores || '2 vCPU'} / {vps.ram || '4 GB RAM'}</span>
+                            </div>
+                            <div className="text-xs text-gray-500 font-medium">
+                              Storage: {vps.storage || '50 GB NVMe'}
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <div className="space-y-1">
+                            <div className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                              <Globe size={13} className="text-indigo-600" />
+                              <span>{vps.bandwidth || '2 TB Transfer'}</span>
+                            </div>
+                            {account.serverIp ? (
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`ssh root@${account.serverIp}`);
+                                  toast.success('SSH command copied');
+                                }}
+                                className="text-[11px] font-mono text-purple-700 hover:text-purple-900 flex items-center gap-1 bg-purple-50 px-2 py-0.5 rounded transition"
+                                title="Copy SSH Command"
+                              >
+                                <Copy size={10} />
+                                <span>ssh root@{account.serverIp}</span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-amber-600 font-medium">Awaiting IP Allocation</span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1",
+                            account.status === 'active' ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                            account.status === 'suspended' ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                            account.status === 'terminated' ? "bg-red-50 text-red-700 border border-red-200" :
+                            "bg-purple-100 text-purple-800 border border-purple-200 animate-pulse"
+                          )}>
+                            {account.status === 'active' && <CheckCircle size={11} />}
+                            {account.status === 'suspended' && <ShieldAlert size={11} />}
+                            {account.status === 'pending_setup' ? 'Pending Setup' : account.status}
+                          </span>
+                        </td>
+
+                        <td className="py-4 px-6 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenVpsModal(account)}
+                              className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition shadow-xs inline-flex items-center gap-1.5"
+                              title="Configure Dedicated IP, OS, Root Password"
+                            >
+                              <Settings size={13} />
+                              Manage VPS
+                            </button>
+
+                            <button
+                              onClick={() => handleSendVpsActivationEmail(account)}
+                              className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"
+                              title="Send VPS Activation Credentials Email"
+                            >
+                              <Mail size={15} />
+                            </button>
+
+                            <button
+                              onClick={() => handleToggleSuspend(account)}
+                              className={cn(
+                                "p-1.5 rounded-lg transition",
+                                account.status === 'suspended' ? "text-emerald-600 hover:bg-emerald-50" : "text-amber-600 hover:bg-amber-50"
+                              )}
+                              title={account.status === 'suspended' ? "Unsuspend VPS" : "Suspend VPS"}
+                            >
+                              {account.status === 'suspended' ? <ShieldCheck size={15} /> : <ShieldAlert size={15} />}
+                            </button>
+
+                            <button
+                              onClick={() => handleTerminate(account)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                              title="Delete VPS Account (Permanent)"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+
                   const usage = usageStats[account.id];
                   const isLoadingThis = loadingUsage[account.id];
                   const cPanelLoginUrl = account.cPanelUrl || account.controlPanelUrl || `https://${account.domain || account.username || account.id || 'Unknown Domain'}:2083`;
@@ -878,10 +1159,253 @@ export const ActiveHostingAccounts: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Manage VPS Modal */}
+      {vpsModalAccount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-xl p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 my-8">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shadow-xs">
+                  <Terminal className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-lg">Manage Cloud VPS Server</h3>
+                  <p className="text-xs text-gray-500 font-mono">
+                    {vpsModalAccount.vpsDetails?.hostname || vpsModalAccount.domain || vpsModalAccount.id}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setVpsModalAccount(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Plan & Specs badge */}
+              <div className="bg-purple-50/70 border border-purple-100 p-3.5 rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs">
+                <div>
+                  <span className="text-gray-500 font-medium">Plan:</span>{' '}
+                  <span className="font-bold text-purple-900 uppercase">{vpsModalAccount.planId || 'Cloud VPS'}</span>
+                  <span className="text-gray-400 mx-1.5">•</span>
+                  <span className="text-gray-500 font-medium">Cycle:</span>{' '}
+                  <span className="font-semibold text-gray-800 capitalize">{vpsModalAccount.billingCycle || 'Monthly'}</span>
+                </div>
+                <div className="text-purple-700 font-semibold">
+                  {vpsModalAccount.vpsDetails?.cores || '2 vCPU'} • {vpsModalAccount.vpsDetails?.ram || '4 GB RAM'} • {vpsModalAccount.vpsDetails?.storage || '50 GB NVMe'}
+                </div>
+              </div>
+
+              {/* Dedicated IP Field */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Dedicated Server IP (IPv4) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 103.145.118.55"
+                  value={vpsForm.serverIp}
+                  onChange={(e) => setVpsForm(prev => ({ ...prev, serverIp: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono text-gray-900 outline-none focus:border-purple-600 focus:bg-white transition"
+                />
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Static IPv4 allocated for this customer's virtual machine.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Hostname */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Server Hostname
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. vps.clientdomain.com"
+                    value={vpsForm.hostname}
+                    onChange={(e) => setVpsForm(prev => ({ ...prev, hostname: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono text-gray-900 outline-none focus:border-purple-600 focus:bg-white transition"
+                  />
+                </div>
+
+                {/* Operating System */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Operating System Template
+                  </label>
+                  <select
+                    value={vpsForm.os}
+                    onChange={(e) => setVpsForm(prev => ({ ...prev, os: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-purple-600 focus:bg-white transition"
+                  >
+                    <option value="Ubuntu 22.04 LTS">Ubuntu 22.04 LTS</option>
+                    <option value="Ubuntu 24.04 LTS">Ubuntu 24.04 LTS</option>
+                    <option value="Debian 12">Debian 12 Bookworm</option>
+                    <option value="AlmaLinux 9">AlmaLinux 9 (cPanel Ready)</option>
+                    <option value="Rocky Linux 9">Rocky Linux 9</option>
+                    <option value="Windows Server 2022">Windows Server 2022</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Root / Administrator Password */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Root / Administrator Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()_+';
+                      let generated = '';
+                      for (let i = 0; i < 16; i++) {
+                        generated += chars.charAt(Math.floor(Math.random() * chars.length));
+                      }
+                      setVpsForm(prev => ({ ...prev, rootPassword: generated }));
+                      setShowVpsRootPass(true);
+                      toast.success('Generated new strong root password');
+                    }}
+                    className="text-xs font-semibold text-purple-600 hover:text-purple-800 transition"
+                  >
+                    Generate Strong Password
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showVpsRootPass ? 'text' : 'password'}
+                    placeholder="Enter root password"
+                    value={vpsForm.rootPassword}
+                    onChange={(e) => setVpsForm(prev => ({ ...prev, rootPassword: e.target.value }))}
+                    className="w-full pl-3.5 pr-20 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono text-gray-900 outline-none focus:border-purple-600 focus:bg-white transition"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowVpsRootPass(prev => !prev)}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"
+                      title={showVpsRootPass ? "Hide" : "Show"}
+                    >
+                      {showVpsRootPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                    {vpsForm.rootPassword && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(vpsForm.rootPassword);
+                          toast.success('Root password copied to clipboard');
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-purple-600 rounded-lg"
+                        title="Copy Password"
+                      >
+                        <Copy size={15} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Select */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  VPS Server Status
+                </label>
+                <select
+                  value={vpsForm.status}
+                  onChange={(e) => setVpsForm(prev => ({ ...prev, status: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 outline-none focus:border-purple-600 focus:bg-white transition"
+                >
+                  <option value="pending_setup">Pending Setup (Awaiting IP / Deploy)</option>
+                  <option value="active">Active (Online & Running)</option>
+                  <option value="suspended">Suspended (Service Paused)</option>
+                  <option value="terminated">Terminated (Cancelled)</option>
+                </select>
+              </div>
+
+              {/* SSH Connect Command Helper */}
+              {vpsForm.serverIp && (
+                <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-800 text-slate-100 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <Terminal className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="font-mono text-xs truncate">ssh root@{vpsForm.serverIp}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`ssh root@${vpsForm.serverIp}`);
+                      toast.success('SSH command copied to clipboard');
+                    }}
+                    className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-emerald-400 rounded-lg transition shrink-0"
+                    title="Copy SSH Command"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* SSH Public Key Display if client provided it */}
+              {vpsModalAccount.vpsDetails?.sshKey && (
+                <div className="border border-gray-200 rounded-xl p-3 bg-gray-50/70">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-gray-700">Client's SSH Public Key:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(vpsModalAccount.vpsDetails.sshKey);
+                        toast.success('SSH Key copied');
+                      }}
+                      className="text-xs text-purple-600 hover:underline flex items-center gap-1 font-semibold"
+                    >
+                      <Copy size={12} /> Copy
+                    </button>
+                  </div>
+                  <pre className="font-mono text-[11px] text-gray-600 whitespace-pre-wrap break-all max-h-20 overflow-y-auto select-all">
+                    {vpsModalAccount.vpsDetails.sshKey}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between gap-3 pt-3 border-t">
+              <button
+                type="button"
+                onClick={() => handleSendVpsActivationEmail(vpsModalAccount)}
+                className="px-4 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold rounded-xl text-xs flex items-center gap-2 transition"
+                title="Send credentials and SSH access instructions to customer"
+              >
+                <Mail size={15} />
+                Send Activation Email
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVpsModalAccount(null)}
+                  className="px-4 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveVps}
+                  disabled={savingVps}
+                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-200 transition disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {savingVps ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check size={14} />}
+                  {savingVps ? 'Saving...' : 'Save VPS Settings'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 export default ActiveHostingAccounts;
-
 
 

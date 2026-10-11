@@ -6,7 +6,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { Layout } from '../../components/Layout';
 import { formatCurrency } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { Lock, ShieldCheck, Terminal, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server, Key, Copy, Check } from 'lucide-react';
+import { Lock, ShieldCheck, Terminal, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server, Key, Copy, Check, Eye, EyeOff, Sparkles, RefreshCw, Globe, Cpu, Layers } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, addDoc, query, where, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { generateDocumentNumber } from '../../lib/numbering';
@@ -57,6 +57,74 @@ export const HostingCheckout: React.FC = () => {
     domain: ''
   });
 
+  const isVpsItem = (item: any) => {
+    const slug = (item.planSlug || item.id || '').toLowerCase();
+    const name = (item.name || '').toLowerCase();
+    return (
+      item.itemType === 'vps' ||
+      slug.includes('vps') ||
+      name.includes('vps') ||
+      Boolean(item.details?.os)
+    );
+  };
+
+  const [vpsConfig, setVpsConfig] = useState({
+    hostname: '',
+    os: 'Ubuntu 22.04 LTS',
+    serverLocation: 'Dhaka, Bangladesh (BDIX Low-Latency)',
+    rootPassword: '',
+    sshKey: '',
+    notes: ''
+  });
+  const [showRootPassword, setShowRootPassword] = useState(false);
+  const [copiedRootPassword, setCopiedRootPassword] = useState(false);
+
+  useEffect(() => {
+    const firstVps = items.find(isVpsItem);
+    if (firstVps) {
+      const requestedOs = firstVps.details?.os;
+      const cartOs = (typeof requestedOs === 'string' && requestedOs) ||
+        (firstVps.name.includes('Ubuntu 24') ? 'Ubuntu 24.04 LTS' :
+         firstVps.name.includes('Ubuntu') ? 'Ubuntu 22.04 LTS' :
+         firstVps.name.includes('Debian') ? 'Debian 12 Bookworm' :
+         firstVps.name.includes('AlmaLinux') ? 'AlmaLinux 9' :
+         firstVps.name.includes('Windows') ? 'Windows Server 2022' : 'Ubuntu 22.04 LTS');
+
+      setVpsConfig(prev => ({
+        ...prev,
+        os: prev.os || cartOs
+      }));
+    }
+  }, [items]);
+
+  const generateStrongPassword = () => {
+    const uppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const lowercase = "abcdefghijkmnopqrstuvwxyz";
+    const numbers = "23456789";
+    const symbols = "!@#$%&*+?";
+    const all = uppercase + lowercase + numbers + symbols;
+    
+    let pwd = "";
+    pwd += uppercase[Math.floor(Math.random() * uppercase.length)];
+    pwd += lowercase[Math.floor(Math.random() * lowercase.length)];
+    pwd += numbers[Math.floor(Math.random() * numbers.length)];
+    pwd += symbols[Math.floor(Math.random() * symbols.length)];
+    
+    for (let i = 4; i < 16; i++) {
+      pwd += all[Math.floor(Math.random() * all.length)];
+    }
+    pwd = pwd.split('').sort(() => 0.5 - Math.random()).join('');
+    
+    setVpsConfig(prev => ({ ...prev, rootPassword: pwd }));
+    setShowRootPassword(true);
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(pwd);
+    }
+    setCopiedRootPassword(true);
+    setTimeout(() => setCopiedRootPassword(false), 2500);
+    toast.success("Strong root password generated & copied to clipboard!");
+  };
+
   const [transferAuthCodes, setTransferAuthCodes] = useState<Record<string, string>>({});
   const [bkashNumber, setBkashNumber] = useState('');
   const [copiedNumber, setCopiedNumber] = useState(false);
@@ -81,6 +149,8 @@ export const HostingCheckout: React.FC = () => {
   }, [settings]);
 
   const hasDomain = items.some(i => i.itemType === 'domain');
+  const hasVps = items.some(isVpsItem);
+  const hasSharedHosting = items.some(i => i.itemType === 'hosting' && !isVpsItem(i));
   const hasHosting = items.some(i => i.itemType === 'hosting');
   const hasTransfer = items.some(i => i.itemType === 'domain_transfer');
 
@@ -182,10 +252,23 @@ export const HostingCheckout: React.FC = () => {
       return;
     }
 
-    if (hasHosting && !hasDomain) {
+    if (hasSharedHosting && !hasDomain) {
       const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
       if (!hostingConfig.domain || !domainRegex.test(hostingConfig.domain)) {
         toast.error('Please enter a valid domain name for your hosting plan.');
+        return;
+      }
+    }
+
+    if (hasVps) {
+      const hostname = vpsConfig.hostname.trim();
+      const hostnameRegex = /^[a-zA-Z0-9][a-zA-Z0-9.-]{1,61}[a-zA-Z0-9]$/;
+      if (!hostname || !hostnameRegex.test(hostname)) {
+        toast.error('Please enter a valid server hostname (e.g., srv1.mydomain.com) for your Cloud VPS.');
+        return;
+      }
+      if (!vpsConfig.rootPassword.trim() || vpsConfig.rootPassword.trim().length < 8) {
+        toast.error('Please enter or generate a secure root password (at least 8 characters) for your Cloud VPS.');
         return;
       }
     }
@@ -241,9 +324,17 @@ export const HostingCheckout: React.FC = () => {
         transactionId: ['bkash', 'bank'].includes(formData.paymentMethod) ? formData.transactionId.trim() : null,
         discountAmount: discountAmount,
         appliedDiscountCode: appliedDiscount ? appliedDiscount.code : null,
+        vpsConfig: hasVps ? {
+          hostname: vpsConfig.hostname.trim(),
+          os: vpsConfig.os,
+          serverLocation: vpsConfig.serverLocation,
+          rootPassword: vpsConfig.rootPassword,
+          sshKey: vpsConfig.sshKey.trim(),
+          notes: vpsConfig.notes.trim()
+        } : null,
         createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+        updatedAt: new Date().toISOString(),
+      };
 
       const batch = writeBatch(db);
       const newOrderRef = doc(collection(db, 'orders'));
@@ -332,20 +423,37 @@ export const HostingCheckout: React.FC = () => {
 
       for (const hostingItem of hostingItems) {
         const hAccountRef = doc(collection(db, 'hostingAccounts'));
-        const packageSlug = hostingItem.planSlug || hostingItem.planId || hostingItem.id.replace('hosting_', '').replace('dynamic-hosting-', '').split('-')[0] || 'starter';
+        const isItemVps = isVpsItem(hostingItem);
+        const packageSlug = hostingItem.planSlug || hostingItem.planId || hostingItem.id.replace('hosting_', '').replace('dynamic-hosting-', '').split('-')[0] || (isItemVps ? 'vps_starter' : 'starter');
         
         batch.set(hAccountRef, {
           userId: user?.uid || 'guest',
           orderId: newOrderRef.id,
           planId: packageSlug,
-          domain: hostingConfig.domain || null,
-          provider: 'cpanel',
+          domain: isItemVps ? vpsConfig.hostname.trim() : (hostingConfig.domain || null),
+          provider: isItemVps ? 'vps' : 'cpanel',
+          type: isItemVps ? 'vps' : 'shared',
           status: 'pending',
           provisioningStatus: 'pending',
           billingCycle: hostingItem.billingCycle || 'monthly',
           autoRenew: false,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+          ...(isItemVps ? {
+            vpsDetails: {
+              hostname: vpsConfig.hostname.trim(),
+              os: vpsConfig.os,
+              serverLocation: vpsConfig.serverLocation,
+              rootPassword: vpsConfig.rootPassword,
+              sshKey: vpsConfig.sshKey.trim(),
+              notes: vpsConfig.notes.trim(),
+              cores: hostingItem.details?.cores || '2 vCPU',
+              ram: hostingItem.details?.ram || '4 GB',
+              storage: hostingItem.details?.storage || '60 GB NVMe',
+              bandwidth: hostingItem.details?.bandwidth || '2 TB',
+              ipv4: hostingItem.details?.ipv4 || '1 Dedicated IPv4'
+            }
+          } : {})
         });
 
         // Also write to hostingOrders collection with explicit fields
@@ -357,7 +465,7 @@ export const HostingCheckout: React.FC = () => {
           packageSlug: packageSlug,
           billingCycle: hostingItem.billingCycle || 'monthly',
           price: grandTotal,
-          domain: hostingConfig.domain || '',
+          domain: isItemVps ? vpsConfig.hostname.trim() : (hostingConfig.domain || ''),
           customerInfo: {
             name: `${formData.firstName} ${formData.lastName}`.trim(),
             email: formData.email,
@@ -366,7 +474,15 @@ export const HostingCheckout: React.FC = () => {
             city: formData.city,
             country: formData.country,
           },
-          status: 'pending'
+          status: 'pending',
+          vpsConfig: isItemVps ? {
+            hostname: vpsConfig.hostname.trim(),
+            os: vpsConfig.os,
+            serverLocation: vpsConfig.serverLocation,
+            rootPassword: vpsConfig.rootPassword,
+            sshKey: vpsConfig.sshKey.trim(),
+            notes: vpsConfig.notes.trim()
+          } : null
         });
       }
 
@@ -475,86 +591,255 @@ export const HostingCheckout: React.FC = () => {
             {/* Left Column (Forms) */}
             <div className="lg:col-span-2 space-y-6">
               
-              {/* Product Configuration */}
-              {(hasDomain || hasHosting) && (
+              {/* Cloud VPS Server Configuration */}
+              {hasVps && (
+                <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-indigo-50 bg-gradient-to-r from-indigo-50/80 to-purple-50/50 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-xs">
+                        <Terminal className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-gray-900">Cloud VPS Server Configuration</h2>
+                        <p className="text-xs text-gray-500">KVM Hardware Virtualization & Dedicated Resources</p>
+                      </div>
+                    </div>
+                    <span className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full">
+                      <Cpu size={12} /> Root Access
+                    </span>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                    {/* Server Hostname */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                          <Globe size={15} className="text-indigo-600" /> Server Hostname *
+                        </label>
+                        <span className="text-[11px] text-gray-400">FQDN (e.g., srv1.mydomain.com)</span>
+                      </div>
+                      <input 
+                        type="text" 
+                        placeholder="e.g., srv1.yourdomain.com or server.company.io"
+                        value={vpsConfig.hostname}
+                        onChange={(e) => setVpsConfig({ ...vpsConfig, hostname: e.target.value })}
+                        required
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 font-mono text-sm outline-none transition-all" 
+                      />
+                      <p className="text-xs text-gray-500">Your server's primary network hostname used for PTR and DNS identity.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* Operating System */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                          <Layers size={15} className="text-indigo-600" /> Operating System Template *
+                        </label>
+                        <select
+                          value={vpsConfig.os}
+                          onChange={(e) => setVpsConfig({ ...vpsConfig, os: e.target.value })}
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 text-sm font-medium bg-white outline-none transition-all"
+                        >
+                          <option value="Ubuntu 22.04 LTS">Ubuntu 22.04 LTS (Recommended)</option>
+                          <option value="Ubuntu 24.04 LTS">Ubuntu 24.04 LTS (Latest LTS)</option>
+                          <option value="Debian 12 Bookworm">Debian 12 Bookworm (Lightweight)</option>
+                          <option value="AlmaLinux 9">AlmaLinux 9 (cPanel / Enterprise)</option>
+                          <option value="Windows Server 2022">Windows Server 2022 (RDP Access)</option>
+                        </select>
+                        <p className="text-xs text-gray-500">Pre-installed operating system template image.</p>
+                      </div>
+
+                      {/* Datacenter Location */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                          <Server size={15} className="text-indigo-600" /> Primary Datacenter Location *
+                        </label>
+                        <select
+                          value={vpsConfig.serverLocation}
+                          onChange={(e) => setVpsConfig({ ...vpsConfig, serverLocation: e.target.value })}
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 text-sm font-medium bg-white outline-none transition-all"
+                        >
+                          <option value="Dhaka, Bangladesh (BDIX Low-Latency)">Dhaka, Bangladesh (BDIX Low-Latency)</option>
+                          <option value="Singapore (Equinix SG1 / Tier-4)">Singapore (Equinix SG1 / Tier-4)</option>
+                          <option value="Frankfurt, Germany (Tier-3)">Frankfurt, Germany (Tier-3)</option>
+                          <option value="Dallas, USA (Central Low-Latency)">Dallas, USA (Central Low-Latency)</option>
+                        </select>
+                        <p className="text-xs text-gray-500">Physical facility housing your virtual machine.</p>
+                      </div>
+                    </div>
+
+                    {/* Root / Administrator Password */}
+                    <div className="space-y-2 pt-2 border-t border-gray-100">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <label className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                          <Key size={15} className="text-indigo-600" /> Root / Administrator Password *
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={generateStrongPassword}
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-200/60"
+                          >
+                            <Sparkles size={12} className="text-indigo-600" /> Generate Strong Password
+                          </button>
+                          {vpsConfig.rootPassword && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard?.writeText(vpsConfig.rootPassword);
+                                setCopiedRootPassword(true);
+                                toast.success("Password copied!");
+                                setTimeout(() => setCopiedRootPassword(false), 2000);
+                              }}
+                              className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                              {copiedRootPassword ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                              {copiedRootPassword ? "Copied" : "Copy"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="relative">
+                        <input 
+                          type={showRootPassword ? "text" : "password"} 
+                          placeholder="Enter or generate a secure root password (min 8 chars)"
+                          value={vpsConfig.rootPassword}
+                          onChange={(e) => setVpsConfig({ ...vpsConfig, rootPassword: e.target.value })}
+                          required
+                          className="w-full px-4 py-2.5 pr-12 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 font-mono text-sm outline-none transition-all" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRootPassword(!showRootPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                        >
+                          {showRootPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500">You will need this password along with your Dedicated IPv4 to connect via SSH or Remote Desktop.</p>
+                    </div>
+
+                    {/* SSH Public Key (Optional) */}
+                    <div className="space-y-2 pt-2 border-t border-gray-100">
+                      <div className="flex justify-between items-center">
+                        <label className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                          <Terminal size={15} className="text-indigo-600" /> SSH Public Key (Optional)
+                        </label>
+                        <span className="text-[11px] text-gray-400">Recommended for Linux</span>
+                      </div>
+                      <textarea
+                        rows={2}
+                        placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... or ssh-rsa AAAAB3NzaC1yc2E..."
+                        value={vpsConfig.sshKey}
+                        onChange={(e) => setVpsConfig({ ...vpsConfig, sshKey: e.target.value })}
+                        className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 font-mono text-xs outline-none transition-all resize-none"
+                      />
+                      <p className="text-xs text-gray-500">For passwordless, highly secure terminal access upon instance boot.</p>
+                    </div>
+
+                    {/* Server Setup Notes (Optional) */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-gray-700">
+                        Custom Partition or Setup Notes (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Please pre-install Docker, aaPanel, or keep disk unpartitioned"
+                        value={vpsConfig.notes}
+                        onChange={(e) => setVpsConfig({ ...vpsConfig, notes: e.target.value })}
+                        className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 text-xs outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Shared Hosting Domain Configuration */}
+              {(hasSharedHosting || (hasHosting && !hasVps)) && !hasDomain && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                   <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
                     <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                       <Server className="w-5 h-5 text-blue-600" />
-                      Product Configuration
+                      Shared Hosting Configuration
                     </h2>
                   </div>
-                  <div className="p-6 space-y-6">
-                    {hasHosting && !hasDomain && (
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-medium text-gray-900">Hosting Domain</h3>
-                        <p className="text-sm text-gray-500">Please specify the domain name you will use for your hosting plan.</p>
-                        <input 
-                          type="text" 
-                          placeholder="e.g., mydomain.com"
-                          value={hostingConfig.domain}
-                          onChange={(e) => setHostingConfig({...hostingConfig, domain: e.target.value})}
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" 
-                        />
-                      </div>
-                    )}
+                  <div className="p-6 space-y-3">
+                    <h3 className="text-sm font-medium text-gray-900">Hosting Domain</h3>
+                    <p className="text-sm text-gray-500">Please specify the domain name you will use for your cPanel hosting plan.</p>
+                    <input 
+                      type="text" 
+                      placeholder="e.g., mydomain.com"
+                      value={hostingConfig.domain}
+                      onChange={(e) => setHostingConfig({...hostingConfig, domain: e.target.value})}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" 
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Domain Nameservers Configuration */}
+              {hasDomain && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <Globe className="w-5 h-5 text-blue-600" />
+                      Domain Nameservers Configuration
+                    </h2>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <h3 className="text-sm font-medium text-gray-900">Nameservers</h3>
                     
-                    {hasDomain && (
-                      <div className="space-y-4">
-                        <h3 className="text-sm font-medium text-gray-900">Nameservers</h3>
-                        
-                        <div className="space-y-3">
-                          <label className="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
-                            <input 
-                              type="radio" 
-                              checked={!domainConfig.useCustomNs} 
-                              onChange={() => setDomainConfig({...domainConfig, useCustomNs: false})}
-                              className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                            />
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">Use Default Nameservers</p>
-                              <p className="text-xs text-gray-500">ns1.click2itbd.com, ns2.click2itbd.com (Recommended)</p>
-                            </div>
-                          </label>
-
-                          <label className="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
-                            <input 
-                              type="radio" 
-                              checked={domainConfig.useCustomNs} 
-                              onChange={() => setDomainConfig({...domainConfig, useCustomNs: true})}
-                              className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                            />
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">Use Custom Nameservers</p>
-                              <p className="text-xs text-gray-500">Enter your own nameservers below</p>
-                            </div>
-                          </label>
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                        <input 
+                          type="radio" 
+                          checked={!domainConfig.useCustomNs} 
+                          onChange={() => setDomainConfig({...domainConfig, useCustomNs: false})}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Use Default Nameservers</p>
+                          <p className="text-xs text-gray-500">ns1.click2itbd.com, ns2.click2itbd.com (Recommended)</p>
                         </div>
+                      </label>
 
-                        {domainConfig.useCustomNs && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 animate-in fade-in slide-in-from-top-2">
-                            <div className="space-y-1.5">
-                              <label className="text-sm font-medium text-gray-700">Nameserver 1</label>
-                              <input 
-                                type="text" 
-                                value={domainConfig.ns1}
-                                onChange={(e) => setDomainConfig({...domainConfig, ns1: e.target.value})}
-                                placeholder="ns1.example.com"
-                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" 
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className="text-sm font-medium text-gray-700">Nameserver 2</label>
-                              <input 
-                                type="text" 
-                                value={domainConfig.ns2}
-                                onChange={(e) => setDomainConfig({...domainConfig, ns2: e.target.value})}
-                                placeholder="ns2.example.com"
-                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" 
-                              />
-                            </div>
-                          </div>
-                        )}
+                      <label className="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                        <input 
+                          type="radio" 
+                          checked={domainConfig.useCustomNs} 
+                          onChange={() => setDomainConfig({...domainConfig, useCustomNs: true})}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Use Custom Nameservers</p>
+                          <p className="text-xs text-gray-500">Enter your own nameservers below</p>
+                        </div>
+                      </label>
+                    </div>
+
+                    {domainConfig.useCustomNs && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 animate-in fade-in slide-in-from-top-2">
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-medium text-gray-700">Nameserver 1</label>
+                          <input 
+                            type="text" 
+                            value={domainConfig.ns1}
+                            onChange={(e) => setDomainConfig({...domainConfig, ns1: e.target.value})}
+                            placeholder="ns1.example.com"
+                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" 
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-medium text-gray-700">Nameserver 2</label>
+                          <input 
+                            type="text" 
+                            value={domainConfig.ns2}
+                            onChange={(e) => setDomainConfig({...domainConfig, ns2: e.target.value})}
+                            placeholder="ns2.example.com"
+                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" 
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -816,22 +1101,37 @@ export const HostingCheckout: React.FC = () => {
                 <div className="p-6">
                   {/* Items List */}
                   <div className="space-y-4 mb-6 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                    {items.map((item) => (
-                      <div key={item.id} className="flex justify-between items-start text-sm pb-2 border-b border-gray-50 last:border-0">
-                        <div className="flex-1 pr-4">
-                          <p className="font-bold text-gray-900 line-clamp-2">{item.name}</p>
-                          <p className="text-gray-500 mt-0.5 text-xs flex items-center gap-1.5 flex-wrap">
-                            <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-semibold text-[10px]">
-                              {item.itemType === 'domain' 
-                                ? `${item.termYears || 1} Year${(item.termYears || 1) > 1 ? 's' : ''}` 
-                                : (item.billingCycle === 'monthly' ? 'Monthly' : `${item.termYears || 1} Year${(item.termYears || 1) > 1 ? 's' : ''}`)}
-                            </span>
-                            <span>{item.description || ''}</span>
-                          </p>
+                    {items.map((item) => {
+                      const itemIsVps = isVpsItem(item);
+                      return (
+                        <div key={item.id} className="flex justify-between items-start text-sm pb-2.5 border-b border-gray-50 last:border-0">
+                          <div className="flex-1 pr-4">
+                            <p className="font-bold text-gray-900 line-clamp-2">{item.name}</p>
+                            <div className="text-gray-500 mt-0.5 text-xs flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`px-1.5 py-0.5 rounded font-semibold text-[10px] ${itemIsVps ? 'bg-indigo-50 text-indigo-700' : 'bg-blue-50 text-blue-700'}`}>
+                                  {item.itemType === 'domain' 
+                                    ? `${item.termYears || 1} Year${(item.termYears || 1) > 1 ? 's' : ''}` 
+                                    : (item.billingCycle === 'monthly' ? 'Monthly' : `${item.termYears || 1} Year${(item.termYears || 1) > 1 ? 's' : ''}`)}
+                                </span>
+                                {itemIsVps && (
+                                  <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-semibold text-[10px]">
+                                    KVM VPS
+                                  </span>
+                                )}
+                                <span>{item.description || ''}</span>
+                              </div>
+                              {itemIsVps && (
+                                <p className="text-[11px] text-gray-600 font-mono">
+                                  {vpsConfig.hostname ? `Host: ${vpsConfig.hostname}` : 'Host: [Pending]'} • {vpsConfig.os}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <span className="font-black text-gray-900 whitespace-nowrap">{formatCurrency(item.price * item.quantity)}</span>
                         </div>
-                        <span className="font-black text-gray-900 whitespace-nowrap">{formatCurrency(item.price * item.quantity)}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Totals */}
@@ -944,7 +1244,6 @@ export const HostingCheckout: React.FC = () => {
     </Layout>
   );
 };
-
 
 
 

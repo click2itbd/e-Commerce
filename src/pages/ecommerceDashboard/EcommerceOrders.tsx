@@ -13,14 +13,16 @@ import { useConfirm } from '../../context/ConfirmContext';
 
 interface EcommerceOrdersProps {
   orders: Order[];
+  setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
   customers: Customer[];
-  updateOrderStatus: (orderId: string, newStatus: string) => Promise<void>;
+  updateOrderStatus: (orderId: string, newStatus: Order['status']) => Promise<void>;
   handleDeleteOrder: (id: string) => Promise<void>;
   updateOrderPaymentStatus?: (orderId: string, paymentStatus: string) => Promise<void>;
 }
 
 export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
   orders,
+  setOrders,
   customers,
   updateOrderStatus,
   handleDeleteOrder,
@@ -36,7 +38,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [bulkStatus, setBulkStatus] = useState('');
+  const [bulkStatus, setBulkStatus] = useState<Order['status'] | ''>('');
   const [bulkBusy, setBulkBusy] = useState(false);
   const [riskCache, setRiskCache] = useState<Record<string, CourierRiskReport>>({});
   const [loadingRiskPhone, setLoadingRiskPhone] = useState<string | null>(null);
@@ -98,7 +100,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
     setBulkBusy(true);
     for (const id of selectedIds) {
       const o = orders.find(x => x.id === id);
-      if (o && o.status !== bulkStatus) await updateOrderStatus(id, bulkStatus);
+      if (o && bulkStatus && o.status !== bulkStatus) await updateOrderStatus(id, bulkStatus);
     }
     setBulkBusy(false);
     setSelectedIds([]);
@@ -133,9 +135,9 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
     toast.success('Exported ' + list.length + ' orders');
   };
 
-  const handlePrint = (order: Order) => {
+  const handlePrint = async (order: Order) => {
     try {
-      const pdfDoc = generatePDF(order as any, 'invoice', settings);
+      const pdfDoc = await generatePDF(order as any, 'invoice', settings);
       pdfDoc.autoPrint();
       window.open(pdfDoc.output('bloburl'), '_blank');
     } catch (err) {
@@ -288,7 +290,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
       {selectedIds.length > 0 && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex flex-wrap items-center gap-3">
           <span className="text-sm font-bold text-blue-800">{selectedIds.length} selected</span>
-          <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="border border-blue-200 rounded-lg px-3 py-1.5 text-sm bg-white">
+          <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value as Order['status'] | '')} className="border border-blue-200 rounded-lg px-3 py-1.5 text-sm bg-white">
             <option value="">Change status to...</option>
             <option value="pending">Pending</option>
             <option value="processing">Processing</option>
@@ -369,7 +371,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
                       <div className="flex flex-col gap-1">
                         <select 
                           value={order.status}
-                          onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                          onChange={(e) => updateOrderStatus(order.id, e.target.value as Order['status'])}
                           className={`text-xs font-bold px-2 py-1 rounded w-fit uppercase border-none focus:ring-0 cursor-pointer ${
                             order.status === 'delivered' ? 'bg-green-100 text-green-700' :
                             order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :

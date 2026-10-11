@@ -65,7 +65,7 @@ export const HostingUpgradeModal: React.FC<HostingUpgradeModalProps> = ({ accoun
                   </div>
                   <div className="flex items-center gap-4 shrink-0">
                     <div className="text-right">
-                      <div className="font-bold text-blue-600 text-lg">?{plan.monthlyPrice}/mo</div>
+                      <div className="font-bold text-blue-600 text-lg">৳{plan.monthlyPrice}/mo</div>
                     </div>
                     <button
                       onClick={() => handleSelectPlan(plan)}

@@ -14,7 +14,8 @@ import {
   ShieldCheck, 
   Sparkles,
   Calendar,
-  Zap
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -134,14 +135,17 @@ export const HostingCart: React.FC = () => {
               </div>
 
               {items.map((item) => {
-                const isDomain = item.itemType === 'domain' || item.name.toLowerCase().includes('domain');
-                const isHosting = !isDomain;
+                const isTransfer = item.itemType === 'domain_transfer';
+                const isDomain = !isTransfer && (item.itemType === 'domain' || item.name.toLowerCase().includes('domain'));
+                const isHosting = !isTransfer && !isDomain;
 
                 return (
                   <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all hover:border-blue-200">
                     <div className="flex items-start gap-4">
                       <div className="bg-slate-50 p-3.5 rounded-2xl shrink-0 border border-slate-100">
-                        {isDomain ? (
+                        {isTransfer ? (
+                          <RefreshCw className="w-7 h-7 text-amber-600" />
+                        ) : isDomain ? (
                           <Globe className="w-7 h-7 text-indigo-600" />
                         ) : (
                           <Server className="w-7 h-7 text-blue-600" />
@@ -149,12 +153,27 @@ export const HostingCart: React.FC = () => {
                       </div>
                       
                       <div>
-                        <h3 className="text-base font-bold text-slate-900">{item.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-bold text-slate-900">{item.name}</h3>
+                          {isTransfer && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 uppercase tracking-wide">
+                              Transfer
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-slate-500 mt-0.5">
-                          {typeof item.details === 'object' && item.details !== null 
+                          {isTransfer ? 'Includes 1-Year Extension & Free WHOIS Privacy' : (typeof item.details === 'object' && item.details !== null 
                             ? 'Custom resource configuration' 
-                            : (item.details || (item.billingCycle === 'monthly' ? 'Billed Monthly' : 'Billed Annually'))}
+                            : (typeof item.details === 'string' ? item.details : (item.billingCycle === 'monthly' ? 'Billed Monthly' : 'Billed Annually')))}
                         </p>
+
+                        {/* Domain Transfer Notice */}
+                        {isTransfer && (
+                          <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs font-semibold text-amber-800">
+                            <Sparkles size={13} className="text-amber-600" />
+                            <span>1-Year Extension added upon transfer completion</span>
+                          </div>
+                        )}
 
                         {/* Multi-Year / Duration Selector for Domains */}
                         {isDomain && (
@@ -269,5 +288,4 @@ export const HostingCart: React.FC = () => {
     </Layout>
   );
 };
-
 

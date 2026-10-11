@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
+import { Order } from '../../../types';
 
 export const PENDING_STATUSES = ['pending', 'processing', 'on-hold'];
 export const PAID_STATUSES = ['paid', 'delivered', 'completed'];
 export const COLORS = ['#F59E0B', '#3B82F6'];
 
 export function useDashboardData() {
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [domainOrders, setDomainOrders] = useState([]);
   const [hostingAccounts, setHostingAccounts] = useState([]);
   const [tickets, setTickets] = useState([]);
@@ -26,7 +27,7 @@ export function useDashboardData() {
           getDocs(collection(db, 'users')),
         ]);
 
-        let fetchedOrders = ordSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        let fetchedOrders = ordSnap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
         fetchedOrders = fetchedOrders.filter(order => 
           order.items && order.items.some(item => 
             item.itemType === 'domain' || 

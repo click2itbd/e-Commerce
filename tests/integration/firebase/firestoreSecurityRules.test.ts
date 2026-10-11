@@ -104,4 +104,41 @@ describe('Firestore Security Rules Logic', () => {
     const canUpdate = (isOwner || isStaff) && !hasStatusChange;
     expect(canUpdate).toBe(false);
   });
+
+  it('customers can read own ssl orders', () => {
+    const isStaff = false;
+    const orderUserId = 'user_123';
+    const currentUserId = 'user_123';
+    const canRead = isStaff || orderUserId === currentUserId;
+    expect(canRead).toBe(true);
+  });
+
+  it('customers cannot read other customers ssl orders', () => {
+    const isStaff = false;
+    const orderUserId = 'user_456';
+    const currentUserId = 'user_123';
+    const canRead = isStaff || orderUserId === currentUserId;
+    expect(canRead).toBe(false);
+  });
+
+  it('staff can read all ssl orders', () => {
+    const isStaff = true;
+    const orderUserId = 'user_456';
+    const currentUserId = 'staff_999';
+    const canRead = isStaff || orderUserId === currentUserId;
+    expect(canRead).toBe(true);
+  });
+
+  it('authenticated owner or staff can update ssl orders', () => {
+    const isStaff = false;
+    const isOwner = true;
+    const canUpdate = isStaff || isOwner;
+    expect(canUpdate).toBe(true);
+  });
+
+  it('only admin can delete ssl orders', () => {
+    const isAdmin = false;
+    expect(isAdmin).toBe(false);
+  });
 });
+

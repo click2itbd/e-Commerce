@@ -17,22 +17,31 @@ export async function fetchCourierRisk(
 ): Promise<CourierRiskReport> {
   const cleanPhone = phone.replace(/[^0-9]/g, '');
   if (!cleanPhone || cleanPhone.length < 10) {
-    throw new Error('Valid 11-digit phone number is required');
+    throw new Error('সঠিক ১১ ডিজিটের মোবাইল নম্বর প্রদান করুন');
+  }
+
+  if (!apiKey || !secretKey) {
+    throw new Error('Steadfast API Key অথবা Secret Key কনফিগার করা নেই। Settings > Courier (Steadfast) এ গিয়ে আপনার API Key ও Secret Key সেট করুন।');
   }
 
   const effectivePhone = cleanPhone.length > 11 && cleanPhone.startsWith('88') 
     ? cleanPhone.slice(2) 
     : cleanPhone;
 
-  const res = await fetch(`https://click2itbd.com/steadfast.php?action=fraud_check&phone=${encodeURIComponent(effectivePhone)}`, {
+  const baseUrl = (typeof window !== 'undefined' && window.location.origin) 
+    ? window.location.origin 
+    : 'https://click2itbd.com';
+
+  const res = await fetch(`${baseUrl}/steadfast.php?action=fraud_check&phone=${encodeURIComponent(effectivePhone)}`, {
     headers: {
-      'Api-Key': apiKey || '',
-      'Secret-Key': secretKey || ''
+      'Api-Key': apiKey,
+      'Secret-Key': secretKey
     }
   });
 
   if (!res.ok) {
-    throw new Error(`Steadfast API error: ${res.statusText}`);
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.message || `Steadfast API ত্রুটি (${res.status}: ${res.statusText})`);
   }
 
   const data = await res.json();

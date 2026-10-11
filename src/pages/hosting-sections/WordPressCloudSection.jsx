@@ -268,7 +268,7 @@ export default function WordPressCloudSection() {
                   {/* Price Block */}
                   <div className="pb-5 mb-6 border-b border-gray-700/60">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-3xl md:text-4xl font-black text-white">? {price.toLocaleString()}</span>
+                        <span className="text-3xl md:text-4xl font-black text-white">৳ {price.toLocaleString()}</span>
                         <span className="text-xs text-gray-400 font-medium">{isAnnual ? '/year' : '/month'}</span>
                       </div>
                     {isAnnual && (

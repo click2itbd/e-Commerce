@@ -8,7 +8,7 @@ import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { cn } from '../lib/utils';
-import { NavigationMenu } from '../types';
+import { NavigationMenu, SubCategory } from '../types';
 
 export const Header: React.FC = () => {
   const { items } = useCart();
@@ -133,12 +133,13 @@ export const Header: React.FC = () => {
           <ul className="flex items-center gap-8 h-12">
             {menus.map(menu => {
               const isComponents = menu.name.toLowerCase() === 'components';
-              const subs = isComponents 
+              const menuSubs: SubCategory[] = menu.subCategories || [];
+              const subs: SubCategory[] = isComponents
                 ? [
-                    ...(menu.subCategories || []),
-                    ...pcBuilderCategories.filter(pc => !(menu.subCategories || []).some(sub => sub.slug.toLowerCase() === pc.slug.toLowerCase()))
+                    ...menuSubs,
+                    ...pcBuilderCategories.filter(pc => !menuSubs.some(sub => sub.slug.toLowerCase() === pc.slug.toLowerCase()))
                   ]
-                : (menu.subCategories || []);
+                : menuSubs;
 
               return (
               <li key={menu.id} className="relative group h-full">
@@ -181,7 +182,7 @@ export const Header: React.FC = () => {
             </li>
             <li className="h-full">
               <Link to="/hosting" className="flex items-center gap-2 h-full text-sm font-bold hover:underline" style={{ color: settings.accentColor }}>
-                 Hosting
+                 Domain & Hosting
               </Link>
             </li>
           </ul>
@@ -212,12 +213,13 @@ export const Header: React.FC = () => {
               <p className="text-xs font-bold text-gray-500 uppercase mb-2">Categories</p>
               {menus.map(menu => {
                 const isComponents = menu.name.toLowerCase() === 'components';
-                const subs = isComponents 
+                const menuSubs: SubCategory[] = menu.subCategories || [];
+                const subs: SubCategory[] = isComponents
                   ? [
-                      ...(menu.subCategories || []),
-                      ...pcBuilderCategories.filter(pc => !(menu.subCategories || []).some(sub => sub.slug.toLowerCase() === pc.slug.toLowerCase()))
+                      ...menuSubs,
+                      ...pcBuilderCategories.filter(pc => !menuSubs.some(sub => sub.slug.toLowerCase() === pc.slug.toLowerCase()))
                     ]
-                  : (menu.subCategories || []);
+                  : menuSubs;
 
                 return (
                 <div key={menu.id} className="flex flex-col">

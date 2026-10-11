@@ -2,6 +2,10 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { db } from '../../firebase';
 import { collection, getDocs, query, orderBy, addDoc, updateDoc, deleteDoc, doc, setDoc, limit } from 'firebase/firestore';
 import { AdminSharedState, AdminRefreshFunctions, AdminTab } from './types';
+import type { DocumentData } from 'firebase/firestore';
+
+const mapDocuments = <T,>(documents: { id: string; data: () => DocumentData }[]): T[] =>
+  documents.map(document => ({ id: document.id, ...document.data() } as T));
 
 interface AdminDataContextType extends AdminSharedState, AdminRefreshFunctions {
   activeTab: AdminTab;
@@ -67,45 +71,45 @@ export const AdminDataProvider: React.FC<{ children: ReactNode }> = ({ children 
 
         setSharedState(prev => ({
           ...prev,
-          products: productsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          orders: ordersSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          customers: customersSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          vendors: vendorsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          transactions: transactionsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          menus: menusSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          users: usersSnap.docs.map(d => d.data()),
-          campaigns: campaignsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          discountCodes: discountCodesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          hostingPlans: hostingPlansSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          hostingServices: hostingServicesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          soldSerials: soldSerialsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          serviceRecords: serviceRecordsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          paymentAccounts: paymentAccountsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          transactionCategories: transactionCategoriesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          employees: employeesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          employeeLeaves: employeeLeavesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          employeeSalaries: employeeSalariesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          products: mapDocuments<AdminSharedState['products'][number]>(productsSnap.docs),
+          orders: mapDocuments<AdminSharedState['orders'][number]>(ordersSnap.docs),
+          customers: mapDocuments<AdminSharedState['customers'][number]>(customersSnap.docs),
+          vendors: mapDocuments<AdminSharedState['vendors'][number]>(vendorsSnap.docs),
+          transactions: mapDocuments<AdminSharedState['transactions'][number]>(transactionsSnap.docs),
+          menus: mapDocuments<AdminSharedState['menus'][number]>(menusSnap.docs),
+          users: usersSnap.docs.map(d => ({ ...d.data(), uid: d.id }) as AdminSharedState['users'][number]),
+          campaigns: mapDocuments<AdminSharedState['campaigns'][number]>(campaignsSnap.docs),
+          discountCodes: mapDocuments<AdminSharedState['discountCodes'][number]>(discountCodesSnap.docs),
+          hostingPlans: mapDocuments<AdminSharedState['hostingPlans'][number]>(hostingPlansSnap.docs),
+          hostingServices: mapDocuments<AdminSharedState['hostingServices'][number]>(hostingServicesSnap.docs),
+          soldSerials: mapDocuments<AdminSharedState['soldSerials'][number]>(soldSerialsSnap.docs),
+          serviceRecords: mapDocuments<AdminSharedState['serviceRecords'][number]>(serviceRecordsSnap.docs),
+          paymentAccounts: mapDocuments<AdminSharedState['paymentAccounts'][number]>(paymentAccountsSnap.docs),
+          transactionCategories: mapDocuments<AdminSharedState['transactionCategories'][number]>(transactionCategoriesSnap.docs),
+          employees: mapDocuments<AdminSharedState['employees'][number]>(employeesSnap.docs),
+          employeeLeaves: mapDocuments<AdminSharedState['employeeLeaves'][number]>(employeeLeavesSnap.docs),
+          employeeSalaries: mapDocuments<AdminSharedState['employeeSalaries'][number]>(employeeSalariesSnap.docs),
           conveyances: prev.conveyances,
           loading: false,
         }));
       } catch (e) {
         setSharedState(prev => ({
           ...prev,
-          products: productsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          orders: ordersSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          customers: customersSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          vendors: vendorsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          transactions: transactionsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          menus: menusSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          users: usersSnap.docs.map(d => d.data()),
-          campaigns: campaignsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          discountCodes: discountCodesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          hostingPlans: hostingPlansSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          hostingServices: hostingServicesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          soldSerials: soldSerialsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          serviceRecords: serviceRecordsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          paymentAccounts: paymentAccountsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          transactionCategories: transactionCategoriesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          products: mapDocuments<AdminSharedState['products'][number]>(productsSnap.docs),
+          orders: mapDocuments<AdminSharedState['orders'][number]>(ordersSnap.docs),
+          customers: mapDocuments<AdminSharedState['customers'][number]>(customersSnap.docs),
+          vendors: mapDocuments<AdminSharedState['vendors'][number]>(vendorsSnap.docs),
+          transactions: mapDocuments<AdminSharedState['transactions'][number]>(transactionsSnap.docs),
+          menus: mapDocuments<AdminSharedState['menus'][number]>(menusSnap.docs),
+          users: usersSnap.docs.map(d => ({ ...d.data(), uid: d.id }) as AdminSharedState['users'][number]),
+          campaigns: mapDocuments<AdminSharedState['campaigns'][number]>(campaignsSnap.docs),
+          discountCodes: mapDocuments<AdminSharedState['discountCodes'][number]>(discountCodesSnap.docs),
+          hostingPlans: mapDocuments<AdminSharedState['hostingPlans'][number]>(hostingPlansSnap.docs),
+          hostingServices: mapDocuments<AdminSharedState['hostingServices'][number]>(hostingServicesSnap.docs),
+          soldSerials: mapDocuments<AdminSharedState['soldSerials'][number]>(soldSerialsSnap.docs),
+          serviceRecords: mapDocuments<AdminSharedState['serviceRecords'][number]>(serviceRecordsSnap.docs),
+          paymentAccounts: mapDocuments<AdminSharedState['paymentAccounts'][number]>(paymentAccountsSnap.docs),
+          transactionCategories: mapDocuments<AdminSharedState['transactionCategories'][number]>(transactionCategoriesSnap.docs),
           loading: false,
         }));
       }

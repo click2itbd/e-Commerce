@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from "react";
 import {
   collection,
   query,
@@ -10,10 +11,14 @@ import {
   updateDoc,
   increment,
 } from "firebase/firestore";
-import { Product, Customer, PaymentAccount } from "../../../types";
+import { db } from "../../../firebase";
+import { Product, ProductVariant, Customer, PaymentAccount } from "../../../types";
 import toast from "react-hot-toast";
 import { useSettings } from "../../../context/SettingsContext";
 import { useAuth } from "../../../context/AuthContext";
+import { formatCurrency, formatWarranty, addWarranty } from "../../../lib/utils";
+import { generateDocumentNumber } from "../../../lib/numbering";
+import { logoBase64 } from "../../../lib/logoBase64";
 import { POSHeader } from "./components/POSHeader";
 import { POSCartArea } from "./components/POSCartArea";
 import { POSSidebar } from "./components/POSSidebar";
@@ -197,8 +202,18 @@ export const RetailPOS = () => {
           const searchLower = scanValue.toLowerCase();
 
           let matchedSerial: string | undefined = undefined;
+          let matchedVariant: ProductVariant | undefined;
 
           const exactMatches = products.filter((p) => {
+            const foundVariant = p.variants?.find(variant =>
+              variant.id.toLowerCase() === searchLower ||
+              variant.sku.toLowerCase() === searchLower ||
+              variant.name.toLowerCase() === searchLower
+            );
+            if (foundVariant) {
+              matchedVariant = foundVariant;
+              return true;
+            }
             if (
               p.id.toLowerCase() === searchLower ||
               (p.sku || "").toLowerCase() === searchLower ||
@@ -325,8 +340,9 @@ export const RetailPOS = () => {
     localStorage.setItem("pos_held_carts", JSON.stringify(updated));
   };
 
-  const addToCart = (product: Product, scannedSerial?: string) => {
-    if (product.stock <= 0) {
+  const addToCart = (product: Product, scannedSerial?: string, scannedVariant?: ProductVariant) => {
+    const availableStock = scannedVariant?.stock ?? product.stock;
+    if (availableStock <= 0) {
       toast.error("Item is out of stock");
       return;
     }
@@ -336,12 +352,14 @@ export const RetailPOS = () => {
       const existingIdx = prev.findIndex(
         (item) =>
           item.product.id === product.id &&
-          (!hasVariants || item.selectedVariant === null),
+          (!hasVariants
+            ? !item.selectedVariant
+            : item.selectedVariant?.id === scannedVariant?.id),
       );
 
-      if (existingIdx >= 0 && !hasVariants) {
+      if (existingIdx >= 0 && (!hasVariants || scannedVariant)) {
         const newCart = [...prev];
-        if (newCart[existingIdx].quantity < product.stock) {
+        if (newCart[existingIdx].quantity < availableStock) {
           newCart[existingIdx].quantity += 1;
           if (
             scannedSerial &&
@@ -362,10 +380,10 @@ export const RetailPOS = () => {
         ...prev,
         {
           cartItemId: Date.now().toString() + Math.random().toString(),
-          product: product,
+          product: scannedVariant ? { ...product, price: scannedVariant.price } : product,
           quantity: 1,
           selectedSerials: scannedSerial ? [scannedSerial] : [],
-          selectedVariant: null,
+          selectedVariant: scannedVariant || null,
         },
       ];
     });

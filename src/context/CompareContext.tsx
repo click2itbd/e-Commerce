@@ -13,7 +13,44 @@ interface CompareContextType {
 const CompareContext = createContext<CompareContextType | undefined>(undefined);
 
 export const CompareProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [compareItems, setCompareItems] = useState<Product[]>([]);
+  const [compareItems, setCompareItems] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('compareItems');
+      if (!saved) return [];
+
+      const parsed: unknown = JSON.parse(saved);
+      if (!Array.isArray(parsed)) {
+        console.error('Saved comparison list is invalid');
+        return [];
+      }
+
+      return parsed
+        .filter((item): item is Product =>
+          typeof item === 'object' &&
+          item !== null &&
+          'id' in item &&
+          typeof item.id === 'string' &&
+          'name' in item &&
+          typeof item.name === 'string'
+        )
+        .slice(0, 4);
+    } catch (error) {
+      console.error('Failed to load saved comparison list:', error);
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (compareItems.length > 0) {
+        localStorage.setItem('compareItems', JSON.stringify(compareItems));
+      } else {
+        localStorage.removeItem('compareItems');
+      }
+    } catch (error) {
+      console.error('Failed to save comparison list:', error);
+    }
+  }, [compareItems]);
 
   const addToCompare = (product: Product) => {
     if (compareItems.length >= 4) {

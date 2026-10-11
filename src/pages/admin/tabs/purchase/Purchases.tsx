@@ -75,7 +75,7 @@ interface PurchasesProps {
   products?: Product[];
   transactions?: Transaction[];
   settings?: SiteSettings;
-  setSelectedLedgerEntity?: (entity: { id: string; name: string; type: string }) => void;
+  setSelectedLedgerEntity?: (entity: { id: string; name: string; type: 'customer' | 'vendor' }) => void;
   setActiveTab?: (tab: string) => void;
   fetchData?: () => Promise<void>;
 }

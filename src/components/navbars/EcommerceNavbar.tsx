@@ -10,7 +10,7 @@ import { auth, db } from '../../firebase';
 import { signOut } from 'firebase/auth';
 import { collection, getDocs, query, orderBy, limit, doc, setDoc, increment } from 'firebase/firestore';
 import { cn } from '../../lib/utils';
-import { NavigationMenu, Product } from '../../types';
+import { NavigationMenu, Product, SubCategory } from '../../types';
 import { setSiteContext } from '../../hooks/useSiteContext';
 
 export const EcommerceNavbar: React.FC = () => {
@@ -20,6 +20,9 @@ export const EcommerceNavbar: React.FC = () => {
   const { user, canAccessAdmin } = useAuth();
   const { settings } = useSettings();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [mobileCategorySearch, setMobileCategorySearch] = useState('');
+  const [expandedMobileCategories, setExpandedMobileCategories] = useState<string[]>([]);
+  const [expandedMobileSubCategories, setExpandedMobileSubCategories] = useState<string[]>([]);
   const [menus, setMenus] = useState<NavigationMenu[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -101,10 +104,26 @@ export const EcommerceNavbar: React.FC = () => {
     { id: 'antivirus', name: 'Anti Virus', slug: 'anti-virus' },
     { id: 'ups', name: 'UPS', slug: 'ups' }
   ];
+  const mobileCategoryQuery = mobileCategorySearch.trim().toLowerCase();
+  const mobileMenus = menus
+    .filter(menu => menu.name.toLowerCase() !== 'hosting')
+    .map(menu => {
+      const menuMatches = menu.name.toLowerCase().includes(mobileCategoryQuery);
+      const subCategories = (menu.subCategories || []).filter(sub =>
+        !mobileCategoryQuery ||
+        (!menuMatches &&
+          (sub.name.toLowerCase().includes(mobileCategoryQuery) ||
+            sub.subCategories?.some(subSub => subSub.name.toLowerCase().includes(mobileCategoryQuery))))
+      );
+      return { menu, subCategories, menuMatches };
+    })
+    .filter(({ menu, subCategories }) =>
+      !mobileCategoryQuery || menu.name.toLowerCase().includes(mobileCategoryQuery) || subCategories.length > 0
+    );
 
   return (
     <header className="sticky top-0 z-50 w-full shadow-md bg-black">
-      <div className="hidden md:block bg-[#111] text-gray-300 text-xs py-1.5 border-b border-gray-800">
+      <div className="hidden lg:block bg-[#111] text-gray-300 text-xs py-1.5 border-b border-gray-800">
         <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px] flex justify-between items-center">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1"><span className="text-[#F97316]">Phone:</span> {settings.contactPhone}</span>
@@ -121,18 +140,18 @@ export const EcommerceNavbar: React.FC = () => {
       </div>
 
       <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
-        <div className="flex py-3 items-center justify-between gap-4">
+        <div className="flex py-3 items-center justify-between gap-2 sm:gap-4">
           {/* Logo */}
           <Link to="/shop" className="flex items-center gap-2 shrink-0">
             {settings.logoUrl ? (
-              <img src={settings.logoUrl} alt={settings.brandName} className="h-10 w-auto" referrerPolicy="no-referrer" />
+              <img src={settings.logoUrl} alt={settings.brandName} className="h-10 w-auto max-w-[135px] sm:max-w-[180px]" referrerPolicy="no-referrer" />
             ) : (
-              <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-10 md:h-12 w-auto object-contain" />
+              <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-10 md:h-12 w-auto max-w-[135px] sm:max-w-[180px] object-contain" />
             )}
           </Link>
 
           {/* Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-2xl relative">
+          <div className="hidden lg:flex flex-1 max-w-2xl relative">
             <form onSubmit={handleSearch} className="flex w-full items-center bg-[#333333] rounded-full overflow-hidden border border-[#444] focus-within:border-gray-400 transition-all px-4">
               <Search size={18} className="text-gray-400" />
               <input
@@ -274,12 +293,12 @@ export const EcommerceNavbar: React.FC = () => {
           {/* Actions */}
           <div className="flex items-center gap-6">
             
-            <Link to="/pre-book" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden sm:flex items-center gap-1.5" title="Pre-Book a Product">
+            <Link to="/pre-book" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden lg:flex items-center gap-1.5" title="Pre-Book a Product">
                 <CalendarDays size={24} />
                 <span className="text-sm font-bold hidden md:block">Pre-Book</span>
               </Link>
 
-            <Link to="/compare" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden sm:flex">
+            <Link to="/compare" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden lg:flex">
               <GitCompare size={24} />
               {compareItems?.length > 0 && (
                 <span className="absolute -top-2 -right-2 bg-[#F97316] text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-[#0E2A47]">
@@ -288,7 +307,7 @@ export const EcommerceNavbar: React.FC = () => {
               )}
             </Link>
 
-            <Link to="/wishlist" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden sm:flex">
+            <Link to="/wishlist" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden lg:flex">
               <Heart size={24} />
               {wishlist?.length > 0 && (
                 <span className="absolute -top-2 -right-2 bg-[#F97316] text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-[#0E2A47]">
@@ -308,30 +327,43 @@ export const EcommerceNavbar: React.FC = () => {
 
             {user ? (
               <div className="flex items-center gap-5 ml-2">
-                <Link to="/profile" className="text-white hover:text-[#F97316] transition-colors hidden sm:flex">
+                <Link to="/profile" className="text-white hover:text-[#F97316] transition-colors hidden lg:flex">
                   <User size={24} />
                 </Link>
-                <button onClick={handleLogout} className="text-white hover:text-[#EF4444] transition-colors hidden sm:flex">
+                <button onClick={handleLogout} className="text-white hover:text-[#EF4444] transition-colors hidden lg:flex">
                   <LogOut size={24} />
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-5 ml-2">
-                <Link to="/login" className="text-white hover:text-[#F97316] transition-colors flex">
+                <Link to="/login" className="text-white hover:text-[#F97316] transition-colors hidden lg:flex">
                   <User size={24} />
                 </Link>
               </div>
             )}
 
-            <button className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-              {isMenuOpen ? <X /> : <Menu />}
+            <button aria-label={isMenuOpen ? 'Close menu' : 'Open menu'} aria-expanded={isMenuOpen} className="lg:hidden p-2 text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+              {isMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
       </div>
 
+      <div className="lg:hidden px-3 pb-3">
+        <form onSubmit={handleSearch} className="flex w-full items-center bg-[#333333] rounded-full overflow-hidden border border-[#444] focus-within:border-gray-400 transition-all px-4">
+          <Search size={18} className="text-gray-400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search products..."
+            className="w-full min-w-0 border-none bg-transparent py-2.5 px-3 focus:outline-none focus:ring-0 text-white placeholder-gray-400 text-sm"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </form>
+      </div>
+
       {/* Desktop Navigation */}
-      <nav className="hidden md:block bg-white border-b border-gray-200">
+      <nav className="hidden lg:block bg-white border-b border-gray-200">
           <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
             <div className="flex items-center justify-between h-12">
               <ul className="flex items-center gap-4 xl:gap-6 h-full">
@@ -432,9 +464,9 @@ export const EcommerceNavbar: React.FC = () => {
                   <Link to="/projects" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
                     <Camera size={18} /> Our Projects
                   </Link>
-                <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
-                  Hosting
-                </a>
+                <Link to="/pricing" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
+                  <Server size={18} /> Domain & Hosting
+                </Link>
               </div>
             </div>
           </div>
@@ -442,88 +474,165 @@ export const EcommerceNavbar: React.FC = () => {
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="md:hidden border-t border-gray-700 p-4 bg-black max-h-[calc(100vh-60px)] overflow-y-auto">
-          <div className="flex flex-col gap-4">
-            <form onSubmit={handleSearch} className="flex w-full items-center bg-[#333333] rounded-full overflow-hidden border border-[#444] focus-within:border-gray-400 transition-all px-4 mb-2">
-              <Search size={18} className="text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="w-full border-none bg-transparent py-2.5 px-3 focus:outline-none focus:ring-0 text-white placeholder-gray-400 text-sm"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
-              />
-            </form>
+        <div className="lg:hidden border-t border-gray-700 p-4 bg-black max-h-[calc(100dvh-116px)] overflow-y-auto">
+          <div className="flex flex-col gap-4 text-gray-100">
+            <div className="flex flex-wrap gap-4 border-b border-gray-700 pb-4 text-sm font-semibold">
+              <Link to="/pre-book" onClick={() => setIsMenuOpen(false)} className="text-[#F97316]">Pre-Book</Link>
+              <Link to="/compare" onClick={() => setIsMenuOpen(false)} className="text-[#F97316]">Compare ({compareItems.length})</Link>
+              <Link to="/wishlist" onClick={() => setIsMenuOpen(false)} className="text-[#F97316]">Wishlist ({wishlist.length})</Link>
+            </div>
             {canAccessAdmin && (
-              <Link to="/admin" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
+              <Link to="/admin" className="flex items-center gap-2 py-2 text-gray-100" onClick={() => setIsMenuOpen(false)}>
                 <LayoutDashboard size={20} /> Admin Dashboard
                 </Link>
               )}
-              <Link to="/projects" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
+              <Link to="/projects" className="flex items-center gap-2 py-2 text-gray-100" onClick={() => setIsMenuOpen(false)}>
                 <Camera size={20} /> Our Projects
+              </Link>
+              <Link to="/pc-build" className="flex items-center gap-2 py-2 text-gray-100" onClick={() => setIsMenuOpen(false)}>
+                <Cpu size={20} /> PC Builder
+              </Link>
+              <Link to="/pricing" className="flex items-center gap-2 py-2 text-blue-400 font-semibold" onClick={() => setIsMenuOpen(false)}>
+                <Server size={20} /> Domain & Hosting
               </Link>
             
             {/* Dynamic Menus in Mobile */}
             <div className="border-t border-gray-700 pt-4">
-              <p className="text-xs font-bold text-gray-500 uppercase mb-2">Categories</p>
-              {menus.filter(m => m.name.toLowerCase() !== 'hosting').map(menu => {
-                const subs = menu.subCategories || [];
-
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-white">Browse categories</p>
+                  <p className="mt-0.5 text-[11px] text-gray-500">Find products by category</p>
+                </div>
+                <span className="rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-gray-400">
+                  {mobileMenus.length} categories
+                </span>
+              </div>
+              <label className="relative mb-3 block">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  type="search"
+                  value={mobileCategorySearch}
+                  onChange={e => setMobileCategorySearch(e.target.value)}
+                  placeholder="Search categories..."
+                  className="w-full rounded-xl border border-gray-700 bg-[#141414] py-3 pl-9 pr-3 text-sm text-white placeholder:text-gray-500 outline-none transition-colors focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/20"
+                />
+              </label>
+              <div className="space-y-2.5">
+              {mobileMenus.map(({ menu, subCategories, menuMatches }) => {
+                const isExpanded = mobileCategoryQuery
+                  ? !menuMatches && subCategories.length > 0
+                  : expandedMobileCategories.includes(menu.id);
                 return (
-                <div key={menu.id} className="flex flex-col">
-                  <Link 
-                    to={`/category/${menu.slug}`} 
-                    className="flex items-center justify-between py-2 text-sm font-bold"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    {menu.name}
-                  </Link>
-                  {subs.length > 0 && (
-                    <div className="pl-4 flex flex-col border-l border-gray-700">
-                      {subs.map(sub => (
-                        <div key={sub.id} className="flex flex-col">
-                          <Link 
-                            to={`/category/${menu.slug}/${sub.slug}`}
-                            className="py-1.5 text-xs text-gray-300 hover:text-[#F97316] font-medium"
-                            onClick={() => setIsMenuOpen(false)}
-                          >
-                            {sub.name}
-                          </Link>
-                          {sub.subCategories && sub.subCategories.length > 0 && (
-                            <div className="pl-3 flex flex-col border-l border-gray-700/60 my-0.5 space-y-1">
-                              {sub.subCategories.map(subSub => (
-                                <Link
-                                  key={subSub.id}
-                                  to={`/category/${menu.slug}/${sub.slug}/${subSub.slug}`}
-                                  className="py-1 text-[11px] text-gray-400 hover:text-[#F97316]"
-                                  onClick={() => setIsMenuOpen(false)}
+                <div
+                  key={menu.id}
+                  className={`overflow-hidden rounded-xl border transition-colors ${
+                    isExpanded ? 'border-[#F97316]/50 bg-[#100d0a]' : 'border-gray-800 bg-[#090909]'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <Link
+                      to={`/category/${menu.slug}`}
+                      className={`flex min-h-12 flex-1 items-center justify-between gap-2 px-3.5 text-sm font-bold transition-colors ${
+                        isExpanded ? 'text-white' : 'text-gray-200 hover:text-white'
+                      }`}
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      {menu.name}
+                      {subCategories.length > 0 && (
+                        <span className="ml-auto rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+                          {subCategories.length}
+                        </span>
+                      )}
+                    </Link>
+                    {subCategories.length > 0 && (
+                      <button
+                        type="button"
+                        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${menu.name}`}
+                        aria-expanded={isExpanded}
+                        onClick={() => setExpandedMobileCategories(current =>
+                          current.includes(menu.id) ? current.filter(id => id !== menu.id) : [...current, menu.id]
+                        )}
+                        className="flex h-12 w-12 items-center justify-center text-gray-400 transition-colors hover:text-[#F97316]"
+                      >
+                        <ChevronDown size={17} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180 text-[#F97316]' : ''}`} />
+                      </button>
+                    )}
+                  </div>
+                  {isExpanded && subCategories.length > 0 && (
+                    <div className="grid grid-cols-2 gap-1.5 border-t border-gray-800/80 p-2">
+                      {subCategories.map(sub => {
+                        const subSubs = (sub.subCategories || []).filter(subSub =>
+                          !mobileCategoryQuery ||
+                          menuMatches ||
+                          sub.name.toLowerCase().includes(mobileCategoryQuery) ||
+                          subSub.name.toLowerCase().includes(mobileCategoryQuery)
+                        );
+                        const subKey = `${menu.id}/${sub.id}`;
+                        const subExpanded = mobileCategoryQuery
+                          ? subSubs.length > 0
+                          : expandedMobileSubCategories.includes(subKey);
+                        return (
+                          <div key={sub.id} className="min-w-0 rounded-lg border border-gray-800/70 bg-black/30">
+                            <div className="flex items-center">
+                              <Link
+                                to={`/category/${menu.slug}/${sub.slug}`}
+                                className="flex min-h-10 min-w-0 flex-1 items-center px-2.5 text-xs font-medium leading-tight text-gray-200 transition-colors hover:text-[#F97316]"
+                                onClick={() => setIsMenuOpen(false)}
+                              >
+                                <span className="line-clamp-2">{sub.name}</span>
+                              </Link>
+                              {subSubs.length > 0 && (
+                                <button
+                                  type="button"
+                                  aria-label={`${subExpanded ? 'Collapse' : 'Expand'} ${sub.name}`}
+                                  aria-expanded={subExpanded}
+                                  onClick={() => setExpandedMobileSubCategories(current =>
+                                    current.includes(subKey) ? current.filter(key => key !== subKey) : [...current, subKey]
+                                  )}
+                                  className="flex h-10 w-9 shrink-0 items-center justify-center text-gray-500 hover:text-[#F97316]"
                                 >
-                                  • {subSub.name}
-                                </Link>
-                              ))}
+                                  <ChevronDown size={15} className={`transition-transform ${subExpanded ? 'rotate-180' : ''}`} />
+                                </button>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            {subExpanded && subSubs.length > 0 && (
+                              <div className="col-span-2 mx-2 mb-2 ml-3 space-y-0.5 border-l border-gray-700 py-1 pl-3">
+                                {subSubs.map(subSub => (
+                                  <Link
+                                    key={subSub.id}
+                                    to={`/category/${menu.slug}/${sub.slug}/${subSub.slug}`}
+                                    className="block min-h-9 py-2 text-xs text-gray-300 transition-colors hover:text-[#F97316]"
+                                    onClick={() => setIsMenuOpen(false)}
+                                  >
+                                    {subSub.name}
+                                  </Link>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
               )})}
+              {mobileMenus.length === 0 && (
+                <p className="py-3 text-sm text-gray-400">No categories match your search.</p>
+              )}
+              </div>
             </div>
 
             {user ? (
               <div className="flex flex-col gap-2">
-                <Link to="/profile" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
+                <Link to="/profile" className="flex items-center gap-2 py-2 text-gray-100" onClick={() => setIsMenuOpen(false)}>
                   <User size={20} /> My Profile
                 </Link>
-                <button onClick={handleLogout} className="flex items-center gap-2 py-2 text-left">
+                <button onClick={handleLogout} className="flex items-center gap-2 py-2 text-left text-gray-100">
                   <LogOut size={20} /> Logout
                 </button>
               </div>
             ) : (
-              <Link to="/login" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
+              <Link to="/login" className="flex items-center gap-2 py-2 text-gray-100" onClick={() => setIsMenuOpen(false)}>
                 <User size={20} /> Login / Register
               </Link>
             )}

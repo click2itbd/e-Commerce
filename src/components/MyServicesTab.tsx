@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -9,7 +9,8 @@ import { getHostingUsage, HostingUsageStats } from '../services/hostingApi';
 import {
   RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, RotateCcw, Server,
   FileText, Receipt, Download, ExternalLink, Lock, Unlock, Key, Shield, Eye, EyeOff, Globe,
-  Plus, Trash, Save, UserCog, ShieldCheck, Loader2, Copy, Check, Mail, X, Terminal, Cpu
+  Plus, Trash, Save, UserCog, ShieldCheck, Loader2, Copy, Check, Mail, X, Terminal, Cpu,
+  Sparkles, Search, Layers, ChevronRight, ArrowUpRight
 } from 'lucide-react';
 import { HostingAccount, HostingOrder } from '../types';
 import { useSettings } from '../context/SettingsContext';
@@ -29,6 +30,8 @@ interface DomainOrder {
   spamExpertsEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
+  type?: 'register' | 'renewal' | 'transfer';
+  [key: string]: any;
 }
 
 export const MyServicesTab: React.FC = () => {
@@ -43,6 +46,10 @@ export const MyServicesTab: React.FC = () => {
   const [orders, setOrders] = useState<HostingOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [domainLoading, setDomainLoading] = useState<string | null>(null);
+
+  // Filter & Search states
+  const [activeCategory, setActiveCategory] = useState<'all' | 'domains' | 'ssl' | 'vps' | 'hosting' | 'billing'>('all');
+  const [domainSearch, setDomainSearch] = useState('');
 
   // Domain Management States
   const [managingSettings, setManagingSettings] = useState<DomainOrder | null>(null);
@@ -449,7 +456,6 @@ export const MyServicesTab: React.FC = () => {
       return;
     }
     const clean = targetDomain.replace(/^https?:\/\//, '').replace(/^www\./, '').trim();
-    // Pre-structured CSR template for fast certificate issuance
     const simulatedCsr = `-----BEGIN CERTIFICATE REQUEST-----
 MIICvDCCAaQCAQAwdzELMAkGA1UEBhMCQkQxDjAMBgNVBAgMBURoYWthMQ4wDAYD
 VQQHDAVEaGFrYTEOMAwGA1UECgwFQ2xpY2sxDDAKBgNVBAsMA0lUMRowGAYDVQQD
@@ -533,38 +539,72 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
   };
 
   const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      pending: 'bg-yellow-100 text-yellow-800 border border-yellow-300',
-      pending_configuration: 'bg-amber-100 text-amber-800 border border-amber-300',
-      provisioning: 'bg-purple-100 text-purple-800 border border-purple-300 animate-pulse',
-      processing: 'bg-blue-100 text-blue-800 border border-blue-300',
-      registered: 'bg-green-100 text-green-800 border border-green-300',
-      active: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
-      completed: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
-      failed: 'bg-red-100 text-red-800 border border-red-300',
-      expiring: 'bg-orange-100 text-orange-800 border border-orange-300',
-      expired: 'bg-red-100 text-red-800 border border-red-300',
-      renewing: 'bg-blue-100 text-blue-800 border border-blue-300',
-      suspended: 'bg-orange-100 text-orange-800 border border-orange-300',
-      terminated: 'bg-red-100 text-red-800 border border-red-300',
-    };
-    return (
-      <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${styles[status] || 'bg-gray-100 text-gray-700'}`}>
-        {status.replace(/_/g, ' ')}
-      </span>
-    );
+    const s = status?.toLowerCase() || 'pending';
+    switch (s) {
+      case 'active':
+      case 'registered':
+      case 'completed':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            {s.toUpperCase()}
+          </span>
+        );
+      case 'pending':
+      case 'pending_configuration':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            <Clock size={11} className="text-amber-500" />
+            {s.replace(/_/g, ' ').toUpperCase()}
+          </span>
+        );
+      case 'provisioning':
+      case 'processing':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+            <RefreshCw size={11} className="text-purple-500 animate-spin" />
+            {s.toUpperCase()}
+          </span>
+        );
+      case 'failed':
+      case 'expired':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+            <AlertTriangle size={11} className="text-rose-500" />
+            {s.toUpperCase()}
+          </span>
+        );
+      case 'suspended':
+      case 'terminated':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-700 border border-gray-200">
+            <XCircle size={11} className="text-gray-500" />
+            {s.toUpperCase()}
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-700 border border-gray-200 uppercase">
+            {s.replace(/_/g, ' ')}
+          </span>
+        );
+    }
   };
 
   const ProgressBar = ({ value, max, label }: { value: number; max: number; label: string }) => {
-    const percent = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+    const percent = max > 0 ? Math.min(Math.round((value / max) * 100), 100) : 0;
+    const isHigh = percent > 85;
     return (
-      <div className="w-full">
-        <div className="flex justify-between text-xs text-gray-500 mb-1">
-          <span>{label}</span>
-          <span>{value.toFixed(1)} / {max.toFixed(1)} GB</span>
+      <div className="w-full space-y-1">
+        <div className="flex justify-between text-[11px] font-medium text-slate-500">
+          <span className="font-semibold text-slate-700">{label}</span>
+          <span>{value.toFixed(1)} / {max.toFixed(1)} GB <span className="text-slate-400 font-normal">({percent}%)</span></span>
         </div>
-        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div className="h-full bg-[#EF4444] rounded-full transition-all" style={{ width: `${percent}%` }} />
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${isHigh ? 'bg-amber-500' : 'bg-blue-600'}`}
+            style={{ width: `${percent}%` }}
+          />
         </div>
       </div>
     );
@@ -589,498 +629,1130 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
     doc.save(`invoice-${order.documentNumber || order.id}.pdf`);
   };
 
-  return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-      <h1 className="text-3xl font-light text-[#1a2b3c]">My Services</h1>
+  // Filtered lists
+  const filteredDomains = useMemo(() => {
+    return domains.filter(d => 
+      !domainSearch.trim() || d.domain.toLowerCase().includes(domainSearch.toLowerCase().trim())
+    );
+  }, [domains, domainSearch]);
 
-      {/* ================= MY DOMAINS SECTION ================= */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <Server className="text-[#EF4444]" size={24} />
-            <h2 className="text-xl font-bold text-[#081621]">My Domains</h2>
-          </div>
-          <button
-            onClick={() => navigate('/domain/bulk')}
-            className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors"
-          >
-            <Globe size={14} /> Bulk Search & Register
-          </button>
-        </div>
+  const vpsAccounts = useMemo(() => {
+    return hosting.filter(acc => 
+      acc.type === 'vps' || acc.provider === 'vps' || Boolean(acc.vpsDetails) || acc.planId?.toLowerCase().includes('vps')
+    );
+  }, [hosting]);
 
-        {domains.length === 0 ? (
-          <p className="text-gray-400 text-center py-8">No domains found.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-[#081621] text-white text-xs uppercase">
-                <tr>
-                  <th className="px-6 py-4">Domain</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Expires</th>
-                  <th className="px-6 py-4">Auto-Renew</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {domains.map(domain => {
-                  const isActive = domain.status === 'active' || domain.status === 'completed' || domain.status === 'registered';
-                  return (
-                    <React.Fragment key={domain.id}>
-                      <tr className="hover:bg-gray-50 transition-colors group">
-                        <td className="px-6 py-4 font-bold text-[#081621] flex items-center gap-2">
-                          {domain.domain}
-                          {domain.spamExpertsEnabled && (
-                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full" title="SpamExperts Protected">
-                              🛡️ SpamExperts
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">{getStatusBadge(domain.status)}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
-                          {domain.expiresAt ? new Date(domain.expiresAt).toLocaleDateString() : '-'}
-                        </td>
-                        <td className="px-6 py-4">
-                          <label className={`relative inline-flex items-center ${isActive ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
-                            <input
-                              type="checkbox"
-                              checked={!!domain.autoRenew}
-                              onChange={() => isActive && handleToggleAutoRenew('domain', domain)}
-                              disabled={!isActive}
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-[#EF4444] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#EF4444]"></div>
-                          </label>
-                        </td>
-                        <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
-                          {isActive ? (
-                            <>
-                              <button
-                                onClick={() => setManagingNsDomain(domain)}
-                                className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-200 transition-colors flex items-center gap-1"
-                                title="Manage Nameservers"
-                              >
-                                <Server size={14} /> NS
-                              </button>
-                              <button
-                                onClick={() => handleManageDns(domain)}
-                                className="bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1.5 rounded text-xs font-bold hover:bg-purple-100 transition-colors flex items-center gap-1"
-                                title="Manage DNS Records"
-                              >
-                                <Globe size={14} /> DNS
-                              </button>
-                              <button
-                                onClick={() => handleManageWhois(domain)}
-                                className="bg-orange-50 text-orange-700 border border-orange-200 px-3 py-1.5 rounded text-xs font-bold hover:bg-orange-100 transition-colors flex items-center gap-1"
-                                title="Update WHOIS/Owner Contact"
-                              >
-                                <UserCog size={14} /> WHOIS
-                              </button>
-                              <button
-                                onClick={() => handleManageSettings(domain)}
-                                className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-100 transition-colors flex items-center gap-1"
-                                title="Security & EPP Code"
-                              >
-                                <Shield size={14} /> Security
-                              </button>
-                              <button
-                                onClick={() => handleRenew(domain)}
-                                disabled={domainLoading === domain.id}
-                                className="bg-[#081621] text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-[#EF4444] transition-colors disabled:opacity-50 flex items-center gap-1"
-                              >
-                                <RotateCcw size={14} />
-                                {domainLoading === domain.id ? 'Processing...' : 'Renew'}
-                              </button>
-                            </>
-                          ) : domain.status === 'failed' ? (
-                            <button
-                              onClick={() => window.open('/support', '_blank')}
-                              className="bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded text-xs font-bold hover:bg-red-100 transition-colors"
-                            >
-                              Contact Support
-                            </button>
-                          ) : (
-                            <span className="text-xs text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded">Pending...</span>
-                          )}
-                        </td>
-                      </tr>
+  const sharedHostingAccounts = useMemo(() => {
+    return hosting.filter(acc => !vpsAccounts.some(v => v.id === acc.id));
+  }, [hosting, vpsAccounts]);
 
-                      {/* WHOIS Update Expanded Row */}
-                      {managingWhoisDomain?.id === domain.id && (
-                        <tr>
-                          <td colSpan={5} className="p-0 border-b border-gray-100">
-                            <div className="p-6 bg-gray-50/80 border-t border-gray-100">
-                              <div className="flex justify-between items-center mb-4">
-                                <h4 className="font-bold text-gray-800 flex items-center gap-2">
-                                  <UserCog size={18} className="text-orange-600" /> Update WHOIS / Owner Contact: {domain.domain}
-                                </h4>
-                                <button onClick={() => setManagingWhoisDomain(null)} className="text-gray-500 hover:text-gray-800 text-sm font-medium bg-white px-3 py-1 rounded border border-gray-200 shadow-sm transition-colors">Close</button>
-                              </div>
-                              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-                                <p className="text-sm text-gray-500 mb-4">Updating this form creates a new Contact Handle in Openprovider and assigns it to this domain.</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                  <div>
-                                    <label className="block text-gray-600 mb-1 font-medium">First Name *</label>
-                                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-orange-500" value={whoisForm.firstName} onChange={e => setWhoisForm({ ...whoisForm, firstName: e.target.value })} placeholder="John" />
-                                  </div>
-                                  <div>
-                                    <label className="block text-gray-600 mb-1 font-medium">Last Name *</label>
-                                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-orange-500" value={whoisForm.lastName} onChange={e => setWhoisForm({ ...whoisForm, lastName: e.target.value })} placeholder="Doe" />
-                                  </div>
-                                  <div className="md:col-span-2">
-                                    <label className="block text-gray-600 mb-1 font-medium">Email Address *</label>
-                                    <input type="email" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-orange-500" value={whoisForm.email} onChange={e => setWhoisForm({ ...whoisForm, email: e.target.value })} placeholder="john@example.com" />
-                                  </div>
-                                  <div>
-                                    <label className="block text-gray-600 mb-1 font-medium">Phone Country Code</label>
-                                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-orange-500 bg-gray-50" value={whoisForm.phoneCountryCode} onChange={e => setWhoisForm({ ...whoisForm, phoneCountryCode: e.target.value })} />
-                                  </div>
-                                  <div>
-                                    <label className="block text-gray-600 mb-1 font-medium">Phone Number *</label>
-                                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-orange-500" value={whoisForm.phoneNumber} onChange={e => setWhoisForm({ ...whoisForm, phoneNumber: e.target.value })} placeholder="1712345678" />
-                                  </div>
-                                  <div className="md:col-span-2">
-                                    <label className="block text-gray-600 mb-1 font-medium">Street Address *</label>
-                                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-orange-500" value={whoisForm.address} onChange={e => setWhoisForm({ ...whoisForm, address: e.target.value })} placeholder="House 12, Banani" />
-                                  </div>
-                                  <div>
-                                    <label className="block text-gray-600 mb-1 font-medium">City *</label>
-                                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-orange-500" value={whoisForm.city} onChange={e => setWhoisForm({ ...whoisForm, city: e.target.value })} placeholder="Dhaka" />
-                                  </div>
-                                  <div>
-                                    <label className="block text-gray-600 mb-1 font-medium">Zip / Postal Code *</label>
-                                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-orange-500" value={whoisForm.zipcode} onChange={e => setWhoisForm({ ...whoisForm, zipcode: e.target.value })} placeholder="1213" />
-                                  </div>
-                                </div>
-                                <div className="mt-6 flex justify-end">
-                                  <button
-                                    onClick={() => handleUpdateWhois(domain)}
-                                    disabled={loadingWhois}
-                                    className="bg-orange-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-orange-700 transition-colors shadow-sm disabled:opacity-50"
-                                  >
-                                    {loadingWhois ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                    {loadingWhois ? 'Updating WHOIS...' : 'Update WHOIS Details'}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* DNS Zone Editor Expanded Row */}
-                      {managingDnsDomain?.id === domain.id && (
-                        <tr>
-                          <td colSpan={5} className="p-0 border-b border-gray-100">
-                            <div className="p-6 bg-gray-50/80 border-t border-gray-100">
-                              <div className="flex justify-between items-center mb-4">
-                                <h4 className="font-bold text-gray-800 flex items-center gap-2">
-                                  <Globe size={18} className="text-purple-600" /> DNS Zone Editor: {domain.domain}
-                                </h4>
-                                <button onClick={() => setManagingDnsDomain(null)} className="text-gray-500 hover:text-gray-800 text-sm font-medium bg-white px-3 py-1 rounded border border-gray-200 shadow-sm transition-colors">Close</button>
-                              </div>
-                              {loadingDns ? (
-                                <div className="flex items-center gap-2 text-purple-600 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-                                  <Loader2 size={18} className="animate-spin" /> Fetching DNS Zone...
-                                </div>
-                              ) : (
-                                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                                  <div className="flex justify-between items-center mb-4">
-                                    <p className="text-sm text-gray-500">Manage A, CNAME, TXT, MX records in Openprovider.</p>
-                                    <button onClick={handleAddDnsRecord} className="bg-[#081621] text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1 hover:bg-[#EF4444] transition-colors">
-                                      <Plus size={14} /> Add Record
-                                    </button>
-                                  </div>
-                                  <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-sm">
-                                      <thead className="bg-gray-50 text-gray-600">
-                                        <tr>
-                                          <th className="px-4 py-2 font-semibold">Type</th>
-                                          <th className="px-4 py-2 font-semibold">Host</th>
-                                          <th className="px-4 py-2 font-semibold">Value</th>
-                                          <th className="px-4 py-2 font-semibold">TTL</th>
-                                          <th className="px-4 py-2 font-semibold text-right"></th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {dnsRecords.length === 0 ? (
-                                          <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No DNS records found.</td></tr>
-                                        ) : dnsRecords.map((rec, idx) => (
-                                          <tr key={idx} className="border-b border-gray-50">
-                                            <td className="px-4 py-2">
-                                              <select className="border border-gray-300 rounded px-2 py-1 text-sm bg-white outline-none" value={rec.type} onChange={e => handleDnsChange(idx, 'type', e.target.value)}>
-                                                <option value="A">A</option>
-                                                <option value="AAAA">AAAA</option>
-                                                <option value="CNAME">CNAME</option>
-                                                <option value="MX">MX</option>
-                                                <option value="TXT">TXT</option>
-                                              </select>
-                                            </td>
-                                            <td className="px-4 py-2">
-                                              <input type="text" className="border border-gray-300 rounded px-2 py-1 text-sm w-full outline-none" value={rec.name} onChange={e => handleDnsChange(idx, 'name', e.target.value)} placeholder="@ or www" />
-                                            </td>
-                                            <td className="px-4 py-2">
-                                              <input type="text" className="border border-gray-300 rounded px-2 py-1 text-sm w-full outline-none" value={rec.value} onChange={e => handleDnsChange(idx, 'value', e.target.value)} placeholder="192.168.1.1" />
-                                            </td>
-                                            <td className="px-4 py-2">
-                                              <input type="number" className="border border-gray-300 rounded px-2 py-1 text-sm w-20 outline-none" value={rec.ttl} onChange={e => handleDnsChange(idx, 'ttl', parseInt(e.target.value))} />
-                                            </td>
-                                            <td className="px-4 py-2 text-right">
-                                              <button onClick={() => handleRemoveDnsRecord(idx)} className="text-red-500 hover:text-red-700 p-1"><Trash size={16} /></button>
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                  <div className="mt-4 flex justify-end">
-                                    <button onClick={() => handleUpdateDns(domain)} className="bg-emerald-600 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 hover:bg-emerald-700 transition-colors shadow-sm">
-                                      <Save size={16} /> Save DNS Zone
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* Settings & Security & EPP Expanded Row */}
-                      {managingSettings?.id === domain.id && (
-                        <tr>
-                          <td colSpan={5} className="p-0 border-b border-gray-100">
-                            <div className="p-6 bg-gray-50/80 border-t border-gray-100">
-                              <div className="flex justify-between items-center mb-4">
-                                <h4 className="font-bold text-gray-800 flex items-center gap-2">
-                                  <Shield size={18} className="text-blue-600" /> Security, EPP & SpamExperts: {domain.domain}
-                                </h4>
-                                <button onClick={() => setManagingSettings(null)} className="text-gray-500 hover:text-gray-800 text-sm font-medium bg-white px-3 py-1 rounded border border-gray-200 shadow-sm transition-colors">Close</button>
-                              </div>
-
-                              {loadingDetails ? (
-                                <div className="flex items-center gap-2 text-blue-600 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-                                  <Loader2 size={18} className="animate-spin" /> Fetching live security settings from registry...
-                                </div>
-                              ) : domainDetails ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {/* Registrar Lock */}
-                                  <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
-                                    <div className={`absolute top-0 left-0 w-1 h-full ${domainDetails.is_locked ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
-                                    <div className="flex justify-between items-start mb-2">
-                                      <div>
-                                        <h5 className="font-semibold text-gray-800 flex items-center gap-2">
-                                          {domainDetails.is_locked ? <Lock size={16} className="text-emerald-600" /> : <Unlock size={16} className="text-amber-500" />}
-                                          Registrar Lock
-                                        </h5>
-                                        <p className="text-xs text-gray-500 mt-1 max-w-[200px]">Prevents unauthorized domain transfers.</p>
-                                      </div>
-                                      <div className={`px-3 py-1 rounded-full text-xs font-bold ${domainDetails.is_locked ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                                        {domainDetails.is_locked ? 'LOCKED' : 'UNLOCKED'}
-                                      </div>
-                                    </div>
-                                    <button
-                                      onClick={() => handleToggleLock(domain, domainDetails.is_locked)}
-                                      className={`mt-4 px-4 py-2 text-sm font-bold rounded-lg transition-colors w-full flex items-center justify-center gap-2 ${domainDetails.is_locked ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'}`}
-                                    >
-                                      {domainDetails.is_locked ? <Unlock size={16} /> : <Lock size={16} />}
-                                      {domainDetails.is_locked ? 'Unlock Domain' : 'Lock Domain'}
-                                    </button>
-                                  </div>
-
-                                  {/* EPP / Auth Code (Feature 2) */}
-                                  <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
-                                    <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-                                    <div className="flex justify-between items-start mb-2">
-                                      <div>
-                                        <h5 className="font-semibold text-gray-800 flex items-center gap-2">
-                                          <Key size={16} className="text-blue-600" /> Transfer Auth/EPP Code
-                                        </h5>
-                                        <p className="text-xs text-gray-500 mt-1 max-w-[200px]">Required to move this domain to another registrar.</p>
-                                      </div>
-                                      {domainDetails.auth_code && (
-                                        <button
-                                          onClick={() => handleCopyEpp(domainDetails.auth_code)}
-                                          className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-colors"
-                                        >
-                                          {copiedEpp ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
-                                          {copiedEpp ? 'Copied' : 'Copy'}
-                                        </button>
-                                      )}
-                                    </div>
-                                    <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg font-mono text-sm break-all text-center select-all flex items-center justify-center min-h-[46px] shadow-inner text-gray-800 font-bold tracking-wider">
-                                      {domainDetails.auth_code || <span className="text-gray-400 font-normal">Auth code protected / contact support</span>}
-                                    </div>
-                                  </div>
-
-                                  {/* WHOIS Privacy (ID Protection) */}
-                                  <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
-                                    <div className={`absolute top-0 left-0 w-1 h-full ${domainDetails.is_whois_privacy_enabled ? 'bg-emerald-500' : 'bg-gray-400'}`}></div>
-                                    <div className="flex justify-between items-start mb-2">
-                                      <div>
-                                        <h5 className="font-semibold text-gray-800 flex items-center gap-2">
-                                          {domainDetails.is_whois_privacy_enabled ? <EyeOff size={16} className="text-emerald-600" /> : <Eye size={16} className="text-gray-500" />}
-                                          WHOIS Privacy Protection
-                                        </h5>
-                                        <p className="text-xs text-gray-500 mt-1">Hides your personal email and address from the public WHOIS registry.</p>
-                                      </div>
-                                      <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                          type="checkbox"
-                                          checked={!!domainDetails.is_whois_privacy_enabled}
-                                          onChange={() => handleTogglePrivacy(domain, domainDetails.is_whois_privacy_enabled)}
-                                          className="sr-only peer"
-                                        />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-[#EF4444] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#EF4444]"></div>
-                                      </label>
-                                    </div>
-                                  </div>
-
-                                  {/* SpamExperts Protection (Feature 6) */}
-                                  <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
-                                    <div className={`absolute top-0 left-0 w-1 h-full ${domain.spamExpertsEnabled ? 'bg-emerald-500' : 'bg-purple-500'}`}></div>
-                                    <div className="flex justify-between items-start mb-2">
-                                      <div>
-                                        <h5 className="font-semibold text-gray-800 flex items-center gap-2">
-                                          <ShieldCheck size={16} className="text-purple-600" /> SpamExperts Email Security
-                                        </h5>
-                                        <p className="text-xs text-gray-500 mt-1">Incoming/outgoing email spam filter & quarantine panel.</p>
-                                      </div>
-                                    </div>
-                                    {domain.spamExpertsEnabled ? (
-                                      <button
-                                        onClick={() => handleSpamExpertsSso(domain)}
-                                        disabled={spamLoading === domain.id}
-                                        className="mt-4 px-4 py-2 text-sm font-bold rounded-lg transition-colors w-full flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                                      >
-                                        {spamLoading === domain.id ? <Loader2 size={16} className="animate-spin" /> : <ExternalLink size={16} />}
-                                        Open SpamExperts Control Panel
-                                      </button>
-                                    ) : (
-                                      <button
-                                        onClick={() => handleActivateSpamExperts(domain)}
-                                        disabled={spamLoading === domain.id}
-                                        className="mt-4 px-4 py-2 text-sm font-bold rounded-lg transition-colors w-full flex items-center justify-center gap-2 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
-                                      >
-                                        {spamLoading === domain.id ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
-                                        Activate SpamExperts Protection
-                                      </button>
-                                    )}
-                                  </div>
-
-                                </div>
-                              ) : (
-                                <div className="text-red-500 text-sm p-4 bg-red-50 rounded-lg border border-red-100 shadow-sm">
-                                  Could not retrieve domain security settings.
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+  if (loading) {
+    return (
+      <div className="py-12 flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        <p className="text-sm font-medium text-slate-500">Loading your services...</p>
       </div>
+    );
+  }
 
-      {/* ================= MY SSL CERTIFICATES SECTION (Feature 1) ================= */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="text-emerald-500" size={24} />
-            <h2 className="text-xl font-bold text-[#081621]">My SSL Certificates ({sslCerts.length})</h2>
+  return (
+    <div className="space-y-6 animate-in fade-in duration-200">
+      
+      {/* ================= HERO HEADER & SERVICE SUMMARY ================= */}
+      <div className="bg-gradient-to-r from-slate-900 via-[#0e2a47] to-slate-900 rounded-2xl p-6 sm:p-7 text-white shadow-sm border border-slate-800 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(59,130,246,0.2),rgba(255,255,255,0))] pointer-events-none" />
+        
+        <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">My Services & Subscriptions</h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-400/20 uppercase tracking-wide">
+                Client Hub
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl leading-relaxed">
+              Manage your domain names, DNS zones, SSL certificates, Cloud VPS servers, and web hosting in one unified portal.
+            </p>
           </div>
-          <button
-            onClick={() => navigate('/ssl')}
-            className="text-xs font-bold text-white bg-[#081621] hover:bg-emerald-600 px-3.5 py-2 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
-          >
-            <ShieldCheck size={14} /> Buy New SSL
-          </button>
-        </div>
 
-        {sslCerts.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-400 mb-4">No SSL certificates active or ordered yet.</p>
+          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
             <button
-              onClick={() => navigate('/ssl')}
-              className="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-lg transition-colors"
+              onClick={() => navigate('/domain/bulk')}
+              className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold backdrop-blur-md border border-white/15 transition shadow-xs"
             >
-              Protect your website with Sectigo / Comodo SSL
+              <Globe size={14} className="text-blue-300" />
+              <span>Bulk Search</span>
+            </button>
+            <button
+              onClick={() => navigate('/hosting')}
+              className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition shadow-md shadow-blue-600/30"
+            >
+              <Plus size={14} />
+              <span>Order New Service</span>
             </button>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-[#081621] text-white text-xs uppercase">
-                <tr>
-                  <th className="px-6 py-4">Certificate Name</th>
-                  <th className="px-6 py-4">Target Domain</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">DCV Approver</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {sslCerts.map((cert) => (
-                  <tr key={cert.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-bold text-[#081621]">
-                      {cert.name || 'SSL Certificate'}
-                      <div className="text-xs text-gray-400 font-normal">Term: {cert.termYears || 1} Year</div>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-mono text-gray-700">
-                      {cert.domain || <span className="text-amber-600 italic">Not Assigned</span>}
-                    </td>
-                    <td className="px-6 py-4">{getStatusBadge(cert.status)}</td>
-                    <td className="px-6 py-4 text-xs text-gray-500 font-mono">
-                      {cert.approverEmail || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {cert.status === 'pending_configuration' ? (
-                        <button
-                          onClick={() => handleOpenConfigureSsl(cert)}
-                          className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm flex items-center gap-1 ml-auto"
-                        >
-                          <ShieldCheck size={14} /> Configure SSL
-                        </button>
-                      ) : cert.status === 'processing' ? (
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleResendDcv(cert)}
-                            className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded text-xs font-bold hover:bg-blue-100 transition-colors flex items-center gap-1"
-                            title="Resend DCV validation email"
-                          >
-                            <Mail size={12} /> Resend DCV
-                          </button>
-                          <button
-                            onClick={() => handleOpenConfigureSsl(cert)}
-                            className="bg-gray-100 text-gray-700 px-2.5 py-1 rounded text-xs font-bold hover:bg-gray-200 transition-colors"
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => toast.success('Certificate is active! Check your control panel.')}
-                          className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded text-xs font-bold hover:bg-emerald-100 transition-colors"
-                        >
-                          Certificate Details
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        </div>
+
+        {/* Quick Segment Filter Bar */}
+        <div className="relative mt-6 pt-5 border-t border-white/10 flex items-center gap-2 overflow-x-auto no-scrollbar">
+          {[
+            { id: 'all', label: 'All Services', count: domains.length + sslCerts.length + hosting.length },
+            { id: 'domains', label: 'Domains', count: domains.length },
+            { id: 'ssl', label: 'SSL Certs', count: sslCerts.length },
+            { id: 'vps', label: 'Cloud VPS', count: vpsAccounts.length },
+            { id: 'hosting', label: 'Web Hosting', count: sharedHostingAccounts.length },
+            { id: 'billing', label: 'Invoices', count: orders.length },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveCategory(tab.id as any)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                activeCategory === tab.id
+                  ? 'bg-white text-slate-900 shadow-sm font-bold'
+                  : 'bg-white/10 text-white/80 hover:bg-white/15 hover:text-white'
+              }`}
+            >
+              <span>{tab.label}</span>
+              {tab.count !== undefined && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                  activeCategory === tab.id ? 'bg-slate-200 text-slate-800' : 'bg-white/20 text-white'
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ================= SSL CONFIGURATION MODAL (Feature 1) ================= */}
+      {/* ================= MY DOMAINS SECTION ================= */}
+      {(activeCategory === 'all' || activeCategory === 'domains') && (
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+          {/* Card Header */}
+          <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50/60">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <Globe size={18} />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  My Domains
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">
+                    {domains.length}
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500">Manage nameservers, DNS zone records, WHOIS, and security</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-56">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search domain..."
+                  value={domainSearch}
+                  onChange={(e) => setDomainSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 transition"
+                />
+              </div>
+              <button
+                onClick={() => navigate('/domain/bulk')}
+                className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition flex items-center gap-1 shrink-0 border border-blue-200/60"
+              >
+                <Plus size={13} />
+                <span>Bulk Register</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Table */}
+          {filteredDomains.length === 0 ? (
+            <div className="p-10 text-center text-xs text-slate-500">
+              <Globe size={24} className="mx-auto mb-2 text-slate-400" />
+              {domainSearch ? 'No domains matched your search.' : 'No registered domains found in your account.'}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                  <tr>
+                    <th className="px-5 py-3.5">Domain</th>
+                    <th className="px-5 py-3.5">Status</th>
+                    <th className="px-5 py-3.5">Expires</th>
+                    <th className="px-5 py-3.5">Auto-Renew</th>
+                    <th className="px-5 py-3.5 text-right">Management Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredDomains.map(domain => {
+                    const isActive = domain.status === 'active' || domain.status === 'completed' || domain.status === 'registered';
+                    return (
+                      <React.Fragment key={domain.id}>
+                        <tr className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-5 py-4">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm text-[#0E2A47]">{domain.domain}</span>
+                                {domain.spamExpertsEnabled && (
+                                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1" title="SpamExperts Protected">
+                                    <ShieldCheck size={11} /> SpamExperts
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-400">TLD: .{domain.domain.split('.').pop()}</span>
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            {getStatusBadge(domain.status)}
+                          </td>
+
+                          <td className="px-5 py-4 text-slate-600 font-medium">
+                            {domain.expiresAt ? (
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-slate-800">{new Date(domain.expiresAt).toLocaleDateString()}</span>
+                                <span className="text-[10px] text-slate-400">
+                                  {Math.ceil((new Date(domain.expiresAt).getTime() - Date.now()) / (1000 * 3600 * 24))} days left
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <label className={`relative inline-flex items-center ${isActive ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
+                              <input
+                                type="checkbox"
+                                checked={!!domain.autoRenew}
+                                onChange={() => isActive && handleToggleAutoRenew('domain', domain)}
+                                disabled={!isActive}
+                                className="sr-only peer"
+                              />
+                              <div className="w-8 h-4.5 bg-slate-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600" />
+                            </label>
+                          </td>
+
+                          <td className="px-5 py-4 text-right">
+                            {isActive ? (
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                <button
+                                  onClick={() => setManagingNsDomain(domain)}
+                                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1"
+                                  title="Manage Nameservers"
+                                >
+                                  <Server size={12} />
+                                  <span>NS</span>
+                                </button>
+                                <button
+                                  onClick={() => handleManageDns(domain)}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
+                                    managingDnsDomain?.id === domain.id
+                                      ? 'bg-purple-600 text-white'
+                                      : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/60'
+                                  }`}
+                                  title="Manage DNS Records"
+                                >
+                                  <Globe size={12} />
+                                  <span>DNS</span>
+                                </button>
+                                <button
+                                  onClick={() => handleManageWhois(domain)}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
+                                    managingWhoisDomain?.id === domain.id
+                                      ? 'bg-amber-600 text-white'
+                                      : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/60'
+                                  }`}
+                                  title="Update WHOIS/Owner Contact"
+                                >
+                                  <UserCog size={12} />
+                                  <span>WHOIS</span>
+                                </button>
+                                <button
+                                  onClick={() => handleManageSettings(domain)}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
+                                    managingSettings?.id === domain.id
+                                      ? 'bg-blue-600 text-white'
+                                      : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/60'
+                                  }`}
+                                  title="Security & EPP Code"
+                                >
+                                  <Shield size={12} />
+                                  <span>Security</span>
+                                </button>
+                                <button
+                                  onClick={() => handleRenew(domain)}
+                                  disabled={domainLoading === domain.id}
+                                  className="px-3 py-1.5 bg-[#0E2A47] hover:bg-blue-900 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  <RotateCcw size={12} className={domainLoading === domain.id ? 'animate-spin' : ''} />
+                                  <span>{domainLoading === domain.id ? '...' : 'Renew'}</span>
+                                </button>
+                              </div>
+                            ) : domain.status === 'failed' ? (
+                              <button
+                                onClick={() => window.open('/support', '_blank')}
+                                className="bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-100 transition shadow-xs"
+                              >
+                                Contact Support
+                              </button>
+                            ) : (
+                              <span className="text-xs text-slate-400 font-medium bg-slate-100 px-2.5 py-1 rounded-full">
+                                Pending...
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+
+                        {/* WHOIS Update Expanded Row */}
+                        {managingWhoisDomain?.id === domain.id && (
+                          <tr>
+                            <td colSpan={5} className="p-0 border-b border-slate-100 bg-slate-50/70">
+                              <div className="p-6">
+                                <div className="bg-white rounded-2xl border border-amber-200/80 shadow-xs p-5 space-y-4">
+                                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                      <UserCog size={16} className="text-amber-600" />
+                                      Update WHOIS Owner Contacts: <span className="text-[#0E2A47] font-mono">{domain.domain}</span>
+                                    </h4>
+                                    <button 
+                                      onClick={() => setManagingWhoisDomain(null)} 
+                                      className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100"
+                                    >
+                                      <X size={16} />
+                                    </button>
+                                  </div>
+
+                                  <p className="text-xs text-slate-500">
+                                    Updating this form creates an authorized Contact Handle in Openprovider and binds it to this domain.
+                                  </p>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                    <div>
+                                      <label className="block text-slate-600 font-semibold mb-1">First Name *</label>
+                                      <input 
+                                        type="text" 
+                                        className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:border-amber-500 bg-slate-50/50" 
+                                        value={whoisForm.firstName} 
+                                        onChange={e => setWhoisForm({ ...whoisForm, firstName: e.target.value })} 
+                                        placeholder="John" 
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-slate-600 font-semibold mb-1">Last Name *</label>
+                                      <input 
+                                        type="text" 
+                                        className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:border-amber-500 bg-slate-50/50" 
+                                        value={whoisForm.lastName} 
+                                        onChange={e => setWhoisForm({ ...whoisForm, lastName: e.target.value })} 
+                                        placeholder="Doe" 
+                                      />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                      <label className="block text-slate-600 font-semibold mb-1">Email Address *</label>
+                                      <input 
+                                        type="email" 
+                                        className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:border-amber-500 bg-slate-50/50" 
+                                        value={whoisForm.email} 
+                                        onChange={e => setWhoisForm({ ...whoisForm, email: e.target.value })} 
+                                        placeholder="john@example.com" 
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-slate-600 font-semibold mb-1">Country Code</label>
+                                      <input 
+                                        type="text" 
+                                        className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:border-amber-500 bg-slate-100" 
+                                        value={whoisForm.phoneCountryCode} 
+                                        onChange={e => setWhoisForm({ ...whoisForm, phoneCountryCode: e.target.value })} 
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-slate-600 font-semibold mb-1">Phone Number *</label>
+                                      <input 
+                                        type="text" 
+                                        className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:border-amber-500 bg-slate-50/50" 
+                                        value={whoisForm.phoneNumber} 
+                                        onChange={e => setWhoisForm({ ...whoisForm, phoneNumber: e.target.value })} 
+                                        placeholder="1712345678" 
+                                      />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                      <label className="block text-slate-600 font-semibold mb-1">Street Address *</label>
+                                      <input 
+                                        type="text" 
+                                        className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:border-amber-500 bg-slate-50/50" 
+                                        value={whoisForm.address} 
+                                        onChange={e => setWhoisForm({ ...whoisForm, address: e.target.value })} 
+                                        placeholder="House 12, Banani" 
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-slate-600 font-semibold mb-1">City *</label>
+                                      <input 
+                                        type="text" 
+                                        className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:border-amber-500 bg-slate-50/50" 
+                                        value={whoisForm.city} 
+                                        onChange={e => setWhoisForm({ ...whoisForm, city: e.target.value })} 
+                                        placeholder="Dhaka" 
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-slate-600 font-semibold mb-1">Zip / Postal Code *</label>
+                                      <input 
+                                        type="text" 
+                                        className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:border-amber-500 bg-slate-50/50" 
+                                        value={whoisForm.zipcode} 
+                                        onChange={e => setWhoisForm({ ...whoisForm, zipcode: e.target.value })} 
+                                        placeholder="1213" 
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex justify-end pt-2">
+                                    <button
+                                      onClick={() => handleUpdateWhois(domain)}
+                                      disabled={loadingWhois}
+                                      className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs disabled:opacity-50"
+                                    >
+                                      {loadingWhois ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                      <span>{loadingWhois ? 'Updating WHOIS...' : 'Save WHOIS Contacts'}</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* DNS Zone Editor Expanded Row */}
+                        {managingDnsDomain?.id === domain.id && (
+                          <tr>
+                            <td colSpan={5} className="p-0 border-b border-slate-100 bg-slate-50/70">
+                              <div className="p-6">
+                                <div className="bg-white rounded-2xl border border-purple-200/80 shadow-xs p-5 space-y-4">
+                                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                      <Globe size={16} className="text-purple-600" />
+                                      DNS Zone Editor: <span className="text-[#0E2A47] font-mono">{domain.domain}</span>
+                                    </h4>
+                                    <button 
+                                      onClick={() => setManagingDnsDomain(null)} 
+                                      className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100"
+                                    >
+                                      <X size={16} />
+                                    </button>
+                                  </div>
+
+                                  {loadingDns ? (
+                                    <div className="flex items-center gap-2 text-purple-600 p-4 bg-purple-50/50 rounded-xl">
+                                      <Loader2 size={16} className="animate-spin" /> Fetching DNS records from registry...
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-4">
+                                      <div className="flex items-center justify-between">
+                                        <p className="text-xs text-slate-500">Configure your live A, CNAME, TXT, MX DNS records.</p>
+                                        <button 
+                                          onClick={handleAddDnsRecord} 
+                                          className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition"
+                                        >
+                                          <Plus size={13} /> Add Record
+                                        </button>
+                                      </div>
+
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs">
+                                          <thead className="bg-slate-50 text-slate-600 font-semibold uppercase text-[11px]">
+                                            <tr>
+                                              <th className="px-3 py-2">Type</th>
+                                              <th className="px-3 py-2">Host</th>
+                                              <th className="px-3 py-2">Value</th>
+                                              <th className="px-3 py-2">TTL</th>
+                                              <th className="px-3 py-2 text-right">Action</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-slate-100">
+                                            {dnsRecords.length === 0 ? (
+                                              <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No DNS records found.</td></tr>
+                                            ) : dnsRecords.map((rec, idx) => (
+                                              <tr key={idx}>
+                                                <td className="px-3 py-2">
+                                                  <select 
+                                                    className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white outline-none" 
+                                                    value={rec.type} 
+                                                    onChange={e => handleDnsChange(idx, 'type', e.target.value)}
+                                                  >
+                                                    <option value="A">A</option>
+                                                    <option value="AAAA">AAAA</option>
+                                                    <option value="CNAME">CNAME</option>
+                                                    <option value="MX">MX</option>
+                                                    <option value="TXT">TXT</option>
+                                                  </select>
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                  <input 
+                                                    type="text" 
+                                                    className="border border-slate-200 rounded-lg px-2.5 py-1 text-xs w-full outline-none focus:border-purple-500" 
+                                                    value={rec.name} 
+                                                    onChange={e => handleDnsChange(idx, 'name', e.target.value)} 
+                                                    placeholder="@ or www" 
+                                                  />
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                  <input 
+                                                    type="text" 
+                                                    className="border border-slate-200 rounded-lg px-2.5 py-1 text-xs w-full outline-none focus:border-purple-500 font-mono" 
+                                                    value={rec.value} 
+                                                    onChange={e => handleDnsChange(idx, 'value', e.target.value)} 
+                                                    placeholder="192.168.1.1" 
+                                                  />
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                  <input 
+                                                    type="number" 
+                                                    className="border border-slate-200 rounded-lg px-2 py-1 text-xs w-20 outline-none focus:border-purple-500" 
+                                                    value={rec.ttl} 
+                                                    onChange={e => handleDnsChange(idx, 'ttl', parseInt(e.target.value))} 
+                                                  />
+                                                </td>
+                                                <td className="px-3 py-2 text-right">
+                                                  <button 
+                                                    onClick={() => handleRemoveDnsRecord(idx)} 
+                                                    className="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50"
+                                                  >
+                                                    <Trash size={14} />
+                                                  </button>
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+
+                                      <div className="flex justify-end pt-2">
+                                        <button 
+                                          onClick={() => handleUpdateDns(domain)} 
+                                          className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs"
+                                        >
+                                          <Save size={14} /> Save DNS Records
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Settings & Security & EPP Expanded Row */}
+                        {managingSettings?.id === domain.id && (
+                          <tr>
+                            <td colSpan={5} className="p-0 border-b border-slate-100 bg-slate-50/70">
+                              <div className="p-6">
+                                <div className="bg-white rounded-2xl border border-blue-200/80 shadow-xs p-5 space-y-4">
+                                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                      <Shield size={16} className="text-blue-600" />
+                                      Domain Security, Lock & Transfer: <span className="text-[#0E2A47] font-mono">{domain.domain}</span>
+                                    </h4>
+                                    <button 
+                                      onClick={() => setManagingSettings(null)} 
+                                      className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100"
+                                    >
+                                      <X size={16} />
+                                    </button>
+                                  </div>
+
+                                  {loadingDetails ? (
+                                    <div className="flex items-center gap-2 text-blue-600 p-4 bg-blue-50/50 rounded-xl">
+                                      <Loader2 size={16} className="animate-spin" /> Fetching live registry security flags...
+                                    </div>
+                                  ) : domainDetails ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                      {/* Registrar Lock */}
+                                      <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200 text-xs flex flex-col justify-between">
+                                        <div>
+                                          <div className="flex justify-between items-center mb-1.5">
+                                            <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                                              {domainDetails.is_locked ? <Lock size={14} className="text-emerald-600" /> : <Unlock size={14} className="text-amber-500" />}
+                                              Registrar Lock
+                                            </span>
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${domainDetails.is_locked ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                              {domainDetails.is_locked ? 'LOCKED' : 'UNLOCKED'}
+                                            </span>
+                                          </div>
+                                          <p className="text-slate-500 text-[11px] leading-relaxed">
+                                            Prevents unauthorized domain transfer attempts.
+                                          </p>
+                                        </div>
+                                        <button
+                                          onClick={() => handleToggleLock(domain, domainDetails.is_locked)}
+                                          className={`mt-4 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition ${
+                                            domainDetails.is_locked 
+                                              ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' 
+                                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                                          }`}
+                                        >
+                                          {domainDetails.is_locked ? <Unlock size={12} /> : <Lock size={12} />}
+                                          <span>{domainDetails.is_locked ? 'Unlock Domain' : 'Lock Domain'}</span>
+                                        </button>
+                                      </div>
+
+                                      {/* EPP / Auth Code */}
+                                      <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200 text-xs flex flex-col justify-between">
+                                        <div>
+                                          <div className="flex justify-between items-center mb-1.5">
+                                            <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                                              <Key size={14} className="text-blue-600" />
+                                              Transfer Auth / EPP
+                                            </span>
+                                            {domainDetails.auth_code && (
+                                              <button
+                                                onClick={() => handleCopyEpp(domainDetails.auth_code)}
+                                                className="text-[10px] font-bold text-blue-700 hover:text-blue-900 bg-blue-100 px-2 py-0.5 rounded flex items-center gap-1"
+                                              >
+                                                {copiedEpp ? <Check size={10} /> : <Copy size={10} />}
+                                                <span>{copiedEpp ? 'Copied' : 'Copy'}</span>
+                                              </button>
+                                            )}
+                                          </div>
+                                          <p className="text-slate-500 text-[11px] leading-relaxed">
+                                            Code required when migrating domain to another registrar.
+                                          </p>
+                                        </div>
+                                        <div className="mt-4 p-2 bg-white border border-slate-200 rounded-lg font-mono text-[11px] text-center select-all text-slate-800 font-bold truncate">
+                                          {domainDetails.auth_code || <span className="text-slate-400 font-normal italic">Protected / contact support</span>}
+                                        </div>
+                                      </div>
+
+                                      {/* WHOIS Privacy (ID Protection) */}
+                                      <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200 text-xs flex flex-col justify-between sm:col-span-2 lg:col-span-1">
+                                        <div>
+                                          <div className="flex justify-between items-center mb-1.5">
+                                            <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                                              {domainDetails.is_whois_privacy_enabled ? <EyeOff size={14} className="text-emerald-600" /> : <Eye size={14} className="text-slate-400" />}
+                                              WHOIS Privacy
+                                            </span>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={!!domainDetails.is_whois_privacy_enabled}
+                                                onChange={() => handleTogglePrivacy(domain, domainDetails.is_whois_privacy_enabled)}
+                                                className="sr-only peer"
+                                              />
+                                              <div className="w-8 h-4.5 bg-slate-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600" />
+                                            </label>
+                                          </div>
+                                          <p className="text-slate-500 text-[11px] leading-relaxed">
+                                            Hides your personal email and phone number from public registries.
+                                          </p>
+                                        </div>
+                                        <div className="mt-4 text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                                          <span>Status:</span>
+                                          <span className={domainDetails.is_whois_privacy_enabled ? 'text-emerald-600' : 'text-slate-400'}>
+                                            {domainDetails.is_whois_privacy_enabled ? 'Active / Protected' : 'Disabled (Public)'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-rose-600 text-xs p-3 bg-rose-50 rounded-xl">
+                                      Could not retrieve registry security settings.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================= MY SSL CERTIFICATES SECTION ================= */}
+      {(activeCategory === 'all' || activeCategory === 'ssl') && (
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/60">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <ShieldCheck size={18} />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  My SSL Certificates
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                    {sslCerts.length}
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500">Sectigo, Comodo & RapidSSL domain validation certificates</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => navigate('/ssl')}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-xs"
+            >
+              <ShieldCheck size={14} />
+              <span>Buy New SSL</span>
+            </button>
+          </div>
+
+          {sslCerts.length === 0 ? (
+            <div className="p-10 text-center text-xs text-slate-500">
+              <ShieldCheck size={24} className="mx-auto mb-2 text-slate-400" />
+              <p className="text-slate-600 font-medium mb-3">No SSL certificates active or ordered yet.</p>
+              <button
+                onClick={() => navigate('/ssl')}
+                className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl font-bold transition"
+              >
+                Protect your website with Sectigo / Comodo SSL →
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                  <tr>
+                    <th className="px-5 py-3.5">Certificate Name</th>
+                    <th className="px-5 py-3.5">Target Domain</th>
+                    <th className="px-5 py-3.5">Status</th>
+                    <th className="px-5 py-3.5">DCV Approver</th>
+                    <th className="px-5 py-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sslCerts.map((cert) => (
+                    <tr key={cert.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-5 py-4 font-bold text-slate-900">
+                        {cert.name || 'SSL Certificate'}
+                        <div className="text-[11px] text-slate-400 font-normal">Term: {cert.termYears || 1} Year</div>
+                      </td>
+                      <td className="px-5 py-4 font-mono text-slate-700">
+                        {cert.domain || <span className="text-amber-600 italic">Not Assigned</span>}
+                      </td>
+                      <td className="px-5 py-4">{getStatusBadge(cert.status)}</td>
+                      <td className="px-5 py-4 font-mono text-slate-500">
+                        {cert.approverEmail || '-'}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        {cert.status === 'pending_configuration' ? (
+                          <button
+                            onClick={() => handleOpenConfigureSsl(cert)}
+                            className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ml-auto shadow-xs"
+                          >
+                            <ShieldCheck size={13} />
+                            <span>Configure SSL</span>
+                          </button>
+                        ) : cert.status === 'processing' ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleResendDcv(cert)}
+                              className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition flex items-center gap-1"
+                            >
+                              <Mail size={12} /> Resend DCV
+                            </button>
+                            <button
+                              onClick={() => handleOpenConfigureSsl(cert)}
+                              className="bg-slate-100 text-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-200 transition"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => toast.success('Certificate is active! Check your control panel.')}
+                            className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition"
+                          >
+                            Details
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================= CLOUD VPS SERVERS SECTION ================= */}
+      {(activeCategory === 'all' || activeCategory === 'vps') && vpsAccounts.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-xs border border-purple-200/80 overflow-hidden">
+          <div className="p-5 border-b border-purple-100 bg-purple-50/30 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                <Terminal size={18} />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  My Cloud VPS Servers
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800">
+                    {vpsAccounts.length}
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500">Dedicated Root SSH access, dedicated IP, high-speed NVMe storage</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-4">
+            {vpsAccounts.map(vps => {
+              const details = vps.vpsDetails ?? { hostname: '', os: '', serverLocation: '' };
+              const isLive = vps.status === 'active';
+              const isDeploying = vps.status === 'pending' || vps.status === 'pending_setup' || vps.status === 'provisioning';
+
+              return (
+                <div key={vps.id} className="p-5 rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50/20 via-white to-indigo-50/20 shadow-xs space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 text-purple-700 rounded-xl">
+                        <Cpu size={18} />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm uppercase">
+                          {vps.planId || 'Cloud VPS'}
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Billing: <span className="capitalize font-semibold">{vps.billingCycle || 'Monthly'}</span>
+                          {vps.expiresAt && ` · Renews: ${new Date(vps.expiresAt).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>{getStatusBadge(vps.status)}</div>
+                  </div>
+
+                  {/* Specs Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-3.5 rounded-xl border border-purple-100 text-xs">
+                    <div>
+                      <span className="text-slate-400 font-medium">Server Hostname</span>
+                      <div className="font-mono font-bold text-slate-900 mt-0.5 truncate select-all">
+                        {details.hostname || vps.domain || 'Provisioning...'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-medium">Operating System</span>
+                      <div className="font-semibold text-purple-700 mt-0.5">
+                        {details.os || 'Ubuntu / Linux'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-medium">Datacenter</span>
+                      <div className="font-semibold text-slate-800 mt-0.5 truncate">
+                        {details.serverLocation || 'BDIX Dhaka / Global'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-medium">Dedicated IP</span>
+                      <div className="font-mono font-bold mt-0.5 flex items-center gap-1.5">
+                        {vps.serverIp ? (
+                          <>
+                            <span className="text-blue-600 select-all">{vps.serverIp}</span>
+                            <button
+                              onClick={() => copyToClipboard(vps.serverIp!, 'Server IP')}
+                              className="text-slate-400 hover:text-blue-600 transition"
+                              title="Copy IP"
+                            >
+                              <Copy size={12} />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-amber-600 font-normal italic">Allocating IP...</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SSH Bar */}
+                  {vps.serverIp && (
+                    <div className="bg-slate-900 text-slate-200 px-4 py-2.5 rounded-xl flex items-center justify-between gap-2 text-xs font-mono">
+                      <div className="flex items-center gap-2 select-all overflow-hidden">
+                        <Terminal size={14} className="text-emerald-400 shrink-0" />
+                        <span className="text-white truncate">ssh root@{vps.serverIp}</span>
+                      </div>
+                      <button
+                        onClick={() => copyToClipboard(`ssh root@${vps.serverIp}`, 'SSH Command')}
+                        className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-purple-200 rounded-lg text-[11px] font-sans font-semibold flex items-center gap-1 shrink-0 transition"
+                      >
+                        <Copy size={11} /> Copy SSH
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Footer Controls */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-purple-50 text-xs">
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-600">
+                      <span>Auto-Renew:</span>
+                      <input
+                        type="checkbox"
+                        checked={!!vps.autoRenew}
+                        onChange={() => handleToggleAutoRenew('hosting', vps)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-7 h-4 bg-slate-200 peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-purple-600" />
+                    </label>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setViewingVpsCredentials(vps)}
+                        className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
+                      >
+                        <Key size={13} />
+                        Server Access
+                      </button>
+                      <button
+                        onClick={() => setUpgradingHosting(vps)}
+                        className="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 rounded-xl text-xs font-bold transition"
+                      >
+                        Upgrade
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ================= MY WEB HOSTING SECTION ================= */}
+      {(activeCategory === 'all' || activeCategory === 'hosting') && (
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/60">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <Server size={18} />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  My Web Hosting
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">
+                    {sharedHostingAccounts.length}
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500">cPanel Web hosting, disk quota & bandwidth usage</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => navigate('/hosting')}
+              className="px-3 py-1.5 bg-[#0E2A47] hover:bg-blue-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-xs"
+            >
+              <Plus size={14} />
+              <span>New Plan</span>
+            </button>
+          </div>
+
+          {sharedHostingAccounts.length === 0 ? (
+            <div className="p-10 text-center text-xs text-slate-500">
+              <Server size={24} className="mx-auto mb-2 text-slate-400" />
+              <p className="text-slate-600 font-medium mb-3">
+                {vpsAccounts.length > 0 ? "You have no shared web hosting accounts." : "No hosting accounts found."}
+              </p>
+              <button
+                onClick={() => navigate('/hosting')}
+                className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-bold transition"
+              >
+                Browse Web Hosting Plans →
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                  <tr>
+                    <th className="px-5 py-3.5">Plan & Domain</th>
+                    <th className="px-5 py-3.5">Status</th>
+                    <th className="px-5 py-3.5">Server IP</th>
+                    <th className="px-5 py-3.5">cPanel</th>
+                    <th className="px-5 py-3.5">Usage</th>
+                    <th className="px-5 py-3.5">Expires</th>
+                    <th className="px-5 py-3.5">Auto-Renew</th>
+                    <th className="px-5 py-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sharedHostingAccounts.map(account => (
+                    <tr key={account.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-5 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-900 text-sm">{account.planId || 'Web Hosting'}</span>
+                          {account.domain && <span className="text-xs text-blue-600 font-semibold">{account.domain}</span>}
+                          <span className="text-[11px] text-slate-400">{account.billingCycle?.toUpperCase() || 'MONTHLY'}</span>
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4">{getStatusBadge(account.status)}</td>
+
+                      <td className="px-5 py-4 font-mono text-slate-500">
+                        {account.status === 'active' && account.serverIp ? account.serverIp : '-'}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {account.status === 'active' && account.controlPanelUrl ? (
+                          <button
+                            onClick={() => handleCpanelLogin(account)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition shadow-xs"
+                          >
+                            <ExternalLink size={12} />
+                            Log in to cPanel
+                          </button>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {usageData[account.id] ? (
+                          <div className="space-y-2 min-w-[160px]">
+                            <ProgressBar
+                              value={usageData[account.id].diskUsageMB / 1024}
+                              max={usageData[account.id].diskLimitMB / 1024}
+                              label="Disk"
+                            />
+                            <ProgressBar
+                              value={usageData[account.id].bandwidthUsageMB / 1024}
+                              max={usageData[account.id].bandwidthLimitMB / 1024}
+                              label="Bandwidth"
+                            />
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleFetchUsage(account)}
+                            disabled={usageLoading === account.id}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
+                          >
+                            <RefreshCw size={12} className={usageLoading === account.id ? 'animate-spin' : ''} />
+                            {usageLoading === account.id ? 'Loading...' : 'Show Usage'}
+                          </button>
+                        )}
+                      </td>
+
+                      <td className="px-5 py-4 text-slate-600 font-medium">
+                        {account.expiresAt ? new Date(account.expiresAt).toLocaleDateString() : '-'}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!account.autoRenew}
+                            onChange={() => handleToggleAutoRenew('hosting', account)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-8 h-4.5 bg-slate-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600" />
+                        </label>
+                      </td>
+
+                      <td className="px-5 py-4 text-right">
+                        <button
+                          onClick={() => setUpgradingHosting(account)}
+                          className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs"
+                        >
+                          Upgrade Plan
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================= MY ORDERS & INVOICES ================= */}
+      {(activeCategory === 'all' || activeCategory === 'billing') && (
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/60">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Receipt size={18} />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  My Orders & Invoices
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+                    {orders.length}
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500">Official receipts, invoice numbers & PDF downloads</p>
+              </div>
+            </div>
+          </div>
+
+          {orders.length === 0 ? (
+            <div className="p-10 text-center text-xs text-slate-500">
+              <Receipt size={24} className="mx-auto mb-2 text-slate-400" />
+              No order invoices found.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                  <tr>
+                    <th className="px-5 py-3.5">Invoice / Order ID</th>
+                    <th className="px-5 py-3.5">Date</th>
+                    <th className="px-5 py-3.5">Total Amount</th>
+                    <th className="px-5 py-3.5">Status</th>
+                    <th className="px-5 py-3.5 text-right">Download Receipt</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {orders.map(order => (
+                    <tr key={order.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-5 py-4 font-bold text-slate-900 text-sm">
+                        #{order.documentNumber || order.id.slice(0, 8).toUpperCase()}
+                      </td>
+                      <td className="px-5 py-4 text-slate-500 font-medium">
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-5 py-4 font-bold text-slate-900">
+                        {formatCurrency(order.total)}
+                      </td>
+                      <td className="px-5 py-4">
+                        {getStatusBadge(order.status)}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <button
+                          onClick={() => generateInvoice(order)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition shadow-xs"
+                        >
+                          <Download size={13} />
+                          <span>PDF Receipt</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================= TECHNICAL SUPPORT DESK ================= */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-6">
+        <SupportTicketsClient />
+      </div>
+
+      {/* ================= MODALS ================= */}
+
+      {/* SSL Configuration Modal */}
       {configuringSsl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="bg-[#081621] text-white p-6 flex justify-between items-center">
               <div>
@@ -1088,34 +1760,30 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
                   <ShieldCheck className="text-emerald-400" size={20} />
                   Configure SSL Certificate: {configuringSsl.name}
                 </h3>
-                <p className="text-xs text-gray-400 mt-1">Provide your domain name, CSR, and select a validation email.</p>
+                <p className="text-xs text-slate-400 mt-1">Provide domain name, CSR, and choose validation email.</p>
               </div>
-              <button onClick={() => setConfiguringSsl(null)} className="text-gray-400 hover:text-white p-1 rounded-lg">
+              <button onClick={() => setConfiguringSsl(null)} className="text-slate-400 hover:text-white p-1 rounded-lg">
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-5 text-sm">
-              {/* Domain input */}
+            <div className="p-6 overflow-y-auto space-y-4 text-xs">
               <div>
-                <label className="block text-gray-700 font-semibold mb-1">Domain Name (FQDN) *</label>
+                <label className="block text-slate-700 font-bold mb-1">Domain Name (FQDN) *</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={sslForm.domain}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSslForm({ ...sslForm, domain: val });
-                    }}
+                    onChange={(e) => setSslForm({ ...sslForm, domain: e.target.value })}
                     onBlur={() => handleFetchApproverEmails(sslForm.domain)}
-                    placeholder="example.com or sub.example.com"
-                    className="flex-1 border border-gray-300 rounded-lg p-2.5 outline-none focus:border-emerald-500 font-mono text-sm"
+                    placeholder="example.com"
+                    className="flex-1 border border-slate-200 rounded-xl p-2.5 outline-none focus:border-emerald-500 font-mono text-xs"
                   />
                   <button
                     type="button"
                     onClick={() => handleFetchApproverEmails(sslForm.domain)}
                     disabled={loadingApprovers}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold border border-gray-300 flex items-center gap-1"
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 flex items-center gap-1"
                   >
                     {loadingApprovers ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                     Fetch DCV
@@ -1123,14 +1791,12 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
                 </div>
               </div>
 
-              {/* Approver email dropdown */}
               <div>
-                <label className="block text-gray-700 font-semibold mb-1">DCV Approver Email (Domain Control Validation) *</label>
-                <p className="text-xs text-gray-500 mb-2">The certificate authority will send a verification link to this email.</p>
+                <label className="block text-slate-700 font-bold mb-1">DCV Approver Email *</label>
                 <select
                   value={sslForm.approverEmail}
                   onChange={(e) => setSslForm({ ...sslForm, approverEmail: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-emerald-500 font-mono text-sm bg-white"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:border-emerald-500 font-mono text-xs bg-white"
                 >
                   {approverEmails.length === 0 ? (
                     <option value="">{loadingApprovers ? 'Loading emails...' : 'Enter domain above to list approver emails'}</option>
@@ -1142,14 +1808,13 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
                 </select>
               </div>
 
-              {/* CSR input & Generator helper */}
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="block text-gray-700 font-semibold">Certificate Signing Request (CSR) *</label>
+                  <label className="block text-slate-700 font-bold">Certificate Signing Request (CSR) *</label>
                   <button
                     type="button"
                     onClick={() => handleGenerateCsr(sslForm.domain)}
-                    className="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 transition-colors"
+                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200"
                   >
                     Auto-Generate CSR
                   </button>
@@ -1158,17 +1823,17 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
                   rows={6}
                   value={sslForm.csr}
                   onChange={(e) => setSslForm({ ...sslForm, csr: e.target.value })}
-                  placeholder="-----BEGIN CERTIFICATE REQUEST-----&#10;...&#10;-----END CERTIFICATE REQUEST-----"
-                  className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-emerald-500 font-mono text-xs text-gray-800 resize-none"
+                  placeholder="-----BEGIN CERTIFICATE REQUEST-----..."
+                  className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:border-emerald-500 font-mono text-xs text-slate-800 resize-none"
                 />
               </div>
             </div>
 
-            <div className="bg-gray-50 border-t border-gray-200 p-4 flex justify-end gap-3">
+            <div className="bg-slate-50 border-t border-slate-200 p-4 flex justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setConfiguringSsl(null)}
-                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 transition-colors"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800"
               >
                 Cancel
               </button>
@@ -1176,17 +1841,17 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
                 type="button"
                 onClick={handleSubmitConfigureSsl}
                 disabled={submittingSsl}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors disabled:opacity-50"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs disabled:opacity-50"
               >
-                {submittingSsl ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                {submittingSsl ? 'Submitting to Openprovider...' : 'Submit & Issue Certificate'}
+                {submittingSsl ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                <span>{submittingSsl ? 'Submitting...' : 'Issue Certificate'}</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ================= NAMESERVER MODAL ================= */}
+      {/* Nameserver Modal */}
       {managingNsDomain && (
         <NameserverModal
           domain={managingNsDomain}
@@ -1195,298 +1860,17 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
         />
       )}
 
-      {/* ================= CLOUD VPS SERVERS SECTION ================= */}
-      {(() => {
-        const vpsAccounts = hosting.filter(acc => acc.type === 'vps' || acc.provider === 'vps' || Boolean(acc.vpsDetails) || acc.planId?.toLowerCase().includes('vps'));
-        const sharedHostingAccounts = hosting.filter(acc => !vpsAccounts.some(v => v.id === acc.id));
-
-        return (
-          <>
-            {vpsAccounts.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-purple-200 p-6 space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-100 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-purple-50 text-purple-700 rounded-xl">
-                      <Terminal size={24} />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                        My Cloud VPS Servers
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
-                          {vpsAccounts.length}
-                        </span>
-                      </h2>
-                      <p className="text-xs text-gray-500 mt-0.5">High-speed SSD VPS with root SSH access & dedicated resources</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4">
-                  {vpsAccounts.map(vps => {
-                    const details = vps.vpsDetails || {};
-                    const isLive = vps.status === 'active';
-                    const isDeploying = vps.status === 'pending' || vps.status === 'pending_setup' || vps.status === 'provisioning';
-
-                    return (
-                      <div key={vps.id} className="p-5 rounded-xl border border-purple-100 bg-gradient-to-br from-purple-50/40 via-white to-indigo-50/30 hover:border-purple-300 transition-all shadow-xs space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <span className="p-2 bg-purple-100 text-purple-700 rounded-lg">
-                              <Cpu size={18} />
-                            </span>
-                            <div>
-                              <h3 className="font-bold text-gray-900 text-base uppercase">
-                                {vps.planId || 'Cloud VPS'}
-                              </h3>
-                              <p className="text-xs text-gray-500">
-                                Billing: <span className="capitalize font-semibold">{vps.billingCycle || 'Monthly'}</span>
-                                {vps.expiresAt && ` · Renews: ${new Date(vps.expiresAt).toLocaleDateString()}`}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            {isLive && (
-                              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold uppercase flex items-center gap-1.5 shadow-xs">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Active
-                              </span>
-                            )}
-                            {isDeploying && (
-                              <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold uppercase flex items-center gap-1.5">
-                                <Clock size={12} className="animate-spin" />
-                                Deploying Server...
-                              </span>
-                            )}
-                            {!isLive && !isDeploying && (
-                              <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold uppercase">
-                                {vps.status}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Specs & Connection Details */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-white p-4 rounded-xl border border-purple-100 text-xs shadow-xs">
-                          <div>
-                            <span className="text-gray-500 font-medium">Server Hostname</span>
-                            <div className="font-mono font-bold text-gray-900 mt-0.5 truncate select-all">
-                              {details.hostname || vps.domain || 'Provisioning...'}
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="text-gray-500 font-medium">Operating System</span>
-                            <div className="font-semibold text-purple-700 mt-0.5">
-                              {details.os || 'Ubuntu / Linux'}
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="text-gray-500 font-medium">Datacenter Location</span>
-                            <div className="font-semibold text-gray-800 mt-0.5 truncate">
-                              {details.serverLocation || 'BDIX Dhaka / Singapore'}
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="text-gray-500 font-medium">Assigned Primary IP</span>
-                            <div className="font-mono font-bold mt-0.5 flex items-center gap-1.5">
-                              {vps.serverIp ? (
-                                <>
-                                  <span className="text-blue-600 select-all">{vps.serverIp}</span>
-                                  <button
-                                    onClick={() => copyToClipboard(vps.serverIp!, 'Server IP')}
-                                    className="text-gray-400 hover:text-blue-600 transition-colors"
-                                    title="Copy IP"
-                                  >
-                                    <Copy size={12} />
-                                  </button>
-                                </>
-                              ) : (
-                                <span className="text-amber-600 font-normal italic">Allocating dedicated IP...</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* SSH Connect Quick Bar */}
-                        {vps.serverIp && (
-                          <div className="bg-gray-900 text-gray-200 px-4 py-2.5 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
-                            <div className="flex items-center gap-2 select-all">
-                              <span className="text-emerald-400"># Connect:</span>
-                              <span className="text-white">ssh root@{vps.serverIp}</span>
-                            </div>
-                            <button
-                              onClick={() => copyToClipboard(`ssh root@${vps.serverIp}`, 'SSH Command')}
-                              className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-purple-200 rounded text-[11px] font-sans font-semibold flex items-center gap-1 transition-all"
-                            >
-                              <Copy size={11} />
-                              Copy SSH
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Footer Controls */}
-                        <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-purple-50">
-                          <div className="flex items-center gap-2 text-xs text-gray-600">
-                            <span>Auto-Renew:</span>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={!!vps.autoRenew}
-                                onChange={() => handleToggleAutoRenew('hosting', vps)}
-                                className="sr-only peer"
-                              />
-                              <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
-                            </label>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setViewingVpsCredentials(vps)}
-                              className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
-                            >
-                              <Key size={13} />
-                              Server Credentials
-                            </button>
-                            <button
-                              onClick={() => setUpgradingHosting(vps)}
-                              className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-bold transition-all"
-                            >
-                              Upgrade
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* ================= MY HOSTING SECTION ================= */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center gap-2 mb-6">
-                <HardDrive className="text-[#EF4444]" size={24} />
-                <h2 className="text-xl font-bold text-[#081621]">My Hosting</h2>
-              </div>
-
-              {sharedHostingAccounts.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">
-                  {vpsAccounts.length > 0 ? "You have no shared web hosting accounts." : "No hosting accounts found."}
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-[#081621] text-white text-xs uppercase">
-                      <tr>
-                        <th className="px-6 py-4">Plan</th>
-                        <th className="px-6 py-4">Status</th>
-                        <th className="px-6 py-4">Server IP</th>
-                        <th className="px-6 py-4">cPanel</th>
-                        <th className="px-6 py-4">Usage</th>
-                        <th className="px-6 py-4">Expires</th>
-                        <th className="px-6 py-4">Auto-Renew</th>
-                        <th className="px-6 py-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {sharedHostingAccounts.map(account => (
-                        <tr key={account.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col">
-                              <span className="font-bold">{account.planId || '-'}</span>
-                              {account.domain && <span className="text-xs text-blue-600">{account.domain}</span>}
-                              <span className="text-xs text-gray-500">{account.billingCycle?.toUpperCase() || 'MONTHLY'}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">{getStatusBadge(account.status)}</td>
-                          <td className="px-6 py-4 text-sm text-gray-500">
-                            {account.status === 'active' && account.serverIp ? account.serverIp : '-'}
-                          </td>
-                          <td className="px-6 py-4">
-                            {account.status === 'active' && account.controlPanelUrl ? (
-                              <button
-                                onClick={() => handleCpanelLogin(account)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition-colors shadow-sm"
-                              >
-                                <ExternalLink size={12} />
-                                Log in to cPanel
-                              </button>
-                            ) : (
-                              <span className="text-xs text-gray-400">-</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            {usageData[account.id] ? (
-                              <div className="space-y-2 min-w-[200px]">
-                                <ProgressBar
-                                  value={usageData[account.id].diskUsageMB / 1024}
-                                  max={usageData[account.id].diskLimitMB / 1024}
-                                  label="Disk"
-                                />
-                                <ProgressBar
-                                  value={usageData[account.id].bandwidthUsageMB / 1024}
-                                  max={usageData[account.id].bandwidthLimitMB / 1024}
-                                  label="Bandwidth"
-                                />
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => handleFetchUsage(account)}
-                                disabled={usageLoading === account.id}
-                                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                              >
-                                <RefreshCw size={12} className={usageLoading === account.id ? 'animate-spin' : ''} />
-                                {usageLoading === account.id ? 'Loading...' : 'Show Usage'}
-                              </button>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">
-                            {account.expiresAt ? new Date(account.expiresAt).toLocaleDateString() : '-'}
-                          </td>
-                          <td className="px-6 py-4">
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={!!account.autoRenew}
-                                onChange={() => handleToggleAutoRenew('hosting', account)}
-                                className="sr-only peer"
-                              />
-                              <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-[#EF4444] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#EF4444]"></div>
-                            </label>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <button
-                              onClick={() => setUpgradingHosting(account)}
-                              className="bg-[#081621] text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-[#EF4444] transition-colors shadow-sm"
-                            >
-                              Upgrade Plan
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </>
-        );
-      })()}
-
       {/* VPS Credentials Modal */}
       {viewingVpsCredentials && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-6 flex justify-between items-center">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-5 flex justify-between items-center">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-white/10 rounded-xl">
                   <Terminal className="w-5 h-5 text-purple-300" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg">Server Credentials</h3>
+                  <h3 className="font-bold text-base">Server Credentials</h3>
                   <p className="text-xs text-purple-200">
                     {viewingVpsCredentials.vpsDetails?.hostname || viewingVpsCredentials.domain || 'Cloud VPS Instance'}
                   </p>
@@ -1494,42 +1878,42 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
               </div>
               <button 
                 onClick={() => { setViewingVpsCredentials(null); setShowVpsPass(false); }}
-                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-5 space-y-4 text-xs">
               {/* Connection Box */}
-              <div className="bg-gray-900 text-gray-100 p-4 rounded-xl space-y-2">
+              <div className="bg-slate-900 text-slate-100 p-3.5 rounded-xl space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-400 font-mono">SSH Root Login</span>
+                  <span className="text-[11px] text-slate-400 font-mono">SSH Root Login</span>
                   {viewingVpsCredentials.serverIp && (
                     <button
                       onClick={() => copyToClipboard(`ssh root@${viewingVpsCredentials.serverIp}`, 'SSH Command')}
-                      className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                      className="text-[11px] text-purple-400 hover:text-purple-300 flex items-center gap-1"
                     >
-                      <Copy className="w-3 h-3" /> Copy Command
+                      <Copy className="w-3 h-3" /> Copy
                     </button>
                   )}
                 </div>
-                <div className="font-mono text-sm text-emerald-400 select-all">
+                <div className="font-mono text-xs text-emerald-400 select-all">
                   ssh root@{viewingVpsCredentials.serverIp || 'YOUR_SERVER_IP'}
                 </div>
               </div>
 
-              {/* Credentials Details Grid */}
-              <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 text-sm">
-                <div className="p-3 flex justify-between items-center bg-gray-50/50">
-                  <span className="text-gray-500 font-medium">Hostname</span>
-                  <span className="font-mono font-bold text-gray-900">
+              {/* Grid */}
+              <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 text-xs">
+                <div className="p-2.5 flex justify-between items-center bg-slate-50/50">
+                  <span className="text-slate-500 font-medium">Hostname</span>
+                  <span className="font-mono font-bold text-slate-900">
                     {viewingVpsCredentials.vpsDetails?.hostname || viewingVpsCredentials.domain || 'N/A'}
                   </span>
                 </div>
 
-                <div className="p-3 flex justify-between items-center">
-                  <span className="text-gray-500 font-medium">Dedicated IP</span>
+                <div className="p-2.5 flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Dedicated IP</span>
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-blue-600">
                       {viewingVpsCredentials.serverIp || 'Allocating...'}
@@ -1537,7 +1921,7 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
                     {viewingVpsCredentials.serverIp && (
                       <button
                         onClick={() => copyToClipboard(viewingVpsCredentials.serverIp!, 'IP')}
-                        className="text-gray-400 hover:text-gray-600"
+                        className="text-slate-400 hover:text-slate-600"
                         title="Copy IP"
                       >
                         <Copy className="w-3.5 h-3.5" />
@@ -1546,15 +1930,15 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
                   </div>
                 </div>
 
-                <div className="p-3 flex justify-between items-center bg-gray-50/50">
-                  <span className="text-gray-500 font-medium">Root Username</span>
-                  <span className="font-mono font-bold text-gray-900">root</span>
+                <div className="p-2.5 flex justify-between items-center bg-slate-50/50">
+                  <span className="text-slate-500 font-medium">Root Username</span>
+                  <span className="font-mono font-bold text-slate-900">root</span>
                 </div>
 
-                <div className="p-3 flex justify-between items-center">
-                  <span className="text-gray-500 font-medium">Root Password</span>
+                <div className="p-2.5 flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Root Password</span>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-gray-900">
+                    <span className="font-mono font-bold text-slate-900">
                       {showVpsPass ? (viewingVpsCredentials.vpsDetails?.rootPassword || 'None') : '••••••••••••'}
                     </span>
                     {viewingVpsCredentials.vpsDetails?.rootPassword && (
@@ -1562,7 +1946,7 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
                         <button
                           type="button"
                           onClick={() => setShowVpsPass(!showVpsPass)}
-                          className="text-gray-400 hover:text-gray-600"
+                          className="text-slate-400 hover:text-slate-600"
                           title={showVpsPass ? "Hide" : "Show"}
                         >
                           {showVpsPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -1570,7 +1954,7 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
                         <button
                           type="button"
                           onClick={() => copyToClipboard(viewingVpsCredentials.vpsDetails?.rootPassword!, 'Root Password')}
-                          className="text-gray-400 hover:text-purple-600"
+                          className="text-slate-400 hover:text-purple-600"
                           title="Copy Password"
                         >
                           <Copy className="w-3.5 h-3.5" />
@@ -1580,46 +1964,25 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
                   </div>
                 </div>
 
-                <div className="p-3 flex justify-between items-center bg-gray-50/50">
-                  <span className="text-gray-500 font-medium">Operating System</span>
-                  <span className="font-semibold text-gray-800">
+                <div className="p-2.5 flex justify-between items-center bg-slate-50/50">
+                  <span className="text-slate-500 font-medium">Operating System</span>
+                  <span className="font-semibold text-slate-800">
                     {viewingVpsCredentials.vpsDetails?.os || 'Ubuntu / Linux'}
                   </span>
                 </div>
 
-                <div className="p-3 flex justify-between items-center">
-                  <span className="text-gray-500 font-medium">Datacenter</span>
-                  <span className="font-semibold text-gray-800">
-                    {viewingVpsCredentials.vpsDetails?.serverLocation || 'BDIX Dhaka / Singapore'}
+                <div className="p-2.5 flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Datacenter</span>
+                  <span className="font-semibold text-slate-800">
+                    {viewingVpsCredentials.vpsDetails?.serverLocation || 'BDIX Dhaka / Global'}
                   </span>
                 </div>
-
-                {viewingVpsCredentials.vpsDetails?.sshKey && (
-                  <div className="p-3 bg-gray-50/50">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-gray-500 font-medium">Configured SSH Key</span>
-                      <button
-                        onClick={() => copyToClipboard(viewingVpsCredentials.vpsDetails?.sshKey!, 'SSH Key')}
-                        className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1 font-medium"
-                      >
-                        <Copy className="w-3 h-3" /> Copy
-                      </button>
-                    </div>
-                    <p className="font-mono text-xs text-gray-700 bg-white p-2 rounded border border-gray-200 break-all max-h-20 overflow-y-auto">
-                      {viewingVpsCredentials.vpsDetails.sshKey}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-                <strong>Security Note:</strong> Always update your root password or switch to SSH key authentication upon initial server setup.
               </div>
 
               <div className="pt-2 flex justify-end">
                 <button
                   onClick={() => { setViewingVpsCredentials(null); setShowVpsPass(false); }}
-                  className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-colors"
+                  className="px-5 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold transition"
                 >
                   Close
                 </button>
@@ -1637,61 +2000,6 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
         />
       )}
 
-      {/* ================= MY ORDERS & INVOICES ================= */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <Receipt className="text-[#EF4444]" size={24} />
-          <h2 className="text-xl font-bold text-[#081621]">My Orders & Invoices</h2>
-        </div>
-
-        {orders.length === 0 ? (
-          <p className="text-gray-400 text-center py-8">No orders found.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-[#081621] text-white text-xs uppercase">
-                <tr>
-                  <th className="px-6 py-4">Order ID / No</th>
-                  <th className="px-6 py-4">Date</th>
-                  <th className="px-6 py-4">Total</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Invoice</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {orders.map(order => (
-                  <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-bold text-sm">
-                      {order.documentNumber || order.id.slice(0, 8).toUpperCase()}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {new Date(order.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold">
-                      {formatCurrency(order.total)}
-                    </td>
-                    <td className="px-6 py-4">
-                      {getStatusBadge(order.status)}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => generateInvoice(order)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
-                      >
-                        <Download size={14} />
-                        Download
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Support Tickets */}
-      <SupportTicketsClient />
     </div>
   );
 };

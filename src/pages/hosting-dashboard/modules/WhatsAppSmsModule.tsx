@@ -29,7 +29,7 @@ const NOTIFY_LABELS = {
 
 const SMS_PROVIDERS = ['twilio', 'nexmo', 'africastalking', 'infobip', 'other'];
 
-function PasswordInput({ value, onChange, placeholder, className }) {
+function PasswordInput({ value, onChange, placeholder, className = '' }) {
   const [show, setShow] = useState(false);
   return (
     <div className="relative">

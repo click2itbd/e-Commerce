@@ -196,7 +196,7 @@ export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers
       onConfirm: async () => {
         try {
           const batch = writeBatch(db);
-          const returnPromises: Promise<void>[] = [];
+          const returnPromises: Promise<unknown>[] = [];
           
           for (const id of selectedOrderIds) {
             const order = orders.find(o => o.id === id);

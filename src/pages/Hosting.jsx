@@ -100,8 +100,8 @@ export default function Hosting() {
       {/* 5. Turbo / Managed WordPress & WooCommerce Cloud Hosting */}
       <WordPressCloudSection />
 
-      {/* 6. High Performance KVM Cloud VPS & Dedicated Servers (Hidden temporarily) */}
-      {/* <CloudVpsSection /> */}
+      {/* 6. High Performance KVM Cloud VPS & Dedicated Servers */}
+      <CloudVpsSection />
 
       {/* 7. CloudLinux OS License Pricing & Comparison */}
       <CloudLinuxLicenseSection />

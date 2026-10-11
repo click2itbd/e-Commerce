@@ -21,14 +21,17 @@ const DomainTransferPage = () => {
   const [supportedTlds, setSupportedTlds] = useState<string[]>([]);
 
   React.useEffect(() => {
+    let isMounted = true;
     getDomainPricing().then(pricing => {
+      if (!isMounted) return;
       if (pricing && pricing.length > 0) {
         setSupportedTlds(pricing.map(p => {
           const ptld = p.tld.toLowerCase();
           return ptld.startsWith('.') ? ptld : `.${ptld}`;
         }));
       }
-    });
+    }).catch(() => {});
+    return () => { isMounted = false; };
   }, []);
 
   const normalizeDomain = (input: string): string => {
@@ -56,12 +59,9 @@ const DomainTransferPage = () => {
       return;
     }
 
-    if (supportedTlds.length > 0) {
-      const isSupported = supportedTlds.some(tld => normalized.endsWith(tld));
-      if (!isSupported) {
-        setValidationError(`This domain extension is currently not supported for transfer.`);
-        return;
-      }
+    if (normalized.endsWith('.bd')) {
+      setValidationError('.bd domains are managed directly via BTCL and require manual document transfer. Please visit our .BD Domain page or contact support for transfer assistance.');
+      return;
     }
 
     setIsProcessing(true);

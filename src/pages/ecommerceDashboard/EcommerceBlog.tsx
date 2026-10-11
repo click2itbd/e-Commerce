@@ -3,6 +3,7 @@ import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore'
 import { db } from '../../firebase';
 import { FileText, Plus, Edit2, Trash2, Save, X, Search, Image as ImageIcon, Eye, Globe } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useConfirm } from '../../context/ConfirmContext';
 
 interface BlogPost {
   id: string;
@@ -19,6 +20,7 @@ interface BlogPost {
 }
 
 export const EcommerceBlog: React.FC = () => {
+  const { confirm } = useConfirm();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

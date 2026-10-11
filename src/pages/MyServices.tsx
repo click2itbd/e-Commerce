@@ -1,20 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { db } from '../firebase';
-import { collection, query, where, onSnapshot, updateDoc, doc, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, doc, limit } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { getHostingUsage, HostingUsageStats } from '../services/hostingApi';
-import { RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, Server, Globe, Receipt, Download, ExternalLink, ChevronRight, LayoutDashboard, Ticket } from 'lucide-react';
+import { 
+  RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, 
+  Server, Globe, Receipt, Download, ExternalLink, ChevronRight, LayoutDashboard, 
+  Ticket, Terminal, Copy, Eye, EyeOff, Cpu, Key, X, Share2, Shield, 
+  Sparkles, Plus, Search, Activity, Layers, ArrowUpRight
+} from 'lucide-react';
 import { HostingOrder } from '../types';
-
 
 import { useSettings } from '../context/SettingsContext';
 import { formatCurrency } from '../lib/utils';
 import { SupportTicketsClient } from '../components/hosting/SupportTicketsClient';
 import { NameserverModal } from '../components/hosting/NameserverModal';
+import { DomainSecurityModal } from '../components/hosting/DomainSecurityModal';
 import { UserAffiliateTab } from '../components/hosting/UserAffiliateTab';
 import { HostingUpgradeModal } from '../components/hosting/HostingUpgradeModal';
 import { apiPost } from '../services/apiClient';
@@ -23,11 +28,13 @@ interface DomainOrder {
   id: string;
   domain: string;
   status: string;
+  type?: 'register' | 'renewal' | 'transfer';
   expiresAt?: string;
   autoRenew?: boolean;
   price?: number;
   createdAt: string;
   updatedAt: string;
+  [key: string]: any;
 }
 
 interface BdDomainApp {
@@ -42,6 +49,20 @@ interface HostingAccount {
   id: string;
   planId?: string;
   providerAccountId?: string;
+  type?: string;
+  provider?: string;
+  vpsDetails?: {
+    hostname?: string;
+    os?: string;
+    serverLocation?: string;
+    rootPassword?: string;
+    sshKey?: string;
+    cores?: string;
+    ram?: string;
+    storage?: string;
+    bandwidth?: string;
+    notes?: string;
+  };
   status: string;
   serverIp?: string;
   controlPanelUrl?: string;
@@ -53,6 +74,7 @@ interface HostingAccount {
   domain?: string;
   createdAt: string;
   updatedAt: string;
+  [key: string]: any;
 }
 
 export const MyServices: React.FC = () => {
@@ -61,19 +83,43 @@ export const MyServices: React.FC = () => {
   const { settings } = useSettings();
   const navigate = useNavigate();
 
+  // State
   const [domains, setDomains] = useState<DomainOrder[]>([]);
   const [hosting, setHosting] = useState<HostingAccount[]>([]);
   const [bdDomains, setBdDomains] = useState<BdDomainApp[]>([]);
   const [orders, setOrders] = useState<HostingOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [domainLoading, setDomainLoading] = useState<string | null>(null);
-  const [hostingLoading, setHostingLoading] = useState<string | null>(null);
   const [usageData, setUsageData] = useState<Record<string, HostingUsageStats>>({});
   const [usageLoading, setUsageLoading] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'domains' | 'hosting' | 'billing' | 'support' | 'affiliate'>('overview');
   
+  // Modals
   const [managingNsDomain, setManagingNsDomain] = useState<DomainOrder | null>(null);
+  const [managingSecurityDomain, setManagingSecurityDomain] = useState<DomainOrder | null>(null);
   const [upgradingHosting, setUpgradingHosting] = useState<HostingAccount | null>(null);
+  const [selectedVpsModal, setSelectedVpsModal] = useState<HostingAccount | null>(null);
+  const [showVpsModalPass, setShowVpsModalPass] = useState(false);
+
+  // Search & Filter state
+  const [domainSearch, setDomainSearch] = useState('');
+  const [hostingFilter, setHostingFilter] = useState<'all' | 'shared' | 'vps'>('all');
+  const [hostingSearch, setHostingSearch] = useState('');
+  const [billingSearch, setBillingSearch] = useState('');
+
+  const isVpsAccount = (acc: HostingAccount) => {
+    return (
+      acc.type === 'vps' ||
+      acc.provider === 'vps' ||
+      Boolean(acc.vpsDetails) ||
+      Boolean(acc.planId?.toLowerCase().includes('vps'))
+    );
+  };
+
+  const copyToClipboard = (text: string, fieldName: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${fieldName} copied!`);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -197,29 +243,73 @@ export const MyServices: React.FC = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      active: 'bg-green-100 text-green-800 border-green-300',
-      pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      suspended: 'bg-orange-100 text-orange-800 border-orange-300',
-      terminated: 'bg-red-100 text-red-800 border-red-300',
-    };
-    return (
-      <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${styles[status] || 'bg-gray-100 text-gray-700 border-gray-300'}`}>
-        {status}
-      </span>
-    );
+    const s = status?.toLowerCase() || 'pending';
+    switch (s) {
+      case 'active':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Active
+          </span>
+        );
+      case 'pending':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            <Clock size={11} className="text-amber-500" />
+            Pending
+          </span>
+        );
+      case 'pending_setup':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            <RefreshCw size={11} className="text-blue-500 animate-spin" />
+            Setting Up
+          </span>
+        );
+      case 'provisioning':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+            <RefreshCw size={11} className="text-purple-500 animate-spin" />
+            Provisioning
+          </span>
+        );
+      case 'suspended':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            <AlertTriangle size={11} className="text-rose-500" />
+            Suspended
+          </span>
+        );
+      case 'terminated':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+            <XCircle size={11} className="text-gray-500" />
+            Terminated
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200 capitalize">
+            {s.replace(/_/g, ' ')}
+          </span>
+        );
+    }
   };
 
   const ProgressBar = ({ value, max, label }: { value: number; max: number; label: string }) => {
-    const percent = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+    const percent = max > 0 ? Math.min(Math.round((value / max) * 100), 100) : 0;
+    const isHigh = percent > 85;
     return (
-      <div className="w-full">
-        <div className="flex justify-between text-xs text-gray-500 mb-1">
-          <span>{label}</span>
-          <span>{value.toFixed(1)} / {max.toFixed(1)} GB</span>
+      <div className="w-full space-y-1">
+        <div className="flex justify-between text-[11px] font-medium text-slate-500">
+          <span className="font-semibold text-slate-700">{label}</span>
+          <span>{value.toFixed(1)} / {max.toFixed(1)} GB <span className="text-slate-400 font-normal">({percent}%)</span></span>
         </div>
-        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div className="h-full bg-blue-600 rounded-full transition-all" style={{ width: `${percent}%` }} />
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div 
+            className={`h-full rounded-full transition-all duration-500 ${isHigh ? 'bg-amber-500' : 'bg-blue-600'}`} 
+            style={{ width: `${percent}%` }} 
+          />
         </div>
       </div>
     );
@@ -310,14 +400,56 @@ export const MyServices: React.FC = () => {
     doc.setFont('helvetica', 'bold');
     doc.text(`Total: ${formatCurrency(order.total, settings as any)}`, pageWidth - 14, finalY, { align: 'right' });
 
-    doc.save(`Invoice_${order.documentNumber || order.id.slice(0,8)}.pdf`);
+    doc.save(`Invoice_${order.documentNumber || order.id.slice(0, 8)}.pdf`);
   };
+
+  // Filtered lists
+  const filteredDomains = useMemo(() => {
+    return domains.filter(d => 
+      !domainSearch.trim() || d.domain.toLowerCase().includes(domainSearch.toLowerCase().trim())
+    );
+  }, [domains, domainSearch]);
+
+  const filteredHosting = useMemo(() => {
+    return hosting.filter(h => {
+      const isVps = isVpsAccount(h);
+      if (hostingFilter === 'vps' && !isVps) return false;
+      if (hostingFilter === 'shared' && isVps) return false;
+      if (hostingSearch.trim()) {
+        const query = hostingSearch.toLowerCase().trim();
+        const matchPlan = h.planId?.toLowerCase().includes(query);
+        const matchDomain = h.domain?.toLowerCase().includes(query);
+        const matchIp = h.serverIp?.toLowerCase().includes(query);
+        const matchHost = h.vpsDetails?.hostname?.toLowerCase().includes(query);
+        if (!matchPlan && !matchDomain && !matchIp && !matchHost) return false;
+      }
+      return true;
+    });
+  }, [hosting, hostingFilter, hostingSearch]);
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => {
+      if (!billingSearch.trim()) return true;
+      const q = billingSearch.toLowerCase().trim();
+      const num = (o.documentNumber || o.id).toLowerCase();
+      return num.includes(q) || o.status.toLowerCase().includes(q);
+    });
+  }, [orders, billingSearch]);
+
+  // Statistics
+  const activeDomainsCount = domains.filter(d => d.status === 'active').length;
+  const activeHostingCount = hosting.filter(h => h.status === 'active' && !isVpsAccount(h)).length;
+  const activeVpsCount = hosting.filter(h => h.status === 'active' && isVpsAccount(h)).length;
+  const paidOrdersCount = orders.filter(o => o.status === 'completed' || (o as any).paymentStatus === 'paid').length;
 
   if (loading) {
     return (
       <Layout>
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0E2A47]"></div>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <div className="flex flex-col items-center gap-3">
+            <div className="animate-spin rounded-full h-10 w-10 border-3 border-blue-600 border-t-transparent" />
+            <p className="text-sm font-medium text-slate-500">Loading your client portal...</p>
+          </div>
         </div>
       </Layout>
     );
@@ -325,199 +457,695 @@ export const MyServices: React.FC = () => {
 
   return (
     <Layout>
-      <div className="bg-gray-50 min-h-screen pb-12">
-        {/* Header Section */}
-        <div className="bg-[#0E2A47] text-white pt-8 pb-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h1 className="text-3xl font-bold mb-2">Client Portal</h1>
-            <p className="text-blue-200">Manage your hosting services, domains, and billing in one place.</p>
-          </div>
-        </div>
+      <div className="min-h-screen bg-slate-50/60 pb-16">
+        
+        {/* Modern Top Hero & Profile Banner */}
+        <div className="relative bg-gradient-to-r from-slate-950 via-[#0a1f38] to-slate-900 text-white overflow-hidden border-b border-slate-800 shadow-sm">
+          {/* Subtle background glow */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(59,130,246,0.18),rgba(255,255,255,0))] pointer-events-none" />
+          
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 relative">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              
+              {/* User greeting & client status */}
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-xl font-bold text-white shadow-lg shadow-blue-500/20 ring-2 ring-white/10 shrink-0">
+                  {user?.displayName ? user.displayName.charAt(0).toUpperCase() : (user?.email ? user.email.charAt(0).toUpperCase() : 'U')}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                      {user?.displayName || 'Client Portal'}
+                    </h1>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <Shield size={12} className="text-emerald-400" /> Verified
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-400 mt-1 flex items-center gap-2">
+                    <span>{user?.email || 'Logged in account'}</span>
+                    <span className="text-slate-600">•</span>
+                    <span className="text-blue-300/80">Manage services, cloud servers & billing</span>
+                  </p>
+                </div>
+              </div>
 
-        {/* Main Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8">
-          <div className="flex flex-col md:flex-row gap-6">
-            
-            {/* Sidebar Navigation */}
-            <div className="w-full md:w-64 shrink-0">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden sticky top-24">
-                <nav className="flex flex-col">
-                  <button 
-                    onClick={() => setActiveTab('overview')}
-                    className={`flex items-center gap-3 px-4 py-4 text-left font-medium transition-colors border-l-4 ${activeTab === 'overview' ? 'border-[#0E2A47] bg-blue-50 text-[#0E2A47]' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-[#0E2A47]'}`}
-                  >
-                    <LayoutDashboard size={20} /> Dashboard Overview
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('domains')}
-                    className={`flex items-center gap-3 px-4 py-4 text-left font-medium transition-colors border-l-4 ${activeTab === 'domains' ? 'border-[#0E2A47] bg-blue-50 text-[#0E2A47]' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-[#0E2A47]'}`}
-                  >
-                    <Globe size={20} /> My Domains <span className="ml-auto bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs">{domains.length}</span>
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('hosting')}
-                    className={`flex items-center gap-3 px-4 py-4 text-left font-medium transition-colors border-l-4 ${activeTab === 'hosting' ? 'border-[#0E2A47] bg-blue-50 text-[#0E2A47]' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-[#0E2A47]'}`}
-                  >
-                    <Server size={20} /> My Hosting <span className="ml-auto bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs">{hosting.length}</span>
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('billing')}
-                    className={`flex items-center gap-3 px-4 py-4 text-left font-medium transition-colors border-l-4 ${activeTab === 'billing' ? 'border-[#0E2A47] bg-blue-50 text-[#0E2A47]' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-[#0E2A47]'}`}
-                  >
-                    <Receipt size={20} /> Billing & Invoices
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('support')}
-                    className={`flex items-center gap-3 px-4 py-4 text-left font-medium transition-colors border-l-4 ${activeTab === 'support' ? 'border-[#0E2A47] bg-blue-50 text-[#0E2A47]' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-[#0E2A47]'}`}
-                  >
-                    <Ticket size={20} /> Support Tickets
-                  </button>
-                </nav>
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                <button
+                  onClick={() => navigate('/domain')}
+                  className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold backdrop-blur-md border border-white/15 transition-all shadow-sm hover:scale-[1.02]"
+                >
+                  <Globe size={15} className="text-blue-400" />
+                  <span>Register Domain</span>
+                </button>
+                <button
+                  onClick={() => navigate('/hosting')}
+                  className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-blue-600/30 hover:scale-[1.02]"
+                >
+                  <Plus size={15} />
+                  <span>Order Hosting / VPS</span>
+                </button>
+              </div>
+
+            </div>
+
+            {/* Quick Metrics Bar in Header */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-white/10 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  <Globe size={16} />
+                </div>
+                <div>
+                  <div className="text-slate-400 font-medium">Domains</div>
+                  <div className="text-base font-bold text-white">{domains.length} <span className="text-slate-400 text-xs font-normal">({activeDomainsCount} Active)</span></div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <Server size={16} />
+                </div>
+                <div>
+                  <div className="text-slate-400 font-medium">Web Hosting</div>
+                  <div className="text-base font-bold text-white">{activeHostingCount} <span className="text-slate-400 text-xs font-normal">Active</span></div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  <Terminal size={16} />
+                </div>
+                <div>
+                  <div className="text-slate-400 font-medium">Cloud VPS</div>
+                  <div className="text-base font-bold text-white">{activeVpsCount} <span className="text-slate-400 text-xs font-normal">Active</span></div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <Receipt size={16} />
+                </div>
+                <div>
+                  <div className="text-slate-400 font-medium">Invoices</div>
+                  <div className="text-base font-bold text-white">{orders.length} <span className="text-slate-400 text-xs font-normal">({paidOrdersCount} Paid)</span></div>
+                </div>
               </div>
             </div>
 
-            {/* Content Area */}
+          </div>
+        </div>
+
+        {/* Mobile Horizontal Tab Navigation */}
+        <div className="md:hidden bg-white border-b border-slate-200 sticky top-0 z-20 px-3 py-2 overflow-x-auto flex gap-1.5 no-scrollbar shadow-xs">
+          {[
+            { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+            { id: 'domains', label: 'Domains', icon: Globe, count: domains.length },
+            { id: 'hosting', label: 'Hosting & VPS', icon: Server, count: hosting.length },
+            { id: 'billing', label: 'Invoices', icon: Receipt, count: orders.length },
+            { id: 'support', label: 'Support', icon: Ticket },
+            { id: 'affiliate', label: 'Affiliate', icon: Share2 },
+          ].map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                  isActive ? 'bg-[#0E2A47] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Icon size={14} />
+                <span>{tab.label}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Main Content Layout */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <div className="flex flex-col md:flex-row gap-6">
+            
+            {/* Desktop Sidebar Navigation */}
+            <div className="hidden md:block w-64 shrink-0">
+              <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-3 sticky top-24 space-y-1">
+                <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Navigation
+                </div>
+
+                <button 
+                  onClick={() => setActiveTab('overview')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === 'overview' 
+                      ? 'bg-blue-50 text-blue-900 border border-blue-100 shadow-xs' 
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <LayoutDashboard size={17} className={activeTab === 'overview' ? 'text-blue-600' : 'text-slate-400'} />
+                    <span>Dashboard Overview</span>
+                  </div>
+                  <ChevronRight size={14} className={activeTab === 'overview' ? 'text-blue-600' : 'text-slate-300'} />
+                </button>
+
+                <button 
+                  onClick={() => setActiveTab('domains')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === 'domains' 
+                      ? 'bg-blue-50 text-blue-900 border border-blue-100 shadow-xs' 
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Globe size={17} className={activeTab === 'domains' ? 'text-blue-600' : 'text-slate-400'} />
+                    <span>My Domains</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    activeTab === 'domains' ? 'bg-blue-200/70 text-blue-900' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {domains.length}
+                  </span>
+                </button>
+
+                <button 
+                  onClick={() => setActiveTab('hosting')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === 'hosting' 
+                      ? 'bg-blue-50 text-blue-900 border border-blue-100 shadow-xs' 
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Server size={17} className={activeTab === 'hosting' ? 'text-blue-600' : 'text-slate-400'} />
+                    <span>Hosting & VPS</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    activeTab === 'hosting' ? 'bg-blue-200/70 text-blue-900' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {hosting.length}
+                  </span>
+                </button>
+
+                <button 
+                  onClick={() => setActiveTab('billing')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === 'billing' 
+                      ? 'bg-blue-50 text-blue-900 border border-blue-100 shadow-xs' 
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Receipt size={17} className={activeTab === 'billing' ? 'text-blue-600' : 'text-slate-400'} />
+                    <span>Invoices & Billing</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    activeTab === 'billing' ? 'bg-blue-200/70 text-blue-900' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {orders.length}
+                  </span>
+                </button>
+
+                <button 
+                  onClick={() => setActiveTab('support')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === 'support' 
+                      ? 'bg-blue-50 text-blue-900 border border-blue-100 shadow-xs' 
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Ticket size={17} className={activeTab === 'support' ? 'text-blue-600' : 'text-slate-400'} />
+                    <span>Support Tickets</span>
+                  </div>
+                  <ChevronRight size={14} className={activeTab === 'support' ? 'text-blue-600' : 'text-slate-300'} />
+                </button>
+
+                <div className="pt-2 border-t border-slate-100 mt-2">
+                  <button 
+                    onClick={() => setActiveTab('affiliate')}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      activeTab === 'affiliate' 
+                        ? 'bg-amber-50 text-amber-900 border border-amber-200/70 shadow-xs' 
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Share2 size={17} className={activeTab === 'affiliate' ? 'text-amber-600' : 'text-slate-400'} />
+                      <span>Affiliate Program</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 uppercase tracking-wide">
+                      Earn
+                    </span>
+                  </button>
+                </div>
+
+                {/* Helpful Quick Link Card */}
+                <div className="mt-4 p-3 rounded-xl bg-gradient-to-br from-slate-900 to-[#0E2A47] text-white text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-blue-200">
+                    <Sparkles size={14} className="text-yellow-400" />
+                    <span>Need Help?</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Our technical team is available 24/7 to help resolve your domain, server, or configuration issues.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('support')}
+                    className="w-full py-1.5 px-3 bg-white/10 hover:bg-white/20 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1"
+                  >
+                    <span>Open a Ticket</span>
+                    <ArrowUpRight size={12} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Content Area */}
             <div className="flex-1 space-y-6">
               
-              {/* Overview Tab */}
+              {/* TAB 1: OVERVIEW */}
               {activeTab === 'overview' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab('domains')}>
-                    <div className="p-4 bg-blue-50 text-blue-600 rounded-lg">
-                      <Globe size={28} />
+                <div className="space-y-6">
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Active Domains Card */}
+                    <div 
+                      onClick={() => setActiveTab('domains')}
+                      className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-500">Domains</span>
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Globe size={20} />
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <div className="text-2xl font-black text-slate-900">{domains.length}</div>
+                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                          <span className="font-semibold text-emerald-600">{activeDomainsCount} Active</span>
+                          <span>• Manage DNS & renewal</span>
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-gray-500 text-sm font-medium">Active Domains</p>
-                      <h3 className="text-2xl font-bold text-gray-900">{domains.filter(d => d.status === 'active').length}</h3>
+
+                    {/* Web Hosting Card */}
+                    <div 
+                      onClick={() => { setActiveTab('hosting'); setHostingFilter('shared'); }}
+                      className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-500">Web Hosting</span>
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Server size={20} />
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <div className="text-2xl font-black text-slate-900">{hosting.filter(h => !isVpsAccount(h)).length}</div>
+                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                          <span className="font-semibold text-emerald-600">{activeHostingCount} Active</span>
+                          <span>• cPanel Web accounts</span>
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab('hosting')}>
-                    <div className="p-4 bg-emerald-50 text-emerald-600 rounded-lg">
-                      <Server size={28} />
+
+                    {/* Cloud VPS Card */}
+                    <div 
+                      onClick={() => { setActiveTab('hosting'); setHostingFilter('vps'); }}
+                      className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-500">Cloud VPS</span>
+                        <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Terminal size={20} />
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <div className="text-2xl font-black text-slate-900">{hosting.filter(h => isVpsAccount(h)).length}</div>
+                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                          <span className="font-semibold text-purple-600">{activeVpsCount} Online</span>
+                          <span>• Dedicated Root instances</span>
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-gray-500 text-sm font-medium">Active Hosting</p>
-                      <h3 className="text-2xl font-bold text-gray-900">{hosting.filter(h => h.status === 'active').length}</h3>
-                    </div>
-                  </div>
-                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab('billing')}>
-                    <div className="p-4 bg-purple-50 text-purple-600 rounded-lg">
-                      <Receipt size={28} />
-                    </div>
-                    <div>
-                      <p className="text-gray-500 text-sm font-medium">Total Invoices</p>
-                      <h3 className="text-2xl font-bold text-gray-900">{orders.length}</h3>
+
+                    {/* Invoices Card */}
+                    <div 
+                      onClick={() => setActiveTab('billing')}
+                      className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80 hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-500">Invoices</span>
+                        <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Receipt size={20} />
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <div className="text-2xl font-black text-slate-900">{orders.length}</div>
+                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                          <span className="font-semibold text-amber-600">{paidOrdersCount} Paid</span>
+                          <span>• View & download PDF</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Empty States if nothing exists */}
+                  {/* Empty state if user has completely zero services */}
                   {domains.length === 0 && hosting.length === 0 && (
-                    <div className="col-span-1 md:col-span-3 bg-white p-12 rounded-xl shadow-sm border border-gray-100 text-center">
-                      <div className="mx-auto w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                        <Globe className="text-gray-300" size={40} />
+                    <div className="bg-white rounded-2xl p-10 border border-slate-200 text-center shadow-xs">
+                      <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4">
+                        <Sparkles size={32} />
                       </div>
-                      <h3 className="text-xl font-bold text-gray-800 mb-2">No Services Found</h3>
-                      <p className="text-gray-500 max-w-md mx-auto mb-6">
-                        It looks like you don't have any active domains or hosting plans with us yet. When you purchase a service, it will appear here.
+                      <h3 className="text-lg font-bold text-slate-900">Welcome to your Client Portal!</h3>
+                      <p className="text-sm text-slate-500 max-w-md mx-auto mt-1 mb-6">
+                        You don't have any active domain or hosting accounts yet. Start by registering your dream domain or choosing a hosting plan.
                       </p>
-                      <button onClick={() => navigate('/hosting')} className="bg-[#0E2A47] text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-900 transition-colors">
-                        Browse Services
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Domains Tab */}
-              {activeTab === 'domains' && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2"><Globe size={20} className="text-[#0E2A47]" /> My Domains</h2>
-                  </div>
-                  {domains.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <p className="text-gray-500 mb-4">You have not registered any domains yet.</p>
-                      <button onClick={() => navigate('/domain')} className="text-[#0E2A47] font-bold hover:underline">Register a new domain</button>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-200">
-                          <tr>
-                            <th className="px-6 py-4 font-semibold">Domain</th>
-                            <th className="px-6 py-4 font-semibold">Status</th>
-                            <th className="px-6 py-4 font-semibold">Expires</th>
-                            <th className="px-6 py-4 font-semibold">Auto-Renew</th>
-                            <th className="px-6 py-4 text-right font-semibold">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {domains.map(domain => (
-                            <tr key={domain.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-6 py-4 font-bold text-[#0E2A47]">{domain.domain}</td>
-                              <td className="px-6 py-4">{getStatusBadge(domain.status)}</td>
-                              <td className="px-6 py-4 text-sm text-gray-600">
-                                {domain.expiresAt ? new Date(domain.expiresAt).toLocaleDateString() : '-'}
-                              </td>
-                              <td className="px-6 py-4">
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                  <input type="checkbox" checked={!!domain.autoRenew} onChange={() => handleToggleAutoRenew('domain', domain)} className="sr-only peer" />
-                                  <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <div className="flex justify-end gap-2">
-                                  <button onClick={() => setManagingNsDomain(domain)} className="text-gray-600 hover:text-[#0E2A47] bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded text-xs font-bold transition-colors">
-                                    Nameservers
-                                  </button>
-                                  <button onClick={() => handleRenewDomain(domain)} disabled={domainLoading === domain.id} className="bg-[#0E2A47] text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-800 transition-colors disabled:opacity-50">
-                                    {domainLoading === domain.id ? 'Loading...' : 'Renew'}
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-                  {bdDomains.length > 0 && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-6">
-                      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2"><Globe size={20} className="text-green-700" /> .BD Domain Applications</h2>
+                      <div className="flex flex-wrap items-center justify-center gap-3">
+                        <button
+                          onClick={() => navigate('/domain')}
+                          className="px-5 py-2.5 rounded-xl bg-[#0E2A47] hover:bg-blue-900 text-white font-bold text-xs transition"
+                        >
+                          Find a Domain
+                        </button>
+                        <button
+                          onClick={() => navigate('/hosting')}
+                          className="px-5 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition"
+                        >
+                          Browse Hosting Plans
+                        </button>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Recent Services Quick View */}
+                  {(domains.length > 0 || hosting.length > 0) && (
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Layers size={18} className="text-[#0E2A47]" />
+                          <h2 className="text-sm font-bold text-slate-900">Your Active Services Overview</h2>
+                        </div>
+                        <span className="text-xs font-medium text-slate-400">
+                          {domains.length + hosting.length} Total Registered
+                        </span>
+                      </div>
+
+                      <div className="divide-y divide-slate-100">
+                        {/* Domain rows preview */}
+                        {domains.slice(0, 3).map(dom => (
+                          <div key={dom.id} className="p-4 sm:px-6 hover:bg-slate-50/70 transition flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                                <Globe size={18} />
+                              </div>
+                              <div className="truncate">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-900 text-sm truncate">{dom.domain}</span>
+                                  {dom.type === 'transfer' && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                                      Transfer
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                  Expires: {dom.expiresAt ? new Date(dom.expiresAt).toLocaleDateString() : 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              {getStatusBadge(dom.status)}
+                              <button
+                                onClick={() => setActiveTab('domains')}
+                                className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                              >
+                                Manage →
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Hosting rows preview */}
+                        {hosting.slice(0, 3).map(acc => {
+                          const isVps = isVpsAccount(acc);
+                          return (
+                            <div key={acc.id} className="p-4 sm:px-6 hover:bg-slate-50/70 transition flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                  isVps ? 'bg-purple-50 text-purple-600' : 'bg-emerald-50 text-emerald-600'
+                                }`}>
+                                  {isVps ? <Terminal size={18} /> : <Server size={18} />}
+                                </div>
+                                <div className="truncate">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-slate-900 text-sm truncate">
+                                      {acc.vpsDetails?.hostname || acc.domain || acc.planId || 'Hosting Plan'}
+                                    </span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                      isVps ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'
+                                    }`}>
+                                      {isVps ? 'Cloud VPS' : 'cPanel Web'}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-500">
+                                    IP: {acc.serverIp || 'Provisioning...'} • Billing: {acc.billingCycle || 'Monthly'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                {getStatusBadge(acc.status)}
+                                <button
+                                  onClick={() => setActiveTab('hosting')}
+                                  className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                                >
+                                  Manage →
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="p-3 bg-slate-50 text-center border-t border-slate-100">
+                        <button
+                          onClick={() => setActiveTab('hosting')}
+                          className="text-xs font-bold text-[#0E2A47] hover:underline"
+                        >
+                          View all services in detail →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Transfer Status Notice (If any domain is in transfer) */}
+                  {domains.some(d => d.type === 'transfer' && (d.status === 'pending' || (d as any).providerStatus === 'REQ')) && (
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 text-amber-900 flex items-start gap-3 shadow-xs">
+                      <Clock size={22} className="text-amber-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1 text-xs">
+                        <h4 className="font-bold text-sm text-amber-950">Domain Transfer In Progress (ICANN 5–7 Days Window)</h4>
+                        <p className="text-amber-800 leading-relaxed">
+                          Your transfer request has been initiated with the global registry. The current registrar will email the original domain owner for transfer approval. Once approved (or after 5–7 business days according to ICANN regulations), your domain will automatically become active in your account.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: DOMAINS */}
+              {activeTab === 'domains' && (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                    {/* Header & Search */}
+                    <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/50">
+                      <div>
+                        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                          <Globe size={18} className="text-[#0E2A47]" />
+                          My Domains ({domains.length})
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-0.5">Manage nameservers, auto-renewal, and renewals</p>
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <div className="relative flex-1 sm:w-60">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="Search domains..."
+                            value={domainSearch}
+                            onChange={(e) => setDomainSearch(e.target.value)}
+                            className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 transition"
+                          />
+                        </div>
+                        <button
+                          onClick={() => navigate('/domain')}
+                          className="px-3 py-1.5 bg-[#0E2A47] hover:bg-blue-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0"
+                        >
+                          <Plus size={14} />
+                          <span>New</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Domains Table */}
+                    {filteredDomains.length === 0 ? (
+                      <div className="p-12 text-center">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
+                          <Globe size={24} />
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-sm">
+                          {domainSearch ? 'No domains matched your search' : 'No Domains Found'}
+                        </h3>
+                        <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
+                          {domainSearch ? 'Try a different domain name or clear the search input.' : 'You have not registered or transferred any domain yet.'}
+                        </p>
+                        <button 
+                          onClick={() => navigate('/domain')}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition"
+                        >
+                          Register a Domain
+                        </button>
+                      </div>
+                    ) : (
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                          <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-200">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
                             <tr>
-                              <th className="px-6 py-4 font-semibold">Domain</th>
-                              <th className="px-6 py-4 font-semibold">Status</th>
-                              <th className="px-6 py-4 font-semibold">Application Date</th>`n                              <th className="px-6 py-4 font-semibold text-right">Action</th>
+                              <th className="px-6 py-3.5">Domain Name</th>
+                              <th className="px-6 py-3.5">Status</th>
+                              <th className="px-6 py-3.5">Expiration Date</th>
+                              <th className="px-6 py-3.5">Auto-Renew</th>
+                              <th className="px-6 py-3.5 text-right">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {bdDomains.map(app => (
-                              <tr key={app.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-4 font-bold text-green-800">{app.domain || app.domainName}</td>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredDomains.map(domain => (
+                              <tr key={domain.id} className="hover:bg-slate-50/80 transition-colors">
                                 <td className="px-6 py-4">
-                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-700">
-                                    {app.status.replace('_', ' ')}
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-sm text-[#0E2A47]">{domain.domain}</span>
+                                      {domain.type === 'transfer' && (
+                                        <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                          Transfer In
+                                        </span>
+                                      )}
+                                    </div>
+                                    {domain.type === 'transfer' && (domain.status === 'pending' || (domain as any).providerStatus === 'REQ') && (
+                                      <span className="text-[11px] font-medium text-amber-700 flex items-center gap-1">
+                                        <Clock size={11} /> 5–7 days ICANN approval period in progress. Check admin email.
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                <td className="px-6 py-4">
+                                  {getStatusBadge(domain.status)}
+                                </td>
+
+                                <td className="px-6 py-4 text-slate-600 font-medium">
+                                  {domain.expiresAt ? (
+                                    <div className="flex flex-col">
+                                      <span className="font-semibold text-slate-800">{new Date(domain.expiresAt).toLocaleDateString()}</span>
+                                      <span className="text-[10px] text-slate-400">
+                                        {Math.ceil((new Date(domain.expiresAt).getTime() - Date.now()) / (1000 * 3600 * 24))} days left
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-400">-</span>
+                                  )}
+                                </td>
+
+                                <td className="px-6 py-4">
+                                  <label className="relative inline-flex items-center cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={!!domain.autoRenew} 
+                                      onChange={() => handleToggleAutoRenew('domain', domain)} 
+                                      className="sr-only peer" 
+                                    />
+                                    <div className="w-8 h-4.5 bg-slate-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600" />
+                                  </label>
+                                </td>
+
+                                <td className="px-6 py-4 text-right">
+                                  <div className="flex justify-end items-center gap-2">
+                                    <button 
+                                      onClick={() => setManagingSecurityDomain(domain)} 
+                                      className="text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 border border-blue-200/60"
+                                      title="Domain Lock, Auth Code & Transfer Protection"
+                                    >
+                                      <Shield size={12} /> Lock & Security
+                                    </button>
+                                    <button 
+                                      onClick={() => setManagingNsDomain(domain)} 
+                                      className="text-slate-700 hover:text-[#0E2A47] bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition"
+                                    >
+                                      Nameservers
+                                    </button>
+                                    <button 
+                                      onClick={() => handleRenewDomain(domain)} 
+                                      disabled={domainLoading === domain.id} 
+                                      className="bg-[#0E2A47] hover:bg-blue-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-50"
+                                    >
+                                      {domainLoading === domain.id ? 'Renewing...' : 'Renew'}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* BD Domain Applications Section */}
+                  {bdDomains.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                      <div className="px-6 py-4 border-b border-slate-100 bg-emerald-50/40 flex justify-between items-center">
+                        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                          <Globe size={18} className="text-emerald-700" />
+                          .BD Domain Applications ({bdDomains.length})
+                        </h2>
+                        <span className="text-xs text-emerald-800 font-semibold">BTCL Automated Processing</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[11px] border-b border-slate-200">
+                            <tr>
+                              <th className="px-6 py-3.5">BD Domain</th>
+                              <th className="px-6 py-3.5">Application Status</th>
+                              <th className="px-6 py-3.5">Application Date</th>
+                              <th className="px-6 py-3.5 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {bdDomains.map(app => (
+                              <tr key={app.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-6 py-4 font-bold text-emerald-900 text-sm">
+                                  {app.domain || app.domainName}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700">
+                                    {(app.status || 'submitted').replace(/_/g, ' ')}
                                   </span>
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-600">
+                                <td className="px-6 py-4 text-slate-600 font-medium">
                                   {app.createdAt ? new Date(app.createdAt).toLocaleDateString() : '-'}
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                  {app.status === 'payment_pending' && (
+                                  {app.status === 'payment_pending' ? (
                                     <button 
                                       onClick={() => navigate('/checkout?bd_domain=' + encodeURIComponent(app.domain || app.domainName) + '&app_id=' + app.id)}
-                                      className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-4 rounded transition-colors"
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-4 rounded-lg transition-colors shadow-xs"
                                     >
                                       Pay Now
                                     </button>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">Under Review</span>
                                   )}
                                 </td>
                               </tr>
@@ -527,141 +1155,410 @@ export const MyServices: React.FC = () => {
                       </div>
                     </div>
                   )}
-              {/* Hosting Tab */}
+                </div>
+              )}
+
+              {/* TAB 3: HOSTING & CLOUD VPS */}
               {activeTab === 'hosting' && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-                    <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2"><Server size={20} className="text-[#0E2A47]" /> My Hosting Services</h2>
-                  </div>
-                  {hosting.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <p className="text-gray-500 mb-4">You do not have any active hosting plans.</p>
-                      <button onClick={() => navigate('/hosting')} className="text-[#0E2A47] font-bold hover:underline">Browse hosting plans</button>
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                    {/* Header with Type Segments & Search */}
+                    <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/50">
+                      <div>
+                        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                          <Server size={18} className="text-[#0E2A47]" />
+                          Hosting & Cloud VPS ({hosting.length})
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-0.5">Control panels, dedicated IP addresses, specs and server credentials</p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                        {/* Segment pill toggles */}
+                        <div className="flex bg-slate-200/70 p-0.5 rounded-xl text-xs font-semibold">
+                          <button
+                            onClick={() => setHostingFilter('all')}
+                            className={`px-3 py-1 rounded-lg transition ${
+                              hostingFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            All ({hosting.length})
+                          </button>
+                          <button
+                            onClick={() => setHostingFilter('shared')}
+                            className={`px-3 py-1 rounded-lg transition ${
+                              hostingFilter === 'shared' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            Shared ({hosting.filter(h => !isVpsAccount(h)).length})
+                          </button>
+                          <button
+                            onClick={() => setHostingFilter('vps')}
+                            className={`px-3 py-1 rounded-lg transition ${
+                              hostingFilter === 'vps' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            VPS ({hosting.filter(h => isVpsAccount(h)).length})
+                          </button>
+                        </div>
+
+                        {/* Search */}
+                        <div className="relative">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="Search server/domain..."
+                            value={hostingSearch}
+                            onChange={(e) => setHostingSearch(e.target.value)}
+                            className="pl-8 pr-3 py-1 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 w-36 sm:w-44 transition"
+                          />
+                        </div>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-200">
-                          <tr>
-                            <th className="px-6 py-4 font-semibold">Service Details</th>
-                            <th className="px-6 py-4 font-semibold">Status / IP</th>
-                            <th className="px-6 py-4 font-semibold">Usage</th>
-                            <th className="px-6 py-4 font-semibold">Billing</th>
-                            <th className="px-6 py-4 text-right font-semibold">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {hosting.map(account => (
-                            <tr key={account.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-6 py-4">
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-gray-900">{account.planId || 'Standard Plan'}</span>
-                                  {account.domain && <span className="text-sm text-[#0E2A47] font-medium">{account.domain}</span>}
-                                  {account.status === 'active' && account.controlPanelUrl && (
-                                    <a href={account.controlPanelUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-blue-600 hover:text-blue-800">
-                                      Login to cPanel <ExternalLink size={12} />
-                                    </a>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex flex-col gap-2">
-                                  <div>{getStatusBadge(account.status)}</div>
-                                  <span className="text-xs text-gray-500 font-mono">{account.status === 'active' && account.serverIp ? account.serverIp : 'N/A'}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                {usageData[account.id] ? (
-                                  <div className="space-y-3 min-w-[150px]">
-                                    <ProgressBar value={usageData[account.id].diskUsageMB / 1024} max={usageData[account.id].diskLimitMB / 1024} label="Disk" />
-                                    <ProgressBar value={usageData[account.id].bandwidthUsageMB / 1024} max={usageData[account.id].bandwidthLimitMB / 1024} label="Bandwidth" />
-                                  </div>
-                                ) : (
-                                  <button onClick={() => handleFetchUsage(account)} disabled={usageLoading === account.id} className="text-xs text-[#0E2A47] bg-blue-50 px-3 py-1.5 rounded border border-blue-100 hover:bg-blue-100 flex items-center gap-1 font-medium transition-colors">
-                                    <RefreshCw size={12} className={usageLoading === account.id ? 'animate-spin' : ''} />
-                                    {usageLoading === account.id ? 'Loading...' : 'Check Usage'}
-                                  </button>
-                                )}
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex flex-col gap-1 text-sm text-gray-600">
-                                  <span>{account.billingCycle?.toUpperCase() || 'MONTHLY'}</span>
-                                  <span className="text-xs">Expires: {account.expiresAt ? new Date(account.expiresAt).toLocaleDateString() : '-'}</span>
-                                  <label className="relative inline-flex items-center cursor-pointer mt-1">
-                                    <input type="checkbox" checked={!!account.autoRenew} onChange={() => handleToggleAutoRenew('hosting', account)} className="sr-only peer" />
-                                    <div className="w-7 h-4 bg-gray-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
-                                    <span className="ml-2 text-xs font-medium text-gray-500">Auto-Renew</span>
-                                  </label>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <button onClick={() => setUpgradingHosting(account)} className="bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-50 transition-colors shadow-sm">
-                                  Upgrade Plan
-                                </button>
-                              </td>
+
+                    {/* Table */}
+                    {filteredHosting.length === 0 ? (
+                      <div className="p-12 text-center">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+                          <Server size={24} />
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-sm">No hosting accounts found</h3>
+                        <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
+                          {hostingSearch ? 'No services match your query.' : 'You do not have any active web hosting or Cloud VPS plans yet.'}
+                        </p>
+                        <button 
+                          onClick={() => navigate('/hosting')}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition"
+                        >
+                          Browse Hosting Plans
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                            <tr>
+                              <th className="px-6 py-3.5">Service & Details</th>
+                              <th className="px-6 py-3.5">Status & Dedicated IP</th>
+                              <th className="px-6 py-3.5">Specs / Usage</th>
+                              <th className="px-6 py-3.5">Billing & Cycle</th>
+                              <th className="px-6 py-3.5 text-right">Actions</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredHosting.map(account => {
+                              const isVps = isVpsAccount(account);
+                              const vps = account.vpsDetails || {};
+                              const hostname = vps.hostname || account.domain || account.planId || 'Cloud VPS Instance';
+
+                              if (isVps) {
+                                return (
+                                  <tr key={account.id} className="hover:bg-purple-50/30 transition-colors bg-purple-50/5">
+                                    <td className="px-6 py-4">
+                                      <div className="flex items-start gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                                          <Terminal size={18} />
+                                        </div>
+                                        <div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-bold text-slate-900 text-sm">{hostname}</span>
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 uppercase tracking-wide">
+                                              Cloud VPS
+                                            </span>
+                                          </div>
+                                          <p className="text-xs text-purple-950 font-semibold mt-0.5">
+                                            {account.planId?.toUpperCase() || 'VPS'} • {vps.os || 'Ubuntu / Linux'}
+                                          </p>
+                                          <p className="text-[11px] text-slate-400 mt-0.5">
+                                            DC: {vps.serverLocation || 'Dhaka BDIX / Global'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </td>
+
+                                    <td className="px-6 py-4">
+                                      <div className="flex flex-col gap-1.5">
+                                        <div>{getStatusBadge(account.status)}</div>
+                                        {account.serverIp ? (
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                              {account.serverIp}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => copyToClipboard(account.serverIp!, 'IP Address')}
+                                              className="text-slate-400 hover:text-purple-600 transition"
+                                              title="Copy IP"
+                                            >
+                                              <Copy size={13} />
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <span className="text-xs text-amber-600 font-medium flex items-center gap-1 animate-pulse">
+                                            <Clock size={12} /> IP Allocation in progress...
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+
+                                    <td className="px-6 py-4">
+                                      <div className="space-y-1 text-xs">
+                                        <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                          <Cpu size={13} className="text-purple-600" />
+                                          <span>{vps.cores || '2 vCPU'} • {vps.ram || '4 GB RAM'}</span>
+                                        </div>
+                                        <div className="text-slate-500 font-medium">
+                                          Disk: {vps.storage || '50 GB NVMe'}
+                                        </div>
+                                        <div className="text-slate-500 font-medium">
+                                          Transfer: {vps.bandwidth || '2 TB Bandwidth'}
+                                        </div>
+                                      </div>
+                                    </td>
+
+                                    <td className="px-6 py-4">
+                                      <div className="flex flex-col gap-1 text-xs text-slate-600">
+                                        <span className="font-semibold text-slate-800">{account.billingCycle?.toUpperCase() || 'MONTHLY'}</span>
+                                        <span className="text-slate-400">Expires: {account.expiresAt ? new Date(account.expiresAt).toLocaleDateString() : '-'}</span>
+                                        <label className="relative inline-flex items-center cursor-pointer mt-1">
+                                          <input 
+                                            type="checkbox" 
+                                            checked={!!account.autoRenew} 
+                                            onChange={() => handleToggleAutoRenew('hosting', account)} 
+                                            className="sr-only peer" 
+                                          />
+                                          <div className="w-7 h-4 bg-slate-200 peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-purple-600" />
+                                          <span className="ml-2 text-[11px] font-medium text-slate-500">Auto-Renew</span>
+                                        </label>
+                                      </div>
+                                    </td>
+
+                                    <td className="px-6 py-4 text-right">
+                                      <div className="flex flex-col items-end gap-2">
+                                        <button 
+                                          onClick={() => {
+                                            setSelectedVpsModal(account);
+                                            setShowVpsModalPass(false);
+                                          }}
+                                          className="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs"
+                                        >
+                                          <Key size={13} />
+                                          Server Access
+                                        </button>
+
+                                        {account.serverIp && (
+                                          <button
+                                            type="button"
+                                            onClick={() => copyToClipboard(`ssh root@${account.serverIp}`, 'SSH Command')}
+                                            className="inline-flex items-center gap-1 text-[11px] font-mono text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded transition"
+                                            title="Copy SSH Command"
+                                          >
+                                            <Terminal size={11} />
+                                            <span>ssh root@{account.serverIp}</span>
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
+                              // Shared / cPanel Row
+                              return (
+                                <tr key={account.id} className="hover:bg-slate-50 transition-colors">
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-start gap-3">
+                                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                                        <Server size={18} />
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-bold text-slate-900 text-sm">{account.planId || 'Standard Plan'}</span>
+                                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 uppercase">
+                                            cPanel
+                                          </span>
+                                        </div>
+                                        {account.domain && (
+                                          <span className="text-xs text-blue-700 font-semibold block mt-0.5">
+                                            {account.domain}
+                                          </span>
+                                        )}
+                                        {account.status === 'active' && account.controlPanelUrl && (
+                                          <a 
+                                            href={account.controlPanelUrl} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            className="inline-flex items-center gap-1 mt-1 text-[11px] font-bold text-blue-600 hover:text-blue-800"
+                                          >
+                                            Login to cPanel <ExternalLink size={11} />
+                                          </a>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  <td className="px-6 py-4">
+                                    <div className="flex flex-col gap-1.5">
+                                      <div>{getStatusBadge(account.status)}</div>
+                                      <span className="text-xs text-slate-500 font-mono">
+                                        {account.status === 'active' && account.serverIp ? account.serverIp : 'Shared Server'}
+                                      </span>
+                                    </div>
+                                  </td>
+
+                                  <td className="px-6 py-4">
+                                    {usageData[account.id] ? (
+                                      <div className="space-y-2 min-w-[150px]">
+                                        <ProgressBar value={usageData[account.id].diskUsageMB / 1024} max={usageData[account.id].diskLimitMB / 1024} label="Disk" />
+                                        <ProgressBar value={usageData[account.id].bandwidthUsageMB / 1024} max={usageData[account.id].bandwidthLimitMB / 1024} label="Bandwidth" />
+                                      </div>
+                                    ) : (
+                                      <button 
+                                        onClick={() => handleFetchUsage(account)} 
+                                        disabled={usageLoading === account.id} 
+                                        className="text-xs text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200/80 flex items-center gap-1.5 font-semibold transition"
+                                      >
+                                        <RefreshCw size={12} className={usageLoading === account.id ? 'animate-spin' : ''} />
+                                        {usageLoading === account.id ? 'Fetching...' : 'Check Usage'}
+                                      </button>
+                                    )}
+                                  </td>
+
+                                  <td className="px-6 py-4">
+                                    <div className="flex flex-col gap-1 text-xs text-slate-600">
+                                      <span className="font-semibold text-slate-800">{account.billingCycle?.toUpperCase() || 'MONTHLY'}</span>
+                                      <span className="text-slate-400">Expires: {account.expiresAt ? new Date(account.expiresAt).toLocaleDateString() : '-'}</span>
+                                      <label className="relative inline-flex items-center cursor-pointer mt-1">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={!!account.autoRenew} 
+                                          onChange={() => handleToggleAutoRenew('hosting', account)} 
+                                          className="sr-only peer" 
+                                        />
+                                        <div className="w-7 h-4 bg-slate-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600" />
+                                        <span className="ml-2 text-[11px] font-medium text-slate-500">Auto-Renew</span>
+                                      </label>
+                                    </div>
+                                  </td>
+
+                                  <td className="px-6 py-4 text-right">
+                                    <button 
+                                      onClick={() => setUpgradingHosting(account)} 
+                                      className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50 transition shadow-xs"
+                                    >
+                                      Upgrade Plan
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* Billing Tab */}
+              {/* TAB 4: BILLING & INVOICES */}
               {activeTab === 'billing' && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-                    <Receipt size={20} className="text-[#0E2A47]" />
-                    <h2 className="text-lg font-bold text-gray-900">Billing History & Invoices</h2>
-                  </div>
-                  {orders.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500">No billing history found.</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-200">
-                          <tr>
-                            <th className="px-6 py-4 font-semibold">Invoice No</th>
-                            <th className="px-6 py-4 font-semibold">Date</th>
-                            <th className="px-6 py-4 font-semibold">Total</th>
-                            <th className="px-6 py-4 font-semibold">Status</th>
-                            <th className="px-6 py-4 text-right font-semibold">Download</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {orders.map(order => (
-                            <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-6 py-4 font-bold text-sm text-[#0E2A47]">
-                                #{order.documentNumber || order.id.slice(0, 8).toUpperCase()}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-gray-500">
-                                {new Date(order.createdAt).toLocaleDateString()}
-                              </td>
-                              <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                                {formatCurrency(order.total, settings as any)}
-                              </td>
-                              <td className="px-6 py-4">
-                                {getStatusBadge(order.status)}
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <button onClick={() => generateInvoice(order)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors">
-                                  <Download size={14} /> PDF
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                    {/* Header & Search */}
+                    <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/50">
+                      <div>
+                        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                          <Receipt size={18} className="text-[#0E2A47]" />
+                          Billing History & Invoices ({orders.length})
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-0.5">Download official PDF receipts and track order status</p>
+                      </div>
+
+                      <div className="relative w-full sm:w-60">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search invoice #..."
+                          value={billingSearch}
+                          onChange={(e) => setBillingSearch(e.target.value)}
+                          className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 transition"
+                        />
+                      </div>
                     </div>
-                  )}
+
+                    {/* Table */}
+                    {filteredOrders.length === 0 ? (
+                      <div className="p-12 text-center text-slate-500 text-xs">
+                        <Receipt size={24} className="mx-auto mb-2 text-slate-400" />
+                        No billing history or invoices found.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                            <tr>
+                              <th className="px-6 py-3.5">Invoice No</th>
+                              <th className="px-6 py-3.5">Date</th>
+                              <th className="px-6 py-3.5">Total Amount</th>
+                              <th className="px-6 py-3.5">Status</th>
+                              <th className="px-6 py-3.5 text-right">Download Receipt</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredOrders.map(order => (
+                              <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-6 py-4 font-bold text-sm text-[#0E2A47]">
+                                  #{order.documentNumber || order.id.slice(0, 8).toUpperCase()}
+                                </td>
+                                <td className="px-6 py-4 text-slate-500 font-medium">
+                                  {new Date(order.createdAt).toLocaleDateString()}
+                                </td>
+                                <td className="px-6 py-4 text-sm font-bold text-slate-900">
+                                  {formatCurrency(order.total, settings as any)}
+                                </td>
+                                <td className="px-6 py-4">
+                                  {getStatusBadge(order.status)}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  <button 
+                                    onClick={() => generateInvoice(order)} 
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition shadow-xs"
+                                  >
+                                    <Download size={13} /> PDF Receipt
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* Support Tab */}
+              {/* TAB 5: SUPPORT TICKETS */}
               {activeTab === 'support' && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6">
+                  <div className="mb-6 pb-4 border-b border-slate-100">
+                    <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <Ticket size={20} className="text-[#0E2A47]" /> Technical Support & Helpdesk
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">Submit support requests, ask questions, or report server issues</p>
+                  </div>
                   <SupportTicketsClient />
+                </div>
+              )}
+
+              {/* TAB 6: AFFILIATE PROGRAM */}
+              {activeTab === 'affiliate' && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6">
+                  <div className="mb-6 pb-4 border-b border-slate-100">
+                    <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <Share2 size={20} className="text-amber-600" /> Affiliate & Partner Rewards
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">Refer clients to Click2IT hosting & earn commissions directly into your account</p>
+                  </div>
+                  <UserAffiliateTab />
                 </div>
               )}
 
@@ -669,17 +1566,223 @@ export const MyServices: React.FC = () => {
           </div>
         </div>
 
-        {/* Modals */}
+        {/* MODALS */}
         {managingNsDomain && (
           <NameserverModal domain={managingNsDomain as any} onClose={() => setManagingNsDomain(null)} onUpdate={() => {}} />
         )}
+        {managingSecurityDomain && (
+          <DomainSecurityModal
+            domain={managingSecurityDomain.domain}
+            onClose={() => setManagingSecurityDomain(null)}
+          />
+        )}
         {upgradingHosting && (
           <HostingUpgradeModal account={upgradingHosting as any} onClose={() => setUpgradingHosting(null)} />
+        )}
+
+        {/* VPS Credentials Modal for Client */}
+        {selectedVpsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 my-8 border border-slate-100">
+              
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shadow-xs">
+                    <Terminal size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">Cloud VPS Access Details</h3>
+                    <p className="text-xs text-slate-500 font-mono">
+                      {selectedVpsModal.vpsDetails?.hostname || selectedVpsModal.domain || selectedVpsModal.id}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedVpsModal(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Status Banner */}
+              {selectedVpsModal.status === 'pending_setup' || !selectedVpsModal.serverIp ? (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+                  <Clock size={16} className="shrink-0 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="font-bold">VPS Provisioning In Progress</p>
+                    <p className="mt-0.5 text-amber-700 leading-relaxed">
+                      Your virtual machine is being configured in our datacenter. Once dedicated IP allocation is complete, your root credentials will be fully active.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center gap-2.5">
+                  <CheckCircle size={16} className="shrink-0 text-emerald-600" />
+                  <div>
+                    <span className="font-bold">Server is Online & Active</span>
+                    <span className="ml-2 text-emerald-700">Ready for SSH & remote management.</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Credentials & Specifications Grid */}
+              <div className="space-y-3.5">
+                {/* Hostname & Specs Info Box */}
+                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 text-xs">
+                  <div>
+                    <span className="text-slate-400 font-medium">Hostname:</span>
+                    <p className="font-mono font-bold text-slate-900 mt-0.5 break-all">
+                      {selectedVpsModal.vpsDetails?.hostname || selectedVpsModal.domain || 'vps.server'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium">Operating System:</span>
+                    <p className="font-bold text-purple-700 mt-0.5">
+                      {selectedVpsModal.vpsDetails?.os || 'Ubuntu / Linux'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium">Datacenter:</span>
+                    <p className="font-semibold text-slate-800 mt-0.5">
+                      {selectedVpsModal.vpsDetails?.serverLocation || 'BDIX Dhaka / Global'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium">Hardware:</span>
+                    <p className="font-semibold text-slate-800 mt-0.5">
+                      {selectedVpsModal.vpsDetails?.cores || '2 vCPU'} • {selectedVpsModal.vpsDetails?.ram || '4 GB RAM'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Dedicated Server IP */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Dedicated Server IP
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={selectedVpsModal.serverIp || 'Awaiting IP Allocation'}
+                      className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm text-slate-900 font-bold outline-none"
+                    />
+                    {selectedVpsModal.serverIp && (
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(selectedVpsModal.serverIp!, 'IP Address')}
+                        className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+                        title="Copy IP"
+                      >
+                        <Copy size={15} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* SSH User & Root Password */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      User
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      value="root"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm text-slate-900 font-bold outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Root Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showVpsModalPass ? 'text' : 'password'}
+                        readOnly
+                        value={selectedVpsModal.vpsDetails?.rootPassword || '••••••••••••'}
+                        className="w-full pl-3.5 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm text-slate-900 font-bold outline-none"
+                      />
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowVpsModalPass(!showVpsModalPass)}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                          title={showVpsModalPass ? 'Hide' : 'Show'}
+                        >
+                          {showVpsModalPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                        {selectedVpsModal.vpsDetails?.rootPassword && (
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(selectedVpsModal.vpsDetails!.rootPassword!, 'Root Password')}
+                            className="p-1 text-slate-400 hover:text-purple-600 rounded"
+                            title="Copy Password"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SSH Quick Command Box */}
+                {selectedVpsModal.serverIp && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      SSH Connect Command
+                    </label>
+                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-slate-100 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <Terminal size={14} className="text-emerald-400 shrink-0" />
+                        <span className="font-mono text-xs select-all truncate text-emerald-300">
+                          ssh root@{selectedVpsModal.serverIp}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(`ssh root@${selectedVpsModal.serverIp}`, 'SSH Command')}
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-xs text-emerald-400 font-bold rounded-lg transition shrink-0 flex items-center gap-1"
+                      >
+                        <Copy size={12} />
+                        <span>Copy</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* SSH Key if submitted */}
+                {selectedVpsModal.vpsDetails?.sshKey && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Your SSH Public Key
+                    </label>
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] font-mono text-slate-700 break-all max-h-20 overflow-y-auto select-all">
+                      {selectedVpsModal.vpsDetails.sshKey}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Close Button */}
+              <div className="pt-2 border-t border-slate-100 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedVpsModal(null)}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold transition shadow-xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </Layout>
   );
 };
-
-
-
