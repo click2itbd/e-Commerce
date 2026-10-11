@@ -187,7 +187,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 </div>
                 <h2 className="text-xl md:text-2xl font-bold text-[#081621] mb-4 leading-tight">{product.name}</h2>
                 
-                <div className="flex flex-wrap items-center gap-4 mb-6">
+                <div className="flex flex-wrap items-center gap-4 mb-3">
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-black text-[#F97316]">
                       {formatCurrency(product.discountPrice || product.price)}
@@ -206,28 +206,49 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                   
                 </div>
 
-                <div className="space-y-4 mb-6">
+                <div className="space-y-2 mb-4">
                   {product.brand && (
-                    <div className="flex gap-4 border-b border-gray-100 pb-2">
-                      <span className="text-gray-500 text-sm font-medium w-24">Brand:</span>
+                    <div className="flex items-center gap-2 border-b border-gray-100 pb-1.5">
+                      <span className="text-gray-500 text-sm font-medium">Brand:</span>
                       <span className="text-[#081621] text-sm font-bold uppercase">{product.brand}</span>
                     </div>
                   )}
                   {product.model && (
-                    <div className="flex gap-4 border-b border-gray-100 pb-2">
-                      <span className="text-gray-500 text-sm font-medium w-24">Model:</span>
+                    <div className="flex items-center gap-2 border-b border-gray-100 pb-1.5">
+                      <span className="text-gray-500 text-sm font-medium">Model:</span>
                       <span className="text-[#081621] text-sm font-bold">{product.model}</span>
                     </div>
                   )}
                 </div>
 
-                {product.description && (
-                  <div className="mb-6">
-                    <p className="text-sm text-gray-600 line-clamp-3">
-                      {product.description.replace(/<[^>]*>?/gm, '')}
-                    </p>
-                  </div>
-                )}
+                {(product.shortDescription || product.description) && (() => {
+                  const raw = (product.shortDescription || product.description).replace(/<[^>]*>?/gm, '').trim();
+                  const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+                  if (lines.length > 1) {
+                    return (
+                      <div className="mb-6">
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Key Highlights:</h4>
+                        <ul className="space-y-1.5">
+                          {lines.slice(0, 6).map((line, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-xs sm:text-sm text-gray-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#F97316] mt-1.5 shrink-0" />
+                              <span className="leading-snug">{line}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="mb-6">
+                      <p className="text-xs sm:text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                        {raw}
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 <div className="mt-6 flex gap-3">
                   <button

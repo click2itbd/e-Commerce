@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Order, Customer } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { useSettings } from '../../context/SettingsContext';
-import { Search, Filter, Download, ExternalLink, Printer, Edit2, Trash2, Eye, X, Database } from 'lucide-react';
+import { Search, Filter, Download, ExternalLink, Printer, Edit2, Trash2, Eye, X, Database, ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { fetchCourierRisk, CourierRiskReport } from '../../utils/courierRisk';
 import { generatePDF } from '../../lib/pdf';
 import { getOrderCategory } from '../admin/tabs/sales/Orders'; // Reuse classification logic
 import { toast } from 'react-hot-toast';
@@ -37,6 +38,30 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkStatus, setBulkStatus] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [riskCache, setRiskCache] = useState<Record<string, CourierRiskReport>>({});
+  const [loadingRiskPhone, setLoadingRiskPhone] = useState<string | null>(null);
+  const [selectedRiskReport, setSelectedRiskReport] = useState<{ phone: string; name: string; report: CourierRiskReport } | null>(null);
+
+  const handleCheckRisk = async (phone: string, name: string) => {
+    if (!phone) {
+      toast.error('No phone number found for this order');
+      return;
+    }
+    if (riskCache[phone]) {
+      setSelectedRiskReport({ phone, name, report: riskCache[phone] });
+      return;
+    }
+    setLoadingRiskPhone(phone);
+    try {
+      const report = await fetchCourierRisk(phone, settings?.steadfastApiKey, settings?.steadfastSecretKey);
+      setRiskCache(prev => ({ ...prev, [phone]: report }));
+      setSelectedRiskReport({ phone, name, report });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to check courier risk');
+    } finally {
+      setLoadingRiskPhone(null);
+    }
+  };
 
   
   const storeOrders = useMemo(() => {
@@ -305,6 +330,27 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
                       <div className="flex flex-col">
                         <span className="text-sm font-medium text-gray-900">{order.customerName}</span>
                         <span className="text-xs text-gray-500">{order.customerPhone || order.customerEmail}</span>
+                        {order.customerPhone && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCheckRisk(order.customerPhone, order.customerName);
+                            }}
+                            disabled={loadingRiskPhone === order.customerPhone}
+                            className={`mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border transition-all w-fit ${
+                              riskCache[order.customerPhone] 
+                                ? riskCache[order.customerPhone].risk_badge_color
+                                : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                            }`}
+                            title="Check Steadfast delivery & return record"
+                          >
+                            <ShieldAlert size={11} />
+                            {loadingRiskPhone === order.customerPhone 
+                              ? 'Checking...' 
+                              : (riskCache[order.customerPhone]?.risk_title || 'Courier Risk')}
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -413,6 +459,58 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
                   <p className="text-sm text-gray-700">{viewingOrder.shippingAddress || 'No address provided'}</p>
                 </div>
               </div>
+
+              {/* Customer Courier Risk Preview */}
+              {viewingOrder.customerPhone && (
+                <div className="mb-6 p-4 rounded-xl border bg-gray-50/70 border-gray-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                      <ShieldAlert size={14} className="text-indigo-600" /> কুরিয়ার হিস্ট্রি ও রিস্ক অ্যানালাইসিস (Steadfast)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCheckRisk(viewingOrder.customerPhone, viewingOrder.customerName)}
+                      disabled={loadingRiskPhone === viewingOrder.customerPhone}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition-colors"
+                    >
+                      {loadingRiskPhone === viewingOrder.customerPhone ? 'যাচাই করা হচ্ছে...' : (riskCache[viewingOrder.customerPhone] ? 'পুনরায় চেক করুন' : 'রিস্ক চেক করুন')}
+                    </button>
+                  </div>
+                  {riskCache[viewingOrder.customerPhone] ? (
+                    <div className="space-y-3 mt-3">
+                      <div className="grid grid-cols-4 gap-2 text-center">
+                        <div className="bg-white p-2 rounded-lg border border-gray-100">
+                          <p className="text-[10px] text-gray-500 font-medium">মোট পার্সেল</p>
+                          <p className="text-base font-bold text-gray-900">{riskCache[viewingOrder.customerPhone].total_parcels}</p>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg border border-gray-100">
+                          <p className="text-[10px] text-gray-500 font-medium">ডেলিভারি সম্পন্ন</p>
+                          <p className="text-base font-bold text-emerald-600">{riskCache[viewingOrder.customerPhone].total_delivered}</p>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg border border-gray-100">
+                          <p className="text-[10px] text-gray-500 font-medium">বাতিল / রিটার্ন</p>
+                          <p className="text-base font-bold text-rose-600">{riskCache[viewingOrder.customerPhone].total_cancelled}</p>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg border border-gray-100">
+                          <p className="text-[10px] text-gray-500 font-medium">সাকসেস রেট</p>
+                          <p className="text-base font-bold text-indigo-600">{riskCache[viewingOrder.customerPhone].success_rate}%</p>
+                        </div>
+                      </div>
+                      <div className={`p-3 rounded-lg border text-xs leading-relaxed ${riskCache[viewingOrder.customerPhone].risk_badge_color}`}>
+                        <p className="font-bold flex items-center gap-1.5 mb-1">
+                          {riskCache[viewingOrder.customerPhone].risk_level === 'safe' ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+                          {riskCache[viewingOrder.customerPhone].risk_title}
+                        </p>
+                        <p>{riskCache[viewingOrder.customerPhone].recommendation}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1">
+                      কাস্টমারের ফোন নম্বরের পূর্ববর্তী Steadfast পার্সেল ডেলিভারি ও রিটার্ন রেকর্ড দেখতে 'রিস্ক চেক করুন' বাটনে ক্লিক করুন।
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="border border-gray-100 rounded-xl overflow-hidden mb-6">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-gray-50">
@@ -452,6 +550,106 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
                   <input type="text" name="trackingNumber" defaultValue={viewingOrder.trackingNumber || ''} placeholder="Tracking Number" className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" required />
                   <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors">Update</button>
                 </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Standalone Courier Risk Modal */}
+      {selectedRiskReport && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedRiskReport(null); }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-gray-100 flex justify-between items-start bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-indigo-300">
+                  <ShieldAlert size={22} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">Courier Risk & Fraud Prevention</h3>
+                  <p className="text-xs text-indigo-200">Steadfast কুরিয়ার পার্সেল ডেলিভারি হিস্ট্রি</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedRiskReport(null)} 
+                className="p-1.5 hover:bg-white/10 rounded-lg text-gray-300 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5">
+              {/* Customer Info */}
+              <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-200">
+                <div>
+                  <p className="text-xs text-gray-500 font-semibold uppercase">কাস্টমার নাম ও মোবাইল</p>
+                  <p className="font-bold text-gray-900 text-sm mt-0.5">{selectedRiskReport.name || 'Unknown'}</p>
+                  <p className="text-xs font-mono text-indigo-600 font-semibold">{selectedRiskReport.phone}</p>
+                </div>
+                <div className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${selectedRiskReport.report.risk_badge_color}`}>
+                  {selectedRiskReport.report.risk_title}
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-4 gap-3 text-center">
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                  <p className="text-[11px] text-gray-500 font-semibold">মোট পার্সেল</p>
+                  <p className="text-xl font-black text-gray-900 mt-1">{selectedRiskReport.report.total_parcels}</p>
+                </div>
+                <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-100">
+                  <p className="text-[11px] text-emerald-700 font-semibold">ডেলিভারড</p>
+                  <p className="text-xl font-black text-emerald-600 mt-1">{selectedRiskReport.report.total_delivered}</p>
+                </div>
+                <div className="p-3 bg-rose-50/70 rounded-xl border border-rose-100">
+                  <p className="text-[11px] text-rose-700 font-semibold">ক্যান্সেলড / রিটার্ন</p>
+                  <p className="text-xl font-black text-rose-600 mt-1">{selectedRiskReport.report.total_cancelled}</p>
+                </div>
+                <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100">
+                  <p className="text-[11px] text-indigo-700 font-semibold">সাকসেস রেট</p>
+                  <p className="text-xl font-black text-indigo-600 mt-1">{selectedRiskReport.report.success_rate}%</p>
+                </div>
+              </div>
+
+              {/* Recommendation Notice */}
+              <div className={`p-4 rounded-xl border ${selectedRiskReport.report.risk_badge_color}`}>
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 shrink-0">
+                    {selectedRiskReport.report.risk_level === 'safe' ? (
+                      <CheckCircle2 size={18} className="text-emerald-600" />
+                    ) : (
+                      <AlertTriangle size={18} className="text-rose-600" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm mb-1">অ্যাডমিন গাইডলাইন ও সতর্কতা:</p>
+                    <p className="text-xs leading-relaxed opacity-95">{selectedRiskReport.report.recommendation}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleCheckRisk(selectedRiskReport.phone, selectedRiskReport.name)}
+                  disabled={loadingRiskPhone === selectedRiskReport.phone}
+                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                >
+                  {loadingRiskPhone === selectedRiskReport.phone ? 'যাচাই করা হচ্ছে...' : 'পুনরায় রিফ্রেশ করুন'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRiskReport(null)}
+                  className="px-5 py-2 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+                >
+                  ঠিক আছে
+                </button>
               </div>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, Cpu, Server, CalendarDays, GitCompare, Heart, Trash2 , Camera } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, ChevronRight, Cpu, Server, CalendarDays, GitCompare, Heart, Trash2 , Camera } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useCompare } from '../../context/CompareContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
 import { auth, db } from '../../firebase';
 import { signOut } from 'firebase/auth';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit, doc, setDoc, increment } from 'firebase/firestore';
 import { cn } from '../../lib/utils';
 import { NavigationMenu, Product } from '../../types';
 import { setSiteContext } from '../../hooks/useSiteContext';
@@ -26,6 +26,7 @@ export const EcommerceNavbar: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [trendingProducts, setTrendingProducts] = useState<Product[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [trendingSearches, setTrendingSearches] = useState<string[]>([]);
   const navigate = useNavigate();
   const saveSearch = (query: string) => {
     if(!query.trim()) return;
@@ -206,7 +207,7 @@ export const EcommerceNavbar: React.FC = () => {
                               className="border border-gray-200 rounded-2xl p-4 hover:shadow-lg transition-all group flex flex-col h-full bg-white relative"
                             >
                               <div className="aspect-square bg-white rounded-xl flex items-center justify-center p-2 mb-4">
-                                <img src={p.images?.[0] || 'https://via.placeholder.com/150'} alt={p.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform" />
+                                <img src={p.images?.[0] || '/placeholder.png'} alt={p.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform" />
                               </div>
                               <p className="text-[14px] font-bold text-gray-800 line-clamp-2 mb-3 flex-grow">{p.name}</p>
                               <div className="mt-auto">
@@ -334,8 +335,16 @@ export const EcommerceNavbar: React.FC = () => {
           <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
             <div className="flex items-center justify-between h-12">
               <ul className="flex items-center gap-4 xl:gap-6 h-full">
-            {menus.filter(m => m.name.toLowerCase() !== 'hosting').map(menu => {
+            {menus.filter(m => m.name.toLowerCase() !== 'hosting').map((menu, menuIdx, arr) => {
               const subs = menu.subCategories || [];
+              const isNearRightEdge = menuIdx >= arr.length - 3;
+
+              // Split subcategories into columns of max 10 items
+              const CHUNK_SIZE = 10;
+              const columns: SubCategory[][] = [];
+              for (let i = 0; i < subs.length; i += CHUNK_SIZE) {
+                columns.push(subs.slice(i, i + CHUNK_SIZE));
+              }
 
               return (
               <li key={menu.id} className="relative group h-full">
@@ -351,19 +360,66 @@ export const EcommerceNavbar: React.FC = () => {
                 </Link>
                 
                 {subs.length > 0 && (
-                  <div className={`absolute top-full left-0 bg-white shadow-2xl border border-gray-100 rounded-b-md opacity-0 invisible translate-y-2 group-hover:translate-y-0 group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 ${subs.length > 10 ? 'w-[500px] p-4' : 'w-56 py-2'}`}>
-                    <ul className={`grid ${subs.length > 10 ? 'grid-cols-2 gap-x-6 gap-y-1' : 'grid-cols-1'}`}>
-                      {subs.map(sub => (
-                        <li key={sub.id}>
-                          <Link 
-                            to={`/category/${menu.slug}/${sub.slug}`}
-                            className={`block px-4 py-2 hover:bg-orange-50 text-gray-900 hover:text-[#F97316] transition-colors rounded-md ${subs.length > 10 ? 'text-[13px] font-medium' : 'text-sm'}`}
-                          >
-                            {sub.name}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
+                  <div className={`absolute top-full left-0 bg-white shadow-2xl border border-gray-100 rounded-b-md opacity-0 invisible translate-y-2 group-hover:translate-y-0 group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 py-2 flex divide-x divide-gray-100 ${
+                    columns.length === 1 ? 'w-60' : columns.length === 2 ? 'w-[500px]' : 'w-[750px]'
+                  }`}>
+                    {columns.map((colSubs, colIdx) => (
+                      <ul key={colIdx} className="flex-1 flex flex-col min-w-[240px]">
+                        {colSubs.map((sub, rowIdx) => {
+                          const subSubs = sub.subCategories || [];
+                          const hasSubSubs = subSubs.length > 0;
+                          const isLastCol = colIdx === columns.length - 1;
+                          
+                          // Flyout direction: if last column & not near screen right edge -> right, else left
+                          const flyoutToRight = !isNearRightEdge && isLastCol;
+                          // Vertical positioning: flip upwards if near bottom of column so it never cuts off
+                          const flyoutVertical = rowIdx >= 6 ? 'bottom-0' : 'top-0';
+
+                          return (
+                            <li key={sub.id} className="relative group/sub">
+                              <Link 
+                                to={`/category/${menu.slug}/${sub.slug}`} 
+                                className="flex items-center justify-between px-4 py-2 hover:bg-orange-50 text-gray-900 hover:text-[#F97316] transition-colors text-[13px] font-medium"
+                              >
+                                <span className="truncate">{sub.name}</span>
+                                {hasSubSubs && (
+                                  <ChevronRight size={13} className="text-gray-400 group-hover/sub:text-[#F97316] shrink-0 ml-2" />
+                                )}
+                              </Link>
+
+                              {/* Sub-Sub-Category Flyout */}
+                              {hasSubSubs && (
+                                <div className={`absolute ${flyoutVertical} ${flyoutToRight ? 'left-full ml-1' : 'right-full mr-1'} bg-white shadow-2xl border border-gray-100 rounded-md py-1.5 min-w-[210px] opacity-0 invisible group-hover/sub:opacity-100 group-hover/sub:visible transition-all duration-150 z-[60]`}>
+                                  <div className="px-3.5 py-1 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 mb-1">
+                                    {sub.name}
+                                  </div>
+                                  <ul className="flex flex-col py-0.5">
+                                    {subSubs.map(subSub => (
+                                      <li key={subSub.id}>
+                                        <Link 
+                                          to={`/category/${menu.slug}/${sub.slug}/${subSub.slug}`} 
+                                          className="block px-3.5 py-1.5 text-xs text-gray-700 hover:text-[#F97316] hover:bg-orange-50/80 transition-colors"
+                                        >
+                                          {subSub.name}
+                                        </Link>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  <div className="border-t border-gray-100 mt-1 pt-1 px-3.5">
+                                    <Link 
+                                      to={`/category/${menu.slug}/${sub.slug}`} 
+                                      className="block text-[11px] font-bold text-[#F97316] hover:underline py-1"
+                                    >
+                                      All {sub.name} &rarr;
+                                    </Link>
+                                  </div>
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ))}
                   </div>
                 )}
               </li>
@@ -427,14 +483,29 @@ export const EcommerceNavbar: React.FC = () => {
                   {subs.length > 0 && (
                     <div className="pl-4 flex flex-col border-l border-gray-700">
                       {subs.map(sub => (
-                        <Link 
-                          key={sub.id}
-                          to={`/category/${menu.slug}/${sub.slug}`}
-                          className="py-1.5 text-xs text-gray-400 hover:text-[#EF4444]"
-                          onClick={() => setIsMenuOpen(false)}
-                        >
-                          {sub.name}
-                        </Link>
+                        <div key={sub.id} className="flex flex-col">
+                          <Link 
+                            to={`/category/${menu.slug}/${sub.slug}`}
+                            className="py-1.5 text-xs text-gray-300 hover:text-[#F97316] font-medium"
+                            onClick={() => setIsMenuOpen(false)}
+                          >
+                            {sub.name}
+                          </Link>
+                          {sub.subCategories && sub.subCategories.length > 0 && (
+                            <div className="pl-3 flex flex-col border-l border-gray-700/60 my-0.5 space-y-1">
+                              {sub.subCategories.map(subSub => (
+                                <Link
+                                  key={subSub.id}
+                                  to={`/category/${menu.slug}/${sub.slug}/${subSub.slug}`}
+                                  className="py-1 text-[11px] text-gray-400 hover:text-[#F97316]"
+                                  onClick={() => setIsMenuOpen(false)}
+                                >
+                                  • {subSub.name}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}

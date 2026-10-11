@@ -6,7 +6,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { Layout } from '../../components/Layout';
 import { formatCurrency } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { Lock, ShieldCheck, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server, Key, Copy, Check } from 'lucide-react';
+import { Lock, ShieldCheck, Terminal, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server, Key, Copy, Check } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, addDoc, query, where, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { generateDocumentNumber } from '../../lib/numbering';

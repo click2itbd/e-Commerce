@@ -20,12 +20,21 @@ if (!$api_key || !$secret_key) {
 
 $action = $_GET['action'] ?? 'create_order';
 $tracking_code = $_GET['tracking_code'] ?? '';
+$phone = $_GET['phone'] ?? '';
 
 $url = 'https://portal.steadfast.com.bd/api/v1/create_order';
 $is_post = true;
 
 if ($action === 'status' && $tracking_code) {
     $url = 'https://portal.steadfast.com.bd/api/v1/status_by_trackingcode/' . urlencode($tracking_code);
+    $is_post = false;
+} else if ($action === 'fraud_check' && $phone) {
+    // Sanitize phone number (strip spaces, symbols, international code)
+    $clean_phone = preg_replace('/[^0-9]/', '', $phone);
+    if (strlen($clean_phone) > 11 && substr($clean_phone, 0, 2) === '88') {
+        $clean_phone = substr($clean_phone, 2);
+    }
+    $url = 'https://portal.steadfast.com.bd/api/v1/fraud_check/' . urlencode($clean_phone);
     $is_post = false;
 }
 

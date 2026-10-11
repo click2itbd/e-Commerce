@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Search, RefreshCw, CheckCircle, XCircle, AlertCircle, Calendar, RefreshCcw, Package } from 'lucide-react';
+import { Truck, Search, RefreshCw, CheckCircle, XCircle, AlertCircle, Calendar, RefreshCcw, Package, ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { fetchCourierRisk, CourierRiskReport } from '../../utils/courierRisk';
 import { collection, query, where, getDocs, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Order } from '../../types';
@@ -13,6 +14,10 @@ export const EcommerceDeliveries = () => {
   const [trackingData, setTrackingData] = useState<Record<string, any>>({});
   const [loadingTracking, setLoadingTracking] = useState<Record<string, boolean>>({});
   const { settings } = useSettings();
+
+  const [fraudPhoneInput, setFraudPhoneInput] = useState('');
+  const [fraudLoading, setFraudLoading] = useState(false);
+  const [fraudReport, setFraudReport] = useState<CourierRiskReport | null>(null);
 
   useEffect(() => {
     // Listen to orders that have a tracking number
@@ -101,6 +106,24 @@ export const EcommerceDeliveries = () => {
     return { todayCount, monthCount, cancelledCount, returnedCount };
   };
 
+  const handleCheckFraud = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fraudPhoneInput.trim()) {
+      toast.error('ফোন নম্বর লিখুন');
+      return;
+    }
+    setFraudLoading(true);
+    try {
+      const report = await fetchCourierRisk(fraudPhoneInput, settings?.steadfastApiKey, settings?.steadfastSecretKey);
+      setFraudReport(report);
+      toast.success('কুরিয়ার রেকর্ড সফলভাবে যাচাই করা হয়েছে');
+    } catch (err: any) {
+      toast.error(err.message || 'যাচাই করতে সমস্যা হয়েছে');
+    } finally {
+      setFraudLoading(false);
+    }
+  };
+
   const stats = calculateStats();
 
   return (
@@ -110,6 +133,75 @@ export const EcommerceDeliveries = () => {
           <h1 className="text-2xl font-bold text-gray-900">Delivery Tracker</h1>
           <p className="text-gray-500">Track all your courier shipments via API in real-time</p>
         </div>
+      </div>
+
+      {/* Fraud Prevention & Courier Risk Lookup Card */}
+      <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm p-6 mb-8 bg-gradient-to-br from-indigo-50/40 via-white to-purple-50/30">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <ShieldAlert className="text-indigo-600" size={20} />
+              কাস্টমার কুরিয়ার রিস্ক ও ফ্রড চেকার (Steadfast Courier)
+            </h2>
+            <p className="text-xs text-gray-600 mt-1">
+              যেকোনো কাস্টমারের ১১ ডিজিটের মোবাইল নম্বর লিখে তার পূর্ববর্তী পার্সেল ডেলিভারি ও রিটার্ন রেকর্ড যাচাই করুন।
+            </p>
+          </div>
+          <form onSubmit={handleCheckFraud} className="flex items-center gap-2 w-full md:w-auto">
+            <input
+              type="text"
+              placeholder="017XXXXXXXX"
+              value={fraudPhoneInput}
+              onChange={(e) => setFraudPhoneInput(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full md:w-64 font-mono"
+            />
+            <button
+              type="submit"
+              disabled={fraudLoading}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5 shadow-sm"
+            >
+              {fraudLoading ? <RefreshCw className="animate-spin" size={15} /> : <Search size={15} />}
+              {fraudLoading ? 'যাচাই হচ্ছে...' : 'চেক করুন'}
+            </button>
+          </form>
+        </div>
+
+        {fraudReport && (
+          <div className="mt-4 pt-4 border-t border-indigo-100 space-y-4 animate-in fade-in duration-300">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-white p-3 rounded-xl border border-gray-200 text-center shadow-xs">
+                <p className="text-xs text-gray-500 font-medium">মোট পার্সেল</p>
+                <p className="text-xl font-black text-gray-900 mt-1">{fraudReport.total_parcels}</p>
+              </div>
+              <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-200 text-center shadow-xs">
+                <p className="text-xs text-emerald-700 font-medium">ডেলিভারড পার্সেল</p>
+                <p className="text-xl font-black text-emerald-600 mt-1">{fraudReport.total_delivered}</p>
+              </div>
+              <div className="bg-rose-50/60 p-3 rounded-xl border border-rose-200 text-center shadow-xs">
+                <p className="text-xs text-rose-700 font-medium">ক্যান্সেলড / রিটার্ন</p>
+                <p className="text-xl font-black text-rose-600 mt-1">{fraudReport.total_cancelled}</p>
+              </div>
+              <div className="bg-indigo-50/60 p-3 rounded-xl border border-indigo-200 text-center shadow-xs">
+                <p className="text-xs text-indigo-700 font-medium">ডেলিভারি সাকসেস রেট</p>
+                <p className="text-xl font-black text-indigo-600 mt-1">{fraudReport.success_rate}%</p>
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-xl border ${fraudReport.risk_badge_color} flex items-start gap-3`}>
+              <div className="mt-0.5 shrink-0">
+                {fraudReport.risk_level === 'safe' ? (
+                  <CheckCircle2 size={20} className="text-emerald-600" />
+                ) : (
+                  <AlertTriangle size={20} className="text-rose-600" />
+                )}
+              </div>
+              <div>
+                <p className="font-bold text-sm mb-1">{fraudReport.risk_title}</p>
+                <p className="text-xs leading-relaxed opacity-95">{fraudReport.recommendation}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

@@ -21,7 +21,8 @@ import {
   AlertTriangle,
   X,
   Clock,
-  Layers
+  Layers,
+  Terminal
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
@@ -40,6 +41,9 @@ export interface HostingAccountItem {
   id: string;
   domain: string;
   planId: string;
+  type?: 'shared' | 'vps' | string;
+  provider?: string;
+  vpsDetails?: any;
   userId?: string;
   orderId?: string;
   providerAccountId?: string;

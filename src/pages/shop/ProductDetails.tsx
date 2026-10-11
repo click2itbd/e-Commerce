@@ -7,7 +7,8 @@ import { useSettings } from '../../context/SettingsContext';
 import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency, cn, formatWarranty } from '../../lib/utils';
-import { ShoppingCart, Truck, ChevronRight, ChevronDown, GitCompare, Minus, Plus, Share2, Facebook, Twitter, MessageCircle, Star, ShieldCheck, X } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
+import { ShoppingCart, Truck, ChevronRight, ChevronDown, GitCompare, Minus, Plus, Share2, Facebook, Twitter, MessageCircle, Star, ShieldCheck, X, Copy, Check } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useCompare } from '../../context/CompareContext';
 import { ProductCard } from '../../components/ProductCard';
@@ -124,6 +125,7 @@ export const ProductDetails: React.FC = () => {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewName, setReviewName] = useState('');
   const [reviewText, setReviewText] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
   
   const { addRecentlyViewed, recentlyViewed } = useRecentlyViewed();
   
@@ -203,48 +205,6 @@ export const ProductDetails: React.FC = () => {
           </div>
         </div>
       
-      {/* Zoom Modal */}
-      {isImageZoomed && (
-        <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
-          <button 
-            onClick={() => setIsImageZoomed(false)}
-            className="absolute top-4 right-4 text-white hover:text-orange-500 bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all"
-          >
-            <X size={24} />
-          </button>
-          
-          <img
-            src={displayImages?.[selectedImage] || undefined}
-            alt={product.name}
-            className="w-full max-w-5xl max-h-[80vh] object-contain cursor-zoom-out"
-            onClick={() => setIsImageZoomed(false)}
-            referrerPolicy="no-referrer"
-          />
-          
-          {displayImages && displayImages.length > 1 && (
-            <div className="flex gap-3 overflow-x-auto mt-6 pb-2 px-4 w-full max-w-3xl justify-center">
-              {displayImages.map((img, idx) => (
-                <button
-                  key={idx}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedImage(idx);
-                  }}
-                  className={cn(
-                    "w-16 h-16 border rounded-lg p-1.5 flex-shrink-0 transition-all bg-white",
-                    selectedImage === idx 
-                      ? "border-[#F97316] shadow-[0_0_10px_rgba(249,115,22,0.5)] scale-110" 
-                      : "border-transparent opacity-50 hover:opacity-100"
-                  )}
-                >
-                  <img src={img} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
     </Layout>
     );
   }
@@ -307,6 +267,28 @@ export const ProductDetails: React.FC = () => {
 
   return (
     <Layout>
+      {product && (
+        <Helmet>
+          <title>{`${product.name} - ${settings?.siteName || 'Click2It'}`}</title>
+          <meta name="description" content={product.shortDescription?.replace(/<[^>]*>?/gm, '').slice(0, 160) || `${product.name} best price in Bangladesh`} />
+          
+          {/* Facebook & OpenGraph */}
+          <meta property="og:type" content="product" />
+          <meta property="og:title" content={product.name} />
+          <meta property="og:description" content={product.shortDescription?.replace(/<[^>]*>?/gm, '').slice(0, 200) || `Buy ${product.name} at best price in BD.`} />
+          <meta property="og:image" content={product.imageUrl || product.images?.[0] || ''} />
+          <meta property="og:url" content={typeof window !== 'undefined' ? window.location.href : ''} />
+          <meta property="og:site_name" content={settings?.siteName || 'Click2It'} />
+          <meta property="product:price:amount" content={String(product.price || 0)} />
+          <meta property="product:price:currency" content="BDT" />
+
+          {/* Twitter Card */}
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:title" content={product.name} />
+          <meta name="twitter:description" content={product.shortDescription?.replace(/<[^>]*>?/gm, '').slice(0, 200) || ''} />
+          <meta name="twitter:image" content={product.imageUrl || product.images?.[0] || ''} />
+        </Helmet>
+      )}
       <div className="container mx-auto px-2 sm:px-4 py-4 md:py-6 bg-white md:bg-transparent">
         
         {/* Breadcrumb */}
@@ -422,11 +404,11 @@ export const ProductDetails: React.FC = () => {
               </div>
 
             {/* Short Description */}
-            {product.description && (
+            {product.shortDescription && (
               <div className="mb-8">
-                <h3 className="font-bold text-[#081621] mb-2 text-sm">Description:</h3>
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap line-clamp-4">
-                  {product.description.replace(/<[^>]*>?/gm, '')}
+                <h3 className="font-bold text-[#081621] mb-2 text-sm">Short Description:</h3>
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {product.shortDescription.replace(/<[^>]*>?/gm, '')}
                 </p>
               </div>
             )}
@@ -525,18 +507,76 @@ export const ProductDetails: React.FC = () => {
                </details>
             </div>
             
-            {/* Share */}
-            <div className="flex items-center gap-3 mb-6">
-              <span className="text-sm font-bold text-gray-700 flex items-center gap-1"><Share2 size={16}/> Share:</span>
-              <button onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${window.location.href}`)} className="w-8 h-8 rounded-full bg-[#1877F2]/10 text-[#1877F2] flex items-center justify-center hover:bg-[#1877F2] hover:text-white transition-colors" title="Facebook">
-                <Facebook size={14} />
+            {/* Share Bar */}
+            <div className="flex flex-wrap items-center gap-2 mb-6 p-3 bg-gray-50/80 rounded-xl border border-gray-100">
+              <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5 mr-1">
+                <Share2 size={15} className="text-gray-500" /> Share:
+              </span>
+              {/* WhatsApp */}
+              <button 
+                onClick={() => {
+                  const shareMsg = encodeURIComponent(`Check out ${product.name} (৳${product.price}):\n${window.location.href}`);
+                  window.open(`https://api.whatsapp.com/send?text=${shareMsg}`, '_blank');
+                }} 
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366] hover:text-white transition-all text-xs font-semibold shadow-xs" 
+                title="Share on WhatsApp"
+              >
+                <img src="https://img.icons8.com/color/48/whatsapp--v1.png" className="w-4 h-4" alt="whatsapp" />
+                <span>WhatsApp</span>
               </button>
-              <button onClick={() => window.open(`fb-messenger://share/?link=${window.location.href}`)} className="w-8 h-8 rounded-full bg-[#00B2FF]/10 text-[#00B2FF] flex items-center justify-center hover:bg-[#00B2FF] hover:text-white transition-colors" title="Messenger">
+
+              {/* Facebook */}
+              <button onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`, '_blank')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1877F2]/10 text-[#1877F2] hover:bg-[#1877F2] hover:text-white transition-all text-xs font-semibold shadow-xs" title="Facebook">
+                <Facebook size={14} />
+                <span>Facebook</span>
+              </button>
+              <button onClick={() => window.open(`fb-messenger://share/?link=${encodeURIComponent(window.location.href)}`, '_blank')} className="w-8 h-8 rounded-lg bg-[#00B2FF]/10 text-[#00B2FF] flex items-center justify-center hover:bg-[#00B2FF] hover:text-white transition-colors" title="Messenger">
                 <img src="https://img.icons8.com/color/48/facebook-messenger--v1.png" className="w-4 h-4 hover:brightness-0 hover:invert" alt="messenger" />
               </button>
-              <button onClick={() => window.open(`https://api.whatsapp.com/send?text=${window.location.href}`)} className="w-8 h-8 rounded-full bg-[#25D366]/10 text-[#25D366] flex items-center justify-center hover:bg-[#25D366] hover:text-white transition-colors" title="WhatsApp">
-                <img src="https://img.icons8.com/color/48/whatsapp--v1.png" className="w-4 h-4 hover:brightness-0 hover:invert" alt="whatsapp" />
+              {/* Copy Link */}
+              <button 
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(window.location.href);
+                    setCopiedLink(true);
+                    toast.success('Product link copied to clipboard!');
+                    setTimeout(() => setCopiedLink(false), 2500);
+                  } catch (err) {
+                    toast.error('Failed to copy link');
+                  }
+                }} 
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shadow-xs ml-auto sm:ml-0",
+                  copiedLink 
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-300" 
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100 hover:text-gray-900"
+                )}
+                title="Copy Product Link"
+              >
+                {copiedLink ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
               </button>
+
+              {/* Native Share */}
+              {typeof navigator !== 'undefined' && 'share' in navigator && (
+                <button
+                  onClick={() => {
+                    navigator.share({
+                      title: product.name,
+                      text: `Check out ${product.name} at ৳${product.price}`,
+                      url: window.location.href
+                    }).catch(() => {});
+                  }}
+                  className="p-1.5 rounded-lg bg-gray-200/70 text-gray-700 hover:bg-gray-300 transition-colors"
+                  title="More Share Options"
+                >
+                  <Share2 size={14} />
+                </button>
+              )}
+
+
+
+
             </div>
           </div>
         </div>
@@ -921,6 +961,57 @@ export const ProductDetails: React.FC = () => {
           Buy Now
         </button>
       </div>
+
+
+      {/* Image Zoom Modal */}
+      {isImageZoomed && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300"
+          onClick={() => setIsImageZoomed(false)}
+        >
+          <button 
+            onClick={() => setIsImageZoomed(false)}
+            className="absolute top-4 right-4 text-white hover:text-[#F97316] bg-white/10 hover:bg-white/20 p-2.5 rounded-full transition-all z-20"
+            title="Close (Esc)"
+          >
+            <X size={26} />
+          </button>
+          
+          <div 
+            className="relative max-w-5xl max-h-[82vh] w-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img 
+              src={product.images?.[selectedImage] || product.images?.[0] || displayImages?.[selectedImage] || undefined} 
+              alt={product.name} 
+              className="w-auto h-auto max-w-full max-h-[80vh] object-contain select-none drop-shadow-2xl rounded-lg animate-in zoom-in-95 duration-200" 
+              referrerPolicy="no-referrer" 
+            />
+          </div>
+          
+          {((product.images && product.images.length > 1) || (displayImages && displayImages.length > 1)) && (
+            <div 
+              className="flex gap-3 overflow-x-auto mt-6 pb-2 px-4 w-full max-w-3xl justify-center z-10" 
+              onClick={(e) => e.stopPropagation()}
+            >
+              {(product.images || displayImages).map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedImage(idx)}
+                  className={cn(
+                    "w-16 h-16 border-2 rounded-lg p-1 flex-shrink-0 transition-all bg-white overflow-hidden",
+                    selectedImage === idx 
+                      ? "border-[#F97316] shadow-[0_0_12px_rgba(249,115,22,0.8)] scale-105" 
+                      : "border-transparent opacity-60 hover:opacity-100"
+                  )}
+                >
+                  <img src={img} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
     </Layout>
   );

@@ -3,7 +3,7 @@ import { db } from '../../../../firebase';
 import { collection, query, orderBy, getDocs, doc, updateDoc, where, limit } from 'firebase/firestore';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { Server, Search, Eye, X, Globe, Download, Loader2, FileText, CheckCircle, Wallet, AlertTriangle, Clock } from 'lucide-react';
+import { Server, Search, Eye, EyeOff, X, Globe, Download, Loader2, FileText, CheckCircle, Wallet, AlertTriangle, Clock, Terminal, Copy } from 'lucide-react';
 import { HostingOrder, DomainOrder, HostingAccount } from '../../../../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -27,6 +27,7 @@ export default function HostingOrders() {
   const [hostingAccounts, setHostingAccounts] = useState<HostingAccount[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [showAdminPass, setShowAdminPass] = useState<Record<string, boolean>>({});
   
   const [showEmailLogs, setShowEmailLogs] = useState(false);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
@@ -211,6 +212,10 @@ export default function HostingOrders() {
       if (newStatus === 'active') {
         const wantsEmail = window.confirm("Service is now Active! Do you want to send the Service Activation Email to the customer?");
         if (wantsEmail && selectedOrder) {
+          const targetHosting = collectionName === 'hostingAccounts' ? hostingAccounts.find(h => h.id === documentId) : null;
+          const isVps = Boolean(targetHosting && (targetHosting.type === 'vps' || targetHosting.provider === 'vps' || targetHosting.vpsDetails || (selectedOrder as any).vpsConfig));
+          const vpsDetails = targetHosting?.vpsDetails || (selectedOrder as any).vpsConfig || {};
+
           const serviceName = collectionName === 'domainOrders' 
             ? domainOrders.find(d => d.id === documentId)?.domain 
             : hostingAccounts.find(h => h.id === documentId)?.planId;
@@ -220,9 +225,15 @@ export default function HostingOrders() {
 
           toast.loading("Sending email...", { id: 'emailSend' });
           const success = await sendServiceActivationEmail(selectedOrder.id, selectedOrder.customerEmail, {
-            domain: serviceName,
+            domain: isVps ? (vpsDetails.hostname || targetHosting?.planId) : serviceName,
             serverIp,
-            controlPanelUrl
+            controlPanelUrl,
+            isVps,
+            hostname: vpsDetails.hostname,
+            os: vpsDetails.os,
+            serverLocation: vpsDetails.serverLocation,
+            rootPassword: vpsDetails.rootPassword,
+            sshCommand: `ssh root@${serverIp || 'YOUR_SERVER_IP'}`
           });
           if (success) {
             toast.success("Email sent & logged successfully!", { id: 'emailSend' });
@@ -766,7 +777,8 @@ export default function HostingOrders() {
                     <div className="pt-2">
                       {(() => {
                                                   const hasDomain = selectedOrder.items?.some((i: any) => i.itemType === 'domain' || i.itemType === 'domain_renewal' || i.itemType === 'domain_transfer') || domainOrders.length > 0;
-                          const hasHosting = selectedOrder.items?.some((i: any) => i.itemType === 'hosting') || hostingAccounts.length > 0;
+                          const isVpsOrder = selectedOrder.items?.some((i: any) => i.itemType === 'hosting' && (i.planSlug?.startsWith('vps') || i.id?.includes('vps') || i.name?.toLowerCase().includes('vps'))) || hostingAccounts.some(h => h.type === 'vps' || h.provider === 'vps' || Boolean(h.vpsDetails)) || Boolean((selectedOrder as any).vpsConfig);
+                          const hasHosting = (selectedOrder.items?.some((i: any) => i.itemType === 'hosting' && !i.planSlug?.startsWith('vps') && !i.id?.includes('vps') && !i.name?.toLowerCase().includes('vps')) || hostingAccounts.some(h => h.type !== 'vps' && h.provider !== 'vps' && !h.vpsDetails)) && !isVpsOrder;
                           const hasCloudLinux = selectedOrder.items?.some((i: any) => i.itemType === 'license' && i.name.toLowerCase().includes('cloudlinux'));
                           
                           let acceptLabel = 'Accept & Process Order';
@@ -777,6 +789,10 @@ export default function HostingOrders() {
                             acceptLabel = 'Accept & Provision CloudLinux';
                             retryLabel = 'Retry CloudLinux Provisioning';
                             ActionIcon = Server;
+                          } else if (isVpsOrder) {
+                            acceptLabel = 'Accept & Queue VPS Setup';
+                            retryLabel = 'Retry VPS Order';
+                            ActionIcon = Terminal;
                           } else if (hasDomain && hasHosting) {
                             acceptLabel = 'Accept & Provision Order (Domain + WHM)';
                             retryLabel = 'Retry Provisioning (Domain + WHM)';
@@ -1022,61 +1038,210 @@ export default function HostingOrders() {
                     <div className="space-y-3">
                       <h4 className="font-semibold text-gray-900 border-b pb-2 flex items-center gap-2">
                         <Server className="w-4 h-4 text-blue-600" />
-                        Hosting Accounts
+                        Hosting & Cloud VPS Accounts
                       </h4>
                       <div className="grid gap-3">
-                        {hostingAccounts.map(hosting => (
-                          <div key={hosting.id} className="p-4 bg-gray-50 border border-gray-100 rounded-xl">
-                            <div className="flex justify-between items-start mb-2">
-                              <div>
-                                <p className="font-bold text-gray-900 uppercase">{hosting.planId}</p>
-                                <p className="text-xs text-gray-500">Billing: <span className="capitalize">{hosting.billingCycle}</span></p>
+                        {hostingAccounts.map(hosting => {
+                          const isVps = hosting.type === 'vps' || hosting.provider === 'vps' || Boolean(hosting.vpsDetails) || Boolean((selectedOrder as any).vpsConfig);
+                          const vps = hosting.vpsDetails || (selectedOrder as any).vpsConfig || {};
+
+                          if (isVps) {
+                            return (
+                              <div key={hosting.id} className="p-5 bg-gradient-to-br from-purple-50/70 via-indigo-50/30 to-white border border-purple-200 rounded-xl space-y-4 shadow-xs">
+                                <div className="flex flex-wrap justify-between items-start gap-2">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-700 text-white flex items-center gap-1 shadow-sm">
+                                        <Terminal className="w-3 h-3" /> Cloud VPS Instance
+                                      </span>
+                                      <span className="font-bold text-gray-900 uppercase text-sm">{hosting.planId || 'VPS'}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">Billing: <span className="capitalize font-medium">{hosting.billingCycle}</span></p>
+                                  </div>
+                                  <select
+                                    value={hosting.status}
+                                    onChange={(e) => updateServiceStatus('hostingAccounts', hosting.id, e.target.value)}
+                                    className={cn(
+                                      "px-3 py-1.5 rounded-lg text-xs font-bold uppercase border-none focus:ring-2 focus:ring-purple-500 outline-none cursor-pointer shadow-sm",
+                                      hosting.status === 'active' ? 'bg-emerald-100 text-emerald-800' :
+                                      hosting.status === 'pending_setup' || hosting.status === 'provisioning' ? 'bg-amber-100 text-amber-800' :
+                                      'bg-yellow-100 text-yellow-800'
+                                    )}
+                                  >
+                                    <option value="pending">Pending</option>
+                                    <option value="pending_setup">Pending Setup</option>
+                                    <option value="provisioning">Provisioning</option>
+                                    <option value="active">Active (Live)</option>
+                                    <option value="suspended">Suspended</option>
+                                    <option value="terminated">Terminated</option>
+                                  </select>
+                                </div>
+
+                                {/* VPS Client Configuration */}
+                                <div className="bg-white p-4 rounded-xl border border-purple-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs shadow-xs">
+                                  <div>
+                                    <span className="text-gray-500 font-medium">Server Hostname:</span>
+                                    <div className="font-mono font-bold text-gray-900 mt-0.5 flex items-center gap-1.5">
+                                      <span>{vps.hostname || hosting.domain || 'Not configured'}</span>
+                                      {vps.hostname && (
+                                        <button 
+                                          type="button" 
+                                          onClick={() => { navigator.clipboard.writeText(vps.hostname); toast.success('Hostname copied'); }}
+                                          className="text-gray-400 hover:text-purple-600 transition-colors"
+                                          title="Copy Hostname"
+                                        >
+                                          <Copy className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <span className="text-gray-500 font-medium">Operating System:</span>
+                                    <div className="font-semibold text-purple-700 mt-0.5">{vps.os || 'Ubuntu / Linux'}</div>
+                                  </div>
+
+                                  <div>
+                                    <span className="text-gray-500 font-medium">Datacenter Location:</span>
+                                    <div className="font-semibold text-gray-800 mt-0.5">{vps.serverLocation || 'BDIX Dhaka / Singapore'}</div>
+                                  </div>
+
+                                  <div>
+                                    <span className="text-gray-500 font-medium">Root Password:</span>
+                                    <div className="font-mono font-bold text-gray-900 mt-0.5 flex items-center gap-2">
+                                      <span>{showAdminPass[hosting.id] ? (vps.rootPassword || 'None') : '••••••••••••'}</span>
+                                      {vps.rootPassword && (
+                                        <div className="flex items-center gap-1">
+                                          <button 
+                                            type="button" 
+                                            onClick={() => setShowAdminPass(prev => ({ ...prev, [hosting.id]: !prev[hosting.id] }))}
+                                            className="text-gray-400 hover:text-gray-700"
+                                            title={showAdminPass[hosting.id] ? "Hide Password" : "Show Password"}
+                                          >
+                                            {showAdminPass[hosting.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                          </button>
+                                          <button 
+                                            type="button" 
+                                            onClick={() => { navigator.clipboard.writeText(vps.rootPassword); toast.success('Password copied'); }}
+                                            className="text-gray-400 hover:text-purple-600 transition-colors"
+                                            title="Copy Password"
+                                          >
+                                            <Copy className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {vps.sshKey && (
+                                    <div className="sm:col-span-2 pt-1 border-t border-gray-100">
+                                      <span className="text-gray-500 font-medium">SSH Public Key:</span>
+                                      <div className="mt-1 bg-gray-50 p-2.5 rounded-lg border border-gray-200 font-mono text-[11px] text-gray-700 break-all max-h-24 overflow-y-auto flex justify-between items-start gap-2">
+                                        <span className="select-all">{vps.sshKey}</span>
+                                        <button 
+                                          type="button" 
+                                          onClick={() => { navigator.clipboard.writeText(vps.sshKey); toast.success('SSH Key copied'); }}
+                                          className="text-gray-400 hover:text-purple-600 shrink-0"
+                                          title="Copy SSH Key"
+                                        >
+                                          <Copy className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Admin Assignment Inputs */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                  <div>
+                                    <label className="block text-xs font-bold text-purple-950 mb-1">
+                                      Assigned Server Dedicated IP <span className="text-red-500">*</span>
+                                    </label>
+                                    <input 
+                                      type="text" 
+                                      placeholder="e.g. 103.145.118.52" 
+                                      className="w-full text-sm border-purple-200 rounded-lg outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 py-1.5 px-3 border bg-white"
+                                      defaultValue={hosting.serverIp || ''}
+                                      onBlur={(e) => {
+                                        if (e.target.value !== hosting.serverIp) {
+                                          updateServiceStatus('hostingAccounts', hosting.id, hosting.status, { serverIp: e.target.value });
+                                        }
+                                      }}
+                                    />
+                                    <p className="text-[11px] text-purple-600 mt-0.5">Assigning an IP and marking Active will prompt to email the client.</p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">SSH Port / Access URL</label>
+                                    <input 
+                                      type="text" 
+                                      placeholder="Default: 22" 
+                                      className="w-full text-sm border-gray-300 rounded-lg outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 py-1.5 px-3 border bg-white"
+                                      defaultValue={hosting.controlPanelUrl || ''}
+                                      onBlur={(e) => {
+                                        if (e.target.value !== hosting.controlPanelUrl) {
+                                          updateServiceStatus('hostingAccounts', hosting.id, hosting.status, { controlPanelUrl: e.target.value });
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                </div>
                               </div>
-                              <select
-                                value={hosting.status}
-                                onChange={(e) => updateServiceStatus('hostingAccounts', hosting.id, e.target.value)}
-                                className={cn("px-2 py-1 rounded text-xs font-medium uppercase border-none focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer", hosting.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}
-                              >
-                                <option value="pending">Pending</option>
-                                <option value="provisioning">Provisioning</option>
-                                <option value="active">Active</option>
-                                <option value="suspended">Suspended</option>
-                                <option value="terminated">Terminated</option>
-                              </select>
+                            );
+                          }
+
+                          return (
+                            <div key={hosting.id} className="p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <p className="font-bold text-gray-900 uppercase">{hosting.planId}</p>
+                                  <p className="text-xs text-gray-500">Billing: <span className="capitalize">{hosting.billingCycle}</span></p>
+                                </div>
+                                <select
+                                  value={hosting.status}
+                                  onChange={(e) => updateServiceStatus('hostingAccounts', hosting.id, e.target.value)}
+                                  className={cn("px-2 py-1 rounded text-xs font-medium uppercase border-none focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer", hosting.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}
+                                >
+                                  <option value="pending">Pending</option>
+                                  <option value="provisioning">Provisioning</option>
+                                  <option value="active">Active</option>
+                                  <option value="suspended">Suspended</option>
+                                  <option value="terminated">Terminated</option>
+                                </select>
+                              </div>
+                              
+                              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-500 mb-1">Server IP</label>
+                                  <input 
+                                    type="text" 
+                                    placeholder="e.g. 192.168.1.1" 
+                                    className="w-full text-sm border-gray-300 rounded outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 py-1 px-2 border"
+                                    defaultValue={hosting.serverIp || ''}
+                                    onBlur={(e) => {
+                                      if(e.target.value !== hosting.serverIp) {
+                                        updateServiceStatus('hostingAccounts', hosting.id, hosting.status, { serverIp: e.target.value });
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-500 mb-1">cPanel URL</label>
+                                  <input 
+                                    type="text" 
+                                    placeholder="e.g. https://cpanel.domain.com" 
+                                    className="w-full text-sm border-gray-300 rounded outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 py-1 px-2 border"
+                                    defaultValue={hosting.controlPanelUrl || ''}
+                                    onBlur={(e) => {
+                                      if(e.target.value !== hosting.controlPanelUrl) {
+                                        updateServiceStatus('hostingAccounts', hosting.id, hosting.status, { controlPanelUrl: e.target.value });
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              </div>
                             </div>
-                            
-                             <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-500 mb-1">Server IP</label>
-                                <input 
-                                  type="text" 
-                                  placeholder="e.g. 192.168.1.1" 
-                                  className="w-full text-sm border-gray-300 rounded outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 py-1 px-2 border"
-                                  defaultValue={hosting.serverIp || ''}
-                                  onBlur={(e) => {
-                                    if(e.target.value !== hosting.serverIp) {
-                                      updateServiceStatus('hostingAccounts', hosting.id, hosting.status, { serverIp: e.target.value });
-                                    }
-                                  }}
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-500 mb-1">cPanel URL</label>
-                                <input 
-                                  type="text" 
-                                  placeholder="e.g. https://cpanel.domain.com" 
-                                  className="w-full text-sm border-gray-300 rounded outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 py-1 px-2 border"
-                                  defaultValue={hosting.controlPanelUrl || ''}
-                                  onBlur={(e) => {
-                                    if(e.target.value !== hosting.controlPanelUrl) {
-                                      updateServiceStatus('hostingAccounts', hosting.id, hosting.status, { controlPanelUrl: e.target.value });
-                                    }
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}

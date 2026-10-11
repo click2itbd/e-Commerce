@@ -352,6 +352,7 @@ export interface SiteSettings {
   googleAnalyticsId?: string;
   facebookPixelId?: string;
   googleTagManagerId?: string;
+  trendingSearches?: string[] | string;
 
   // Item Setting
   isLoyaltyEnable?: string;
@@ -609,6 +610,15 @@ export interface DomainOrder {
   updatedAt: string;
 }
 
+export interface VpsConfigurationDetails {
+  hostname: string;
+  os: string;
+  serverLocation: string;
+  rootPassword?: string;
+  sshKey?: string;
+  specs?: any;
+}
+
 export interface HostingAccount {
   id: string;
   userId: string;
@@ -616,6 +626,8 @@ export interface HostingAccount {
   planId: string;
   domain: string;
   provider?: string;
+  type?: 'shared' | 'vps' | string;
+  vpsDetails?: VpsConfigurationDetails;
   status: string;
   billingCycle?: string;
   autoRenew: boolean;

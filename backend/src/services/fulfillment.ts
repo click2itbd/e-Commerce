@@ -459,6 +459,70 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
     }
   }
 
+  // Handle VPS accounts (manual provisioning / dedicated server setup)
+  if (hostingData.provider === 'vps' || hostingData.type === 'vps' || hostingData.vpsDetails) {
+    const vpsDetails = hostingData.vpsDetails || {};
+    await db.collection('hostingAccounts').doc(hostingAccountId).update({
+      status: 'pending_setup',
+      provisioningStatus: 'manual_pending',
+      contactEmail,
+      customerEmail: contactEmail,
+      updatedAt: now,
+    });
+
+    await writeAuditLog(
+      db,
+      hostingAccountId,
+      'vps_fulfillment_queued',
+      actorUid,
+      hostingData.status,
+      'pending_setup',
+      null,
+      `Cloud VPS order acknowledged for ${vpsDetails.hostname || 'server'}. Waiting for admin dedicated IP allocation.`
+    );
+
+    if (contactEmail) {
+      const vpsName = hostingData.name || hostingData.planId || 'Cloud VPS';
+      const subject = `🚀 Cloud VPS Order Confirmed - ${vpsDetails.hostname || vpsName}`;
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #4f46e5;">Cloud VPS Provisioning in Progress</h2>
+          <p>Dear <strong>${customerName || 'Valued Customer'}</strong>,</p>
+          <p>Thank you for your order! Your payment has been verified, and your Cloud VPS deployment request is queued.</p>
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; margin: 18px 0;">
+            <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 10px; text-transform: uppercase;">Server Configuration</div>
+            <div style="font-size: 14px; margin-bottom: 6px;"><strong>Hostname:</strong> ${vpsDetails.hostname || 'Not specified'}</div>
+            <div style="font-size: 14px; margin-bottom: 6px;"><strong>Operating System:</strong> ${vpsDetails.os || 'Linux'}</div>
+            <div style="font-size: 14px; margin-bottom: 6px;"><strong>Datacenter:</strong> ${vpsDetails.serverLocation || 'Dhaka / Global'}</div>
+          </div>
+          <p>Our network team is configuring your dedicated IP address and OS image. You will receive an activation email once your server is live and reachable via SSH.</p>
+          <p>Track your server status anytime in your <a href="https://click2itbd.com/dashboard" style="color: #4f46e5; font-weight: 600;">Client Dashboard</a>.</p>
+        </div>
+      `;
+      try {
+        await sendEmail({
+          to: contactEmail,
+          subject,
+          html,
+          orderId: hostingData.orderId,
+          customerEmail: contactEmail,
+          category: 'hosting'
+        });
+      } catch (err) {
+        console.warn('[Fulfillment] VPS email sending error:', err);
+      }
+    }
+
+    return {
+      itemId: hostingAccountId,
+      type: 'hosting',
+      action: 'provision',
+      success: true,
+      status: 'pending_setup',
+      error: undefined,
+    };
+  }
+
   const { provider } = await getHostingProviderWithSettings();
 
   try {

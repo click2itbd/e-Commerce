@@ -9,7 +9,7 @@ import { getHostingUsage, HostingUsageStats } from '../services/hostingApi';
 import {
   RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, RotateCcw, Server,
   FileText, Receipt, Download, ExternalLink, Lock, Unlock, Key, Shield, Eye, EyeOff, Globe,
-  Plus, Trash, Save, UserCog, ShieldCheck, Loader2, Copy, Check, Mail, X
+  Plus, Trash, Save, UserCog, ShieldCheck, Loader2, Copy, Check, Mail, X, Terminal, Cpu
 } from 'lucide-react';
 import { HostingAccount, HostingOrder } from '../types';
 import { useSettings } from '../context/SettingsContext';
@@ -66,6 +66,18 @@ export const MyServicesTab: React.FC = () => {
   // Hosting States
   const [usageData, setUsageData] = useState<Record<string, HostingUsageStats>>({});
   const [usageLoading, setUsageLoading] = useState<string | null>(null);
+
+  // VPS Management States
+  const [viewingVpsCredentials, setViewingVpsCredentials] = useState<HostingAccount | null>(null);
+  const [showVpsPass, setShowVpsPass] = useState(false);
+  const [copiedVpsKey, setCopiedVpsKey] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedVpsKey(label);
+    toast.success(`${label} copied!`);
+    setTimeout(() => setCopiedVpsKey(null), 2000);
+  };
 
   // SSL Configuration Modal States
   const [configuringSsl, setConfiguringSsl] = useState<any | null>(null);
@@ -1183,111 +1195,439 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
         />
       )}
 
-      {/* ================= MY HOSTING SECTION ================= */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <HardDrive className="text-[#EF4444]" size={24} />
-          <h2 className="text-xl font-bold text-[#081621]">My Hosting</h2>
-        </div>
+      {/* ================= CLOUD VPS SERVERS SECTION ================= */}
+      {(() => {
+        const vpsAccounts = hosting.filter(acc => acc.type === 'vps' || acc.provider === 'vps' || Boolean(acc.vpsDetails) || acc.planId?.toLowerCase().includes('vps'));
+        const sharedHostingAccounts = hosting.filter(acc => !vpsAccounts.some(v => v.id === acc.id));
 
-        {hosting.length === 0 ? (
-          <p className="text-gray-400 text-center py-8">No hosting accounts found.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-[#081621] text-white text-xs uppercase">
-                <tr>
-                  <th className="px-6 py-4">Plan</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Server IP</th>
-                  <th className="px-6 py-4">cPanel</th>
-                  <th className="px-6 py-4">Usage</th>
-                  <th className="px-6 py-4">Expires</th>
-                  <th className="px-6 py-4">Auto-Renew</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {hosting.map(account => (
-                  <tr key={account.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold">{account.planId || '-'}</span>
-                        {account.domain && <span className="text-xs text-blue-600">{account.domain}</span>}
-                        <span className="text-xs text-gray-500">{account.billingCycle?.toUpperCase() || 'MONTHLY'}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">{getStatusBadge(account.status)}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {account.status === 'active' && account.serverIp ? account.serverIp : '-'}
-                    </td>
-                    <td className="px-6 py-4">
-                      {account.status === 'active' && account.controlPanelUrl ? (
-                        <button
-                          onClick={() => handleCpanelLogin(account)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition-colors shadow-sm"
-                        >
-                          <ExternalLink size={12} />
-                          Log in to cPanel
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {usageData[account.id] ? (
-                        <div className="space-y-2 min-w-[200px]">
-                          <ProgressBar
-                            value={usageData[account.id].diskUsageMB / 1024}
-                            max={usageData[account.id].diskLimitMB / 1024}
-                            label="Disk"
-                          />
-                          <ProgressBar
-                            value={usageData[account.id].bandwidthUsageMB / 1024}
-                            max={usageData[account.id].bandwidthLimitMB / 1024}
-                            label="Bandwidth"
-                          />
+        return (
+          <>
+            {vpsAccounts.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-purple-200 p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-100 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-purple-50 text-purple-700 rounded-xl">
+                      <Terminal size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        My Cloud VPS Servers
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
+                          {vpsAccounts.length}
+                        </span>
+                      </h2>
+                      <p className="text-xs text-gray-500 mt-0.5">High-speed SSD VPS with root SSH access & dedicated resources</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  {vpsAccounts.map(vps => {
+                    const details = vps.vpsDetails || {};
+                    const isLive = vps.status === 'active';
+                    const isDeploying = vps.status === 'pending' || vps.status === 'pending_setup' || vps.status === 'provisioning';
+
+                    return (
+                      <div key={vps.id} className="p-5 rounded-xl border border-purple-100 bg-gradient-to-br from-purple-50/40 via-white to-indigo-50/30 hover:border-purple-300 transition-all shadow-xs space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <span className="p-2 bg-purple-100 text-purple-700 rounded-lg">
+                              <Cpu size={18} />
+                            </span>
+                            <div>
+                              <h3 className="font-bold text-gray-900 text-base uppercase">
+                                {vps.planId || 'Cloud VPS'}
+                              </h3>
+                              <p className="text-xs text-gray-500">
+                                Billing: <span className="capitalize font-semibold">{vps.billingCycle || 'Monthly'}</span>
+                                {vps.expiresAt && ` · Renews: ${new Date(vps.expiresAt).toLocaleDateString()}`}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isLive && (
+                              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold uppercase flex items-center gap-1.5 shadow-xs">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Active
+                              </span>
+                            )}
+                            {isDeploying && (
+                              <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold uppercase flex items-center gap-1.5">
+                                <Clock size={12} className="animate-spin" />
+                                Deploying Server...
+                              </span>
+                            )}
+                            {!isLive && !isDeploying && (
+                              <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold uppercase">
+                                {vps.status}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      ) : (
-                        <button
-                          onClick={() => handleFetchUsage(account)}
-                          disabled={usageLoading === account.id}
-                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                        >
-                          <RefreshCw size={12} className={usageLoading === account.id ? 'animate-spin' : ''} />
-                          {usageLoading === account.id ? 'Loading...' : 'Show Usage'}
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {account.expiresAt ? new Date(account.expiresAt).toLocaleDateString() : '-'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={!!account.autoRenew}
-                          onChange={() => handleToggleAutoRenew('hosting', account)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-[#EF4444] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#EF4444]"></div>
-                      </label>
-                    </td>
-                    <td className="px-6 py-4 text-right">
+
+                        {/* Specs & Connection Details */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-white p-4 rounded-xl border border-purple-100 text-xs shadow-xs">
+                          <div>
+                            <span className="text-gray-500 font-medium">Server Hostname</span>
+                            <div className="font-mono font-bold text-gray-900 mt-0.5 truncate select-all">
+                              {details.hostname || vps.domain || 'Provisioning...'}
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-gray-500 font-medium">Operating System</span>
+                            <div className="font-semibold text-purple-700 mt-0.5">
+                              {details.os || 'Ubuntu / Linux'}
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-gray-500 font-medium">Datacenter Location</span>
+                            <div className="font-semibold text-gray-800 mt-0.5 truncate">
+                              {details.serverLocation || 'BDIX Dhaka / Singapore'}
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-gray-500 font-medium">Assigned Primary IP</span>
+                            <div className="font-mono font-bold mt-0.5 flex items-center gap-1.5">
+                              {vps.serverIp ? (
+                                <>
+                                  <span className="text-blue-600 select-all">{vps.serverIp}</span>
+                                  <button
+                                    onClick={() => copyToClipboard(vps.serverIp!, 'Server IP')}
+                                    className="text-gray-400 hover:text-blue-600 transition-colors"
+                                    title="Copy IP"
+                                  >
+                                    <Copy size={12} />
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-amber-600 font-normal italic">Allocating dedicated IP...</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* SSH Connect Quick Bar */}
+                        {vps.serverIp && (
+                          <div className="bg-gray-900 text-gray-200 px-4 py-2.5 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+                            <div className="flex items-center gap-2 select-all">
+                              <span className="text-emerald-400"># Connect:</span>
+                              <span className="text-white">ssh root@{vps.serverIp}</span>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(`ssh root@${vps.serverIp}`, 'SSH Command')}
+                              className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-purple-200 rounded text-[11px] font-sans font-semibold flex items-center gap-1 transition-all"
+                            >
+                              <Copy size={11} />
+                              Copy SSH
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Footer Controls */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-purple-50">
+                          <div className="flex items-center gap-2 text-xs text-gray-600">
+                            <span>Auto-Renew:</span>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!!vps.autoRenew}
+                                onChange={() => handleToggleAutoRenew('hosting', vps)}
+                                className="sr-only peer"
+                              />
+                              <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-purple-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                            </label>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setViewingVpsCredentials(vps)}
+                              className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                            >
+                              <Key size={13} />
+                              Server Credentials
+                            </button>
+                            <button
+                              onClick={() => setUpgradingHosting(vps)}
+                              className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-bold transition-all"
+                            >
+                              Upgrade
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ================= MY HOSTING SECTION ================= */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center gap-2 mb-6">
+                <HardDrive className="text-[#EF4444]" size={24} />
+                <h2 className="text-xl font-bold text-[#081621]">My Hosting</h2>
+              </div>
+
+              {sharedHostingAccounts.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">
+                  {vpsAccounts.length > 0 ? "You have no shared web hosting accounts." : "No hosting accounts found."}
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-[#081621] text-white text-xs uppercase">
+                      <tr>
+                        <th className="px-6 py-4">Plan</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4">Server IP</th>
+                        <th className="px-6 py-4">cPanel</th>
+                        <th className="px-6 py-4">Usage</th>
+                        <th className="px-6 py-4">Expires</th>
+                        <th className="px-6 py-4">Auto-Renew</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {sharedHostingAccounts.map(account => (
+                        <tr key={account.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="font-bold">{account.planId || '-'}</span>
+                              {account.domain && <span className="text-xs text-blue-600">{account.domain}</span>}
+                              <span className="text-xs text-gray-500">{account.billingCycle?.toUpperCase() || 'MONTHLY'}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">{getStatusBadge(account.status)}</td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {account.status === 'active' && account.serverIp ? account.serverIp : '-'}
+                          </td>
+                          <td className="px-6 py-4">
+                            {account.status === 'active' && account.controlPanelUrl ? (
+                              <button
+                                onClick={() => handleCpanelLogin(account)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition-colors shadow-sm"
+                              >
+                                <ExternalLink size={12} />
+                                Log in to cPanel
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {usageData[account.id] ? (
+                              <div className="space-y-2 min-w-[200px]">
+                                <ProgressBar
+                                  value={usageData[account.id].diskUsageMB / 1024}
+                                  max={usageData[account.id].diskLimitMB / 1024}
+                                  label="Disk"
+                                />
+                                <ProgressBar
+                                  value={usageData[account.id].bandwidthUsageMB / 1024}
+                                  max={usageData[account.id].bandwidthLimitMB / 1024}
+                                  label="Bandwidth"
+                                />
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleFetchUsage(account)}
+                                disabled={usageLoading === account.id}
+                                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                              >
+                                <RefreshCw size={12} className={usageLoading === account.id ? 'animate-spin' : ''} />
+                                {usageLoading === account.id ? 'Loading...' : 'Show Usage'}
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {account.expiresAt ? new Date(account.expiresAt).toLocaleDateString() : '-'}
+                          </td>
+                          <td className="px-6 py-4">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!!account.autoRenew}
+                                onChange={() => handleToggleAutoRenew('hosting', account)}
+                                className="sr-only peer"
+                              />
+                              <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-[#EF4444] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#EF4444]"></div>
+                            </label>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              onClick={() => setUpgradingHosting(account)}
+                              className="bg-[#081621] text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-[#EF4444] transition-colors shadow-sm"
+                            >
+                              Upgrade Plan
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        );
+      })()}
+
+      {/* VPS Credentials Modal */}
+      {viewingVpsCredentials && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-6 flex justify-between items-center">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <Terminal className="w-5 h-5 text-purple-300" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Server Credentials</h3>
+                  <p className="text-xs text-purple-200">
+                    {viewingVpsCredentials.vpsDetails?.hostname || viewingVpsCredentials.domain || 'Cloud VPS Instance'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setViewingVpsCredentials(null); setShowVpsPass(false); }}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Connection Box */}
+              <div className="bg-gray-900 text-gray-100 p-4 rounded-xl space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-400 font-mono">SSH Root Login</span>
+                  {viewingVpsCredentials.serverIp && (
+                    <button
+                      onClick={() => copyToClipboard(`ssh root@${viewingVpsCredentials.serverIp}`, 'SSH Command')}
+                      className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                    >
+                      <Copy className="w-3 h-3" /> Copy Command
+                    </button>
+                  )}
+                </div>
+                <div className="font-mono text-sm text-emerald-400 select-all">
+                  ssh root@{viewingVpsCredentials.serverIp || 'YOUR_SERVER_IP'}
+                </div>
+              </div>
+
+              {/* Credentials Details Grid */}
+              <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 text-sm">
+                <div className="p-3 flex justify-between items-center bg-gray-50/50">
+                  <span className="text-gray-500 font-medium">Hostname</span>
+                  <span className="font-mono font-bold text-gray-900">
+                    {viewingVpsCredentials.vpsDetails?.hostname || viewingVpsCredentials.domain || 'N/A'}
+                  </span>
+                </div>
+
+                <div className="p-3 flex justify-between items-center">
+                  <span className="text-gray-500 font-medium">Dedicated IP</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-blue-600">
+                      {viewingVpsCredentials.serverIp || 'Allocating...'}
+                    </span>
+                    {viewingVpsCredentials.serverIp && (
                       <button
-                        onClick={() => setUpgradingHosting(account)}
-                        className="bg-[#081621] text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-[#EF4444] transition-colors shadow-sm"
+                        onClick={() => copyToClipboard(viewingVpsCredentials.serverIp!, 'IP')}
+                        className="text-gray-400 hover:text-gray-600"
+                        title="Copy IP"
                       >
-                        Upgrade Plan
+                        <Copy className="w-3.5 h-3.5" />
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 flex justify-between items-center bg-gray-50/50">
+                  <span className="text-gray-500 font-medium">Root Username</span>
+                  <span className="font-mono font-bold text-gray-900">root</span>
+                </div>
+
+                <div className="p-3 flex justify-between items-center">
+                  <span className="text-gray-500 font-medium">Root Password</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-gray-900">
+                      {showVpsPass ? (viewingVpsCredentials.vpsDetails?.rootPassword || 'None') : '••••••••••••'}
+                    </span>
+                    {viewingVpsCredentials.vpsDetails?.rootPassword && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setShowVpsPass(!showVpsPass)}
+                          className="text-gray-400 hover:text-gray-600"
+                          title={showVpsPass ? "Hide" : "Show"}
+                        >
+                          {showVpsPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(viewingVpsCredentials.vpsDetails?.rootPassword!, 'Root Password')}
+                          className="text-gray-400 hover:text-purple-600"
+                          title="Copy Password"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 flex justify-between items-center bg-gray-50/50">
+                  <span className="text-gray-500 font-medium">Operating System</span>
+                  <span className="font-semibold text-gray-800">
+                    {viewingVpsCredentials.vpsDetails?.os || 'Ubuntu / Linux'}
+                  </span>
+                </div>
+
+                <div className="p-3 flex justify-between items-center">
+                  <span className="text-gray-500 font-medium">Datacenter</span>
+                  <span className="font-semibold text-gray-800">
+                    {viewingVpsCredentials.vpsDetails?.serverLocation || 'BDIX Dhaka / Singapore'}
+                  </span>
+                </div>
+
+                {viewingVpsCredentials.vpsDetails?.sshKey && (
+                  <div className="p-3 bg-gray-50/50">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-gray-500 font-medium">Configured SSH Key</span>
+                      <button
+                        onClick={() => copyToClipboard(viewingVpsCredentials.vpsDetails?.sshKey!, 'SSH Key')}
+                        className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1 font-medium"
+                      >
+                        <Copy className="w-3 h-3" /> Copy
+                      </button>
+                    </div>
+                    <p className="font-mono text-xs text-gray-700 bg-white p-2 rounded border border-gray-200 break-all max-h-20 overflow-y-auto">
+                      {viewingVpsCredentials.vpsDetails.sshKey}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                <strong>Security Note:</strong> Always update your root password or switch to SSH key authentication upon initial server setup.
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  onClick={() => { setViewingVpsCredentials(null); setShowVpsPass(false); }}
+                  className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Hosting Upgrade Modal */}
       {upgradingHosting && (
