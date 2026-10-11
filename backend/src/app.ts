@@ -83,8 +83,15 @@ export function createApp(): Express {
   const allowedOrigins = [
     "https://click2itbd.com",
     "https://www.click2itbd.com",
+    "http://click2itbd.com",
+    "http://www.click2itbd.com",
     "https://click2it.bd",
     "https://www.click2it.bd",
+    "http://click2it.bd",
+    "http://www.click2it.bd",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
     ...envOrigins,
     ...(config.cors?.origins || []),
   ];
@@ -92,10 +99,21 @@ export function createApp(): Express {
   const corsOptions: cors.CorsOptions = {
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, Postman) or matched origins
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin) {
+        return callback(null, true);
+      }
+      const normalizedOrigin = origin.trim().replace(/\/+$/, '');
+      const isAllowed =
+        allowedOrigins.some((o) => o.toLowerCase() === normalizedOrigin.toLowerCase()) ||
+        /^https?:\/\/(.+\.)?click2itbd\.com(:\d+)?$/i.test(normalizedOrigin) ||
+        /^https?:\/\/(.+\.)?click2it\.bd(:\d+)?$/i.test(normalizedOrigin) ||
+        /^https?:\/\/localhost(:\d+)?$/i.test(normalizedOrigin) ||
+        /^https?:\/\/127\.0\.0\.1(:\d+)?$/i.test(normalizedOrigin);
+
+      if (isAllowed) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(null, false);
       }
     },
     credentials: true,
@@ -114,8 +132,6 @@ export function createApp(): Express {
   // Apply CORS globally and handle preflight requests
   app.use(cors(corsOptions));
   app.options("*", cors(corsOptions));
-
-  app.use(cors(corsOptions));
   app.use(express.json({ limit: config.bodyLimit }));
   app.set("trust proxy", 1);
 

@@ -13,7 +13,7 @@ export const config = {
   port: parseInt(process.env.PORT || '4000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   cors: {
-    origins: (process.env.ALLOWED_ORIGINS || 'https://click2itbd.com,https://www.click2itbd.com,http://localhost:3000,http://localhost:5173')
+    origins: (process.env.ALLOWED_ORIGINS || 'https://click2itbd.com,https://www.click2itbd.com,https://click2it.bd,https://www.click2it.bd,http://click2it.bd,http://www.click2it.bd,http://localhost:3000,http://localhost:5173')
       .split(',')
       .map(o => o.trim()),
   },
