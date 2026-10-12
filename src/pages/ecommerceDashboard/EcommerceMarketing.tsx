@@ -176,7 +176,7 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
     setIsUploading(true);
     const loadingToast = toast.loading('Uploading banner...');
     
-    const CPANEL_UPLOAD_URL = "https://click2itbd.com/upload.php";
+    const CPANEL_UPLOAD_URL = typeof window !== 'undefined' ? `${window.location.origin}/upload.php` : '/upload.php';
     try {
       // Compress the image before uploading (Max 1920x1920)
       const file = await compressImage(originalFile, 1920, 1920);

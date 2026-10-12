@@ -163,7 +163,8 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
         note: `Order ${order.id.slice(0, 8)}`
       };
 
-      const res = await fetch('https://click2itbd.com/steadfast.php', {
+      const baseUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : '';
+      const res = await fetch(`${baseUrl}/steadfast.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

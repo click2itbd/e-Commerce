@@ -1,6 +1,6 @@
 import { auth } from '../firebase';
 
-function resolveApiBaseUrl(): string {
+export function resolveApiBaseUrl(): string {
   if (import.meta.env.DEV) return '';
   if (typeof window !== 'undefined') {
     const host = window.location.hostname.toLowerCase();

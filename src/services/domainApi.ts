@@ -5,7 +5,7 @@
  * Never exposes Openprovider API key, wholesale prices, exchange rate, or markup to frontend.
  */
 
-const API_BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '');
+import { resolveApiBaseUrl } from './apiClient';
 
 type CacheEntry<T> = { value: T; expires: number };
 const pricingCache = new Map<string, CacheEntry<any>>();
@@ -30,7 +30,7 @@ const inFlightRequests = new Map<string, Promise<any>>();
 import { auth } from '../firebase';
 
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const cleanBase = API_BASE_URL.replace(/\/+$/, '');
+  const cleanBase = resolveApiBaseUrl();
   let cleanPath = path.startsWith('/') ? path : `/${path}`;
 
   if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {

@@ -96,7 +96,7 @@ export const BannersManagerTab = () => {
     if (!originalFile) return;
 
     setIsUploading(true);
-    const CPANEL_UPLOAD_URL = "https://click2itbd.com/upload.php";
+    const CPANEL_UPLOAD_URL = typeof window !== 'undefined' ? `${window.location.origin}/upload.php` : '/upload.php';
 
     try {
       // Compress the image before uploading

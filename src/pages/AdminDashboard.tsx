@@ -861,9 +861,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (!files || files.length === 0) return;
     setIsUploading(true);
 
-    // Set to your cPanel URL, e.g., 'https://yourdomain.com/upload.php'
-    // If empty, it will fallback to Firebase Storage
-    const CPANEL_UPLOAD_URL = "https://click2itbd.com/upload.php";
+    // Set to current origin upload URL
+    const CPANEL_UPLOAD_URL = typeof window !== "undefined" ? `${window.location.origin}/upload.php` : "/upload.php";
 
     try {
       const uploadPromises = Array.from(files).map(async (file) => {

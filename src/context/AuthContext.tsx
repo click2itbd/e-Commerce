@@ -3,6 +3,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { UserProfile, UserPermission } from '../types';
+import { resolveApiBaseUrl } from '../services/apiClient';
 
 interface AuthContextType {
   user: User | null;
@@ -45,7 +46,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Send welcome email
             try {
               const token = await firebaseUser.getIdToken();
-              await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/send-welcome-email`, {
+              const baseUrl = resolveApiBaseUrl();
+              await fetch(`${baseUrl}/api/send-welcome-email`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

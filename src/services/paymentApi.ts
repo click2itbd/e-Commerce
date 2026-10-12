@@ -7,11 +7,10 @@
  */
 
 import { auth } from '../firebase';
-
-const API_BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '');
+import { resolveApiBaseUrl } from './apiClient';
 
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const cleanBase = API_BASE_URL.replace(/\/+$/, '');
+  const cleanBase = resolveApiBaseUrl();
   let cleanPath = path.startsWith('/') ? path : `/${path}`;
 
   if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {
