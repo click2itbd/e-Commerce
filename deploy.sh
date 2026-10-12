@@ -45,10 +45,8 @@ if [ -f "$BACKEND_DEST/.env" ]; then
   /bin/cp "$BACKEND_DEST/.env" /tmp/saved_backend_env.tmp 2>/dev/null || true
 fi
 
-/bin/rm -rf "$BACKEND_DEST"
+# Copy backend source and prebuilt dist without wiping node_modules
 /bin/mkdir -p "$BACKEND_DEST"
-
-# Copy backend source and config files needed for production runtime
 /bin/cp -R backend/. "$BACKEND_DEST/"
 
 # Restore preserved .env or copy example
@@ -62,9 +60,14 @@ fi
 # Remove any corrupted or stale package-lock.json to avoid npm Arborist 'edgesOut' bug
 /bin/rm -f "$BACKEND_DEST/package-lock.json"
 
+# Auto-detect and source CloudLinux nodevenv if present
+NVENV="$(find "$HOME/nodevenv" -name activate -path "*/backend_app/*" -print -quit 2>/dev/null)"
+if [ -n "$NVENV" ] && [ -f "$NVENV" ]; then
+  source "$NVENV"
+fi
+
 # Install backend production dependencies
-NPM_BIN="$(command -v npm || which npm 2>/dev/null || echo /usr/local/bin/npm)"
-"$NPM_BIN" install --prefix "$BACKEND_DEST" --omit=dev --no-audit --no-fund --no-package-lock 2>/dev/null || npm install --prefix "$BACKEND_DEST" --omit=dev --no-audit --no-fund --no-package-lock 2>/dev/null || true
+npm install --prefix "$BACKEND_DEST" --omit=dev --no-audit --no-fund --no-package-lock 2>/dev/null || true
 
 # Signal cPanel Phusion Passenger to automatically restart the Node.js process
 mkdir -p "$BACKEND_DEST/tmp"
