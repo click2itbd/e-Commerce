@@ -19,6 +19,9 @@ interface BdDomainApplication {
   status: 'pending_check' | 'available' | 'not_available' | 'payment_pending' | 'processing' | 'completed' | 'rejected';
   createdAt?: any;
   emailSentAt?: any;
+  type?: string;
+  transferType?: string;
+  willSendDocsLater?: boolean;
 }
 
 const statusColors = {
@@ -63,6 +66,9 @@ export function BdDomainApplicationsManager() {
           status: data.status || 'pending_check',
           createdAt: data.createdAt,
           emailSentAt: data.emailSentAt,
+          type: data.type || data.requestType || 'registration',
+          transferType: data.transferType,
+          willSendDocsLater: data.willSendDocsLater,
         };
       }) as BdDomainApplication[];
       
@@ -256,28 +262,53 @@ export function BdDomainApplicationsManager() {
                       <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
                         <Globe size={18} />    </div>
                       <div>
-                        <div className="font-bold text-gray-900 text-base">{app.domainName}</div>
+                        <div className="font-bold text-gray-900 text-base flex items-center gap-2 flex-wrap">
+                          {app.domainName}
+                          {app.type === 'transfer' ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">
+                              Transfer {app.transferType === 'ownership_transfer' ? '(Ownership)' : '(Technical)'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                              Registration
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
                           <Clock size={12} />
-                          {app.createdAt?.toDate ? app.createdAt.toDate().toLocaleDateString() : (app.createdAt ? new Date(app.createdAt).toLocaleDateString() : 'Unknown date')}    </div>    </div>    </div>
+                          {app.createdAt?.toDate ? app.createdAt.toDate().toLocaleDateString() : (app.createdAt ? new Date(app.createdAt).toLocaleDateString() : 'Unknown date')}
+                        </div>
+                      </div>
+                    </div>
                   </td>
                   
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center text-white font-bold text-xs shrink-0">
-                        {app.applicantName.charAt(0).toUpperCase()}    </div>
+                        {app.applicantName.charAt(0).toUpperCase()}
+                      </div>
                       <div>
                         <div className="font-bold text-gray-800">{app.applicantName}</div>
                         <div className="text-[11px] mt-0.5 flex flex-col">
                           <a href={`mailto:${app.email}`} className="text-gray-500 hover:text-blue-600 transition-colors">{app.email}</a>
-                          <a href={`tel:${app.phone}`} className="text-gray-500 hover:text-blue-600 transition-colors">{app.phone}</a>    </div>    </div>    </div>
+                          <a href={`tel:${app.phone}`} className="text-gray-500 hover:text-blue-600 transition-colors">{app.phone}</a>
+                        </div>
+                      </div>
+                    </div>
                   </td>
                   
                   <td className="px-6 py-5">
                     <div className="flex flex-col gap-2">
+                      {app.willSendDocsLater && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-medium border border-amber-200 w-fit">
+                          Docs via Email/WhatsApp
+                        </span>
+                      )}
+                      
                       {app.nidUrl ? (
                         <button onClick={() => setPreviewDoc({url: app.nidUrl as string, title: "NID Document - " + app.applicantName})} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 transition-colors border border-emerald-100 w-fit">
-                          <CheckCircle size={12} /> NID Uploaded\n                        </button>
+                          <CheckCircle size={12} /> NID Uploaded
+                        </button>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-400 text-[11px] font-semibold border border-gray-100 w-fit">
                           <XCircle size={12} /> No NID
@@ -286,12 +317,14 @@ export function BdDomainApplicationsManager() {
                       
                       {app.tradeLicenseUrl ? (
                         <button onClick={() => setPreviewDoc({url: app.tradeLicenseUrl as string, title: "Trade License - " + app.applicantName})} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 transition-colors border border-emerald-100 w-fit">
-                          <CheckCircle size={12} /> Trade License\n                        </button>
+                          <CheckCircle size={12} /> Trade License
+                        </button>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-400 text-[11px] font-semibold border border-gray-100 w-fit">
                           <XCircle size={12} /> No License
                         </span>
-                      )}    </div>
+                      )}
+                    </div>
                   </td>
                   
                   <td className="px-6 py-5 whitespace-nowrap">

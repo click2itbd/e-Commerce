@@ -8,6 +8,7 @@ import { ArrowRight, Lock, Unlock, Key, RefreshCw, Shield, CheckCircle2, XCircle
 import { toast } from 'react-hot-toast';
 import { checkTransferEligibility, getTldPricing } from '../../services/domainApi';
 import { getDomainPricing } from '../../services/hostingApi';
+import { BdTransferModal } from '../../components/hosting/BdTransferModal';
 
 const DomainTransferPage = () => {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ const DomainTransferPage = () => {
   const [domainName, setDomainName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showBdModal, setShowBdModal] = useState(false);
   const [validationError, setValidationError] = useState('');
   const [eligibilityError, setEligibilityError] = useState('');
   const [supportedTlds, setSupportedTlds] = useState<string[]>([]);
@@ -60,7 +62,7 @@ const DomainTransferPage = () => {
     }
 
     if (normalized.endsWith('.bd')) {
-      setValidationError('.bd domains are managed directly via BTCL and require manual document transfer. Please visit our .BD Domain page or contact support for transfer assistance.');
+      setShowBdModal(true);
       return;
     }
 
@@ -191,6 +193,25 @@ const DomainTransferPage = () => {
                     />
                   </div>
 
+                  {domainName.endsWith('.bd') && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in">
+                      <div className="flex items-start gap-2.5">
+                        <span className="text-xl">🇧🇩</span>
+                        <div>
+                          <p className="text-xs sm:text-sm font-bold text-emerald-900">.BD Domain (BTCL) Detected</p>
+                          <p className="text-xs text-emerald-700">BTCL domains require official manual paperwork (no EPP code needed).</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowBdModal(true)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm shrink-0"
+                      >
+                        Start .BD Transfer <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex items-start gap-2 rounded-xl bg-blue-50 p-4 text-sm text-blue-800">
                     <Key size={18} className="mt-0.5 flex-shrink-0" />
                     <p>
@@ -248,6 +269,33 @@ const DomainTransferPage = () => {
                 </form>
               </div>
             </div>
+          </div>
+
+          {/* .BD Transfer Assistance Card */}
+          <div className="mt-8 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 rounded-2xl sm:rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-2xl shrink-0 shadow-sm">
+                🇧🇩
+              </div>
+              <div>
+                <h4 className="text-base sm:text-lg font-bold text-emerald-950 flex flex-wrap items-center gap-2">
+                  Transferring a .BD (BTCL) Domain?
+                  <span className="text-[11px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-800">
+                    Official BTCL Liaison
+                  </span>
+                </h4>
+                <p className="text-xs sm:text-sm text-emerald-800 mt-1 max-w-2xl leading-relaxed">
+                  BTCL domains (.bd, .com.bd, .net.bd, etc.) require physical/scanned verification letters, NID copies, and registry coordination. Our dedicated team handles the entire forwarding paperwork for you.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowBdModal(true)}
+              className="whitespace-nowrap px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 shrink-0"
+            >
+              Apply for .BD Transfer <ArrowRight size={16} />
+            </button>
           </div>
         </div>
       </section>
@@ -361,6 +409,13 @@ const DomainTransferPage = () => {
           </div>
         </div>
       )}
+
+      {/* BTCL .BD Manual Transfer Modal */}
+      <BdTransferModal
+        isOpen={showBdModal}
+        onClose={() => setShowBdModal(false)}
+        initialDomain={domainName}
+      />
     </Layout>
   );
 };
