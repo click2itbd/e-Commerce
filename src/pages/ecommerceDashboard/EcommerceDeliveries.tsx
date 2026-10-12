@@ -448,7 +448,7 @@ export const EcommerceDeliveries = () => {
 
             <form onSubmit={handleSaveApiKeys} className="p-6 space-y-4">
               <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-900 leading-relaxed">
-                Steadfast পোর্টাল (portal.steadfast.com.bd) এ লগইন করে <strong>Settings &gt; API</strong> থেকে আপনার কী দুটি কপি করে এখানে দিন।
+                Steadfast মার্চেন্ট পোর্টালে (steadfast.com.bd) লগইন করে <strong>Settings &gt; API</strong> থেকে আপনার Api-Key ও Secret-Key দুটি কপি করে এখানে দিন।
               </div>
 
               <div>

@@ -22,11 +22,14 @@ $action = $_GET['action'] ?? 'create_order';
 $tracking_code = $_GET['tracking_code'] ?? '';
 $phone = $_GET['phone'] ?? '';
 
-$url = 'https://portal.steadfast.com.bd/api/v1/create_order';
+// Official Steadfast Courier API Gateway
+$base_api = 'https://portal.packzy.com/api/v1';
+
+$url = $base_api . '/create_order';
 $is_post = true;
 
 if ($action === 'status' && $tracking_code) {
-    $url = 'https://portal.steadfast.com.bd/api/v1/status_by_trackingcode/' . urlencode($tracking_code);
+    $url = $base_api . '/status_by_trackingcode/' . urlencode($tracking_code);
     $is_post = false;
 } else if ($action === 'fraud_check' && $phone) {
     // Sanitize phone number (strip spaces, symbols, international code)
@@ -34,7 +37,7 @@ if ($action === 'status' && $tracking_code) {
     if (strlen($clean_phone) > 11 && substr($clean_phone, 0, 2) === '88') {
         $clean_phone = substr($clean_phone, 2);
     }
-    $url = 'https://portal.steadfast.com.bd/api/v1/fraud_check/' . urlencode($clean_phone);
+    $url = $base_api . '/fraud_check/' . urlencode($clean_phone);
     $is_post = false;
 }
 
@@ -42,7 +45,9 @@ $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 
 if ($is_post) {
     $input = file_get_contents("php://input");
@@ -58,6 +63,7 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
 
 $response = curl_exec($ch);
 $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
 if ($response === false) {
     $err = curl_error($ch);
     curl_close($ch);
@@ -67,6 +73,6 @@ if ($response === false) {
 }
 curl_close($ch);
 
-http_response_code($httpcode);
+http_response_code($httpcode ?: 200);
 echo $response;
 ?>

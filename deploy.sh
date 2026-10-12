@@ -23,12 +23,14 @@ echo "Starting deployment to $DEST..."
 /bin/rm -f "$DEST/logo.png"
 /bin/rm -f "$DEST/upload.php"
 /bin/rm -f "$DEST/share.php"
+/bin/rm -f "$DEST/steadfast.php"
 
 # Deploy frontend build
 if [ -d "dist" ]; then
   /bin/cp -R dist/. "$DEST/"
   /bin/cp -f upload.php "$DEST/" 2>/dev/null || true
   /bin/cp -f share.php "$DEST/" 2>/dev/null || true
+  /bin/cp -f steadfast.php "$DEST/" 2>/dev/null || true
 else
   echo "Error: dist folder not found! Please run npm run build before pushing."
   exit 1
