@@ -11,33 +11,7 @@ $price = isset($_GET['price']) ? trim($_GET['price']) : '';
 $raw_image = isset($_GET['img']) ? trim($_GET['img']) : '';
 $desc = isset($_GET['desc']) ? trim($_GET['desc']) : '';
 
-// 2. If title or image was not passed in query params, try fetching from backend internal API
-if ((empty($raw_image) || empty($title)) && !empty($product_id)) {
-    try {
-        $ctx = stream_context_create([
-            'http' => [
-                'timeout' => 1.5,
-                'ignore_errors' => true
-            ]
-        ]);
-        $apiUrl = "http://127.0.0.1:4000/api/public/product-meta/" . urlencode($product_id);
-        $json = @file_get_contents($apiUrl, false, $ctx);
-        if ($json) {
-            $data = json_decode($json, true);
-            if (!empty($data['success']) && !empty($data['data'])) {
-                $p = $data['data'];
-                if (empty($title) && !empty($p['name'])) $title = $p['name'];
-                if (empty($price) && !empty($p['price'])) $price = (string)$p['price'];
-                if (empty($raw_image) && !empty($p['image'])) $raw_image = $p['image'];
-                if (empty($desc) && !empty($p['description'])) $desc = $p['description'];
-            }
-        }
-    } catch (Exception $e) {
-        // Fallback silently if backend is slow
-    }
-}
-
-// 3. Fallbacks
+// 2. Fallbacks
 if (empty($title)) {
     $title = 'CLICK2IT - Computer & IT Store';
 }
@@ -67,11 +41,11 @@ if (stripos($image, '.png') !== false) {
     $image_type = 'image/webp';
 }
 
-// 4. Crawler Detection
+// 3. Crawler Detection
 $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
 $is_crawler = preg_match('/(facebookexternalhit|Facebot|WhatsApp|Twitterbot|Pinterest|LinkedInBot|TelegramBot|Slackbot|Discordbot|SkypeUriPreview|Viber|kakaotalk-scrap|vkShare)/i', $user_agent);
 
-// 5. If human visitor, redirect to the real React product page
+// 4. If human visitor, redirect to the real React product page instantly
 if (!$is_crawler && !empty($product_id)) {
     header("Location: " . $target_url, true, 302);
     exit();

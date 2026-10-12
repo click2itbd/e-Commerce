@@ -575,14 +575,10 @@ export const ProductDetails: React.FC = () => {
               <button 
                 onClick={async () => {
                   try {
-                    const productImg = product.imageUrl || product.images?.[0] || 'https://click2itbd.com/logo.png';
-                    const absoluteImg = productImg.startsWith('http') ? productImg : `https://click2itbd.com${productImg.startsWith('/') ? '' : '/'}${productImg}`;
-                    const activePrice = Number(product.discountPrice || product.price || 0);
-                    const cleanDesc = (product.shortDescription || product.description || '').replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim().slice(0, 160);
-                    const shareUrl = `https://click2itbd.com/share.php?id=${encodeURIComponent(product.id)}&title=${encodeURIComponent(product.name)}&price=${encodeURIComponent(activePrice)}&img=${encodeURIComponent(absoluteImg)}&desc=${encodeURIComponent(cleanDesc)}`;
-                    await navigator.clipboard.writeText(shareUrl);
+                    const canonicalUrl = `https://click2itbd.com/product/${encodeURIComponent(product.id)}`;
+                    await navigator.clipboard.writeText(canonicalUrl);
                     setCopiedLink(true);
-                    toast.success('Product preview link copied to clipboard!');
+                    toast.success('Product link copied to clipboard!');
                     setTimeout(() => setCopiedLink(false), 2500);
                   } catch (err) {
                     toast.error('Failed to copy link');

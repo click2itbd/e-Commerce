@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
@@ -77,6 +77,15 @@ import { PageLoader } from './components/Loading';
 
 function LazyWrapper({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
+}
+
+function SharePhpRedirect() {
+  const [params] = useSearchParams();
+  const id = params.get('id');
+  if (id) {
+    return <Navigate to={`/product/${id}`} replace />;
+  }
+  return <Navigate to="/" replace />;
 }
 
 export default function App() {
@@ -173,6 +182,7 @@ export default function App() {
                   <Route path="/delivery-info" element={<Navigate to="/online-delivery" replace />} />
                   <Route path="/warranty-policy" element={<LazyWrapper><WarrantyPolicy /></LazyWrapper>} />
                   <Route path="/warranty" element={<Navigate to="/warranty-policy" replace />} />
+                  <Route path="/share.php" element={<SharePhpRedirect />} />
 
                   <Route path="*" element={<LazyWrapper><NotFound /></LazyWrapper>} />
                 </Routes>

@@ -1,0 +1,25 @@
+import 'dotenv/config';
+import { createApp } from './app.js';
+import { config, validateEnvironment } from './config/index.js';
+import { setupExpiryReminders } from './jobs/expiryReminders.js';
+validateEnvironment();
+const app = createApp();
+const PORT = process.env.PORT || config.port || 4000;
+const server = app.listen(PORT, () => {
+    console.log(`Backend API running on port ${PORT}`);
+    // Initialize Background Jobs
+    setupExpiryReminders();
+});
+process.on('SIGTERM', () => {
+    server.close(() => {
+        console.log('Backend server closed');
+        process.exit(0);
+    });
+});
+process.on('SIGINT', () => {
+    server.close(() => {
+        console.log('Backend server closed');
+        process.exit(0);
+    });
+});
+export default app;

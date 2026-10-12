@@ -1,8 +1,6 @@
 node_modules/
 build/
-# dist/ is intentionally tracked — cPanel reads it for deployment
-# Only ignore backend's compiled output during local dev (it's rebuilt by .cpanel.yml)
-backend/dist/
+# dist/ and backend/dist/ are intentionally tracked — cPanel reads them for deployment
 coverage/
 .DS_Store
 *.log
