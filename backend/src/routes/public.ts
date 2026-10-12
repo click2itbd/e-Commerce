@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { getAdminDocument } from '../firebase/admin';
+import { getAdminDocument } from '../firebase/admin.js';
 
 const publicRouter = Router();
 

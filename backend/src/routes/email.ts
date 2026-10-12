@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
-import { sendEmail, EmailTemplates } from '../services/email';
-import { requireFirebaseAuth } from '../middleware/firebaseAuth';
-import { getDynamicTemplate } from '../services/templateHelper';
+import { sendEmail, EmailTemplates } from '../services/email.js';
+import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
+import { getDynamicTemplate } from '../services/templateHelper.js';
 
 const emailRouter = Router();
 

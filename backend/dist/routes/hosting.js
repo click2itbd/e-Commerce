@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { getAdminDb, isUserAdmin } from '../firebase/admin';
-import { requireFirebaseAuth } from '../middleware/firebaseAuth';
-import { sendEmail } from '../services/email';
-import { getAdminDocument } from '../firebase/admin';
-import { testHostingConnection, provisionHostingAccount, suspendHostingAccount, unsuspendHostingAccount, terminateHostingAccount, getHostingAccountUsage, changeHostingPlan, classifyHostingError, createHostingLoginSession, } from '../services/hosting';
-import { config } from '../config';
+import { getAdminDb, isUserAdmin } from '../firebase/admin.js';
+import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
+import { sendEmail } from '../services/email.js';
+import { getAdminDocument } from '../firebase/admin.js';
+import { testHostingConnection, provisionHostingAccount, suspendHostingAccount, unsuspendHostingAccount, terminateHostingAccount, getHostingAccountUsage, changeHostingPlan, classifyHostingError, createHostingLoginSession, } from '../services/hosting.js';
+import { config } from '../config/index.js';
 const hostingRouter = Router();
 hostingRouter.get('/health', async (req, res) => {
     try {

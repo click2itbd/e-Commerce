@@ -1,6 +1,6 @@
-import { getAdminDb } from '../firebase/admin';
-import { getDomainProvider } from '../providers/providerFactory';
-import { BtclDomainProvider, DEFAULT_BTCL_CONFIG, isBdDomain, } from '../providers/domain/BtclDomainProvider';
+import { getAdminDb } from '../firebase/admin.js';
+import { getDomainProvider } from '../providers/providerFactory.js';
+import { BtclDomainProvider, DEFAULT_BTCL_CONFIG, isBdDomain, } from '../providers/domain/BtclDomainProvider.js';
 // NOTE: deliberately NOT under `settings/` - firestore.rules makes settings/* publicly readable.
 // `private_config` has no client rule => default deny; only the backend Admin SDK can access it.
 const COLLECTION = 'private_config';

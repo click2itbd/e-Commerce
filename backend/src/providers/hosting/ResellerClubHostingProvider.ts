@@ -1,4 +1,4 @@
-import { IHostingProvider, HostingProvisionRequest, HostingProvisionResult, HostingUsageStats } from './IHostingProvider';
+import { IHostingProvider, HostingProvisionRequest, HostingProvisionResult, HostingUsageStats } from './IHostingProvider.js';
 
 export class ResellerClubHostingProvider implements IHostingProvider {
   private apiUrl: string;

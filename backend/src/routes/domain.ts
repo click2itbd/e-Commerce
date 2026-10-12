@@ -1,15 +1,15 @@
 import { Router, Response } from 'express';
-import { getAdminDb } from '../firebase/admin';
-import { getDomainProvider } from '../providers/providerFactory';
-import { DomainAvailabilityResult, DomainRegistrationRequest, DomainRegistrationResult, WhoisResult, DomainTransferResult, TldPricingResult } from '../providers/domain/IDomainProvider';
-import { sendEmail } from '../services/email';
-import { getAdminDocument, isUserAdmin } from '../firebase/admin';
-import { getDomainPricingSettings, calculateCustomerPriceBdt } from '../services/domainPricing';
-import { ProviderError } from '../providers/domain/DomainProviderError';
-import { BtclDomainProvider, isBdDomain } from '../providers/domain/BtclDomainProvider';
-import { resolveDomainProvider, getBtclConfig, saveBtclConfig, maskBtclConfig } from '../services/btclConfig';
-import { requireFirebaseAuth } from '../middleware/firebaseAuth';
-import { getDomainProviderConfig as getDomainConfig } from '../services/domainProviderConfig';
+import { getAdminDb } from '../firebase/admin.js';
+import { getDomainProvider } from '../providers/providerFactory.js';
+import { DomainAvailabilityResult, DomainRegistrationRequest, DomainRegistrationResult, WhoisResult, DomainTransferResult, TldPricingResult } from '../providers/domain/IDomainProvider.js';
+import { sendEmail } from '../services/email.js';
+import { getAdminDocument, isUserAdmin } from '../firebase/admin.js';
+import { getDomainPricingSettings, calculateCustomerPriceBdt } from '../services/domainPricing.js';
+import { ProviderError } from '../providers/domain/DomainProviderError.js';
+import { BtclDomainProvider, isBdDomain } from '../providers/domain/BtclDomainProvider.js';
+import { resolveDomainProvider, getBtclConfig, saveBtclConfig, maskBtclConfig } from '../services/btclConfig.js';
+import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
+import { getDomainProviderConfig as getDomainConfig } from '../services/domainProviderConfig.js';
 
 interface DomainPricing {
   id?: string;

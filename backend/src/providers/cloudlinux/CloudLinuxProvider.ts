@@ -1,5 +1,5 @@
-import { ICloudLinuxProvider, CloudLinuxLicensePayload, CloudLinuxLicenseResult } from './ICloudLinuxProvider';
-import { config } from '../../config';
+import { ICloudLinuxProvider, CloudLinuxLicensePayload, CloudLinuxLicenseResult } from './ICloudLinuxProvider.js';
+import { config } from '../../config/index.js';
 
 export class CloudLinuxProviderError extends Error {
   constructor(

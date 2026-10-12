@@ -1,8 +1,8 @@
 import { Router, Response } from 'express';
-import { getAdminDb, isUserAdmin } from '../firebase/admin';
-import { requireFirebaseAuth, requireAdmin } from '../middleware/firebaseAuth';
-import { sendEmail } from '../services/email';
-import { getAdminDocument } from '../firebase/admin';
+import { getAdminDb, isUserAdmin } from '../firebase/admin.js';
+import { requireFirebaseAuth, requireAdmin } from '../middleware/firebaseAuth.js';
+import { sendEmail } from '../services/email.js';
+import { getAdminDocument } from '../firebase/admin.js';
 import {
   testHostingConnection,
   provisionHostingAccount,
@@ -13,9 +13,9 @@ import {
   changeHostingPlan,
   classifyHostingError,
   createHostingLoginSession,
-} from '../services/hosting';
-import { HostingUsageStats } from '../providers/hosting/IHostingProvider';
-import { config } from '../config';
+} from '../services/hosting.js';
+import { HostingUsageStats } from '../providers/hosting/IHostingProvider.js';
+import { config } from '../config/index.js';
 
 const hostingRouter = Router();
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateChatResponse } from '../services/ai';
+import { generateChatResponse } from '../services/ai.js';
 const aiRouter = Router();
 aiRouter.post('/chat', async (req, res) => {
     try {

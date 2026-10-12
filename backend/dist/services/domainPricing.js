@@ -1,4 +1,4 @@
-import { getAdminDocument } from '../firebase/admin';
+import { getAdminDocument } from '../firebase/admin.js';
 export async function getDomainPricingSettings() {
     const publicSettings = await getAdminDocument('settings', 'public_config');
     const privateSettings = await getAdminDocument('settings', 'api_keys');

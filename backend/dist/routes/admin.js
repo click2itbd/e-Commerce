@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { getAdminDocument, setAdminDocument, isUserAdmin } from '../firebase/admin';
-import { CpanelHostingProvider } from '../providers/hosting/CpanelHostingProvider';
-import { OpenproviderDomainProvider } from '../providers/domain/OpenproviderDomainProvider';
-import { getCloudLinuxProvider } from '../providers/cloudlinux/CloudLinuxProvider';
-import { verifySmtpConnection } from '../services/email';
-import { requireFirebaseAuth } from '../middleware/firebaseAuth';
+import { getAdminDocument, setAdminDocument, isUserAdmin } from '../firebase/admin.js';
+import { CpanelHostingProvider } from '../providers/hosting/CpanelHostingProvider.js';
+import { OpenproviderDomainProvider } from '../providers/domain/OpenproviderDomainProvider.js';
+import { getCloudLinuxProvider } from '../providers/cloudlinux/CloudLinuxProvider.js';
+import { verifySmtpConnection } from '../services/email.js';
+import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
 const adminRouter = Router();
 adminRouter.use(requireFirebaseAuth);
 const FORBIDDEN_SECRET_FIELDS = new Set([

@@ -1,4 +1,4 @@
-import { ProviderError } from './DomainProviderError';
+import { ProviderError } from './DomainProviderError.js';
 export const DEFAULT_BTCL_CONFIG = {
     enabled: false,
     baseUrl: '',

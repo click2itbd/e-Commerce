@@ -6,8 +6,8 @@ import {
   DomainRenewalResult,
   DomainTransferResult,
   WhoisResult,
-} from './IDomainProvider';
-import { ProviderError } from './DomainProviderError';
+} from './IDomainProvider.js';
+import { ProviderError } from './DomainProviderError.js';
 
 /**
  * BTCL (.bd registry) domain provider.

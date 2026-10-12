@@ -8,7 +8,7 @@ import {
   TldPricingResult,
   BatchTldPricingItem,
   DomainTransferResult
-} from './IDomainProvider';
+} from './IDomainProvider.js';
 
 export class OpenproviderDomainProvider implements IDomainProvider {
   private readonly baseUrl: string;

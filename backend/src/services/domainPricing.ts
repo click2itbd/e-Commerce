@@ -1,4 +1,4 @@
-import { getAdminDocument } from '../firebase/admin';
+import { getAdminDocument } from '../firebase/admin.js';
 
 export interface PricingSettings {
   usdToBdtRate: number;
