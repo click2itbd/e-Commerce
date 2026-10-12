@@ -59,9 +59,12 @@ elif [ -f "$BACKEND_DEST/.env.example" ] && [ ! -f "$BACKEND_DEST/.env" ]; then
   /bin/cp "$BACKEND_DEST/.env.example" "$BACKEND_DEST/.env"
 fi
 
+# Remove any corrupted or stale package-lock.json to avoid npm Arborist 'edgesOut' bug
+/bin/rm -f "$BACKEND_DEST/package-lock.json"
+
 # Install backend production dependencies
 NPM_BIN="$(command -v npm || which npm 2>/dev/null || echo /usr/local/bin/npm)"
-"$NPM_BIN" install --prefix "$BACKEND_DEST" --omit=dev --no-audit --no-fund 2>/dev/null || npm install --prefix "$BACKEND_DEST" --omit=dev --no-audit --no-fund 2>/dev/null || true
+"$NPM_BIN" install --prefix "$BACKEND_DEST" --omit=dev --no-audit --no-fund --no-package-lock 2>/dev/null || npm install --prefix "$BACKEND_DEST" --omit=dev --no-audit --no-fund --no-package-lock 2>/dev/null || true
 
 # Signal cPanel Phusion Passenger to automatically restart the Node.js process
 mkdir -p "$BACKEND_DEST/tmp"
