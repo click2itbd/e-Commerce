@@ -1,11 +1,13 @@
 import { initializeApp, getApps, cert } from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 let adminDb = null;
+let adminAuth = null;
 let initializationFailed = false;
 export function validateServiceAccountStructure(serviceAccount) {
     if (!serviceAccount || typeof serviceAccount !== 'object') {
@@ -76,6 +78,13 @@ export function getAdminDb() {
         adminDb = dbId ? getFirestore(dbId) : getFirestore();
     }
     return adminDb;
+}
+export function getAdminAuth() {
+    getAdminDb();
+    if (!adminAuth) {
+        adminAuth = getAuth();
+    }
+    return adminAuth;
 }
 export function isAdminDbAvailable() {
     if (initializationFailed)

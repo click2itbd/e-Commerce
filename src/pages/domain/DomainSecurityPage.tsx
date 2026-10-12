@@ -7,11 +7,12 @@ import { Layout } from '../../components/Layout';
 import { 
   Shield, Lock, Unlock, Key, Copy, Check, Eye, EyeOff, 
   RefreshCw, Globe, AlertTriangle, CheckCircle, ArrowLeft, 
-  HelpCircle, ChevronRight, Server, RotateCcw
+  HelpCircle, ChevronRight, Server, RotateCcw, UserCheck
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { apiPost } from '../../services/apiClient';
 import { NameserverModal } from '../../components/hosting/NameserverModal';
+import { DomainOwnershipModal } from '../../components/hosting/DomainOwnershipModal';
 
 interface DomainOrder {
   id: string;
@@ -43,6 +44,7 @@ export const DomainSecurityPage: React.FC = () => {
 
   // Nameserver modal
   const [managingNs, setManagingNs] = useState<DomainOrder | null>(null);
+  const [showOwnershipModal, setShowOwnershipModal] = useState(false);
 
   // 1. Fetch user's domains
   useEffect(() => {
@@ -274,13 +276,22 @@ export const DomainSecurityPage: React.FC = () => {
                       <span>Sync Registry</span>
                     </button>
                     {currentDomainObj && (
-                      <button
-                        onClick={() => setManagingNs(currentDomainObj)}
-                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-blue-200/60"
-                      >
-                        <Server size={12} />
-                        <span>Nameservers</span>
-                      </button>
+                      <>
+                        <button
+                          onClick={() => setManagingNs(currentDomainObj)}
+                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-blue-200/60"
+                        >
+                          <Server size={12} />
+                          <span>Nameservers</span>
+                        </button>
+                        <button
+                          onClick={() => setShowOwnershipModal(true)}
+                          className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-purple-200/60"
+                        >
+                          <UserCheck size={12} />
+                          <span>Change Ownership</span>
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -561,6 +572,15 @@ export const DomainSecurityPage: React.FC = () => {
           />
         )}
 
+        {/* Domain Ownership Modal */}
+        {selectedDomain && (
+          <DomainOwnershipModal
+            domain={selectedDomain}
+            isOpen={showOwnershipModal}
+            onClose={() => setShowOwnershipModal(false)}
+            onUpdated={() => fetchDomainDetails(selectedDomain)}
+          />
+        )}
       </div>
     </Layout>
   );

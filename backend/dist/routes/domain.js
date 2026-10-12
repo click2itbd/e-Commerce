@@ -919,7 +919,7 @@ domainRouter.post('/manage', requireFirebaseAuth, async (req, res) => {
         if (!command || !domain) {
             return res.status(400).json({ success: false, error: 'command and domain are required' });
         }
-        const allowedCommands = ['set_ns', 'renew', 'get_details', 'set_lock', 'get_dns', 'update_dns', 'update_contacts', 'set_whois_privacy'];
+        const allowedCommands = ['set_ns', 'renew', 'get_details', 'set_lock', 'get_dns', 'update_dns', 'update_contacts', 'set_whois_privacy', 'push_domain'];
         if (!allowedCommands.includes(command)) {
             return res.status(400).json({ success: false, error: 'Invalid command' });
         }
@@ -1005,6 +1005,72 @@ domainRouter.post('/manage', requireFirebaseAuth, async (req, res) => {
             catch (err) {
                 return res.status(400).json({ success: false, error: err?.message || 'Failed to update contacts' });
             }
+        }
+        if (command === 'push_domain') {
+            const recipientEmail = extraParams?.recipientEmail?.trim().toLowerCase();
+            if (!recipientEmail) {
+                return res.status(400).json({ success: false, error: 'Recipient email address is required' });
+            }
+            if (recipientEmail === req.user.email?.toLowerCase()) {
+                return res.status(400).json({ success: false, error: 'Cannot transfer domain to your own account' });
+            }
+            let targetUid = '';
+            let targetName = recipientEmail;
+            const usersSnap = await db.collection('users').where('email', '==', recipientEmail).limit(1).get();
+            if (!usersSnap.empty) {
+                targetUid = usersSnap.docs[0].id;
+                targetName = usersSnap.docs[0].data()?.displayName || usersSnap.docs[0].data()?.name || recipientEmail;
+            }
+            else {
+                try {
+                    const { getAdminAuth } = await import('../firebase/admin.js');
+                    const authUser = await getAdminAuth().getUserByEmail(recipientEmail);
+                    targetUid = authUser.uid;
+                    targetName = authUser.displayName || recipientEmail;
+                }
+                catch {
+                    return res.status(404).json({
+                        success: false,
+                        error: `User with email "${recipientEmail}" not found. The recipient must have a registered Click2IT account first.`
+                    });
+                }
+            }
+            const previousOwnerId = domainDoc.userId;
+            const previousOwnerEmail = req.user.email || 'Current Owner';
+            await snap.docs[0].ref.update({
+                userId: targetUid,
+                customerId: targetUid,
+                previousOwnerId,
+                previousOwnerEmail,
+                pushedAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            });
+            // Send email notifications
+            try {
+                await sendEmail({
+                    to: recipientEmail,
+                    subject: `[Domain Transferred] ${domain} is now in your Click2IT account`,
+                    html: `<h3>Domain Ownership Transferred</h3>
+                 <p>Hello ${targetName},</p>
+                 <p>The domain <strong>${domain}</strong> has been transferred into your Click2IT account by <strong>${previousOwnerEmail}</strong>.</p>
+                 <p>You can now manage its DNS, nameservers, and security controls from your <a href="https://click2it.bd/account/services">Click2IT Dashboard</a>.</p>`
+                });
+                if (req.user.email) {
+                    await sendEmail({
+                        to: req.user.email,
+                        subject: `[Domain Transferred] ${domain} transferred to ${recipientEmail}`,
+                        html: `<h3>Domain Push Completed</h3>
+                   <p>Your domain <strong>${domain}</strong> has been successfully transferred to <strong>${recipientEmail}</strong>.</p>`
+                    });
+                }
+            }
+            catch (mailErr) {
+                console.warn('Domain push notification email failed (non-blocking):', mailErr);
+            }
+            return res.json({
+                success: true,
+                message: `Domain ${domain} has been successfully transferred to ${recipientEmail}.`
+            });
         }
         return res.status(400).json({ success: false, error: 'Unsupported command' });
     }

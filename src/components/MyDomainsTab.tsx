@@ -4,14 +4,16 @@ import { useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { Globe, Server, Save, Loader2, CalendarClock, Settings, Lock, Unlock, Key, Shield } from 'lucide-react';
+import { Globe, Server, Save, Loader2, CalendarClock, Settings, Lock, Unlock, Key, Shield, UserCheck, RefreshCw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { apiPost } from '../services/apiClient';
 import { getDomainRenewalPrice } from '../services/domainApi';
+import { DomainOwnershipModal } from './hosting/DomainOwnershipModal';
 
 export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
   const [domains, setDomains] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [managingOwnership, setManagingOwnership] = useState<any>(null);
   const { addToCart } = useCart();
   const navigate = useNavigate();
   const [managingDomain, setManagingDomain] = useState<any>(null);
@@ -197,15 +199,35 @@ export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
               </p>
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button 
+                onClick={() => setManagingOwnership(domainOrder)}
+                className="px-3.5 py-1.5 border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs"
+                title="Push Domain to User or Update WHOIS Legal Registrant"
+              >
+                <UserCheck size={14} /> Ownership
+              </button>
+              <button 
+                onClick={() => handleManageSettings(domainOrder)}
+                className="px-3.5 py-1.5 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs"
+                title="Lock & Security Settings"
+              >
+                <Shield size={14} /> Lock & EPP
+              </button>
               <button 
                 onClick={() => {
                   setManagingDomain(domainOrder);
                   setNsValues(domainOrder.nameservers || { ns0: '', ns1: '' });
                 }}
-                className="px-4 py-2 border border-gray-200 hover:border-blue-500 hover:text-blue-600 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                className="px-3.5 py-1.5 border border-gray-200 hover:border-blue-500 hover:text-blue-600 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
               >
-                <Server size={16} /> Manage DNS
+                <Server size={14} /> Manage DNS
+              </button>
+              <button 
+                onClick={() => handleRenewDomain(domainOrder)}
+                className="px-3.5 py-1.5 bg-[#0E2A47] hover:bg-blue-900 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs"
+              >
+                <RefreshCw size={13} /> Renew
               </button>
             </div>
           </div>
@@ -320,6 +342,15 @@ export const MyDomainsTab = ({ currentUser }: { currentUser: any }) => {
           )}
         </div>
       ))}
+
+      {managingOwnership && (
+        <DomainOwnershipModal
+          domain={managingOwnership.domain}
+          isOpen={!!managingOwnership}
+          onClose={() => setManagingOwnership(null)}
+          onUpdated={() => fetchDomains()}
+        />
+      )}
     </div>
   );
 };

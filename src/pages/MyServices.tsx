@@ -11,7 +11,7 @@ import {
   RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, HardDrive, Wifi, 
   Server, Globe, Receipt, Download, ExternalLink, ChevronRight, LayoutDashboard, 
   Ticket, Terminal, Copy, Eye, EyeOff, Cpu, Key, X, Share2, Shield, 
-  Sparkles, Plus, Search, Activity, Layers, ArrowUpRight
+  Sparkles, Plus, Search, Activity, Layers, ArrowUpRight, UserCheck
 } from 'lucide-react';
 import { HostingOrder } from '../types';
 
@@ -20,6 +20,7 @@ import { formatCurrency } from '../lib/utils';
 import { SupportTicketsClient } from '../components/hosting/SupportTicketsClient';
 import { NameserverModal } from '../components/hosting/NameserverModal';
 import { DomainSecurityModal } from '../components/hosting/DomainSecurityModal';
+import { DomainOwnershipModal } from '../components/hosting/DomainOwnershipModal';
 import { UserAffiliateTab } from '../components/hosting/UserAffiliateTab';
 import { HostingUpgradeModal } from '../components/hosting/HostingUpgradeModal';
 import { apiPost } from '../services/apiClient';
@@ -97,6 +98,7 @@ export const MyServices: React.FC = () => {
   // Modals
   const [managingNsDomain, setManagingNsDomain] = useState<DomainOrder | null>(null);
   const [managingSecurityDomain, setManagingSecurityDomain] = useState<DomainOrder | null>(null);
+  const [managingOwnershipDomain, setManagingOwnershipDomain] = useState<DomainOrder | null>(null);
   const [upgradingHosting, setUpgradingHosting] = useState<HostingAccount | null>(null);
   const [selectedVpsModal, setSelectedVpsModal] = useState<HostingAccount | null>(null);
   const [showVpsModalPass, setShowVpsModalPass] = useState(false);
@@ -1073,6 +1075,13 @@ export const MyServices: React.FC = () => {
                                 <td className="px-6 py-4 text-right">
                                   <div className="flex justify-end items-center gap-2">
                                     <button 
+                                      onClick={() => setManagingOwnershipDomain(domain)} 
+                                      className="text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 border border-purple-200/60"
+                                      title="Push Domain to User or Update WHOIS Legal Registrant"
+                                    >
+                                      <UserCheck size={12} /> Ownership
+                                    </button>
+                                    <button 
                                       onClick={() => setManagingSecurityDomain(domain)} 
                                       className="text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 border border-blue-200/60"
                                       title="Domain Lock, Auth Code & Transfer Protection"
@@ -1574,6 +1583,13 @@ export const MyServices: React.FC = () => {
           <DomainSecurityModal
             domain={managingSecurityDomain.domain}
             onClose={() => setManagingSecurityDomain(null)}
+          />
+        )}
+        {managingOwnershipDomain && (
+          <DomainOwnershipModal
+            domain={managingOwnershipDomain.domain}
+            isOpen={!!managingOwnershipDomain}
+            onClose={() => setManagingOwnershipDomain(null)}
           />
         )}
         {upgradingHosting && (
