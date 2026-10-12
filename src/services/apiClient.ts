@@ -91,5 +91,5 @@ export async function apiDelete<T>(path: string, token?: string, body?: any): Pr
     body: body ? JSON.stringify(body) : undefined,
   }, token);
 }
-
+const API_BASE_URL = resolveApiBaseUrl();
 export { API_BASE_URL };
