@@ -59,9 +59,13 @@ elif [ -f "$BACKEND_DEST/.env.example" ] && [ ! -f "$BACKEND_DEST/.env" ]; then
   /bin/cp "$BACKEND_DEST/.env.example" "$BACKEND_DEST/.env"
 fi
 
-# Install backend dependencies and build TypeScript if compiler available
-/usr/local/bin/npm install --prefix "$BACKEND_DEST" --no-audit --no-fund
-/usr/local/bin/npm --prefix "$BACKEND_DEST" run build 2>/dev/null || echo "Using prebuilt dist output"
+# Install backend production dependencies
+NPM_BIN="$(command -v npm || which npm 2>/dev/null || echo /usr/local/bin/npm)"
+"$NPM_BIN" install --prefix "$BACKEND_DEST" --omit=dev --no-audit --no-fund 2>/dev/null || npm install --prefix "$BACKEND_DEST" --omit=dev --no-audit --no-fund 2>/dev/null || true
+
+# Signal cPanel Phusion Passenger to automatically restart the Node.js process
+mkdir -p "$BACKEND_DEST/tmp"
+touch "$BACKEND_DEST/tmp/restart.txt"
 
 echo "Deployment completed successfully!"
-echo "Create a cPanel Node.js app that points to $BACKEND_DEST and starts with: node dist/server.js"
+echo "Backend running from $BACKEND_DEST (entry point: server.js -> dist/server.js)"
