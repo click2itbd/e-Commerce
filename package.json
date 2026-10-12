@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit",
-    "predeploy:check": "node scripts/check-deploy-safety.cjs",
+    "predeploy:check": "node scripts/check-deploy-safety.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
