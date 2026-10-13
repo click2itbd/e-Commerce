@@ -63,12 +63,22 @@ export const Login: React.FC = () => {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, provider);
-      toast.success('Successfully logged in!');
+      toast.success('Successfully logged in with Google!');
       navigate('/');
-    } catch (error) {
-      console.error('Login error:', error);
-      toast.error('Failed to login. Please try again.');
+    } catch (error: any) {
+      console.error('Google login error:', error);
+      if (error?.code === 'auth/unauthorized-domain') {
+        const hostname = window.location.hostname;
+        toast.error(`Domain "${hostname}" is not authorized in Firebase. Please add "${hostname}" in Firebase Console -> Auth -> Settings -> Authorized Domains.`, { duration: 8000 });
+      } else if (error?.code === 'auth/popup-blocked') {
+        toast.error('Pop-up blocked by browser. Please enable pop-ups for this site or use email/password.');
+      } else if (error?.code === 'auth/popup-closed-by-user') {
+        toast.error('Sign-in pop-up was closed before completion.');
+      } else {
+        toast.error(error?.message || 'Google sign in failed. Please try again or check Firebase configuration.');
+      }
     } finally {
       setLoading(false);
     }
