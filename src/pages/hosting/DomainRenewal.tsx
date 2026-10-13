@@ -101,11 +101,13 @@ const DomainRenewal = () => {
       return;
     }
 
-    const phoneRegex = /^(?:\+88|88)?(01[3-9]\d{8})$/;
-    if (!phoneRegex.test(formData.phone)) {
-      toast.error('Please enter a valid Bangladeshi phone number');
+    const cleanPhone = formData.phone.replace(/\D/g, '').replace(/^(?:880|88)?0?/, '');
+    const phoneRegex = /^1[3-9]\d{8}$/;
+    if (!phoneRegex.test(cleanPhone)) {
+      toast.error('Please enter a valid 10-digit Bangladeshi phone number starting with 1 (e.g. 17XXXXXXXX)');
       return;
     }
+    const fullPhone = `+880${cleanPhone}`;
 
     if (!formData.termsAccepted) {
       toast.error('You must agree to the Terms and Conditions');
@@ -127,7 +129,7 @@ const DomainRenewal = () => {
         renewalPeriod,
         customerName: formData.customerName,
         customerEmail: formData.email,
-        customerPhone: formData.phone,
+        customerPhone: fullPhone,
         paymentMethod: formData.paymentMethod,
         transactionId: formData.paymentMethod === 'manual_bkash' ? formData.transactionId : null,
       });
@@ -142,7 +144,7 @@ const DomainRenewal = () => {
           orderData.totalBdt,
           formData.email,
           formData.customerName,
-          formData.phone
+          fullPhone
         );
         if (res.success && res.paymentUrl) {
           await updateDoc(doc(db, 'domain_renewals', result.orderId), { paymentStatus: 'processing' });
@@ -158,7 +160,7 @@ const DomainRenewal = () => {
           orderData.totalBdt,
           formData.email,
           formData.customerName,
-          formData.phone
+          fullPhone
         );
         if (res.success && res.paymentUrl) {
           await updateDoc(doc(db, 'domain_renewals', result.orderId), { paymentStatus: 'processing' });
@@ -184,6 +186,15 @@ const DomainRenewal = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
+    if (e.target.name === 'phone') {
+      let val = String(value).replace(/\D/g, '');
+      if (val.startsWith('880')) val = val.slice(3);
+      else if (val.startsWith('88')) val = val.slice(2);
+      val = val.replace(/^0+/, '');
+      val = val.slice(0, 10);
+      setFormData(prev => ({ ...prev, phone: val }));
+      return;
+    }
     setFormData(prev => ({ ...prev, [e.target.name]: value }));
   };
 
@@ -350,16 +361,23 @@ const DomainRenewal = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                        placeholder="01XXXXXXXXX"
-                      />
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
+                      <div className="flex">
+                        <span className="inline-flex items-center px-4 py-2.5 rounded-l-lg border border-r-0 border-gray-200 bg-gray-50 text-gray-500 font-medium select-none text-sm">
+                          +880
+                        </span>
+                        <input
+                          type="tel"
+                          name="phone"
+                          value={formData.phone}
+                          onChange={handleChange}
+                          required
+                          className="flex-1 w-full px-4 py-2.5 border border-gray-200 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                          placeholder="1XXXXXXXXX"
+                          maxLength={10}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">Enter 10 digits starting with 1 (e.g. 17XXXXXXXX)</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>

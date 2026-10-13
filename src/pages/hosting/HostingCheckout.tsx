@@ -246,6 +246,15 @@ export const HostingCheckout: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
+    if (e.target.name === 'phone') {
+      let val = String(value).replace(/\D/g, '');
+      if (val.startsWith('880')) val = val.slice(3);
+      else if (val.startsWith('88')) val = val.slice(2);
+      val = val.replace(/^0+/, '');
+      val = val.slice(0, 10);
+      setFormData(prev => ({ ...prev, phone: val }));
+      return;
+    }
     setFormData(prev => ({ ...prev, [e.target.name]: value }));
   };
 
@@ -262,11 +271,13 @@ export const HostingCheckout: React.FC = () => {
       return;
     }
 
-    const phoneRegex = /^(?:\+88|88)?(01[3-9]\d{8})$/;
-    if (!phoneRegex.test(formData.phone)) {
-      toast.error('Please enter a valid Bangladeshi phone number.');
+    const cleanPhone = formData.phone.replace(/\D/g, '').replace(/^(?:880|88)?0?/, '');
+    const phoneRegex = /^1[3-9]\d{8}$/;
+    if (!phoneRegex.test(cleanPhone)) {
+      toast.error('Please enter a valid 10-digit Bangladeshi phone number starting with 1 (e.g. 17XXXXXXXX).');
       return;
     }
+    const fullPhone = `+880${cleanPhone}`;
 
     if (hasSharedHosting && !hasDomain) {
       const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
@@ -340,7 +351,7 @@ export const HostingCheckout: React.FC = () => {
         documentNumber: docNumber,
         customerName: `${formData.firstName} ${formData.lastName}`.trim(),
         customerEmail: formData.email,
-        customerPhone: formData.phone,
+        customerPhone: fullPhone,
         shippingAddress: `${formData.address1}, ${formData.address2 ? formData.address2 + ', ' : ''}${formData.city}, ${formData.state} - ${formData.postcode}, ${formData.country}`,
         company: formData.company,
         paymentMethod: formData.paymentMethod,
@@ -495,7 +506,7 @@ export const HostingCheckout: React.FC = () => {
           customerInfo: {
             name: `${formData.firstName} ${formData.lastName}`.trim(),
             email: formData.email,
-            phone: formData.phone,
+            phone: fullPhone,
             address: formData.address1,
             city: formData.city,
             country: formData.country,
@@ -569,7 +580,7 @@ export const HostingCheckout: React.FC = () => {
           grandTotal, 
           formData.email, 
           `${formData.firstName} ${formData.lastName}`, 
-          formData.phone
+          fullPhone
         );
         if (res.success && res.paymentUrl) {
           window.location.href = res.paymentUrl;
@@ -578,7 +589,7 @@ export const HostingCheckout: React.FC = () => {
           throw new Error(res.errorMessage || 'Failed to initiate Card payment');
         }
       } else if (formData.paymentMethod === 'nagad') {
-        const res = await initiateNagadPayment(orderId, grandTotal, formData.phone);
+        const res = await initiateNagadPayment(orderId, grandTotal, fullPhone);
         if (res.success && res.paymentUrl) {
           window.location.href = res.paymentUrl;
           return;
@@ -939,11 +950,21 @@ export const HostingCheckout: React.FC = () => {
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-gray-700">Phone Number *</label>
                       <div className="flex">
-                        <span className="inline-flex items-center px-4 py-2.5 rounded-l-xl border border-r-0 border-gray-200 bg-gray-50 text-gray-500">
+                        <span className="inline-flex items-center px-4 py-2.5 rounded-l-xl border border-r-0 border-gray-200 bg-gray-50 text-gray-500 font-medium select-none text-sm">
                           +880
                         </span>
-                        <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required className="flex-1 w-full px-4 py-2.5 rounded-r-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" />
+                        <input 
+                          type="tel" 
+                          name="phone" 
+                          value={formData.phone} 
+                          onChange={handleChange} 
+                          placeholder="1XXXXXXXXX" 
+                          maxLength={10} 
+                          required 
+                          className="flex-1 w-full px-4 py-2.5 rounded-r-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-sm" 
+                        />
                       </div>
+                      <p className="text-xs text-gray-400">Enter 10 digits starting with 1 (e.g. 17XXXXXXXX)</p>
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="text-sm font-medium text-gray-700">Company (Optional)</label>

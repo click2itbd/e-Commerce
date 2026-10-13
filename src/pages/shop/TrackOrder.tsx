@@ -148,10 +148,14 @@ export default function TrackOrder() {
         const foundOrder = { id: snap.docs[0].id, ...snap.docs[0].data() } as Order;
         
         // Optional phone verification
-        if (phone && foundOrder.customerPhone !== phone && foundOrder.customerPhone) {
+        if (phone && foundOrder.customerPhone) {
+          const normInput = phone.replace(/\D/g, '').replace(/^(?:880|88)?0?/, '');
+          const normOrder = foundOrder.customerPhone.replace(/\D/g, '').replace(/^(?:880|88)?0?/, '');
+          if (normInput && normOrder && normInput !== normOrder) {
             setError('Phone number does not match this order.');
             setOrder(null);
             return;
+          }
         }
 
         setOrder(foundOrder);

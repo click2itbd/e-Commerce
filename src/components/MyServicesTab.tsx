@@ -350,8 +350,13 @@ export const MyServicesTab: React.FC = () => {
   };
 
   const handleUpdateWhois = async (domain: DomainOrder) => {
-    if (!whoisForm.firstName || !whoisForm.lastName || !whoisForm.email || !whoisForm.address || !whoisForm.city || !whoisForm.zipcode) {
+    if (!whoisForm.firstName || !whoisForm.lastName || !whoisForm.email || !whoisForm.phoneNumber || !whoisForm.address || !whoisForm.city || !whoisForm.zipcode) {
       toast.error('Please fill in all required WHOIS fields');
+      return;
+    }
+    const cleanPhone = whoisForm.phoneNumber.replace(/\D/g, '').replace(/^(?:880|88)?0?/, '');
+    if (!/^1[3-9]\d{8}$/.test(cleanPhone)) {
+      toast.error('Please enter a valid 10-digit phone number starting with 1 (e.g. 17XXXXXXXX)');
       return;
     }
     setLoadingWhois(true);
@@ -974,8 +979,16 @@ ITCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAM9b${Date.now()}
                                         type="text" 
                                         className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:border-amber-500 bg-slate-50/50" 
                                         value={whoisForm.phoneNumber} 
-                                        onChange={e => setWhoisForm({ ...whoisForm, phoneNumber: e.target.value })} 
-                                        placeholder="1712345678" 
+                                        onChange={e => {
+                                          let val = e.target.value.replace(/\D/g, '');
+                                          if (val.startsWith('880')) val = val.slice(3);
+                                          else if (val.startsWith('88')) val = val.slice(2);
+                                          val = val.replace(/^0+/, '');
+                                          val = val.slice(0, 10);
+                                          setWhoisForm({ ...whoisForm, phoneNumber: val });
+                                        }} 
+                                        placeholder="17XXXXXXXX"
+                                        maxLength={10} 
                                       />
                                     </div>
                                     <div className="sm:col-span-2">

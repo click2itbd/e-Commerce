@@ -160,6 +160,15 @@ export const Checkout: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
+    if (e.target.name === 'phone') {
+      let val = String(value).replace(/\D/g, '');
+      if (val.startsWith('880')) val = val.slice(3);
+      else if (val.startsWith('88')) val = val.slice(2);
+      val = val.replace(/^0+/, '');
+      val = val.slice(0, 10);
+      setFormData(prev => ({ ...prev, phone: val }));
+      return;
+    }
     setFormData({ ...formData, [e.target.name]: value });
   };
 
@@ -214,6 +223,15 @@ export const Checkout: React.FC = () => {
         return;
       }
 
+      const cleanPhone = formData.phone.replace(/\D/g, '').replace(/^(?:880|88)?0?/, '');
+      const phoneRegex = /^1[3-9]\d{8}$/;
+      if (!phoneRegex.test(cleanPhone)) {
+        toast.error('Please enter a valid 10-digit phone number starting with 1 (e.g. 17XXXXXXXX).');
+        setIsProcessing(false);
+        return;
+      }
+      const fullPhone = `+880${cleanPhone}`;
+
       const docType = 'INV'; // default to invoice
       const docNumber = await generateDocumentNumber(docType);
 
@@ -242,7 +260,7 @@ export const Checkout: React.FC = () => {
         documentNumber: docNumber,
         customerName: `${formData.firstName} ${formData.lastName}`.trim(),
         customerEmail: formData.email,
-        customerPhone: formData.phone,
+        customerPhone: fullPhone,
         shippingAddress: `${formData.address1}, ${formData.address2 ? formData.address2 + ', ' : ''}${formData.union ? formData.union + ', ' : ''}${formData.thana ? formData.thana + ', ' : ''}${formData.city}, ${formData.state} - ${formData.postcode}, ${formData.country}`,
         company: formData.company,
         discountCode: appliedDiscount ? appliedDiscount.code : null,
@@ -369,7 +387,7 @@ export const Checkout: React.FC = () => {
         const gateway = isAdvanceCOD ? (formData.paymentMethod || 'bkash') : selectedPayment;
         
         if (gateway === 'bkash') {
-          const res = await initiateBkashPayment(docRef.id, payNowAmount, formData.email, `${formData.firstName} ${formData.lastName}`, formData.phone);
+          const res = await initiateBkashPayment(docRef.id, payNowAmount, formData.email, `${formData.firstName} ${formData.lastName}`, fullPhone);
           if (res.success && res.paymentUrl) {
             window.location.href = res.paymentUrl;
             return;
@@ -382,7 +400,7 @@ export const Checkout: React.FC = () => {
             payNowAmount, 
             formData.email, 
             `${formData.firstName} ${formData.lastName}`, 
-            formData.phone
+            fullPhone
           );
           if (res.success && res.paymentUrl) {
             window.location.href = res.paymentUrl;
@@ -391,7 +409,7 @@ export const Checkout: React.FC = () => {
             throw new Error(res.errorMessage || 'Failed to initiate Card payment');
           }
         } else if (gateway === 'nagad') {
-          const res = await initiateNagadPayment(docRef.id, payNowAmount, formData.phone);
+          const res = await initiateNagadPayment(docRef.id, payNowAmount, fullPhone);
           if (res.success && res.paymentUrl) {
             window.location.href = res.paymentUrl;
             return;
@@ -460,7 +478,7 @@ export const Checkout: React.FC = () => {
                 <span className="inline-flex items-center px-4 border border-r-0 border-slate-200 bg-slate-100 text-slate-600 font-medium text-sm rounded-l-xl">
                   <img src="https://flagcdn.com/w20/bd.png" alt="BD" className="w-5 h-auto mr-2 rounded-sm shadow-sm" /> +880
                 </span>
-                <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="Phone Number *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-r-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all flex-1" />
+                <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="1XXXXXXXXX *" maxLength={10} required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-r-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all flex-1" />
               </div>
             </div>
           </div>

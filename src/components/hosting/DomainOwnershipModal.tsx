@@ -135,6 +135,12 @@ export const DomainOwnershipModal: React.FC<DomainOwnershipModalProps> = ({
       return;
     }
 
+    const cleanPhone = contact.phoneNumber.replace(/\D/g, '').replace(/^(?:880|88)?0?/, '');
+    if (!/^1[3-9]\d{8}$/.test(cleanPhone)) {
+      toast.error('Please enter a valid 10-digit subscriber number starting with 1 (e.g. 17XXXXXXXX)');
+      return;
+    }
+
     setSavingWhois(true);
     const toastId = toast.loading('Updating legal registrant with global registry...');
 
@@ -440,9 +446,17 @@ export const DomainOwnershipModal: React.FC<DomainOwnershipModalProps> = ({
                     type="text"
                     required
                     value={contact.phoneNumber}
-                    onChange={(e) => setContact({ ...contact, phoneNumber: e.target.value })}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      if (val.startsWith('880')) val = val.slice(3);
+                      else if (val.startsWith('88')) val = val.slice(2);
+                      val = val.replace(/^0+/, '');
+                      val = val.slice(0, 10);
+                      setContact({ ...contact, phoneNumber: val });
+                    }}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
                     placeholder="17XXXXXXXX"
+                    maxLength={10}
                   />
                 </div>
 

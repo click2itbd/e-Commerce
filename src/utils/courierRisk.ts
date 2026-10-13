@@ -24,9 +24,12 @@ export async function fetchCourierRisk(
     throw new Error('Steadfast API Key অথবা Secret Key কনফিগার করা নেই। Settings > Courier (Steadfast) এ গিয়ে আপনার API Key ও Secret Key সেট করুন।');
   }
 
-  const effectivePhone = cleanPhone.length > 11 && cleanPhone.startsWith('88') 
+  let effectivePhone = cleanPhone.length > 11 && cleanPhone.startsWith('88') 
     ? cleanPhone.slice(2) 
     : cleanPhone;
+  if (effectivePhone.length === 10 && effectivePhone.startsWith('1')) {
+    effectivePhone = '0' + effectivePhone;
+  }
 
   const baseUrl = (typeof window !== 'undefined' && window.location.origin) 
     ? window.location.origin 

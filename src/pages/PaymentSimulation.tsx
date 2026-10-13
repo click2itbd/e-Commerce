@@ -159,7 +159,13 @@ export default function PaymentSimulation() {
                   <div className="bg-gray-50 px-4 py-4 text-sm text-gray-600 font-semibold border-r border-gray-200">+880</div>
                   <input
                     type="tel" maxLength={10} value={phone}
-                    onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+                    onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      if (val.startsWith('880')) val = val.slice(3);
+                      else if (val.startsWith('88')) val = val.slice(2);
+                      val = val.replace(/^0+/, '');
+                      setPhone(val.slice(0, 10));
+                    }}
                     placeholder="1XXXXXXXXX"
                     className="flex-1 px-4 py-4 text-gray-900 outline-none text-sm font-medium"
                   />
@@ -171,7 +177,14 @@ export default function PaymentSimulation() {
                 </div>
 
                 <button
-                  onClick={() => { if (phone.length >= 10) { setStep('otp'); setOtpTimer(60); } else alert('Enter a valid 10-digit number'); }}
+                  onClick={() => {
+                    if (/^1[3-9]\d{8}$/.test(phone)) {
+                      setStep('otp');
+                      setOtpTimer(60);
+                    } else {
+                      alert('Please enter a valid 10-digit number starting with 1 (e.g. 17XXXXXXXX)');
+                    }
+                  }}
                   style={bg}
                   className="w-full py-4 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2 hover:opacity-95 transition-opacity shadow-lg shadow-pink-200"
                 >
@@ -303,7 +316,13 @@ export default function PaymentSimulation() {
                   <div className="bg-gray-50 px-4 py-4 text-sm text-gray-600 font-semibold border-r border-gray-200">+880</div>
                   <input
                     type="tel" maxLength={10} value={phone}
-                    onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+                    onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      if (val.startsWith('880')) val = val.slice(3);
+                      else if (val.startsWith('88')) val = val.slice(2);
+                      val = val.replace(/^0+/, '');
+                      setPhone(val.slice(0, 10));
+                    }}
                     placeholder="1XXXXXXXXX"
                     className="flex-1 px-4 py-4 text-gray-900 outline-none text-sm font-medium"
                   />
@@ -315,7 +334,14 @@ export default function PaymentSimulation() {
                 </div>
 
                 <button
-                  onClick={() => { if (phone.length >= 10) { setStep('otp'); setOtpTimer(60); } else alert('Enter a valid 10-digit number'); }}
+                  onClick={() => {
+                    if (/^1[3-9]\d{8}$/.test(phone)) {
+                      setStep('otp');
+                      setOtpTimer(60);
+                    } else {
+                      alert('Enter a valid 10-digit number starting with 1 (e.g. 17XXXXXXXX)');
+                    }
+                  }}
                   style={bg}
                   className="w-full py-4 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2 hover:opacity-95 transition-opacity shadow-lg shadow-orange-200"
                 >

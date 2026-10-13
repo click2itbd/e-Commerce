@@ -21,6 +21,9 @@ courierRouter.get('/fraud_check/:phone?', async (req: Request, res: Response) =>
   if (cleanPhone.length > 11 && cleanPhone.startsWith('88')) {
     cleanPhone = cleanPhone.slice(2);
   }
+  if (cleanPhone.length === 10 && cleanPhone.startsWith('1')) {
+    cleanPhone = '0' + cleanPhone;
+  }
 
   try {
     const steadfastRes = await fetch(`https://portal.steadfast.com.bd/api/v1/fraud_check/${encodeURIComponent(cleanPhone)}`, {
@@ -98,6 +101,9 @@ courierRouter.all('/steadfast.php', async (req: Request, res: Response) => {
     let cleanPhone = phone.replace(/[^0-9]/g, '');
     if (cleanPhone.length > 11 && cleanPhone.startsWith('88')) {
       cleanPhone = cleanPhone.slice(2);
+    }
+    if (cleanPhone.length === 10 && cleanPhone.startsWith('1')) {
+      cleanPhone = '0' + cleanPhone;
     }
 
     try {

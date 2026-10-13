@@ -555,7 +555,14 @@ export class OpenproviderDomainProvider {
                     phone: {
                         country_code: contact.phoneCountryCode || '+880',
                         area_code: '',
-                        subscriber_number: contact.phoneNumber || ''
+                        subscriber_number: (() => {
+                            const raw = String(contact.phoneNumber || '').replace(/\D/g, '');
+                            if (raw.startsWith('880'))
+                                return raw.slice(3).replace(/^0+/, '');
+                            if (raw.startsWith('88'))
+                                return raw.slice(2).replace(/^0+/, '');
+                            return raw.replace(/^0+/, '');
+                        })()
                     },
                     email: contact.email
                 })
