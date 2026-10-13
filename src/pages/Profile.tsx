@@ -11,8 +11,9 @@ import { doc, getDoc, addDoc, updateDoc, setDoc, collection, query, where, order
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { compressImage } from '../lib/imageCompressor';
 import { toast } from 'react-hot-toast';
-import { User, Mail, Globe, Phone, MapPin, Building, Save, Camera, Loader2, ShoppingBag, Heart, Package, Clock, CheckCircle2, XCircle, ChevronRight, Tag, MessageSquare, Image as ImageIcon, CalendarPlus, Lock, Shield, RotateCcw, Truck, Box, Check, Star, Plus, Bell } from 'lucide-react';
+import { User, Mail, Globe, Phone, MapPin, Building, Save, Camera, Loader2, ShoppingBag, Heart, Package, Clock, CheckCircle2, XCircle, ChevronRight, Tag, MessageSquare, Image as ImageIcon, CalendarPlus, Lock, Shield, RotateCcw, Truck, Box, Check, Star, Plus, Bell, Wallet } from 'lucide-react';
 import { PriceAlertsTab } from '../components/PriceAlertsTab';
+import { CustomerWalletTab } from '../components/CustomerWalletTab';
 import { SEO } from '../components/SEO';
 import { formatCurrency } from '../lib/utils';
 import { generatePDF } from '../lib/pdf';
@@ -361,15 +362,20 @@ export const Profile: React.FC = () => {
                         baseTabs.push({ id: 'price-alerts', label: 'Price Alerts', icon: Bell });
                      }
                      const hostingTabs = [
+                       { id: 'wallet', label: 'My Wallet', icon: Wallet },
                        { id: 'my_domains', label: 'My Services', icon: Globe },
                        { id: 'tickets', label: 'Support Tickets', icon: MessageSquare },
                        { id: 'offers', label: 'My Offers', icon: Tag },
                      ];
                      const tabs = isHostingContext ? [
                        { id: 'profile', label: 'My Profile', icon: User },
+                       { id: 'wallet', label: 'My Wallet', icon: Wallet },
                        { id: 'orders', label: 'My Orders', icon: ShoppingBag },
-                       ...hostingTabs
-                     ] : baseTabs;
+                       ...hostingTabs.filter(t => t.id !== 'wallet')
+                     ] : [
+                       ...baseTabs,
+                       { id: 'wallet', label: 'My Wallet', icon: Wallet }
+                     ];
 
                      return tabs.map(({ id, label, icon: Icon }) => (
                        <button
@@ -790,6 +796,9 @@ export const Profile: React.FC = () => {
                   )}
                 </div>
              )}
+
+             {/* WALLET TAB */}
+             {activeTab === 'wallet' && <CustomerWalletTab />}
 
              {/* HOSTING TABS */}
              {activeTab === 'my_domains' && <MyServicesTab />}

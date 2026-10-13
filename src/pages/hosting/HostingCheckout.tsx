@@ -11,7 +11,7 @@ import { db } from '../../firebase';
 import { collection, addDoc, query, where, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { generateDocumentNumber } from '../../lib/numbering';
 import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../../services/paymentApi';
-import { apiPost, getApiUrl } from '../../services/apiClient';
+import { apiPost, getApiUrl, apiClient } from '../../services/apiClient';
 
 export const HostingCheckout: React.FC = () => {
   const { user } = useAuth();
@@ -163,6 +163,20 @@ export const HostingCheckout: React.FC = () => {
     };
     fetchBkashNumber();
   }, [settings]);
+
+  const [userWalletBalance, setUserWalletBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      apiClient.get('/api/customers/me/wallet')
+        .then(res => {
+          if (res.data?.success && typeof res.data.balance === 'number') {
+            setUserWalletBalance(res.data.balance);
+          }
+        })
+        .catch(e => console.warn('Failed to load wallet balance:', e));
+    }
+  }, [user]);
 
   const hasDomain = items.some(i => i.itemType === 'domain');
   const hasVps = items.some(isVpsItem);
@@ -570,7 +584,25 @@ export const HostingCheckout: React.FC = () => {
       }
 
       // Process payment
-      if (formData.paymentMethod === 'bkash') {
+      if (formData.paymentMethod === 'wallet_balance') {
+        if (!user) {
+          toast.error('Please log in to pay with Account Wallet Balance.');
+          setIsProcessing(false);
+          return;
+        }
+        const token = await user.getIdToken();
+        const res = await apiClient.post('/api/customers/pay-order', { orderId }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.data?.success) {
+          toast.success('Order paid instantly using Account Wallet Balance!');
+          clearCart();
+          navigate(`/order-success/${orderId}`);
+          return;
+        } else {
+          throw new Error(res.data?.error || 'Wallet payment failed.');
+        }
+      } else if (formData.paymentMethod === 'bkash') {
         clearCart();
         navigate(`/order-success/${orderId}`);
         return;
@@ -1007,6 +1039,17 @@ export const HostingCheckout: React.FC = () => {
                 </div>
                 <div className="p-6">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {/* WHMCS Account Wallet Option */}
+                    <label className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentMethod === 'wallet_balance' ? 'border-emerald-600 bg-emerald-50/50' : 'border-gray-100 hover:border-gray-200'}`}>
+                      <input type="radio" name="paymentMethod" value="wallet_balance" checked={formData.paymentMethod === 'wallet_balance'} onChange={handleChange} className="sr-only" />
+                      <Wallet className={`w-8 h-8 mb-2 ${formData.paymentMethod === 'wallet_balance' ? 'text-emerald-600' : 'text-gray-400'}`} />
+                      <span className={`text-sm font-bold ${formData.paymentMethod === 'wallet_balance' ? 'text-emerald-900' : 'text-gray-700'}`}>Account Wallet</span>
+                      <span className="text-[10px] text-emerald-700 font-extrabold mt-0.5">
+                        {userWalletBalance !== null ? `৳${userWalletBalance.toLocaleString()}` : 'Instant Pay'}
+                      </span>
+                      {formData.paymentMethod === 'wallet_balance' && <div className="absolute top-2 right-2"><CheckCircle className="w-4 h-4 text-emerald-600" /></div>}
+                    </label>
+
                     <label className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentMethod === 'bkash' ? 'border-pink-600 bg-pink-50/50' : 'border-gray-100 hover:border-gray-200'}`}>
                       <input type="radio" name="paymentMethod" value="bkash" checked={formData.paymentMethod === 'bkash'} onChange={handleChange} className="sr-only" />
                       <Wallet className={`w-8 h-8 mb-2 ${formData.paymentMethod === 'bkash' ? 'text-pink-600' : 'text-gray-400'}`} />
@@ -1042,6 +1085,51 @@ export const HostingCheckout: React.FC = () => {
                       </div>
                     </label>
                   </div>
+
+                  {formData.paymentMethod === 'wallet_balance' && (
+                    <div className="mt-6 p-5 bg-gradient-to-br from-emerald-50/80 to-teal-50/50 border border-emerald-200/90 rounded-2xl space-y-3 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-sm shadow-emerald-200">
+                            <Wallet className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900 text-sm">Account Wallet Balance</h4>
+                            <p className="text-xs text-gray-500">Instant 1-Click Payment</p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-black px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200">
+                          Instant Provisioning
+                        </span>
+                      </div>
+
+                      <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-xs flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-gray-500 uppercase">Available Wallet Balance</span>
+                          <div className="text-2xl font-black text-emerald-600 font-mono mt-0.5">
+                            ৳{(userWalletBalance || 0).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-semibold text-gray-500 uppercase">Order Total</span>
+                          <div className="text-lg font-black text-gray-900">
+                            {formatCurrency(grandTotal)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {(userWalletBalance || 0) < grandTotal ? (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-bold flex items-center gap-2">
+                          <AlertCircle size={16} className="text-amber-600 shrink-0" />
+                          Your current wallet balance is insufficient. Please choose bKash or top up your account balance in User Profile.
+                        </div>
+                      ) : (
+                        <p className="text-xs text-emerald-800 font-medium">
+                          ✓ You have sufficient funds! Upon clicking Complete Order, your wallet balance will be deducted and domain/hosting services will be provisioned immediately.
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {formData.paymentMethod === 'bkash' && (
                     <div className="mt-6 p-5 bg-gradient-to-b from-pink-50/70 via-pink-50/30 to-white border border-pink-200/90 rounded-2xl space-y-4 shadow-sm">

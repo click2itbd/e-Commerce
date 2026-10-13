@@ -117,3 +117,26 @@ export async function apiDelete<T>(path: string, token?: string, body?: any): Pr
 }
 const API_BASE_URL = resolveApiBaseUrl();
 export { API_BASE_URL };
+
+export const apiClient = {
+  get: async (path: string, token?: string) => {
+    const data = await apiGet<any>(path, token);
+    return { data };
+  },
+  post: async (path: string, body?: any, config?: any) => {
+    const token = config?.headers?.Authorization?.replace(/^Bearer\s+/i, '');
+    const data = await apiPost<any>(path, body, token);
+    return { data };
+  },
+  put: async (path: string, body?: any, config?: any) => {
+    const token = config?.headers?.Authorization?.replace(/^Bearer\s+/i, '');
+    const data = await apiPut<any>(path, body, token);
+    return { data };
+  },
+  delete: async (path: string, config?: any) => {
+    const token = config?.headers?.Authorization?.replace(/^Bearer\s+/i, '');
+    const data = await apiDelete<any>(path, token);
+    return { data };
+  }
+};
+

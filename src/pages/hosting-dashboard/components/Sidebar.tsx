@@ -40,7 +40,8 @@ export function Sidebar({ state }) {
           {[
             { icon: LayoutDashboard, label: 'Dashboard', id: 'dashboard' },
             { icon: ShoppingCart, label: 'Hosting Orders', id: 'all-orders' },
-            { icon: Users, label: 'Active Accounts', id: 'server-accounts' },
+            { icon: Users, label: 'Customers & Wallet', id: 'users' },
+            { icon: Server, label: 'Active Accounts', id: 'server-accounts' },
             { icon: Tag, label: 'Domain Offer Request', id: 'domain-offers' },
             { icon: RefreshCw, label: 'Domain Renewals', id: 'domain-renewals' },
             { icon: Globe, label: '.BD Domain Apps', id: 'bd-domain-apps' },
