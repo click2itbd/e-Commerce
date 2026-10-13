@@ -56,8 +56,8 @@ const ApiBalanceWidget = () => {
           {isLow && <p className="text-xs text-red-600 font-medium mt-1">Balance is low. Please recharge soon.</p>}
         </div>
       </div>
-      <a href="https://rcp.openprovider.eu" target="_blank" rel="noreferrer" className={`px-4 py-2 text-sm font-bold rounded-lg ${isLow ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-        Recharge
+      <a href="https://cp.openprovider.eu/" target="_blank" rel="noreferrer" className={`px-4 py-2 text-sm font-bold rounded-lg ${isLow ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+        Open Control Panel (cp.openprovider.eu)
       </a>
     </div>
   );

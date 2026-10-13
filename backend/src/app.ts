@@ -17,6 +17,7 @@ import aiRouter from "./routes/ai.js";
 import emailRouter from "./routes/email.js";
 import webhookRouter from "./routes/webhook.js";
 import campaignRouter from "./routes/campaign.js";
+import priceAlertsRouter from "./routes/priceAlerts.js";
 
 export function createApp(): Express {
   const app = express();
@@ -192,6 +193,7 @@ export function createApp(): Express {
 
   apiRouter.use("/public", publicRouter);
   apiRouter.use("/domains", domainRouter);
+  apiRouter.use("/domain", domainRouter);
   apiRouter.use("/ssl", sslRouter);
   apiRouter.use("/dns", dnsRouter);
   apiRouter.use("/hosting", hostingRouter);
@@ -199,6 +201,7 @@ export function createApp(): Express {
   apiRouter.use("/admin", adminRouter);
   apiRouter.use("/ai", aiRouter);
   apiRouter.use("/webhook", webhookRouter);
+  apiRouter.use("/price-alerts", priceAlertsRouter);
   apiRouter.use("/", emailRouter);
   apiRouter.use("/", campaignRouter);
 

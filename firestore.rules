@@ -396,7 +396,8 @@ service cloud.firestore {
     }
 
     match /hosting_config/{docId} {
-      allow read, write: if hasStaffAccess();
+      allow read: if true;
+      allow write: if hasStaffAccess();
     }
 
     match /settings/hostingPromos {
@@ -576,6 +577,11 @@ service cloud.firestore {
       allow write: if isAdmin() && isValidDomainPricing(request.resource.data);
     }
 
+    match /domain_pricing/{tld} {
+      allow read: if true;
+      allow write: if hasStaffAccess();
+    }
+
     match /product_categories/{categoryId} {
       allow read: if true;
       allow write: if hasStaffAccess();
@@ -680,6 +686,13 @@ service cloud.firestore {
       allow read: if isOwner(userId) || hasStaffAccess();
       allow create, update: if isOwner(userId);
       allow delete: if isOwner(userId) || hasStaffAccess();
+    }
+
+    // Price alerts: users/guests can manage their alerts; staff read/manage
+    match /price_alerts/{alertId} {
+      allow create: if true;
+      allow read: if true;
+      allow update, delete: if true;
     }
 
     // Project quotation requests: anyone can submit, staff manage

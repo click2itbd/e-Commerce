@@ -149,7 +149,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
         }
       });
       rebuildList();
-    }, (err) => console.error(err));
+    }, () => {});
 
     // 2. Domain Offers
     const unsubOffers = onSnapshot(collection(db, 'domain_offers'), (snap) => {
@@ -174,7 +174,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
         }
       });
       rebuildList();
-    }, (err) => console.error(err));
+    }, () => {});
 
     // 3. Hosting Orders
     const unsubHosting = onSnapshot(collection(db, 'hostingOrders'), (snap) => {
@@ -199,9 +199,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
         }
       });
       rebuildList();
-    }, () => {
-      // Gracefully ignore if collection is restricted by Firestore rules
-    });
+    }, () => {});
 
     // 4. Support Tickets
     const unsubTickets = onSnapshot(collection(db, 'support_tickets'), (snap) => {
@@ -226,7 +224,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
         }
       });
       rebuildList();
-    }, (err) => console.error(err));
+    }, () => {});
 
     // 5. Low Stock / Out of Stock
     const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
@@ -267,7 +265,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
         }
       });
       rebuildList();
-    }, (err) => console.error(err));
+    }, () => {});
 
     // 6. Project Quote Requests
     const unsubQuotes = onSnapshot(collection(db, 'quote_requests'), (snap) => {

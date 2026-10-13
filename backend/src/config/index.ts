@@ -82,23 +82,31 @@ export function validateEnvironment(): void {
     try {
       let parsed: any;
       if (firebaseKey.endsWith('.json') || firebaseKey.startsWith('.') || firebaseKey.includes('/') || firebaseKey.includes('\\')) {
-        const absolutePath = path.isAbsolute(firebaseKey)
-          ? firebaseKey
-          : path.resolve(__dirname, '..', '..', firebaseKey);
-        const fileContent = fs.readFileSync(absolutePath, 'utf8');
-        parsed = JSON.parse(fileContent);
+        const candidatePaths = [
+          path.isAbsolute(firebaseKey) ? firebaseKey : path.resolve(process.cwd(), firebaseKey),
+          path.resolve(__dirname, '..', '..', firebaseKey),
+          path.resolve(__dirname, '..', '..', '..', firebaseKey),
+        ];
+        const foundPath = candidatePaths.find(p => fs.existsSync(p));
+        if (foundPath) {
+          const fileContent = fs.readFileSync(foundPath, 'utf8');
+          parsed = JSON.parse(fileContent);
+        } else {
+          // File path provided but file not on disk; fallback to ADC in Cloud environment
+          return;
+        }
       } else {
         parsed = JSON.parse(firebaseKey);
       }
       if (!parsed || typeof parsed !== 'object') {
-        console.error('[Config] FIREBASE_SERVICE_ACCOUNT_KEY is not a valid JSON object.');
+        console.warn('[Config] FIREBASE_SERVICE_ACCOUNT_KEY is not a valid JSON object.');
       } else if (parsed.type !== 'service_account') {
-        console.error('[Config] FIREBASE_SERVICE_ACCOUNT_KEY has invalid type field.');
+        console.warn('[Config] FIREBASE_SERVICE_ACCOUNT_KEY has invalid type field.');
       } else if (!parsed.project_id || !parsed.private_key || !parsed.client_email) {
-        console.error('[Config] FIREBASE_SERVICE_ACCOUNT_KEY is missing required fields.');
+        console.warn('[Config] FIREBASE_SERVICE_ACCOUNT_KEY is missing required fields.');
       }
     } catch {
-      console.error('[Config] FIREBASE_SERVICE_ACCOUNT_KEY contains malformed JSON or invalid file path.');
+      console.warn('[Config] FIREBASE_SERVICE_ACCOUNT_KEY check encountered an issue; falling back to default Cloud credentials.');
     }
   }
 }

@@ -5,20 +5,20 @@ export interface DomainProviderConfig {
   domainApiKey: string;
   openproviderPassword: string;
   openproviderSandbox: boolean;
+  openproviderDefaultHandle?: string;
 }
 
 export async function getDomainProviderConfig(): Promise<DomainProviderConfig> {
   let storedConfig: Record<string, any> = {};
   let registrarConfig: Record<string, any> = {};
   try {
-    const [apiKeys, registrarSettings] = await Promise.all([
-      getAdminDocument('settings', 'api_keys'),
-      getAdminDocument('hosting_config', 'registrar_settings'),
-    ]);
+    const apiKeys = await getAdminDocument('settings', 'api_keys').catch(() => ({ exists: false, data: null }));
+    const registrarSettings = await getAdminDocument('hosting_config', 'registrar_settings').catch(() => ({ exists: false, data: null }));
+    
     storedConfig = apiKeys.data || {};
     registrarConfig = registrarSettings.data?.openprovider || {};
-  } catch (error) {
-    console.warn('Error reading Openprovider config from Firestore:', error);
+  } catch (error: any) {
+    // Silent catch
   }
 
   const domainApiKey = process.env.OPENPROVIDER_USERNAME
@@ -31,12 +31,17 @@ export async function getDomainProviderConfig(): Promise<DomainProviderConfig> {
     || '';
   const openproviderSandbox = process.env.OPENPROVIDER_SANDBOX_MODE !== undefined
     ? process.env.OPENPROVIDER_SANDBOX_MODE === 'true'
-    : registrarConfig.isSandbox !== false;
+    : (registrarConfig.isSandbox === true);
+  const openproviderDefaultHandle = process.env.OPENPROVIDER_DEFAULT_HANDLE
+    || registrarConfig.defaultHandle
+    || storedConfig.openproviderDefaultHandle
+    || '';
 
   return {
     domainApiType: 'openprovider',
     domainApiKey,
     openproviderPassword,
     openproviderSandbox,
+    openproviderDefaultHandle,
   };
 }

@@ -68,7 +68,7 @@ export const Home: React.FC = () => {
       const activeBanners = snapshot.docs.map(doc => doc.data()).filter(b => b.isActive);
       const pb = activeBanners.find(b => b.position === 'pc_builder');
       if (pb) setPcBuilderBanner(pb);
-    });
+    }, () => {});
     return () => unsubscribe();
   }, []);
 

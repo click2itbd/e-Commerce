@@ -8,12 +8,13 @@ import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency, cn, formatWarranty } from '../../lib/utils';
 import { Helmet } from 'react-helmet-async';
-import { ShoppingCart, Truck, ChevronRight, ChevronDown, GitCompare, Minus, Plus, Share2, Facebook, Twitter, MessageCircle, Star, ShieldCheck, X, Copy, Check } from 'lucide-react';
+import { ShoppingCart, Truck, ChevronRight, ChevronDown, GitCompare, Minus, Plus, Share2, Facebook, Twitter, MessageCircle, Star, ShieldCheck, X, Copy, Check, Bell } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useCompare } from '../../context/CompareContext';
 import { ProductCard } from '../../components/ProductCard';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 import { SEO } from '../../components/SEO';
+import { PriceAlertModal } from '../../components/PriceAlertModal';
 
 
 const SPEC_PRIORITY = [
@@ -127,6 +128,7 @@ export const ProductDetails: React.FC = () => {
   const [reviewName, setReviewName] = useState('');
   const [reviewText, setReviewText] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isPriceAlertOpen, setIsPriceAlertOpen] = useState(false);
   
   const { addRecentlyViewed, recentlyViewed } = useRecentlyViewed();
   
@@ -400,16 +402,26 @@ export const ProductDetails: React.FC = () => {
               <div className="font-black text-gray-400 italic uppercase tracking-wider text-xl">
                 {product.brand}
               </div>
-              <button 
-                onClick={() => addToCompare(product)}
-                className={cn(
-                  "flex items-center gap-1 text-sm font-medium transition-colors",
-                  isInCompare(product.id) ? "text-[#F97316]" : "text-gray-500 hover:text-[#F97316]"
-                )}
-              >
-                <GitCompare size={16} />
-                {isInCompare(product.id) ? 'Added to Compare' : 'Add to Compare'}
-              </button>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setIsPriceAlertOpen(true)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full hover:bg-orange-100 transition-colors shadow-2xs"
+                  title="Notify me when price drops"
+                >
+                  <Bell size={14} className="animate-pulse" />
+                  <span>Price Alert</span>
+                </button>
+                <button 
+                  onClick={() => addToCompare(product)}
+                  className={cn(
+                    "flex items-center gap-1 text-sm font-medium transition-colors",
+                    isInCompare(product.id) ? "text-[#F97316]" : "text-gray-500 hover:text-[#F97316]"
+                  )}
+                >
+                  <GitCompare size={16} />
+                  {isInCompare(product.id) ? 'Added to Compare' : 'Add to Compare'}
+                </button>
+              </div>
             </div>
 
             <h1 className="text-2xl md:text-[28px] font-bold text-[#081621] leading-tight mb-2">
@@ -491,7 +503,7 @@ export const ProductDetails: React.FC = () => {
             </div>
 
             {/* Actions */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="flex flex-col sm:flex-row gap-4 mb-4">
               <button 
                 onClick={handleBuyNow}
                 disabled={product.isOutOfStock === true}
@@ -506,6 +518,25 @@ export const ProductDetails: React.FC = () => {
               >
                 <ShoppingCart size={18} />
                 Add To Cart
+              </button>
+            </div>
+
+            {/* Price Drop Alert Banner */}
+            <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-orange-200/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-orange-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Bell size={18} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900">Subscribe to Price Drop Alert</h4>
+                  <p className="text-[11px] text-gray-600">Get an instant email when this item reaches your target price.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsPriceAlertOpen(true)}
+                className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold py-2 px-3.5 rounded-xl transition-colors shrink-0 shadow-2xs active:scale-95"
+              >
+                Set Alert
               </button>
             </div>
 
@@ -1098,6 +1129,14 @@ export const ProductDetails: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {product && (
+        <PriceAlertModal
+          isOpen={isPriceAlertOpen}
+          onClose={() => setIsPriceAlertOpen(false)}
+          product={product}
+        />
       )}
 
     </Layout>

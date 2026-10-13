@@ -8,9 +8,11 @@ export function getDomainProvider(config?: {
   domainApiKey?: string;
   openproviderPassword?: string;
   openproviderSandbox?: boolean;
+  openproviderDefaultHandle?: string;
 }): IDomainProvider {
   const domainApiKey = config?.domainApiKey || process.env.OPENPROVIDER_USERNAME || '';
   const openproviderPassword = config?.openproviderPassword || process.env.OPENPROVIDER_PASSWORD || '';
+  const defaultHandle = config?.openproviderDefaultHandle || process.env.OPENPROVIDER_DEFAULT_HANDLE || '';
 
   if (!domainApiKey || !openproviderPassword) {
     return {
@@ -22,9 +24,10 @@ export function getDomainProvider(config?: {
     };
   }
 
-  const isSandbox = config?.openproviderSandbox
-    ?? (process.env.OPENPROVIDER_SANDBOX_MODE === 'true');
-  return new OpenproviderDomainProvider(domainApiKey, openproviderPassword, isSandbox);
+  const isSandbox = config?.openproviderSandbox !== undefined
+    ? config.openproviderSandbox
+    : (process.env.OPENPROVIDER_SANDBOX_MODE === 'true');
+  return new OpenproviderDomainProvider(domainApiKey, openproviderPassword, isSandbox, defaultHandle);
 }
 
 export function getHostingProvider(config?: { hostingApiType?: string; hostingApiKey?: string; hostingApiUrl?: string; hostingApiUsername?: string }): IHostingProvider {

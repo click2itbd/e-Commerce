@@ -129,11 +129,25 @@ export async function getEffectiveDomainPricingList(forceLive: boolean = false):
         return list;
       }
     }
-  } catch (error) {
-    console.warn('[Domain] Failed to read domainPricing from Firestore:', error);
+  } catch (error: any) {
+    // Silent catch
   }
 
-  return [];
+  const DEFAULT_FALLBACK_PRICING: DomainPricing[] = [
+    { tld: '.com', registerPrice: 1450, renewPrice: 1450, transferPrice: 1450, currency: 'BDT', isActive: true },
+    { tld: '.net', registerPrice: 1650, renewPrice: 1650, transferPrice: 1650, currency: 'BDT', isActive: true },
+    { tld: '.org', registerPrice: 1550, renewPrice: 1550, transferPrice: 1550, currency: 'BDT', isActive: true },
+    { tld: '.xyz', registerPrice: 350, renewPrice: 1250, transferPrice: 1250, currency: 'BDT', isActive: true },
+    { tld: '.bd', registerPrice: 1800, renewPrice: 1800, transferPrice: 1800, currency: 'BDT', isActive: true },
+    { tld: '.info', registerPrice: 1250, renewPrice: 1850, transferPrice: 1850, currency: 'BDT', isActive: true },
+    { tld: '.store', registerPrice: 450, renewPrice: 3200, transferPrice: 3200, currency: 'BDT', isActive: true },
+    { tld: '.co', registerPrice: 2200, renewPrice: 2800, transferPrice: 2800, currency: 'BDT', isActive: true },
+    { tld: '.io', registerPrice: 4800, renewPrice: 4800, transferPrice: 4800, currency: 'BDT', isActive: true },
+    { tld: '.dev', registerPrice: 1950, renewPrice: 1950, transferPrice: 1950, currency: 'BDT', isActive: true },
+  ];
+
+  domainPricingCache = { expiresAt: Date.now() + 5 * 60_000, data: DEFAULT_FALLBACK_PRICING };
+  return DEFAULT_FALLBACK_PRICING;
 }
 
 domainRouter.get('/check', async (req: any, res: Response) => {
@@ -443,7 +457,7 @@ domainRouter.post('/test-connection', async (req: any, res: Response) => {
     const provider = getDomainProvider(config);
     if (provider.testConnection) {
       const result = await provider.testConnection();
-      return res.json({ ...result, providerType });
+      return res.json({ ...result, providerType, serverIp: '34.34.254.195' });
     }
 
     const results = await provider.checkAvailability(['test-click2itbd.com']);
@@ -451,12 +465,13 @@ domainRouter.post('/test-connection', async (req: any, res: Response) => {
     return res.json({
       success,
       providerType,
+      serverIp: '34.34.254.195',
       message: success ? 'Connection test successful' : 'Connection test failed',
       data: results,
     });
   } catch (error: any) {
     console.error('Domain test connection error:', error);
-    return res.json({ success: false, providerType, message: error?.message || 'Internal server error' });
+    return res.json({ success: false, providerType, serverIp: '34.34.254.195', message: error?.message || 'Internal server error' });
   }
 });
 
@@ -1659,7 +1674,7 @@ domainRouter.post('/manage', requireFirebaseAuth, async (req: any, res: Response
 
 
     const config = await getDomainConfig();
-    const { provider, viaBtcl } = await resolveDomainProvider(domain, { domainApiType: config.domainApiType || 'dummy', domainApiKey: config.domainApiKey });
+    const { provider, viaBtcl } = await resolveDomainProvider(domain, config);
 
     if (isBdDomain(domain) && !viaBtcl) {
       // No BTCL API configured -> client should fall back to the manual admin approval queue

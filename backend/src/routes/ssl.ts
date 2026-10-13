@@ -2,21 +2,24 @@ import express, { Response } from 'express';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
 import { isUserAdmin, getAdminDb } from '../firebase/admin.js';
 import { OpenproviderDomainProvider } from '../providers/domain/OpenproviderDomainProvider.js';
+import { getDomainProviderConfig } from '../services/domainProviderConfig.js';
 
 const sslRouter = express.Router();
 
-function getOpenproviderClient(): OpenproviderDomainProvider {
+async function getOpenproviderClient(): Promise<OpenproviderDomainProvider> {
+  const config = await getDomainProviderConfig();
   return new OpenproviderDomainProvider(
-    process.env.OPENPROVIDER_USERNAME || '',
-    process.env.OPENPROVIDER_PASSWORD || '',
-    process.env.OPENPROVIDER_SANDBOX_MODE === 'true'
+    config.domainApiKey,
+    config.openproviderPassword,
+    config.openproviderSandbox,
+    config.openproviderDefaultHandle || ''
   );
 }
 
 // 1. Fetch available SSL products
 sslRouter.get('/products', async (req: any, res: Response) => {
   try {
-    const provider = getOpenproviderClient();
+    const provider = await getOpenproviderClient();
     const response = await provider.fetchApi('/ssl/products?limit=50');
     const resultsArray = Array.isArray(response.data) ? response.data : (response.data?.results || []);
     const products = resultsArray.map((p: any) => ({
@@ -51,7 +54,7 @@ sslRouter.get('/approver-emails', requireFirebaseAuth, async (req: any, res: Res
       return res.status(400).json({ success: false, error: 'domain query parameter is required' });
     }
 
-    const provider = getOpenproviderClient();
+    const provider = await getOpenproviderClient();
     try {
       const response = await provider.fetchApi(`/ssl/approver-emails?domain=${encodeURIComponent(domain)}`);
       const emails = response.data?.emails || response.data || [];
@@ -117,7 +120,7 @@ sslRouter.post('/configure', requireFirebaseAuth, async (req: any, res: Response
     let providerError = null;
 
     try {
-      const provider = getOpenproviderClient();
+      const provider = await getOpenproviderClient();
       const opResponse = await provider.fetchApi('/ssl/orders', {
         method: 'POST',
         body: JSON.stringify({
@@ -176,7 +179,7 @@ sslRouter.post('/resend-dcv', requireFirebaseAuth, async (req: any, res: Respons
     }
 
     if (sslData.providerOrderId && !String(sslData.providerOrderId).startsWith('sim_')) {
-      const provider = getOpenproviderClient();
+      const provider = await getOpenproviderClient();
       await provider.fetchApi(`/ssl/orders/${sslData.providerOrderId}/resend-approver-email`, {
         method: 'POST'
       });

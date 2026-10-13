@@ -16,6 +16,8 @@ export function DomainPricingModule() {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setPricing(data);
       setLoading(false);
+    }, () => {
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);

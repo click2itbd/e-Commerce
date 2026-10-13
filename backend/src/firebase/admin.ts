@@ -1,4 +1,4 @@
-import { initializeApp, getApps, cert } from 'firebase-admin';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import fs from 'fs';
@@ -46,43 +46,74 @@ export function validateServiceAccountStructure(serviceAccount: any): void {
 }
 
 export function getAdminDb() {
-  if (initializationFailed) {
-    throw new Error('Firebase Admin SDK is not available. Configure FIREBASE_SERVICE_ACCOUNT_KEY.');
+  if (initializationFailed && !adminDb) {
+    throw new Error('Firebase Admin SDK is not available.');
   }
 
   if (!adminDb) {
-    if (getApps().length === 0) {
+    let app = getApps()[0];
+    if (!app) {
       const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.trim();
+      let serviceAccount: any = null;
 
       if (serviceAccountKey) {
-        try {
-          let serviceAccount: any;
-          if (serviceAccountKey.endsWith('.json') || serviceAccountKey.startsWith('.') || serviceAccountKey.includes('/') || serviceAccountKey.includes('\\')) {
-            // It's a file path. Resolve it relative to backend root
-            const absolutePath = path.isAbsolute(serviceAccountKey)
-              ? serviceAccountKey
-              : path.resolve(__dirname, '..', '..', serviceAccountKey);
-            console.log('[Firebase Admin] Reading service account key from file:', absolutePath);
-            const fileContent = fs.readFileSync(absolutePath, 'utf8');
-            serviceAccount = JSON.parse(fileContent);
+        if (serviceAccountKey.endsWith('.json') || serviceAccountKey.startsWith('.') || serviceAccountKey.includes('/') || serviceAccountKey.includes('\\')) {
+          // It's a file path. Check candidate locations
+          const candidatePaths = [
+            path.isAbsolute(serviceAccountKey) ? serviceAccountKey : path.resolve(process.cwd(), serviceAccountKey),
+            path.resolve(__dirname, '..', '..', serviceAccountKey),
+            path.resolve(__dirname, '..', '..', '..', serviceAccountKey),
+          ];
+          const foundPath = candidatePaths.find(p => fs.existsSync(p));
+          if (foundPath) {
+            try {
+              console.log('[Firebase Admin] Reading service account key from file:', foundPath);
+              const fileContent = fs.readFileSync(foundPath, 'utf8');
+              serviceAccount = JSON.parse(fileContent);
+              validateServiceAccountStructure(serviceAccount);
+            } catch (err) {
+              console.warn('[Firebase Admin] Could not parse service account file:', err);
+              serviceAccount = null;
+            }
           } else {
-            // It's raw JSON string
-            serviceAccount = JSON.parse(serviceAccountKey);
+            console.log(`[Firebase Admin] Service account file "${serviceAccountKey}" not on disk. Using cloud environment credentials.`);
           }
-          validateServiceAccountStructure(serviceAccount);
-          initializeApp({ credential: cert(serviceAccount) });
-        } catch (error) {
+        } else {
+          // Raw JSON string
+          try {
+            serviceAccount = JSON.parse(serviceAccountKey);
+            validateServiceAccountStructure(serviceAccount);
+          } catch (err) {
+            console.warn('[Firebase Admin] Invalid JSON in FIREBASE_SERVICE_ACCOUNT_KEY:', err);
+            serviceAccount = null;
+          }
+        }
+      }
+
+      try {
+        if (serviceAccount) {
+          app = initializeApp({ credential: cert(serviceAccount) });
+        } else {
+          const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || 'gen-lang-client-0990631330';
+          app = initializeApp({ projectId });
+        }
+      } catch (error: any) {
+        if (getApps().length > 0) {
+          app = getApps()[0];
+        } else {
           initializationFailed = true;
           console.error('[Firebase Admin] Failed to initialize Firebase Admin SDK:', error);
-          throw new Error('Invalid Firebase service account key. Check FIREBASE_SERVICE_ACCOUNT_KEY format.');
+          throw new Error('Failed to initialize Firebase Admin SDK.');
         }
-      } else {
-        initializationFailed = true;
-        console.warn('[Firebase Admin] FIREBASE_SERVICE_ACCOUNT_KEY is not set. Firestore Admin features will be unavailable.');
       }
     }
-    const dbId = process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID;
-    adminDb = dbId ? getFirestore(dbId) : getFirestore();
+
+    const dbId = process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || 'ai-studio-422fbad2-d827-4e69-8599-aed85390d277';
+    try {
+      adminDb = getFirestore(app, dbId);
+    } catch {
+      adminDb = getFirestore(app);
+    }
   }
   return adminDb;
 }
@@ -90,15 +121,15 @@ export function getAdminDb() {
 export function getAdminAuth() {
   getAdminDb();
   if (!adminAuth) {
-    adminAuth = getAuth();
+    const app = getApps()[0];
+    adminAuth = app ? getAuth(app) : getAuth();
   }
   return adminAuth;
 }
 
 export function isAdminDbAvailable(): boolean {
   if (initializationFailed) return false;
-  const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.trim();
-  return Boolean(key && key.length > 10);
+  return Boolean(adminDb || getApps().length > 0);
 }
 
 export async function getAdminDocument(collection: string, docId: string) {

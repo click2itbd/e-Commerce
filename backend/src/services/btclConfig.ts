@@ -66,6 +66,7 @@ export async function resolveDomainProvider(
     domainApiKey?: string;
     openproviderPassword?: string;
     openproviderSandbox?: boolean;
+    openproviderDefaultHandle?: string;
   }
 ): Promise<{ provider: IDomainProvider; viaBtcl: boolean }> {
   if (isBdDomain(domain)) {

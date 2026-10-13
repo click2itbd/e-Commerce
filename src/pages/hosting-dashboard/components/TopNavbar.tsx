@@ -88,6 +88,8 @@ export function TopNavbar({ state }) {
         return merged;
       });
       setNotifLoading(false);
+    }, (err) => {
+      setNotifLoading(false);
     }));
 
     // Domain orders
@@ -110,7 +112,7 @@ export function TopNavbar({ state }) {
           return bTime - aTime;
         }).slice(0, 15);
       });
-    }));
+    }, () => {}));
 
     // Support tickets (hosting support)
     const ticketsQ = query(collection(db, 'tickets'), orderBy('createdAt', 'desc'), limit(4));
@@ -132,7 +134,7 @@ export function TopNavbar({ state }) {
           return bTime - aTime;
         }).slice(0, 15);
       });
-    }));
+    }, () => {}));
 
     return () => unsubs.forEach(u => u());
   }, []);

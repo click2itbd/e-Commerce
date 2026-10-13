@@ -19,18 +19,19 @@ export class OpenproviderDomainProvider implements IDomainProvider {
   private authRequest: Promise<string> | null = null;
   private readonly tldPricingCache = new Map<string, { value: TldPricingResult; expiresAt: number }>();
 
-  // You will need an Openprovider Customer Handle to register domains.
-  // E.g., 'SR000000-EA'
-  private readonly defaultHandle = process.env.OPENPROVIDER_DEFAULT_HANDLE || '';
+  // Openprovider Customer Handle to register domains (e.g. 'SR000000-EA')
+  private defaultHandle: string;
 
   // Circuit breaker state to avoid hanging when Openprovider API is unreachable
   private static circuitOpenUntil: number = 0;
   private static consecutiveFailures: number = 0;
 
-  constructor(username: string, passwordHash: string, isSandbox: boolean = true) {
+  constructor(username: string, passwordHash: string, isSandbox: boolean = false, defaultHandle: string = '') {
     this.username = username;
     this.passwordHash = passwordHash;
+    // Default to production Openprovider API (for cp.openprovider.eu members)
     this.baseUrl = isSandbox ? 'https://api.cte.openprovider.eu/v1' : 'https://api.openprovider.eu/v1';
+    this.defaultHandle = defaultHandle || process.env.OPENPROVIDER_DEFAULT_HANDLE || '';
   }
 
   private async fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 12000): Promise<Response> {
@@ -71,11 +72,12 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     }
 
     if (!this.username || !this.passwordHash) {
-      throw new Error('Openprovider credentials are not configured.');
+      throw new Error('Openprovider credentials are not configured. Please enter your Username and Password/Hash in Domain Registrars settings.');
     }
 
     const authRequest = (async () => {
-      const response = await this.fetchWithTimeout(`${this.baseUrl}/auth/login`, {
+      // 1. First attempt with provided password string
+      let response = await this.fetchWithTimeout(`${this.baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -84,10 +86,40 @@ export class OpenproviderDomainProvider implements IDomainProvider {
         })
       }, 15000);
 
-      const result: any = await response.json();
-      const token = result.data?.token;
+      let result: any = await response.json().catch(() => ({}));
+      let token = result.data?.token;
+
+      // 2. If login failed with plain text and password isn't already 32-char hex, try MD5 hash
+      if ((!response.ok || (result.code !== undefined && result.code !== 0) || !token) && this.passwordHash.length !== 32) {
+        try {
+          const crypto = await import('node:crypto');
+          const md5Password = crypto.createHash('md5').update(this.passwordHash).digest('hex');
+          const md5Response = await this.fetchWithTimeout(`${this.baseUrl}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: this.username,
+              password: md5Password
+            })
+          }, 15000);
+
+          const md5Result: any = await md5Response.json().catch(() => ({}));
+          if (md5Response.ok && (md5Result.code === undefined || md5Result.code === 0) && md5Result.data?.token) {
+            response = md5Response;
+            result = md5Result;
+            token = md5Result.data.token;
+          }
+        } catch {
+          // ignore MD5 attempt error and fall through to main error handling
+        }
+      }
+
       if (!response.ok || (result.code !== undefined && result.code !== 0) || typeof token !== 'string' || !token) {
-        throw new Error(`Openprovider Auth Failed: ${result.desc || 'Unknown error'}`);
+        const desc = result.desc || 'Authentication failed';
+        if (/ip/i.test(desc) || /not allowed|whitelist|unauthorized/i.test(desc)) {
+          throw new Error(`Openprovider IP Not Authorized: Please whitelist server IP (34.34.254.195) in your Openprovider Control Panel at https://cp.openprovider.eu/ (Account -> Security / API settings). Details: ${desc}`);
+        }
+        throw new Error(`Openprovider Auth Failed: ${desc}`);
       }
 
       this.token = token;
@@ -105,7 +137,7 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     }
   }
 
-  public async fetchApi(endpoint: string, options: RequestInit = {}): Promise<any> {
+  public async fetchApi(endpoint: string, options: RequestInit = {}, isRetry: boolean = false): Promise<any> {
     const token = await this.authenticate();
     const headers = {
       'Content-Type': 'application/json',
@@ -118,12 +150,24 @@ export class OpenproviderDomainProvider implements IDomainProvider {
       headers
     }, 15000);
 
-    const result: any = await response.json();
+    const result: any = await response.json().catch(() => ({}));
     if (result && typeof result === 'object') {
       Object.defineProperty(result, '_providerHttpStatus', { value: response.status });
     }
+
+    if (response.status === 401 && !isRetry) {
+      // Invalidate expired/rejected token and retry once
+      this.token = null;
+      this.tokenExpiry = 0;
+      return this.fetchApi(endpoint, options, true);
+    }
+
     if (!response.ok || (result.code !== undefined && result.code !== 0)) {
-      const error: any = new Error(result.desc || `Openprovider API Error: ${response.status}`);
+      const desc = result.desc || `Openprovider API Error: ${response.status}`;
+      if (/ip/i.test(desc) || /not allowed|whitelist/i.test(desc)) {
+        throw new Error(`Openprovider IP Not Authorized: Please whitelist server IP (34.34.254.195) in your Openprovider Control Panel at https://cp.openprovider.eu/`);
+      }
+      const error: any = new Error(desc);
       error.providerHttpStatus = response.status;
       error.providerCode = result.code === undefined ? undefined : String(result.code);
       error.responseReceivedAt = new Date().toISOString();
@@ -214,20 +258,29 @@ export class OpenproviderDomainProvider implements IDomainProvider {
         getOpPrice('restore')
       ]);
       
-      if (regPrice.currency !== 'USD'
-        || renewPrice.currency !== regPrice.currency
-        || transferPrice.currency !== regPrice.currency
-        || restorePrice.currency !== regPrice.currency) {
-        throw new Error(`Unsupported or inconsistent Openprovider reseller currency for .${cleanTld}`);
+      const currency = regPrice.currency;
+      let regPriceUsd = regPrice.price;
+      let renewPriceUsd = renewPrice.price;
+      let transferPriceUsd = transferPrice.price;
+      let restorePriceUsd = restorePrice.price;
+
+      if (currency === 'EUR') {
+        const eurToUsd = 1.08;
+        regPriceUsd = Math.round((regPrice.price * eurToUsd) * 100) / 100;
+        renewPriceUsd = Math.round((renewPrice.price * eurToUsd) * 100) / 100;
+        transferPriceUsd = Math.round((transferPrice.price * eurToUsd) * 100) / 100;
+        restorePriceUsd = Math.round((restorePrice.price * eurToUsd) * 100) / 100;
+      } else if (currency !== 'USD') {
+        throw new Error(`Unsupported Openprovider reseller currency (${currency}) for .${cleanTld}`);
       }
 
       const pricing = {
         tld: `.${cleanTld}`,
-        currency: regPrice.currency,
-        registrationPrice: regPrice.price,
-        renewalPrice: renewPrice.price,
-        transferPrice: transferPrice.price,
-        restorePrice: restorePrice.price,
+        currency: 'USD',
+        registrationPrice: regPriceUsd,
+        renewalPrice: renewPriceUsd,
+        transferPrice: transferPriceUsd,
+        restorePrice: restorePriceUsd,
       };
       this.tldPricingCache.set(cleanTld, { value: pricing, expiresAt: Date.now() + 60 * 60 * 1000 });
       return pricing;
@@ -264,17 +317,39 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     const contactHandle = request.contactId && /^[A-Z0-9]+-[A-Z0-9]+$/i.test(request.contactId)
       ? request.contactId
       : '';
-    const handle = contactHandle || this.defaultHandle;
+    let handle = contactHandle || this.defaultHandle;
 
     let requestStartedAt: string | undefined;
     let responseReceivedAt: string | undefined;
     let providerHttpStatus: number | undefined;
     try {
+      await this.authenticate();
+
       if (!handle) {
-        throw new Error('Set OPENPROVIDER_DEFAULT_HANDLE or provide a valid Openprovider contact handle before registering domains.');
+        if (request.contact && (request.contact.email || request.contact.firstName || request.contact.lastName)) {
+          try {
+            handle = await this.createCustomerHandle(request.contact);
+          } catch (e: any) {
+            console.warn('[Openprovider] Auto customer handle creation failed:', e.message);
+          }
+        }
       }
 
-      await this.authenticate();
+      if (!handle) {
+        try {
+          const custRes = await this.fetchApi('/customers?limit=1');
+          const firstHandle = custRes?.data?.results?.[0]?.handle || custRes?.data?.[0]?.handle;
+          if (firstHandle) {
+            handle = firstHandle;
+          }
+        } catch (e: any) {
+          console.warn('[Openprovider] Customer handle lookup failed:', e.message);
+        }
+      }
+
+      if (!handle) {
+        throw new Error('Openprovider requires a Customer Handle (e.g. JD000000-EA). Please set Default Handle in Domain Registrars settings or create a customer profile in https://cp.openprovider.eu/.');
+      }
       requestStartedAt = new Date().toISOString();
       console.info('[Openprovider] Domain registration request started', {
         domain: request.domain,
@@ -395,18 +470,30 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     const cleanDomain = domain.trim().toLowerCase();
     const domainObj = this.splitDomain(cleanDomain);
     const cleanAuthCode = (authCode || '').trim();
-    const handle = this.defaultHandle;
+    let handle = this.defaultHandle;
 
     let requestStartedAt: string | undefined;
     let responseReceivedAt: string | undefined;
     let providerHttpStatus: number | undefined;
     let providerCode: string | undefined;
     try {
+      await this.authenticate();
+
       if (!handle) {
-        throw new Error('Set OPENPROVIDER_DEFAULT_HANDLE before transferring domains.');
+        try {
+          const custRes = await this.fetchApi('/customers?limit=1');
+          const firstHandle = custRes?.data?.results?.[0]?.handle || custRes?.data?.[0]?.handle;
+          if (firstHandle) {
+            handle = firstHandle;
+          }
+        } catch (e: any) {
+          console.warn('[Openprovider] Customer handle lookup failed for transfer:', e.message);
+        }
       }
 
-      await this.authenticate();
+      if (!handle) {
+        throw new Error('Openprovider requires a Customer Handle (e.g. JD000000-EA). Please set Default Handle in Domain Registrars settings or create a customer profile in https://cp.openprovider.eu/.');
+      }
       requestStartedAt = new Date().toISOString();
       console.info('[Openprovider] Domain transfer request started', {
         domain: cleanDomain,
@@ -489,7 +576,17 @@ export class OpenproviderDomainProvider implements IDomainProvider {
   }
 
   async getSuggestions(domain: string): Promise<string[]> {
-    return [];
+    try {
+      const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
+      const baseName = clean.split('.')[0];
+      if (!baseName || baseName.length < 2) return [];
+      const popularTlds = ['com', 'net', 'org', 'xyz', 'io', 'co', 'store', 'online', 'info'];
+      const candidates = popularTlds.map(tld => `${baseName}.${tld}`).filter(d => d !== clean);
+      const checks = await this.checkAvailability(candidates);
+      return checks.filter(c => c.available).map(c => c.domain);
+    } catch {
+      return [];
+    }
   }
 
 
@@ -662,7 +759,24 @@ export class OpenproviderDomainProvider implements IDomainProvider {
   }
 
   async getWhois(domain: string): Promise<WhoisResult> {
-    return { domain, error: 'Whois not implemented yet' };
+    const cleanDomain = domain.trim().toLowerCase();
+    const domainObj = this.splitDomain(cleanDomain);
+    try {
+      await this.authenticate();
+      const res = await this.fetchApi(`/domains/whois?domain.name=${domainObj.name}&domain.extension=${domainObj.extension}`);
+      const rawWhois = res.data?.whois || res.data?.raw || JSON.stringify(res.data, null, 2);
+      return {
+        domain: cleanDomain,
+        raw: rawWhois,
+        registrar: res.data?.registrar || 'Openprovider',
+        createdDate: res.data?.created_date,
+        expiryDate: res.data?.expiration_date,
+        status: res.data?.status,
+        nameServers: res.data?.name_servers,
+      };
+    } catch (error: any) {
+      return { domain: cleanDomain, error: error.message };
+    }
   }
 
   async setNameservers(domain: string, ns0?: string, ns1?: string, ns2?: string, ns3?: string): Promise<{ success: boolean; error?: string }> {
@@ -705,33 +819,44 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     }
   }
 
-  async testConnection(): Promise<{ success: boolean; code: string; message: string }> {
+  async testConnection(): Promise<{ success: boolean; code: string; message: string; balance?: number; currency?: string; environment?: string; serverIp?: string }> {
     try {
       await this.authenticate();
+      const isSandbox = this.baseUrl.includes('cte');
+      const balanceRes = await this.getBalance();
       return {
         success: true,
         code: '200',
-        message: `Successfully connected to Openprovider${this.baseUrl.includes('cte') ? ' Sandbox' : ''}.`,
+        message: `Successfully connected to Openprovider ${isSandbox ? 'CTE Sandbox' : 'Production (cp.openprovider.eu)'}.`,
+        environment: isSandbox ? 'sandbox' : 'production',
+        balance: balanceRes.success ? balanceRes.balance : undefined,
+        currency: balanceRes.success ? balanceRes.currency : undefined,
+        serverIp: '34.34.254.195',
       };
     } catch (error: any) {
-      return { success: false, code: 'AUTH_FAILED', message: error.message };
+      return { success: false, code: 'AUTH_FAILED', message: error.message, serverIp: '34.34.254.195' };
     }
   }
 
   async getBalance(): Promise<{ success: boolean; balance?: number; currency?: string; error?: string }> {
     try {
-      // In Openprovider v1, balance is typically under reseller or finance endpoints.
-      // We'll attempt a common endpoint or fallback to a dummy response for Sandbox.
-      // Try fetching reseller info:
-      const response = await this.fetchApi('/resellers');
-      const data = response.data?.[0]; // Assuming it returns a list of resellers
-      
-      // If the API returns the balance in the reseller object:
-      if (data && data.balance !== undefined) {
-        return { success: true, balance: data.balance, currency: data.currency || 'USD' };
-      }
-      
-      // Fallback dummy balance for Sandbox mode to show the widget works
+      await this.authenticate();
+      try {
+        const response = await this.fetchApi('/resellers');
+        const results = Array.isArray(response.data?.results) ? response.data.results : (Array.isArray(response.data) ? response.data : [response.data]);
+        const data = results[0];
+        if (data && data.balance !== undefined) {
+          return { success: true, balance: Number(data.balance), currency: data.currency || 'EUR' };
+        }
+      } catch {}
+
+      try {
+        const response = await this.fetchApi('/resellers/current');
+        if (response?.data?.balance !== undefined) {
+          return { success: true, balance: Number(response.data.balance), currency: response.data.currency || 'EUR' };
+        }
+      } catch {}
+
       return { success: false, error: 'Openprovider did not return a reseller balance.' };
     } catch (error: any) {
       return { success: false, error: error.message };

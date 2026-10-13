@@ -11,7 +11,8 @@ import { doc, getDoc, addDoc, updateDoc, setDoc, collection, query, where, order
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { compressImage } from '../lib/imageCompressor';
 import { toast } from 'react-hot-toast';
-import { User, Mail, Globe, Phone, MapPin, Building, Save, Camera, Loader2, ShoppingBag, Heart, Package, Clock, CheckCircle2, XCircle, ChevronRight, Tag, MessageSquare, Image as ImageIcon, CalendarPlus, Lock, Shield, RotateCcw, Truck, Box, Check, Star, Plus } from 'lucide-react';
+import { User, Mail, Globe, Phone, MapPin, Building, Save, Camera, Loader2, ShoppingBag, Heart, Package, Clock, CheckCircle2, XCircle, ChevronRight, Tag, MessageSquare, Image as ImageIcon, CalendarPlus, Lock, Shield, RotateCcw, Truck, Box, Check, Star, Plus, Bell } from 'lucide-react';
+import { PriceAlertsTab } from '../components/PriceAlertsTab';
 import { SEO } from '../components/SEO';
 import { formatCurrency } from '../lib/utils';
 import { generatePDF } from '../lib/pdf';
@@ -357,6 +358,7 @@ export const Profile: React.FC = () => {
                         baseTabs.push({ id: 'pre-orders', label: 'My Pre-Orders', icon: CalendarPlus });
     // 'saved-builds' is in baseTabs already
                         baseTabs.push({ id: 'wishlist', label: 'My Wishlist', icon: Heart });
+                        baseTabs.push({ id: 'price-alerts', label: 'Price Alerts', icon: Bell });
                      }
                      const hostingTabs = [
                        { id: 'my_domains', label: 'My Services', icon: Globe },
@@ -817,6 +819,13 @@ export const Profile: React.FC = () => {
                       ))}
                     </div>
                   )}
+                </div>
+             )}
+
+             {/* Price Alerts Tab */}
+             {activeTab === 'price-alerts' && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
+                  <PriceAlertsTab />
                 </div>
              )}
              

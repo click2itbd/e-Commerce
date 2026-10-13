@@ -180,19 +180,21 @@ adminRouter.post('/domain/test-connection', async (req: any, res: Response) => {
       const username = config?.username || process.env.OPENPROVIDER_USERNAME;
       const password = config?.password || process.env.OPENPROVIDER_PASSWORD;
       const isSandbox = config?.isSandbox !== undefined
-        ? config.isSandbox
+        ? (config.isSandbox === true)
         : process.env.OPENPROVIDER_SANDBOX_MODE === 'true';
+      const defaultHandle = config?.defaultHandle || process.env.OPENPROVIDER_DEFAULT_HANDLE || '';
 
       if (!username || !password) {
-        return res.json({ success: false, code: 'NOT_CONFIGURED', message: 'Openprovider credentials are missing.' });
+        return res.json({ success: false, code: 'NOT_CONFIGURED', message: 'Openprovider credentials are missing. Please enter your Username and Password.', serverIp: '34.34.254.195' });
       }
 
-      const provider = new OpenproviderDomainProvider(username, password, isSandbox);
+      const provider = new OpenproviderDomainProvider(username, password, isSandbox, defaultHandle);
       
       try {
-        return res.json(await provider.testConnection());
+        const testRes = await provider.testConnection();
+        return res.json({ ...testRes, serverIp: '34.34.254.195' });
       } catch (e: any) {
-        return res.json({ success: false, code: 'AUTH_FAILED', message: e.message || 'Authentication failed' });
+        return res.json({ success: false, code: 'AUTH_FAILED', message: e.message || 'Authentication failed', serverIp: '34.34.254.195' });
       }
     }
 
