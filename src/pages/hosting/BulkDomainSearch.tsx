@@ -6,6 +6,7 @@ import { searchDomain } from '../../services/domainApi';
 import { useCart } from '../../context/CartContext';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '../../lib/utils';
+import { SEO } from '../../components/SEO';
 
 export const BulkDomainSearch = () => {
   const navigate = useNavigate();
@@ -118,6 +119,12 @@ export const BulkDomainSearch = () => {
 
   return (
     <Layout>
+      <SEO
+        title="Bulk Domain Search & Registration in Bangladesh | Click2IT"
+        description="Search up to 20 domains at once and register multiple domain names with ease. Protect your brand across .com, .net, .org, and more at Click2IT."
+        keywords="bulk domain search, mass domain check bd, register multiple domains, cheap bulk domains"
+        canonical="https://click2itbd.com/domain/bulk"
+      />
       <div className="bg-[#081621] text-white pt-24 pb-16">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-6">Bulk Domain Search</h1>

@@ -23,10 +23,42 @@ export class OpenproviderDomainProvider implements IDomainProvider {
   // E.g., 'SR000000-EA'
   private readonly defaultHandle = process.env.OPENPROVIDER_DEFAULT_HANDLE || '';
 
+  // Circuit breaker state to avoid hanging when Openprovider API is unreachable
+  private static circuitOpenUntil: number = 0;
+  private static consecutiveFailures: number = 0;
+
   constructor(username: string, passwordHash: string, isSandbox: boolean = true) {
     this.username = username;
     this.passwordHash = passwordHash;
     this.baseUrl = isSandbox ? 'https://api.cte.openprovider.eu/v1' : 'https://api.openprovider.eu/v1';
+  }
+
+  private async fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 3500): Promise<Response> {
+    if (OpenproviderDomainProvider.circuitOpenUntil > Date.now()) {
+      throw new Error('Openprovider API is temporarily unreachable (circuit breaker active).');
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      OpenproviderDomainProvider.consecutiveFailures = 0;
+      return response;
+    } catch (err: any) {
+      OpenproviderDomainProvider.consecutiveFailures++;
+      const isTimeout = err.name === 'AbortError' || err.code === 'UND_ERR_CONNECT_TIMEOUT' || String(err.message || '').includes('fetch failed');
+      if (OpenproviderDomainProvider.consecutiveFailures >= 2 || isTimeout) {
+        OpenproviderDomainProvider.circuitOpenUntil = Date.now() + 60_000;
+        console.warn(`[Openprovider] Circuit breaker tripped for 60s due to connection failure: ${err.message}`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private async authenticate(): Promise<string> {
@@ -43,14 +75,14 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     }
 
     const authRequest = (async () => {
-      const response = await fetch(`${this.baseUrl}/auth/login`, {
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: this.username,
           password: this.passwordHash
         })
-      });
+      }, 3500);
 
       const result: any = await response.json();
       const token = result.data?.token;
@@ -81,10 +113,10 @@ export class OpenproviderDomainProvider implements IDomainProvider {
       ...options.headers
     };
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}${endpoint}`, {
       ...options,
       headers
-    });
+    }, 4000);
 
     const result: any = await response.json();
     if (result && typeof result === 'object') {

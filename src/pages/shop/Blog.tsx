@@ -3,7 +3,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Link } from 'react-router-dom';
 import { Calendar, User, ArrowRight, BookOpen } from 'lucide-react';
-import { Helmet } from 'react-helmet-async';
+import { SEO } from '../../components/SEO';
 
 interface BlogPost {
   id: string;
@@ -43,9 +43,12 @@ export default function Blog() {
 
   return (
     <div className="bg-gray-50 min-h-screen py-12">
-      <Helmet>
-        <title>Blog - Latest News & Articles</title>
-      </Helmet>
+      <SEO
+        title="Tech News, Guides & Insights Blog | CLICK2IT"
+        description="Read the latest tech news, PC building tips, hardware reviews, and buying guides from the experts at CLICK2IT."
+        keywords="tech blog bd, pc hardware reviews, computer news bangladesh, pc building tips"
+        canonical="https://click2itbd.com/blog"
+      />
 
       <div className="container mx-auto px-2 sm:px-4 max-w-7xl">
         <div className="text-center mb-16">

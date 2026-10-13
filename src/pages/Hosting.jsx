@@ -77,9 +77,9 @@ export default function Hosting() {
   return (
     <Layout fullWidth>
       <SEO 
-        title="Premium Web Hosting, WordPress Cloud & VPS Servers"
-        description="Fast, secure, and reliable web hosting, managed WordPress cloud, and KVM VPS servers with premium connectivity."
-        keywords="web hosting, cloud server, VPS, shared hosting, wordpress cloud bd, cheap hosting bd"
+        title="High-Speed NVMe Web Hosting, VPS & Domain in Bangladesh | Click2IT"
+        description="Fast, reliable NVMe cPanel web hosting, WordPress cloud, KVM VPS servers and domain registration in Bangladesh with 99.9% uptime, BDIX speed and 24/7 support."
+        keywords="web hosting bangladesh, cpanel hosting bd, nvme hosting, buy domain bd, cheap vps bd, best hosting provider bangladesh, wordpress cloud bd"
       />
       {/* 1. Hero — dark blue bg, domain search, 3D server graphic */}
       <HeroSection hasDomainInCart={hasDomainInCart} bundleDiscount={bundleDiscount} />

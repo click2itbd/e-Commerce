@@ -9,6 +9,7 @@ import { db } from '../../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { useCart } from '../../context/CartContext';
 import toast from 'react-hot-toast';
+import { SEO } from '../../components/SEO';
 
 export default function DomainSearchResults() {
   const [searchParams] = useSearchParams();
@@ -212,6 +213,11 @@ export default function DomainSearchResults() {
 
   return (
     <Layout fullWidth>
+      <SEO
+        title={query ? `Domain Search Results for "${query}" | Click2IT` : "Domain Search Results | Click2IT"}
+        description="Search domain availability and register your ideal domain at Click2IT."
+        noindex={true}
+      />
       <HostingPromoBanner />
       <div className="bg-[#f5f7f9] min-h-screen py-6 md:py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

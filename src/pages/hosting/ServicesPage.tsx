@@ -72,8 +72,10 @@ const ServicesPage = () => {
   return (
     <Layout fullWidth>
       <SEO 
-        title={`Enterprise Cloud Web Hosting & Infrastructure Services - ${settings.brandName}`} 
-        description={`Discover high-speed cPanel shared hosting, NVMe cloud servers, reseller hosting, and managed domains at ${settings.brandName}.`} 
+        title={`Web Hosting, Cloud VPS & Domain Infrastructure Services - ${settings.brandName}`} 
+        description={`Discover high-speed cPanel shared hosting, NVMe cloud servers, reseller hosting, and managed domains at ${settings.brandName} with 99.9% uptime and BDIX connectivity.`} 
+        keywords="web hosting services, cloud infrastructure bd, cpanel hosting dhaka, reseller hosting bangladesh, bdix web hosting"
+        canonical="https://click2itbd.com/services"
       />
 
       <PageHeader 

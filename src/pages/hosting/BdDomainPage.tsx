@@ -121,8 +121,10 @@ export default function BdDomainPage() {
   return (
     <Layout fullWidth={true}>
       <SEO 
-        title="Apply for .BD Domains in Bangladesh"
-        description="Apply for your .com.bd, .net.bd, and other BTCL domains easily. We check availability manually and manage the paperwork."
+        title=".BD Domain Registration & BTCL Approval | Click2IT"
+        description="Register official .bd, .com.bd, .net.bd, .edu.bd, .org.bd domains easily. Fast BTCL verification, manual paperwork processing, and dedicated support in Bangladesh."
+        keywords="bd domain registration, com bd domain, btcl domain registration, buy bd domain bangladesh, .bd domain price, official bd domain"
+        canonical="https://click2itbd.com/domain/bd"
       />
       
       {/* Hero Section with Bangladesh Background */}

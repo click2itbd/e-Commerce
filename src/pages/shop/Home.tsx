@@ -144,9 +144,10 @@ export const Home: React.FC = () => {
   return (
     <Layout>
       <SEO
-        title="Shop Electronics & PC Components"
-        description="Buy the best electronics, PC components, laptops, and accessories online at unbeatable prices."
-        keywords="pc components, electronics, laptops, buy online, click2it shop"
+        title="Leading Computer Shop, Laptop & Custom PC Builder in BD | CLICK2IT"
+        description="Buy original laptops, desktop computers, gaming PC components, monitors, CCTV and gadgets at best price in Bangladesh from CLICK2IT. Fast delivery and warranty."
+        keywords="computer shop bd, best tech shop bangladesh, laptop price bd, gaming pc build, pc components dhaka, buy computer online bd, click2it shop"
+        canonical="https://click2itbd.com/"
       />
       {/* Hero Section */}
       <HeroBanner />

@@ -59,9 +59,10 @@ export default function PricingPage() {
     <Layout fullWidth>
       <HostingPromoBanner />
       <SEO 
-        title="Hosting & Server Pricing Plans"
-        description="Transparent pricing for Shared cPanel Hosting, Managed WordPress Cloud, and KVM Cloud VPS."
-        keywords="hosting pricing, wordpress hosting bd, vps price bd, cheap cpanel hosting"
+        title="Web Hosting Plans & Pricing in Bangladesh | NVMe cPanel & VPS"
+        description="Affordable and transparent web hosting plans in Bangladesh. NVMe cPanel hosting, WordPress cloud, and KVM VPS servers with 99.9% uptime and 24/7 expert support."
+        keywords="hosting price in bangladesh, cheap web hosting bd, cpanel hosting package, best hosting company bangladesh, vps pricing bd"
+        canonical="https://click2itbd.com/pricing"
       />
 
       <PageHeader 

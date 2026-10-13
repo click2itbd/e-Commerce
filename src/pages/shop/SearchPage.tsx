@@ -10,6 +10,7 @@ import { Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PageLoader } from '../../components/Loading';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
+import { SEO } from '../../components/SEO';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -148,6 +149,11 @@ export const SearchPage: React.FC = () => {
 
   return (
     <Layout>
+      <SEO
+        title={q ? `Search results for "${q}" | CLICK2IT` : "Search Products | CLICK2IT"}
+        description={`Search products, laptops, components, and electronics at CLICK2IT.`}
+        noindex={true}
+      />
       <div className="bg-gray-50 min-h-screen pb-16">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 py-8">

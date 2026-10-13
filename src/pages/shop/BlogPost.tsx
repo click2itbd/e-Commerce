@@ -4,7 +4,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Calendar, User, ArrowLeft, Tag, Share2, Facebook, Twitter, Linkedin } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import { Helmet } from 'react-helmet-async';
+import { SEO } from '../../components/SEO';
 
 interface BlogPost {
   id: string;
@@ -76,12 +76,44 @@ export default function BlogPost() {
     ));
   };
 
+  const postUrl = `https://click2itbd.com/blog/${post.slug}`;
+  const articleSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    description: post.excerpt || post.title,
+    image: post.imageUrl ? [post.imageUrl] : ['https://click2itbd.com/logo.png'],
+    datePublished: post.createdAt,
+    dateModified: post.createdAt,
+    author: {
+      '@type': 'Person',
+      name: post.author || 'CLICK2IT Team'
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'CLICK2IT',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://click2itbd.com/logo.png'
+      }
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': postUrl
+    }
+  };
+
   return (
     <div className="bg-gray-50 min-h-screen py-10">
-      <Helmet>
-        <title>{`${post.title} - Blog`}</title>
-        {post.excerpt && <meta name="description" content={post.excerpt} />}
-      </Helmet>
+      <SEO
+        title={`${post.title} | CLICK2IT Blog`}
+        description={post.excerpt || `Read ${post.title} on CLICK2IT blog.`}
+        image={post.imageUrl || 'https://click2itbd.com/logo.png'}
+        url={postUrl}
+        canonical={postUrl}
+        type="article"
+        schema={[articleSchema]}
+      />
 
       <div className="container mx-auto px-2 sm:px-4 max-w-4xl">
         <Link to="/blog" className="inline-flex items-center gap-2 text-gray-500 hover:text-[#F97316] font-medium mb-8 transition-colors">

@@ -47,9 +47,10 @@ const DomainPage = () => {
   return (
     <Layout fullWidth>
       <SEO 
-        title="Register Domain Names"
-        description="Search and register your perfect domain name today. Best prices on .com, .net, .bd and more."
-        keywords="domain registration, buy domain, domain search, cheap domain"
+        title="Domain Registration in Bangladesh | Buy .COM, .NET at Best Price"
+        description="Search and register your domain name at lowest price in Bangladesh. Instant activation, free DNS management, WHOIS privacy protection, and 24/7 support at Click2IT."
+        keywords="domain registration bangladesh, buy domain bd, cheap domain name, .com domain price bd, click2it domain, website name bd"
+        canonical="https://click2itbd.com/domain"
       />
       
       <PageHeader 

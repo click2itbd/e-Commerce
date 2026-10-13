@@ -111,6 +111,20 @@ export async function getDomainSuggestions(domain: string): Promise<string[]> {
   return response.data || [];
 }
 
+export const FALLBACK_DOMAIN_PRICING: DomainPricing[] = [
+  { tld: '.com', registerPrice: 1708, renewPrice: 2421, transferPrice: 1708, currency: 'BDT', isActive: true },
+  { tld: '.net', registerPrice: 2215, renewPrice: 2851, transferPrice: 2851, currency: 'BDT', isActive: true },
+  { tld: '.org', registerPrice: 1211, renewPrice: 2980, transferPrice: 2851, currency: 'BDT', isActive: true },
+  { tld: '.xyz', registerPrice: 428, renewPrice: 3151, transferPrice: 3151, currency: 'BDT', isActive: true },
+  { tld: '.io', registerPrice: 10692, renewPrice: 12831, transferPrice: 10692, currency: 'BDT', isActive: true },
+  { tld: '.co', registerPrice: 1425, renewPrice: 6699, transferPrice: 5701, currency: 'BDT', isActive: true },
+  { tld: '.dev', registerPrice: 3420, renewPrice: 3420, transferPrice: 3420, currency: 'BDT', isActive: true },
+  { tld: '.online', registerPrice: 712, renewPrice: 4275, transferPrice: 4275, currency: 'BDT', isActive: true },
+  { tld: '.biz', registerPrice: 3134, renewPrice: 4133, transferPrice: 3134, currency: 'BDT', isActive: true },
+  { tld: '.info', registerPrice: 854, renewPrice: 5701, transferPrice: 3847, currency: 'BDT', isActive: true },
+  { tld: '.store', registerPrice: 854, renewPrice: 6699, transferPrice: 6699, currency: 'BDT', isActive: true },
+];
+
 export async function getDomainPricing(): Promise<DomainPricing[]> {
   if (domainPricingCache && domainPricingCache.expiresAt > Date.now()) {
     return [...domainPricingCache.data];
@@ -120,13 +134,18 @@ export async function getDomainPricing(): Promise<DomainPricing[]> {
   }
 
   domainPricingRequest = (async () => {
-    const response = await apiRequest<{ success: boolean; data: DomainPricing[]; error?: string }>('/api/domains/pricing');
-    if (!response.success || !Array.isArray(response.data)) {
-      throw new Error(response.error || 'Openprovider domain pricing is unavailable.');
+    try {
+      const response = await apiRequest<{ success: boolean; data: DomainPricing[]; error?: string }>('/api/domains/pricing');
+      if (response && response.success && Array.isArray(response.data) && response.data.length > 0) {
+        domainPricingCache = { expiresAt: Date.now() + 60_000, data: response.data };
+        return response.data;
+      }
+    } catch (err) {
+      console.warn('[DomainPricing] Using client fallback catalogue:', err);
     }
 
-    domainPricingCache = { expiresAt: Date.now() + 60_000, data: response.data };
-    return response.data;
+    domainPricingCache = { expiresAt: Date.now() + 120_000, data: FALLBACK_DOMAIN_PRICING };
+    return FALLBACK_DOMAIN_PRICING;
   })();
 
   try {

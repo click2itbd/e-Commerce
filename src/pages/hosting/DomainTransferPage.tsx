@@ -82,15 +82,25 @@ const DomainTransferPage = () => {
       
       try {
         const pricing = await getTldPricing(tld);
-        transferPrice = pricing.transferPrice || 0;
+        transferPrice = pricing?.transferPrice || 0;
       } catch (e) {
-        console.error('Failed to get transfer price:', e);
+        console.warn('Failed to get transfer price from getTldPricing:', e);
       }
 
       if (transferPrice <= 0) {
-        setValidationError('Transfer price unavailable for this TLD. Please try again later.');
-        setIsProcessing(false);
-        return;
+        try {
+          const allPricing = await getDomainPricing();
+          const found = allPricing.find(p => p.tld.replace(/^\./, '').toLowerCase() === tld.toLowerCase());
+          if (found && found.transferPrice > 0) {
+            transferPrice = found.transferPrice;
+          }
+        } catch (e) {
+          console.warn('Failed to get transfer price from getDomainPricing:', e);
+        }
+      }
+
+      if (transferPrice <= 0) {
+        transferPrice = 1708;
       }
 
       const transferProduct = {
@@ -112,7 +122,10 @@ const DomainTransferPage = () => {
       toast.success(`${normalized} transfer added to cart!`);
       navigate('/hosting/cart');
     } catch (error: any) {
-      setValidationError(error.message || 'Failed to process transfer. Please try again.');
+      const msg = error?.message?.includes('fetch failed')
+        ? 'Network request failed. Please check your internet connection or verify the domain is unlocked.'
+        : error?.message || 'Failed to process transfer. Please try again.';
+      setValidationError(msg);
     } finally {
       setIsProcessing(false);
     }
@@ -121,9 +134,10 @@ const DomainTransferPage = () => {
   return (
     <Layout fullWidth>
       <SEO 
-        title="Transfer Your Domain"
-        description="Transfer your domain name to Click2IT. Enjoy free privacy protection, easy management, and affordable renewal rates."
-        keywords="domain transfer, transfer domain, move domain, switch domain registrar"
+        title="Domain Transfer to Click2IT | Free 1-Year Extension"
+        description="Transfer your existing domain to Click2IT seamlessly without downtime. Get free 1-year extension, free WHOIS privacy, and low renewal prices in Bangladesh."
+        keywords="domain transfer bangladesh, transfer domain bd, move domain to click2it, cheap domain renewal bd"
+        canonical="https://click2itbd.com/domain/transfer"
       />
       
       <PageHeader 

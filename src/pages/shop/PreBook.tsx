@@ -5,6 +5,7 @@ import { addDoc, collection } from 'firebase/firestore';
 import { db, storage } from '../../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import toast from 'react-hot-toast';
+import { SEO } from '../../components/SEO';
 
 export const PreBook = () => {
   const [loading, setLoading] = useState(false);
@@ -60,6 +61,11 @@ export const PreBook = () => {
 
   return (
     <Layout>
+      <SEO
+        title="Pre-Book Upcoming Gadgets & PC Hardware | CLICK2IT"
+        description="Can't find your desired PC component or laptop in Bangladesh? Request a pre-booking at CLICK2IT and we will source and deliver it for you."
+        canonical="https://click2itbd.com/pre-book"
+      />
       <div className="bg-[#f8f9fa] min-h-screen py-10">
         <div className="container mx-auto px-2 sm:px-4 max-w-3xl">
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-10">

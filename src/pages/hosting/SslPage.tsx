@@ -5,6 +5,7 @@ import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '../../lib/utils';
+import { SEO } from '../../components/SEO';
 
 const SSL_PRODUCTS = [
   {
@@ -68,6 +69,12 @@ export const SslPage = () => {
 
   return (
     <Layout>
+      <SEO
+        title="SSL Certificates & Website Security in Bangladesh | Click2IT"
+        description="Secure your website with Sectigo & Comodo SSL certificates. Domain Validation, Wildcard, EV SSL with instant issuance, highest browser trust, and best price in BD."
+        keywords="ssl certificate bd, buy ssl bangladesh, wildcard ssl price bd, sectigo ssl, comodo ssl, https padlock"
+        canonical="https://click2itbd.com/ssl"
+      />
       {/* Hero Section */}
       <div className="bg-[#081621] text-white pt-24 pb-20">
         <div className="max-w-7xl mx-auto px-4 text-center">

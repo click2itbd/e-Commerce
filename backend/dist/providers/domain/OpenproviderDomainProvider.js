@@ -9,10 +9,40 @@ export class OpenproviderDomainProvider {
     // You will need an Openprovider Customer Handle to register domains.
     // E.g., 'SR000000-EA'
     defaultHandle = process.env.OPENPROVIDER_DEFAULT_HANDLE || '';
+    // Circuit breaker state to avoid hanging when Openprovider API is unreachable
+    static circuitOpenUntil = 0;
+    static consecutiveFailures = 0;
     constructor(username, passwordHash, isSandbox = true) {
         this.username = username;
         this.passwordHash = passwordHash;
         this.baseUrl = isSandbox ? 'https://api.cte.openprovider.eu/v1' : 'https://api.openprovider.eu/v1';
+    }
+    async fetchWithTimeout(url, options = {}, timeoutMs = 3500) {
+        if (OpenproviderDomainProvider.circuitOpenUntil > Date.now()) {
+            throw new Error('Openprovider API is temporarily unreachable (circuit breaker active).');
+        }
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(url, {
+                ...options,
+                signal: controller.signal,
+            });
+            OpenproviderDomainProvider.consecutiveFailures = 0;
+            return response;
+        }
+        catch (err) {
+            OpenproviderDomainProvider.consecutiveFailures++;
+            const isTimeout = err.name === 'AbortError' || err.code === 'UND_ERR_CONNECT_TIMEOUT' || String(err.message || '').includes('fetch failed');
+            if (OpenproviderDomainProvider.consecutiveFailures >= 2 || isTimeout) {
+                OpenproviderDomainProvider.circuitOpenUntil = Date.now() + 60_000;
+                console.warn(`[Openprovider] Circuit breaker tripped for 60s due to connection failure: ${err.message}`);
+            }
+            throw err;
+        }
+        finally {
+            clearTimeout(timer);
+        }
     }
     async authenticate() {
         if (this.token && Date.now() < this.tokenExpiry) {
@@ -25,14 +55,14 @@ export class OpenproviderDomainProvider {
             throw new Error('Openprovider credentials are not configured.');
         }
         const authRequest = (async () => {
-            const response = await fetch(`${this.baseUrl}/auth/login`, {
+            const response = await this.fetchWithTimeout(`${this.baseUrl}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     username: this.username,
                     password: this.passwordHash
                 })
-            });
+            }, 3500);
             const result = await response.json();
             const token = result.data?.token;
             if (!response.ok || (result.code !== undefined && result.code !== 0) || typeof token !== 'string' || !token) {
@@ -59,10 +89,10 @@ export class OpenproviderDomainProvider {
             'Authorization': `Bearer ${token}`,
             ...options.headers
         };
-        const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        const response = await this.fetchWithTimeout(`${this.baseUrl}${endpoint}`, {
             ...options,
             headers
-        });
+        }, 4000);
         const result = await response.json();
         if (result && typeof result === 'object') {
             Object.defineProperty(result, '_providerHttpStatus', { value: response.status });

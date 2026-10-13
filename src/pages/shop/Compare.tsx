@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { X, ShoppingCart, ChevronDown, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { SEO } from '../../components/SEO';
 
 export const ComparePage: React.FC = () => {
   const { compareItems, removeFromCompare, clearCompare } = useCompare();
@@ -33,6 +34,11 @@ export const ComparePage: React.FC = () => {
   if (compareItems.length === 0) {
     return (
       <Layout>
+        <SEO
+          title="Compare Products & Tech Specs | CLICK2IT"
+          description="Compare laptops, PC components, and gadgets side-by-side. Check detailed specifications, prices, and features to make the best buying decision at CLICK2IT."
+          canonical="https://click2itbd.com/compare"
+        />
         <div className="bg-gray-50 min-h-[60vh] flex flex-col items-center justify-center p-4">
           <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-200">
             <GitCompareIcon size={48} className="text-gray-300" />
@@ -61,6 +67,11 @@ export const ComparePage: React.FC = () => {
 
   return (
     <Layout>
+      <SEO
+        title="Compare Products & Tech Specs | CLICK2IT"
+        description="Compare laptops, PC components, and gadgets side-by-side. Check detailed specifications, prices, and features to make the best buying decision at CLICK2IT."
+        canonical="https://click2itbd.com/compare"
+      />
       <div className="bg-gray-50 min-h-screen py-4 sm:py-8">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           
