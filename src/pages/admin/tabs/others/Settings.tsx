@@ -112,7 +112,7 @@ export const Settings = () => {
     const payload: Record<string, any> = {};
     for (const [key, value] of Object.entries(apiKeys)) {
       if (secretFields.includes(key)) {
-        if (typeof value === 'string' && value.trim().length > 0 && !value.startsWith('â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢')) {
+        if (typeof value === 'string' && value.trim().length > 0 && !value.startsWith('••••') && !value.startsWith('****')) {
           payload[key] = value.trim();
         }
       } else {
@@ -124,7 +124,7 @@ export const Settings = () => {
 
   const isSecretConfigured = (fieldName: string) => {
     const value = apiKeys[fieldName];
-    return typeof value === 'string' && value.startsWith('â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢');
+    return typeof value === 'string' && (value.startsWith('••••') || value.startsWith('****'));
   };
 
   const handleResetCounters = async () => {

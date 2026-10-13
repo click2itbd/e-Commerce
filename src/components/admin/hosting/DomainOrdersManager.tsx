@@ -262,16 +262,16 @@ export const DomainOrdersManager: React.FC = () => {
                         {(order.registrationId || order.providerCode || order.providerHttpStatus || order.providerRequestStartedAt || order.fulfillmentError) && (
                           <span className="text-xs text-gray-500">
                             Openprovider {order.providerStatus || 'status not returned'}
-                            {order.registrationId && ` Â· ID ${order.registrationId}`}
-                            {(order.providerCode || order.providerHttpStatus) && ` Â· Code ${order.providerCode || '-'} / HTTP ${order.providerHttpStatus || '-'}`}
+                            {order.registrationId && ` · ID ${order.registrationId}`}
+                            {(order.providerCode || order.providerHttpStatus) && ` · Code ${order.providerCode || '-'} / HTTP ${order.providerHttpStatus || '-'}`}
                           </span>
                         )}
                         {(order.providerRequestStartedAt || order.fulfillmentError) && (
                           <span className="text-xs text-gray-500">
                             Request sent {order.providerRequestStartedAt ? new Date(order.providerRequestStartedAt).toLocaleString() : 'not recorded'}
                             {order.providerResponseReceivedAt
-                              ? ` Â· Response received ${new Date(order.providerResponseReceivedAt).toLocaleString()}`
-                              : ' Â· No response recorded'}
+                              ? ` · Response received ${new Date(order.providerResponseReceivedAt).toLocaleString()}`
+                              : ' · No response recorded'}
                           </span>
                         )}
                         {order.fulfillmentError && (

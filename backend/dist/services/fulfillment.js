@@ -425,7 +425,7 @@ async function fulfillHostingAccount(hostingAccountId, hostingData, actorUid) {
         await writeAuditLog(db, hostingAccountId, 'vps_fulfillment_queued', actorUid, hostingData.status, 'pending_setup', null, `Cloud VPS order acknowledged for ${vpsDetails.hostname || 'server'}. Waiting for admin dedicated IP allocation.`);
         if (contactEmail) {
             const vpsName = hostingData.name || hostingData.planId || 'Cloud VPS';
-            const subject = `ðŸš€ Cloud VPS Order Confirmed - ${vpsDetails.hostname || vpsName}`;
+            const subject = `🚀 Cloud VPS Order Confirmed - ${vpsDetails.hostname || vpsName}`;
             const html = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
           <h2 style="color: #4f46e5;">Cloud VPS Provisioning in Progress</h2>
@@ -498,9 +498,9 @@ async function fulfillHostingAccount(hostingAccountId, hostingData, actorUid) {
         await writeAuditLog(db, hostingAccountId, isSuccess ? 'fulfilled' : 'fulfillment_failed', actorUid, hostingData.status, isSuccess ? 'active' : 'failed', null, result?.error || null);
         if (isSuccess && contactEmail) {
             const fromName = await getSiteName();
-            let emailSubject = `ðŸŽ‰ Your Hosting Account is Ready - ${hostingData.domain}`;
+            let emailSubject = `🎉 Your Hosting Account is Ready - ${hostingData.domain}`;
             let heading = 'Welcome to Click2IT Cloud Hosting!';
-            let badgeText = 'âœ“ Hosting Account Active';
+            let badgeText = '✓ Hosting Account Active';
             let bodyHtml = `
         <p>Dear <strong>${customerName || 'Valued Customer'}</strong>,</p>
         <p>Congratulations! Your cPanel cloud hosting account for <strong>${hostingData.domain}</strong> is now active and ready for your website.</p>
@@ -509,7 +509,7 @@ async function fulfillHostingAccount(hostingAccountId, hostingData, actorUid) {
           <div style="font-size: 14px; margin-bottom: 6px;"><strong>Domain:</strong> ${hostingData.domain}</div>
           <div style="font-size: 14px; margin-bottom: 6px;"><strong>cPanel Username:</strong> <code style="background:#e2e8f0; padding:2px 6px; border-radius:4px;">${result.providerAccountId || 'See control panel'}</code></div>
           ${result.cPanelUrl ? `<div style="font-size: 14px; margin-bottom: 6px;"><strong>Control Panel:</strong> <a href="${result.cPanelUrl}" style="color: #2563eb; font-weight: 600;">${result.cPanelUrl}</a></div>` : ''}
-          ${result.nameservers?.length ? `<div style="font-size: 14px; margin-top: 10px;"><strong>Nameservers:</strong><br>${result.nameservers.map((ns) => `â€¢ ${ns}`).join('<br>')}</div>` : ''}
+          ${result.nameservers?.length ? `<div style="font-size: 14px; margin-top: 10px;"><strong>Nameservers:</strong><br>${result.nameservers.map((ns) => `&bull; ${ns}`).join('<br>')}</div>` : ''}
         </div>
         <p>You can also log in to your account from your client portal at <a href="https://click2itbd.com" style="color: #2563eb;">click2itbd.com</a> anytime.</p>
       `;

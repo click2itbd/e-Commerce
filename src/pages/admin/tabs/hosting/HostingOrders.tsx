@@ -695,8 +695,13 @@ export default function HostingOrders() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
                         {order.items?.map((item: any, i: number) => (
-                          <div key={i} className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-1 rounded w-fit max-w-[200px] truncate">
-                            {item.targetType === 'domain' ? 'ðŸŒ ' : 'ðŸ“¦ '}{item.name}
+                          <div key={i} className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-1 rounded w-fit max-w-[200px] truncate flex items-center gap-1.5">
+                            {item.targetType === 'domain' ? (
+                              <Globe size={12} className="text-blue-500 shrink-0" />
+                            ) : (
+                              <Server size={12} className="text-emerald-500 shrink-0" />
+                            )}
+                            <span className="truncate">{item.name}</span>
                           </div>
                         ))}
                       </div>
@@ -712,7 +717,7 @@ export default function HostingOrders() {
                           {(order as any).paymentStatus || 'Unpaid'}
                         </span>
                         <span className="text-xs font-medium text-gray-500 capitalize">
-                          â€¢ {order.paymentMethod || 'Manual'}
+                          • {order.paymentMethod || 'Manual'}
                         </span>
                       </div>
                     </td>
@@ -1211,16 +1216,16 @@ export default function HostingOrders() {
                               <div className="mt-2 space-y-1 text-xs text-gray-600">
                                 <p>
                                   Openprovider status: {domain.providerStatus || 'not returned'}
-                                  {domain.registrationId && ` Â· Registration ID: ${domain.registrationId}`}
+                                  {domain.registrationId && ` · Registration ID: ${domain.registrationId}`}
                                 </p>
                                 {(domain.providerCode || domain.providerHttpStatus) && (
                                   <p>
-                                    API code: {domain.providerCode || '-'} Â· HTTP: {domain.providerHttpStatus || '-'}
+                                    API code: {domain.providerCode || '-'} · HTTP: {domain.providerHttpStatus || '-'}
                                   </p>
                                 )}
                                 <p>
                                   Request sent: {domain.providerRequestStartedAt ? new Date(domain.providerRequestStartedAt).toLocaleString() : 'Not recorded'}
-                                  {' Â· '}
+                                  {' · '}
                                   Response received: {domain.providerResponseReceivedAt ? new Date(domain.providerResponseReceivedAt).toLocaleString() : 'Not recorded'}
                                 </p>
                               </div>
@@ -1309,7 +1314,7 @@ export default function HostingOrders() {
                                   <div>
                                     <span className="text-gray-500 font-medium">Root Password:</span>
                                     <div className="font-mono font-bold text-gray-900 mt-0.5 flex items-center gap-2">
-                                      <span>{showAdminPass[hosting.id] ? (vps.rootPassword || 'None') : 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢'}</span>
+                                      <span>{showAdminPass[hosting.id] ? (vps.rootPassword || 'None') : '••••••••••••'}</span>
                                       {vps.rootPassword && (
                                         <div className="flex items-center gap-1">
                                           <button 

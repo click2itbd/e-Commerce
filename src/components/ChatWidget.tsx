@@ -47,7 +47,7 @@ export const ChatWidget: React.FC = () => {
     {
       id: 'welcome-1',
       sender: 'bot',
-      text: `Hello! ðŸ‘‹ Welcome to ${settings.brandName || 'Click2IT'}.\nHow can our support team assist you today?`,
+      text: `Hello! 👋 Welcome to ${settings.brandName || 'Click2IT'}.\nHow can our support team assist you today?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -158,7 +158,7 @@ export const ChatWidget: React.FC = () => {
       {
         id: Date.now().toString(),
         sender: 'bot',
-        text: `Hello! ðŸ‘‹ How can we help you today?`,
+        text: `Hello! 👋 How can we help you today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ]);
