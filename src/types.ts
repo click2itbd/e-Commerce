@@ -643,6 +643,8 @@ export interface DomainOrder {
   status: 'pending' | 'active' | 'suspended' | 'cancelled' | 'failed' | 'registered' | 'manual_review';
   type?: 'register' | 'renewal' | 'transfer';
   action?: 'register' | 'renewal' | 'transfer';
+  authCode?: string;
+  eppCode?: string;
   years: number;
   autoRenew: boolean;
   nameservers: string[];

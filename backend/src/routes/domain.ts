@@ -673,10 +673,16 @@ domainRouter.post('/fulfill', requireFirebaseAuth, async (req: any, res: Respons
     }
 
     const db = getAdminDb();
-    const collectionName = orderType === 'renewal' ? 'domain_renewals' : 
+    let collectionName = orderType === 'renewal' ? 'domain_renewals' : 
                           orderType === 'transfer' ? 'domain_transfers' : 'domainOrders';
-    const orderRef = db.collection(collectionName).doc(orderId);
-    const orderSnap = await orderRef.get();
+    let orderRef = db.collection(collectionName).doc(orderId);
+    let orderSnap = await orderRef.get();
+
+    if (!orderSnap.exists && orderType === 'transfer') {
+      collectionName = 'domainOrders';
+      orderRef = db.collection('domainOrders').doc(orderId);
+      orderSnap = await orderRef.get();
+    }
 
     if (!orderSnap.exists) {
       return res.json({ success: false, error: 'Order not found' });
@@ -714,11 +720,18 @@ domainRouter.post('/fulfill', requireFirebaseAuth, async (req: any, res: Respons
       }
 
       if (orderType === 'transfer') {
-        const authCode = req.body.authCode || orderData.authCode;
+        let authCode = req.body.authCode || orderData.authCode || orderData.eppCode;
+        if (!authCode) {
+          const normDomain = String(orderData.domain || '').trim().toLowerCase();
+          const authSnap = await db.collection('transferAuthCodes').doc(`${orderData.orderId || orderId}_${normDomain}`).get();
+          if (authSnap.exists) {
+            authCode = authSnap.data()?.authCode;
+          }
+        }
         if (!authCode) {
           return res.json({ success: false, error: 'Auth code is required for transfer' });
         }
-        result = await (provider as any).transferDomain?.(orderData.domain, authCode, orderData.years || 1);
+        result = await (provider as any).transferDomain?.(orderData.domain, authCode, orderData.years || orderData.termYears || 1);
         fulfillmentType = 'transfer';
       } else if (orderType === 'renewal') {
         result = await provider.renewDomain(orderData.domain, orderData.renewalPeriod || 1);
@@ -982,9 +995,9 @@ domainRouter.post('/transfer-auth-codes', requireFirebaseAuth, async (req: any, 
       authCode: String(entry?.authCode || '').trim(),
     }));
     if (
-      validatedCodes.some((entry: any) => !entry.domain || !transferDomains.has(entry.domain) || entry.authCode.length < 5)
-      || validatedCodes.length !== transferDomains.size
-      || new Set(validatedCodes.map((entry: any) => entry.domain)).size !== transferDomains.size
+      validatedCodes.some((entry: any) => !entry.domain || (transferDomains.size > 0 && !transferDomains.has(entry.domain)) || entry.authCode.length < 3)
+      || (transferDomains.size > 0 && validatedCodes.length !== transferDomains.size)
+      || (transferDomains.size > 0 && new Set(validatedCodes.map((entry: any) => entry.domain)).size !== transferDomains.size)
     ) {
       return res.status(400).json({ success: false, error: 'Provide a valid Auth/EPP code for every domain transfer in this order.' });
     }
@@ -999,8 +1012,26 @@ domainRouter.post('/transfer-auth-codes', requireFirebaseAuth, async (req: any, 
         authCode,
         submittedBy: userId,
         createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        // Keep valid for 30 days so fulfillment / payment verification is never blocked by premature expiration
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       });
+    }
+
+    // Also update any corresponding domainOrders documents with the auth code
+    const domainOrdersSnap = await db.collection('domainOrders')
+      .where('orderId', '==', orderId)
+      .get();
+    for (const dDoc of domainOrdersSnap.docs) {
+      const dData = dDoc.data();
+      const normDomain = String(dData.domain || '').trim().toLowerCase();
+      const match = validatedCodes.find(c => c.domain === normDomain);
+      if (match) {
+        batch.update(dDoc.ref, {
+          authCode: match.authCode,
+          eppCode: match.authCode,
+          updatedAt: new Date().toISOString(),
+        });
+      }
     }
     
     await batch.commit();
@@ -1008,6 +1039,112 @@ domainRouter.post('/transfer-auth-codes', requireFirebaseAuth, async (req: any, 
   } catch (error: any) {
     console.error('[Domain] Store transfer auth codes error:', error);
     return res.status(500).json({ success: false, error: 'Failed to store transfer auth codes' });
+  }
+});
+
+// Admin/Owner endpoint to fetch transfer auth code
+domainRouter.get('/transfer-auth-code/:orderId/:domain', requireFirebaseAuth, async (req: any, res: Response) => {
+  try {
+    const { orderId, domain } = req.params;
+    const userId = req.user?.uid;
+    const cleanDomain = String(domain || '').trim().toLowerCase();
+
+    const db = getAdminDb();
+    const isAdmin = await isUserAdmin(userId).catch(() => false);
+
+    if (!isAdmin) {
+      const orderSnap = await db.collection('orders').doc(orderId).get();
+      if (!orderSnap.exists || orderSnap.data()?.userId !== userId) {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+    }
+
+    const docRef = db.collection('transferAuthCodes').doc(`${orderId}_${cleanDomain}`);
+    const snap = await docRef.get();
+    if (snap.exists) {
+      const data = snap.data();
+      return res.json({ success: true, authCode: data?.authCode });
+    }
+
+    // Fallback: check domainOrders
+    const dOrdersSnap = await db.collection('domainOrders')
+      .where('orderId', '==', orderId)
+      .where('domain', '==', cleanDomain)
+      .limit(1)
+      .get();
+    if (!dOrdersSnap.empty) {
+      const dData = dOrdersSnap.docs[0].data();
+      const code = dData.authCode || dData.eppCode;
+      if (code) {
+        return res.json({ success: true, authCode: code });
+      }
+    }
+
+    return res.status(404).json({ success: false, error: 'Auth code not found' });
+  } catch (error: any) {
+    console.error('[Domain] Get transfer auth code error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve transfer auth code' });
+  }
+});
+
+// Admin endpoint to update transfer auth code
+domainRouter.post('/update-transfer-auth-code', requireFirebaseAuth, async (req: any, res: Response) => {
+  try {
+    const userId = req.user?.uid;
+    const isAdmin = await isUserAdmin(userId).catch(() => false);
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, error: 'Admin access required' });
+    }
+
+    const { orderId, domain, authCode, domainOrderId } = req.body;
+    if (!orderId || !domain || !authCode) {
+      return res.status(400).json({ success: false, error: 'orderId, domain, and authCode are required' });
+    }
+
+    const cleanDomain = String(domain || '').trim().toLowerCase();
+    const cleanCode = String(authCode || '').trim();
+
+    const db = getAdminDb();
+    const batch = db.batch();
+
+    const docRef = db.collection('transferAuthCodes').doc(`${orderId}_${cleanDomain}`);
+    batch.set(docRef, {
+      orderId,
+      domain: cleanDomain,
+      authCode: cleanCode,
+      updatedBy: userId,
+      updatedAt: new Date(),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    }, { merge: true });
+
+    if (domainOrderId) {
+      const dRef = db.collection('domainOrders').doc(domainOrderId);
+      batch.update(dRef, {
+        authCode: cleanCode,
+        eppCode: cleanCode,
+        fulfillmentError: null,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      const dOrdersSnap = await db.collection('domainOrders')
+        .where('orderId', '==', orderId)
+        .where('domain', '==', cleanDomain)
+        .get();
+      for (const dDoc of dOrdersSnap.docs) {
+        batch.update(dDoc.ref, {
+          authCode: cleanCode,
+          eppCode: cleanCode,
+          fulfillmentError: null,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    await batch.commit();
+    return res.json({ success: true, message: 'Transfer authorization code updated successfully' });
+  } catch (error: any) {
+    console.error('[Domain] Update transfer auth code error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to update transfer auth code' });
   }
 });
 

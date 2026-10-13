@@ -316,7 +316,9 @@ export class OpenproviderDomainProvider {
         }
     }
     async transferDomain(domain, authCode, years) {
-        const domainObj = this.splitDomain(domain);
+        const cleanDomain = domain.trim().toLowerCase();
+        const domainObj = this.splitDomain(cleanDomain);
+        const cleanAuthCode = (authCode || '').trim();
         const handle = this.defaultHandle;
         let requestStartedAt;
         let responseReceivedAt;
@@ -329,7 +331,7 @@ export class OpenproviderDomainProvider {
             await this.authenticate();
             requestStartedAt = new Date().toISOString();
             console.info('[Openprovider] Domain transfer request started', {
-                domain,
+                domain: cleanDomain,
                 operation: 'transfer',
                 requestStartedAt,
             });
@@ -337,7 +339,7 @@ export class OpenproviderDomainProvider {
                 method: 'POST',
                 body: JSON.stringify({
                     domain: domainObj,
-                    auth_code: authCode,
+                    auth_code: cleanAuthCode,
                     period: years || 1,
                     owner_handle: handle,
                     admin_handle: handle,
@@ -357,7 +359,7 @@ export class OpenproviderDomainProvider {
             const status = rawStatus === 'ACT' || rawStatus === 'REQ' ? rawStatus : 'UNKNOWN';
             const transferId = String(response.data.id);
             console.info('[Openprovider] Domain transfer response received', {
-                domain,
+                domain: cleanDomain,
                 operation: 'transfer',
                 providerHttpStatus,
                 providerCode,
@@ -367,7 +369,7 @@ export class OpenproviderDomainProvider {
             });
             return {
                 success: true,
-                domain,
+                domain: cleanDomain,
                 transferId,
                 status,
                 providerHttpStatus,
@@ -377,19 +379,30 @@ export class OpenproviderDomainProvider {
             };
         }
         catch (error) {
+            let friendlyError = error.message;
+            const codeStr = String(error.providerCode || '');
+            if (codeStr === '380' || /authorization code is invalid/i.test(friendlyError)) {
+                friendlyError = 'Invalid Auth/EPP Code: The authorization code was rejected by the registry. Please check with your current registrar and provide the exact updated code.';
+            }
+            else if (codeStr === '381' || /domain is locked|clientTransferProhibited|transferProhibited/i.test(friendlyError)) {
+                friendlyError = 'Domain Locked: The domain is currently transfer-locked at the existing registrar. Please unlock the domain (disable Transfer/Registrar Lock) and retry.';
+            }
+            else if (codeStr === '382' || /60 day/i.test(friendlyError)) {
+                friendlyError = '60-Day Lock: The domain cannot be transferred within 60 days of registration or previous transfer (ICANN 60-day rule).';
+            }
             console.error('[Openprovider] Domain transfer failed', {
-                domain,
+                domain: cleanDomain,
                 operation: 'transfer',
                 requestStartedAt: requestStartedAt || null,
                 providerHttpStatus: error.providerHttpStatus || providerHttpStatus,
                 providerCode: error.providerCode || providerCode,
                 responseReceivedAt: error.responseReceivedAt || responseReceivedAt,
-                error: error.message,
+                error: friendlyError,
             });
             return {
                 success: false,
-                domain,
-                error: error.message,
+                domain: cleanDomain,
+                error: friendlyError,
                 providerHttpStatus: error.providerHttpStatus || providerHttpStatus,
                 providerCode: error.providerCode || providerCode,
                 requestStartedAt,

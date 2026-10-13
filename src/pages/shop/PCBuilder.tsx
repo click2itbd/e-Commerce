@@ -26,6 +26,7 @@ import { SmartBuilderTemplates } from '../../components/PCBuilder/SmartBuilderTe
 import { apiPost } from '../../services/apiClient';
 import { generatePDF } from '../../lib/pdf';
 import { useSettings } from '../../context/SettingsContext';
+import { SEO } from '../../components/SEO';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -453,6 +454,12 @@ export const PCBuilder: React.FC = () => {
 
   const builderContent = (
     <Layout fullWidth>
+      <SEO
+        title="Custom PC Builder in Bangladesh | Build Your Dream PC"
+        description="Build your custom gaming, editing, or office desktop PC with CLICK2IT PC Builder. Real-time compatibility check, component pricing, and expert assembly in Bangladesh."
+        keywords="pc builder bangladesh, custom pc builder bd, gaming pc build, desktop computer price bd, click2it pc build"
+        canonical="https://click2itbd.com/pc-build"
+      />
       <div className={isDarkMode ? 'dark-builder' : ''}>
       
         <div className="bg-slate-50 min-h-screen pt-8 pb-20 font-sans selection:bg-violet-500/30 selection:text-violet-200 print:bg-white print:pt-0">

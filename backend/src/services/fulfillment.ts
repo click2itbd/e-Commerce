@@ -260,15 +260,17 @@ async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorU
   try {
     if (isTransferOrder) {
       action = 'transfer';
-      transferAuthCodeRef = db.collection('transferAuthCodes').doc(`${domainData.orderId}_${domainData.domain}`);
+      const cleanDomain = String(domainData.domain || '').trim().toLowerCase();
+      transferAuthCodeRef = db.collection('transferAuthCodes').doc(`${domainData.orderId}_${cleanDomain}`);
       const authCodeSnap = await transferAuthCodeRef.get();
       const authCodeData = authCodeSnap.exists ? authCodeSnap.data() : null;
       const expiresAt = authCodeData?.expiresAt?.toDate
         ? authCodeData.expiresAt.toDate()
         : authCodeData?.expiresAt ? new Date(authCodeData.expiresAt) : null;
-      const authCode = expiresAt && expiresAt.getTime() <= Date.now() ? null : authCodeData?.authCode;
+      const storedAuthCode = expiresAt && expiresAt.getTime() <= Date.now() ? null : authCodeData?.authCode;
+      const authCode = (storedAuthCode || domainData.authCode || domainData.eppCode || '').trim();
       if (!authCode) {
-        const message = expiresAt
+        const message = (expiresAt && !domainData.authCode && !domainData.eppCode)
           ? 'The transfer authorization code has expired. Please submit a fresh EPP/Auth code.'
           : 'Auth code is required for transfer';
         await db.collection('domainOrders').doc(domainOrderId).update({
@@ -297,7 +299,7 @@ async function fulfillDomainOrder(domainOrderId: string, domainData: any, actorU
         updatedAt: now,
       });
       transferSubmissionMarked = true;
-      result = await provider.transferDomain(domainData.domain, authCode, domainData.years || domainData.termYears || 1);
+      result = await provider.transferDomain(cleanDomain, authCode, domainData.years || domainData.termYears || 1);
     } else if (domainData.type === 'renewal' || domainData.action === 'renewal') {
       action = 'renew';
       result = await provider.renewDomain(domainData.domain, domainData.renewalPeriod || 1);
@@ -483,7 +485,7 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
 
     if (contactEmail) {
       const vpsName = hostingData.name || hostingData.planId || 'Cloud VPS';
-      const subject = `🚀 Cloud VPS Order Confirmed - ${vpsDetails.hostname || vpsName}`;
+      const subject = `ðŸš€ Cloud VPS Order Confirmed - ${vpsDetails.hostname || vpsName}`;
       const html = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
           <h2 style="color: #4f46e5;">Cloud VPS Provisioning in Progress</h2>
@@ -561,9 +563,9 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
 
     if (isSuccess && contactEmail) {
       const fromName = await getSiteName();
-      let emailSubject = `🎉 Your Hosting Account is Ready - ${hostingData.domain}`;
+      let emailSubject = `ðŸŽ‰ Your Hosting Account is Ready - ${hostingData.domain}`;
       let heading = 'Welcome to Click2IT Cloud Hosting!';
-      let badgeText = '✓ Hosting Account Active';
+      let badgeText = 'âœ“ Hosting Account Active';
       let bodyHtml = `
         <p>Dear <strong>${customerName || 'Valued Customer'}</strong>,</p>
         <p>Congratulations! Your cPanel cloud hosting account for <strong>${hostingData.domain}</strong> is now active and ready for your website.</p>
@@ -572,7 +574,7 @@ async function fulfillHostingAccount(hostingAccountId: string, hostingData: any,
           <div style="font-size: 14px; margin-bottom: 6px;"><strong>Domain:</strong> ${hostingData.domain}</div>
           <div style="font-size: 14px; margin-bottom: 6px;"><strong>cPanel Username:</strong> <code style="background:#e2e8f0; padding:2px 6px; border-radius:4px;">${result.providerAccountId || 'See control panel'}</code></div>
           ${result.cPanelUrl ? `<div style="font-size: 14px; margin-bottom: 6px;"><strong>Control Panel:</strong> <a href="${result.cPanelUrl}" style="color: #2563eb; font-weight: 600;">${result.cPanelUrl}</a></div>` : ''}
-          ${result.nameservers?.length ? `<div style="font-size: 14px; margin-top: 10px;"><strong>Nameservers:</strong><br>${result.nameservers.map((ns: string) => `• ${ns}`).join('<br>')}</div>` : ''}
+          ${result.nameservers?.length ? `<div style="font-size: 14px; margin-top: 10px;"><strong>Nameservers:</strong><br>${result.nameservers.map((ns: string) => `â€¢ ${ns}`).join('<br>')}</div>` : ''}
         </div>
         <p>You can also log in to your account from your client portal at <a href="https://click2itbd.com" style="color: #2563eb;">click2itbd.com</a> anytime.</p>
       `;

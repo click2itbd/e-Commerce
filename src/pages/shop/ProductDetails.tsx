@@ -13,6 +13,7 @@ import { toast } from 'react-hot-toast';
 import { useCompare } from '../../context/CompareContext';
 import { ProductCard } from '../../components/ProductCard';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
+import { SEO } from '../../components/SEO';
 
 
 const SPEC_PRIORITY = [
@@ -270,34 +271,76 @@ export const ProductDetails: React.FC = () => {
       {product && (() => {
         const productImg = product.imageUrl || product.images?.[0] || 'https://click2itbd.com/logo.png';
         const absoluteImg = productImg.startsWith('http') ? productImg : `https://click2itbd.com${productImg.startsWith('/') ? '' : '/'}${productImg}`;
-        const productUrl = typeof window !== 'undefined' ? window.location.href : `https://click2itbd.com/product/${product.id}`;
-        const productDesc = product.shortDescription?.replace(/<[^>]*>?/gm, '').slice(0, 200) || `Buy ${product.name} at best price in Bangladesh from CLICK2IT.`;
+        const productUrl = `https://click2itbd.com/product/${product.id}`;
+        const productDesc = product.shortDescription?.replace(/<[^>]*>?/gm, '').slice(0, 250) || 
+          `Buy genuine ${product.name} at best price in Bangladesh from CLICK2IT. Brand: ${product.brand || 'Original'}. Official warranty included.`;
+        const currentPrice = product.discountPrice || product.price || 0;
+
+        const productSchema = {
+          '@context': 'https://schema.org',
+          '@type': 'Product',
+          name: product.name,
+          image: [absoluteImg],
+          description: productDesc,
+          sku: product.sku || product.id,
+          mpn: product.model || product.sku || product.id,
+          brand: {
+            '@type': 'Brand',
+            name: product.brand || 'CLICK2IT'
+          },
+          offers: {
+            '@type': 'Offer',
+            url: productUrl,
+            priceCurrency: 'BDT',
+            price: currentPrice,
+            priceValidUntil: '2028-12-31',
+            itemCondition: 'https://schema.org/NewCondition',
+            availability: (product.stock > 0 && !product.isOutOfStock) 
+              ? 'https://schema.org/InStock' 
+              : 'https://schema.org/OutOfStock',
+            seller: {
+              '@type': 'Organization',
+              name: 'CLICK2IT'
+            }
+          }
+        };
+
+        const breadcrumbSchema = {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            {
+              '@type': 'ListItem',
+              position: 1,
+              name: 'Home',
+              item: 'https://click2itbd.com'
+            },
+            {
+              '@type': 'ListItem',
+              position: 2,
+              name: product.category || 'Products',
+              item: `https://click2itbd.com/category/${encodeURIComponent(product.category?.toLowerCase() || 'all')}`
+            },
+            {
+              '@type': 'ListItem',
+              position: 3,
+              name: product.name,
+              item: productUrl
+            }
+          ]
+        };
 
         return (
-          <Helmet>
-            <title>{`${product.name} - ${settings?.siteName || 'CLICK2IT'}`}</title>
-            <meta name="description" content={productDesc} />
-            
-            {/* Facebook & OpenGraph */}
-            <meta property="og:type" content="product" />
-            <meta property="og:title" content={`${product.name} - ৳${(product.discountPrice || product.price || 0).toLocaleString()}`} />
-            <meta property="og:description" content={productDesc} />
-            <meta property="og:image" content={absoluteImg} />
-            <meta property="og:image:secure_url" content={absoluteImg} />
-            <meta property="og:image:type" content="image/jpeg" />
-            <meta property="og:image:width" content="600" />
-            <meta property="og:image:height" content="600" />
-            <meta property="og:url" content={productUrl} />
-            <meta property="og:site_name" content={settings?.siteName || 'CLICK2IT'} />
-            <meta property="product:price:amount" content={String(product.discountPrice || product.price || 0)} />
-            <meta property="product:price:currency" content="BDT" />
-
-            {/* Twitter Card */}
-            <meta name="twitter:card" content="summary_large_image" />
-            <meta name="twitter:title" content={`${product.name} - ৳${(product.discountPrice || product.price || 0).toLocaleString()}`} />
-            <meta name="twitter:description" content={productDesc} />
-            <meta name="twitter:image" content={absoluteImg} />
-          </Helmet>
+          <SEO
+            title={`${product.name} Price in Bangladesh | CLICK2IT`}
+            description={productDesc}
+            keywords={`${product.name}, ${product.brand || ''} price in bd, buy ${product.name} bangladesh, ${product.category || 'components'}`}
+            image={absoluteImg}
+            url={productUrl}
+            canonical={productUrl}
+            type="product"
+            schema={[productSchema, breadcrumbSchema]}
+          />
         );
       })()}
       <div className="container mx-auto px-2 sm:px-4 py-4 md:py-6 bg-white md:bg-transparent">

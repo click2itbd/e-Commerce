@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, doc, query, orderBy, where, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
-import { RefreshCw, CheckCircle, RotateCcw, Search, Filter, AlertTriangle } from 'lucide-react';
+import { RefreshCw, CheckCircle, RotateCcw, Search, Filter, AlertTriangle, Key, Copy } from 'lucide-react';
 import { apiPost } from '../../../services/apiClient';
 
 interface DomainOrder {
@@ -11,6 +11,10 @@ interface DomainOrder {
   tld?: string;
   userId: string;
   orderId?: string;
+  type?: 'register' | 'renewal' | 'transfer';
+  action?: 'register' | 'renewal' | 'transfer';
+  authCode?: string;
+  eppCode?: string;
   registrarOrderId?: string;
   registrationId?: string;
   providerStatus?: string;
@@ -226,21 +230,48 @@ export const DomainOrdersManager: React.FC = () => {
                 return (
                   <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold">{order.domain}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold">{order.domain}</span>
+                          {order.type === 'transfer' && (
+                            <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase">
+                              Transfer
+                            </span>
+                          )}
+                        </div>
+                        {(order.authCode || order.eppCode) && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className="text-[11px] text-amber-800 font-semibold flex items-center gap-1">
+                              <Key size={11} /> Auth/EPP:
+                            </span>
+                            <code className="text-[11px] bg-amber-50 px-1 py-0.5 rounded border border-amber-200 text-amber-950 font-mono font-bold select-all">
+                              {order.authCode || order.eppCode}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(order.authCode || order.eppCode || '');
+                                toast.success('Auth code copied!');
+                              }}
+                              className="p-0.5 text-amber-700 hover:text-amber-900"
+                              title="Copy code"
+                            >
+                              <Copy size={11} />
+                            </button>
+                          </div>
+                        )}
                         {(order.registrationId || order.providerCode || order.providerHttpStatus || order.providerRequestStartedAt || order.fulfillmentError) && (
                           <span className="text-xs text-gray-500">
                             Openprovider {order.providerStatus || 'status not returned'}
-                            {order.registrationId && ` · ID ${order.registrationId}`}
-                            {(order.providerCode || order.providerHttpStatus) && ` · Code ${order.providerCode || '-'} / HTTP ${order.providerHttpStatus || '-'}`}
+                            {order.registrationId && ` Â· ID ${order.registrationId}`}
+                            {(order.providerCode || order.providerHttpStatus) && ` Â· Code ${order.providerCode || '-'} / HTTP ${order.providerHttpStatus || '-'}`}
                           </span>
                         )}
                         {(order.providerRequestStartedAt || order.fulfillmentError) && (
                           <span className="text-xs text-gray-500">
                             Request sent {order.providerRequestStartedAt ? new Date(order.providerRequestStartedAt).toLocaleString() : 'not recorded'}
                             {order.providerResponseReceivedAt
-                              ? ` · Response received ${new Date(order.providerResponseReceivedAt).toLocaleString()}`
-                              : ' · No response recorded'}
+                              ? ` Â· Response received ${new Date(order.providerResponseReceivedAt).toLocaleString()}`
+                              : ' Â· No response recorded'}
                           </span>
                         )}
                         {order.fulfillmentError && (

@@ -285,12 +285,12 @@ export const HostingCheckout: React.FC = () => {
 
     const transferItems = items.filter(i => i.itemType === 'domain_transfer');
     for (const item of transferItems) {
-      const code = transferAuthCodes[item.id]?.trim();
+      const code = (transferAuthCodes[item.id] || transferAuthCodes[item.domain])?.trim();
       if (!code) {
         toast.error(`Please enter the Auth/EPP Code for ${item.domain || item.id.replace('domain_transfer_', '')}`);
         return;
       }
-      if (code.length < 5) {
+      if (code.length < 3) {
         toast.error(`Auth/EPP Code for ${item.domain || item.id.replace('domain_transfer_', '')} appears too short.`);
         return;
       }
@@ -308,7 +308,14 @@ export const HostingCheckout: React.FC = () => {
       const orderData = {
         userId: user?.uid || 'guest',
         platform: 'hosting',
-        items: items.map(({ eppCode: _eppCode, authCode: _authCode, ...item }) => ({ ...item, isDigital: true })),
+        items: items.map(({ eppCode: _eppCode, authCode: _authCode, ...item }) => {
+          const code = item.itemType === 'domain_transfer' ? (transferAuthCodes[item.id]?.trim() || transferAuthCodes[item.domain]?.trim()) : undefined;
+          return {
+            ...item,
+            isDigital: true,
+            ...(code ? { authCode: code, eppCode: code } : {}),
+          };
+        }),
         total: grandTotal,
         shippingCost,
         status: 'pending',
@@ -406,16 +413,19 @@ export const HostingCheckout: React.FC = () => {
       
       for (const tItem of transferItems) {
         const dOrderRef = doc(collection(db, 'domainOrders'));
+        const code = (transferAuthCodes[tItem.id] || transferAuthCodes[tItem.domain])?.trim() || '';
+        const domainClean = (tItem.domain || tItem.id.replace('domain_transfer_', '')).trim().toLowerCase();
         batch.set(dOrderRef, {
           userId: user?.uid || 'guest',
           orderId: newOrderRef.id,
-          domain: tItem.domain || tItem.id.replace('domain_transfer_', ''),
-          tld: (tItem.domain || tItem.id.replace('domain_transfer_', '')).split('.').pop() || '',
+          domain: domainClean,
+          tld: domainClean.split('.').pop() || '',
           termYears: tItem.termYears || 1,
           years: tItem.termYears || 1,
           price: tItem.price,
           status: 'pending',
           type: 'transfer',
+          ...(code ? { authCode: code, eppCode: code } : {}),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
@@ -506,22 +516,27 @@ export const HostingCheckout: React.FC = () => {
       if (transferItems.length > 0) {
         try {
           const authCodesPayload = transferItems
-            .filter(item => transferAuthCodes[item.id]?.trim())
-            .map(item => ({
-              orderId,
-              domain: item.domain || item.id.replace('domain_transfer_', ''),
-              authCode: transferAuthCodes[item.id].trim(),
-            }));
+            .map(item => {
+              const code = (transferAuthCodes[item.id] || transferAuthCodes[item.domain])?.trim() || '';
+              const cleanDomain = (item.domain || item.id.replace('domain_transfer_', '')).trim().toLowerCase();
+              return {
+                orderId,
+                domain: cleanDomain,
+                authCode: code,
+              };
+            })
+            .filter(entry => Boolean(entry.authCode));
           
           if (authCodesPayload.length > 0) {
+            const token = user ? await user.getIdToken() : undefined;
             await apiPost('/api/domains/transfer-auth-codes', {
               orderId,
               authCodes: authCodesPayload,
-            });
+            }, token);
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('Failed to store transfer auth codes:', error);
-          toast.error('Failed to secure transfer authorization codes. Please try again.');
+          toast.error(error?.message || 'Failed to secure transfer authorization codes. Please try again.');
           setIsProcessing(false);
           return;
         }
@@ -864,12 +879,22 @@ export const HostingCheckout: React.FC = () => {
                         </label>
                         <input
                           type="text"
-                          value={transferAuthCodes[item.id] || ''}
-                          onChange={(e) => setTransferAuthCodes(prev => ({ ...prev, [item.id]: e.target.value.trim() }))}
-                          placeholder="Enter your Auth/EPP Code"
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                          value={transferAuthCodes[item.id] ?? transferAuthCodes[item.domain] ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTransferAuthCodes(prev => ({
+                              ...prev,
+                              [item.id]: val,
+                              ...(item.domain ? { [item.domain]: val } : {}),
+                            }));
+                          }}
+                          placeholder="e.g. 5xP#9mQ!zL12"
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all font-mono text-sm"
                           required
                         />
+                        <p className="text-xs text-gray-500">
+                          Make sure your domain is <strong>unlocked</strong> at your current registrar and privacy protection is disabled or allows transfer.
+                        </p>
                       </div>
                     ))}
                   </div>

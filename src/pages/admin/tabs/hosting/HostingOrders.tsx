@@ -3,7 +3,7 @@ import { db } from '../../../../firebase';
 import { collection, query, orderBy, getDocs, doc, updateDoc, where, limit } from 'firebase/firestore';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { Server, Search, Eye, EyeOff, X, Globe, Download, Loader2, FileText, CheckCircle, Wallet, AlertTriangle, Clock, Terminal, Copy } from 'lucide-react';
+import { Server, Search, Eye, EyeOff, X, Globe, Download, Loader2, FileText, CheckCircle, Wallet, AlertTriangle, Clock, Terminal, Copy, Key, Edit3, Check } from 'lucide-react';
 import { HostingOrder, DomainOrder, HostingAccount } from '../../../../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -29,6 +29,10 @@ export default function HostingOrders() {
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [showAdminPass, setShowAdminPass] = useState<Record<string, boolean>>({});
   
+  const [editingAuthCodeId, setEditingAuthCodeId] = useState<string | null>(null);
+  const [newAuthCodeVal, setNewAuthCodeVal] = useState<string>('');
+  const [savingAuthCode, setSavingAuthCode] = useState(false);
+
   const [showEmailLogs, setShowEmailLogs] = useState(false);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [loadingEmailLogs, setLoadingEmailLogs] = useState(false);
@@ -245,6 +249,43 @@ export default function HostingOrders() {
     } catch (error) {
       console.error('Error updating service status:', error);
       toast.error('Service Error: ' + error.message);
+    }
+  };
+
+  const handleUpdateAuthCode = async (domainOrder: DomainOrder) => {
+    if (!newAuthCodeVal.trim()) {
+      toast.error('Please enter a valid Auth/EPP Code');
+      return;
+    }
+    setSavingAuthCode(true);
+    try {
+      const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
+      const res = await fetch(getApiUrl('/api/domains/update-transfer-auth-code'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: domainOrder.orderId,
+          domain: domainOrder.domain,
+          authCode: newAuthCodeVal.trim(),
+          domainOrderId: domainOrder.id,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success('Auth/EPP Code updated successfully!');
+        setDomainOrders(prev => prev.map(d => d.id === domainOrder.id ? { ...d, authCode: newAuthCodeVal.trim(), eppCode: newAuthCodeVal.trim(), fulfillmentError: undefined } : d));
+        setEditingAuthCodeId(null);
+        setNewAuthCodeVal('');
+      } else {
+        toast.error(data.error || 'Failed to update Auth Code');
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to update Auth Code');
+    } finally {
+      setSavingAuthCode(false);
     }
   };
 
@@ -619,7 +660,7 @@ export default function HostingOrders() {
                       <div className="flex flex-col gap-1">
                         {order.items?.map((item: any, i: number) => (
                           <div key={i} className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-1 rounded w-fit max-w-[200px] truncate">
-                            {item.targetType === 'domain' ? '🌐 ' : '📦 '}{item.name}
+                            {item.targetType === 'domain' ? 'ðŸŒ ' : 'ðŸ“¦ '}{item.name}
                           </div>
                         ))}
                       </div>
@@ -635,7 +676,7 @@ export default function HostingOrders() {
                           {(order as any).paymentStatus || 'Unpaid'}
                         </span>
                         <span className="text-xs font-medium text-gray-500 capitalize">
-                          • {order.paymentMethod || 'Manual'}
+                          â€¢ {order.paymentMethod || 'Manual'}
                         </span>
                       </div>
                     </td>
@@ -745,12 +786,39 @@ export default function HostingOrders() {
                         <div className="flex justify-between items-start">
                           <div>
                             <p className="font-bold text-gray-900 text-sm">{item.name}</p>
-                            {item.itemType === 'domain_transfer' && item.eppCode && (
-                              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-                                <span className="font-bold text-yellow-800">EPP / Auth Code: </span>
-                                <code className="bg-white px-1 py-0.5 rounded border border-yellow-100 text-yellow-900 select-all">{item.eppCode}</code>
-                              </div>
-                            )}
+                            {item.itemType === 'domain_transfer' && (() => {
+                              const relatedDomainOrder = domainOrders.find(d => 
+                                String(d.domain || '').toLowerCase() === String(item.domain || item.id?.replace('domain_transfer_', '') || '').toLowerCase()
+                              );
+                              const code = item.eppCode || item.authCode || relatedDomainOrder?.authCode || relatedDomainOrder?.eppCode;
+                              return (
+                                <div className="mt-2 p-2.5 bg-yellow-50 border border-yellow-200 rounded-lg text-xs space-y-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-bold text-yellow-800 flex items-center gap-1">
+                                      <Key size={12} /> Auth / EPP Code:
+                                    </span>
+                                    {code ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <code className="bg-white px-2 py-0.5 rounded border border-yellow-200 text-yellow-900 font-mono font-bold select-all">{code}</code>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(code);
+                                            toast.success('Auth code copied!');
+                                          }}
+                                          className="p-1 hover:bg-yellow-100 rounded text-yellow-700 transition-colors"
+                                          title="Copy Auth Code"
+                                        >
+                                          <Copy size={12} />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-red-600 font-semibold italic">Not recorded</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                           <p className="font-bold text-blue-600">BDT {item.price}</p>
                         </div>
@@ -1020,20 +1088,93 @@ export default function HostingOrders() {
                                 <option value="suspended">Suspended</option>
                               </select>
                             </div>
+                            {domain.type === 'transfer' && (
+                              <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200 rounded-lg text-xs space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                                    <Key size={13} className="text-amber-700" />
+                                    <span>Auth / EPP Code:</span>
+                                  </div>
+                                  {editingAuthCodeId === domain.id ? (
+                                    <div className="flex items-center gap-1.5 flex-1 max-w-xs">
+                                      <input
+                                        type="text"
+                                        value={newAuthCodeVal}
+                                        onChange={(e) => setNewAuthCodeVal(e.target.value)}
+                                        placeholder="Enter updated code"
+                                        className="w-full px-2 py-1 text-xs border border-amber-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                      />
+                                      <button
+                                        type="button"
+                                        disabled={savingAuthCode}
+                                        onClick={() => handleUpdateAuthCode(domain)}
+                                        className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold flex items-center gap-1 disabled:opacity-50"
+                                      >
+                                        <Check size={12} /> Save
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEditingAuthCodeId(null); setNewAuthCodeVal(''); }}
+                                        className="px-1.5 py-1 text-gray-500 hover:text-gray-700"
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1.5">
+                                      {domain.authCode || domain.eppCode ? (
+                                        <>
+                                          <code className="bg-white px-2 py-0.5 rounded border border-amber-200 text-amber-950 font-mono font-bold select-all">
+                                            {domain.authCode || domain.eppCode}
+                                          </code>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(domain.authCode || domain.eppCode || '');
+                                              toast.success('Auth code copied!');
+                                            }}
+                                            className="p-1 hover:bg-amber-100 rounded text-amber-800 transition-colors"
+                                            title="Copy Auth Code"
+                                          >
+                                            <Copy size={12} />
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <span className="text-red-600 italic font-semibold">Not recorded</span>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingAuthCodeId(domain.id);
+                                          setNewAuthCodeVal(domain.authCode || domain.eppCode || '');
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-amber-800 bg-amber-100/80 hover:bg-amber-200 rounded transition-colors ml-1"
+                                        title="Update Auth Code"
+                                      >
+                                        <Edit3 size={11} /> Edit Code
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-amber-800/80">
+                                  <strong>Requirement:</strong> Domain must be <strong>unlocked</strong> (Transfer/Registrar Lock disabled) at the previous registrar.
+                                </p>
+                              </div>
+                            )}
                             {(domain.registrationId || domain.providerCode || domain.providerHttpStatus || domain.providerRequestStartedAt || domain.fulfillmentError) && (
                               <div className="mt-2 space-y-1 text-xs text-gray-600">
                                 <p>
                                   Openprovider status: {domain.providerStatus || 'not returned'}
-                                  {domain.registrationId && ` · Registration ID: ${domain.registrationId}`}
+                                  {domain.registrationId && ` Â· Registration ID: ${domain.registrationId}`}
                                 </p>
                                 {(domain.providerCode || domain.providerHttpStatus) && (
                                   <p>
-                                    API code: {domain.providerCode || '-'} · HTTP: {domain.providerHttpStatus || '-'}
+                                    API code: {domain.providerCode || '-'} Â· HTTP: {domain.providerHttpStatus || '-'}
                                   </p>
                                 )}
                                 <p>
                                   Request sent: {domain.providerRequestStartedAt ? new Date(domain.providerRequestStartedAt).toLocaleString() : 'Not recorded'}
-                                  {' · '}
+                                  {' Â· '}
                                   Response received: {domain.providerResponseReceivedAt ? new Date(domain.providerResponseReceivedAt).toLocaleString() : 'Not recorded'}
                                 </p>
                               </div>
@@ -1122,7 +1263,7 @@ export default function HostingOrders() {
                                   <div>
                                     <span className="text-gray-500 font-medium">Root Password:</span>
                                     <div className="font-mono font-bold text-gray-900 mt-0.5 flex items-center gap-2">
-                                      <span>{showAdminPass[hosting.id] ? (vps.rootPassword || 'None') : '••••••••••••'}</span>
+                                      <span>{showAdminPass[hosting.id] ? (vps.rootPassword || 'None') : 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢'}</span>
                                       {vps.rootPassword && (
                                         <div className="flex items-center gap-1">
                                           <button 

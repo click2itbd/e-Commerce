@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 
 import { coreCategories, peripheralCategories } from '../../components/PCBuilder/constants';
+import { SEO } from '../../components/SEO';
 
 const containerVariants: any = {
   hidden: { opacity: 0 },
@@ -220,8 +221,50 @@ export const CategoryPage: React.FC = () => {
 
   const CategoryIcon = categoryInfo?.icon || LayoutGrid;
 
+  const activeName = (subSubCategorySlug || subCategorySlug || categorySlug || 'Products').replace(/-/g, ' ');
+  const formattedCategoryName = activeName.charAt(0).toUpperCase() + activeName.slice(1);
+  const canonicalCategoryUrl = `https://click2itbd.com/category/${categorySlug}${subCategorySlug ? `/${subCategorySlug}` : ''}${subSubCategorySlug ? `/${subSubCategorySlug}` : ''}`;
+
+  const categoryBreadcrumbsSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Home',
+        item: 'https://click2itbd.com'
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: (categorySlug || 'Category').replace(/-/g, ' '),
+        item: `https://click2itbd.com/category/${categorySlug}`
+      },
+      ...(subCategorySlug ? [{
+        '@type': 'ListItem',
+        position: 3,
+        name: subCategorySlug.replace(/-/g, ' '),
+        item: `https://click2itbd.com/category/${categorySlug}/${subCategorySlug}`
+      }] : []),
+      ...(subSubCategorySlug ? [{
+        '@type': 'ListItem',
+        position: 4,
+        name: subSubCategorySlug.replace(/-/g, ' '),
+        item: canonicalCategoryUrl
+      }] : [])
+    ]
+  };
+
   return (
     <Layout>
+      <SEO
+        title={`${formattedCategoryName} Price in Bangladesh | CLICK2IT`}
+        description={`Explore genuine ${formattedCategoryName} at best price in Bangladesh from CLICK2IT. Check official warranty, authentic specs, user reviews, and fast delivery.`}
+        keywords={`${activeName}, ${activeName} price in bd, buy ${activeName} bangladesh, click2it shop`}
+        canonical={canonicalCategoryUrl}
+        schema={[categoryBreadcrumbsSchema]}
+      />
       <div className="bg-[#f8f9fa] min-h-screen pt-4 sm:pt-6 pb-20">
         <div className="w-full mx-auto">
           
