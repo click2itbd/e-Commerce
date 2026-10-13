@@ -33,7 +33,6 @@ export default defineConfig(({ mode }) => {
             "firebase-auth": ["firebase/auth"],
             "firebase-storage": ["firebase/storage"],
             "pdf-libs": ["jspdf", "jspdf-autotable"],
-            html2canvas: ["html2canvas"],
             recharts: ["recharts"],
             "framer-motion": ["framer-motion", "motion"],
             papaparse: ["papaparse"],

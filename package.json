@@ -7,7 +7,7 @@
     "dev": "tsx server.ts",
     "dev:frontend": "vite",
     "dev:backend": "tsx backend/src/server.ts",
-    "build": "vite build",
+    "build": "NODE_OPTIONS='--max-old-space-size=4096' vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit",
