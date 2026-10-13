@@ -50,26 +50,10 @@ export default function DomainPricingSection({
     navigate(`/domain?tld=${encodeURIComponent(bareTld)}`);
   };
 
-  const DEFAULT_FALLBACK_PRICES = {
-    '.com': 1708,
-    '.net': 2215,
-    '.org': 1211,
-    '.xyz': 428,
-    '.io': 10692,
-    '.co': 1425,
-    '.dev': 3420,
-    '.online': 712,
-  };
-
-  // Compute final price for each TLD dynamically
+  // Compute final price for each TLD dynamically from live Openprovider API
   const getCalculatedPrice = (rawTld) => {
     const tld = rawTld.startsWith('.') ? rawTld.toLowerCase() : `.${rawTld.toLowerCase()}`;
-    
-    // Check price from Firestore / API
-    if (customOverrides[tld] && customOverrides[tld] > 0) {
-      return customOverrides[tld];
-    }
-    return DEFAULT_FALLBACK_PRICES[tld] || 1708;
+    return customOverrides[tld] && customOverrides[tld] > 0 ? customOverrides[tld] : null;
   };
 
   return (

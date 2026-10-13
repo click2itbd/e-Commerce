@@ -108,7 +108,9 @@ hostingRouter.post('/provision', requireFirebaseAuth, async (req, res) => {
           <p style="color: #888; font-size: 0.9em;">Thank you for choosing ${fromName}.</p>
         </div>
       `;
-            await sendEmail({ to: contactEmail, subject: `Hosting Ready: ${domain}`, html });
+            sendEmail({ to: contactEmail, subject: `Hosting Ready: ${domain}`, html }).catch(err => {
+                console.warn('Hosting ready email send error:', err?.message);
+            });
         }
         else {
             let adminEmail = null;
@@ -122,7 +124,9 @@ hostingRouter.post('/provision', requireFirebaseAuth, async (req, res) => {
                 console.error('Failed to read site settings:', error);
             }
             if (adminEmail) {
-                await sendEmail({ to: adminEmail, subject: `Hosting Provision Failed: ${domain}`, html: `<p>Hosting provisioning for <strong>${domain}</strong> failed: ${result.error || 'Unknown error'}</p>` });
+                sendEmail({ to: adminEmail, subject: `Hosting Provision Failed: ${domain}`, html: `<p>Hosting provisioning for <strong>${domain}</strong> failed: ${result.error || 'Unknown error'}</p>` }).catch(err => {
+                    console.warn('Hosting failed email send error:', err?.message);
+                });
             }
         }
         return res.json({ success: result.success, data: result, error: result.error });

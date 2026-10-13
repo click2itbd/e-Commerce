@@ -65,7 +65,9 @@ export async function sendEmail(options, retries = 2) {
         if (attempt > 0) {
             await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
         }
-        const result = await provider.sendEmail(to, subject, html, attachments);
+        const result = attachments !== undefined
+            ? await provider.sendEmail(to, subject, html, attachments)
+            : await provider.sendEmail(to, subject, html);
         if (result.success) {
             await logEmailToFirestore(options, 'sent');
             return { success: true };

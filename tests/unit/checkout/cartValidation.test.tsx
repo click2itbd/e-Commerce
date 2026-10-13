@@ -3,6 +3,16 @@ import { render, screen, act } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { CartProvider, useCart } from '@/context/CartContext';
 
+vi.mock('@/context/AuthContext', () => ({
+  useAuth: () => ({ user: null, loading: false }),
+  AuthProvider: ({ children }: any) => children,
+}));
+
+vi.mock('@/context/SettingsContext', () => ({
+  useSettings: () => ({ settings: {}, currency: 'BDT' }),
+  SettingsProvider: ({ children }: any) => children,
+}));
+
 const renderWithProviders = (ui: React.ReactElement) => {
   return render(
     <BrowserRouter>

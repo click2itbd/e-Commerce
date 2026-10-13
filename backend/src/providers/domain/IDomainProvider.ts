@@ -116,6 +116,7 @@ export interface IDomainProvider {
   getRenewalPrice?(domain: string): Promise<DomainRenewalPriceResult>;
   getRenewalPriceBreakdown?(domain: string): Promise<DomainRenewalPriceBreakdown>;
   transferDomain?(domain: string, authCode: string, years: number): Promise<DomainTransferResult>;
+  getTransferStatus?(domain: string): Promise<{ success: boolean; status?: string; transferId?: string; error?: string; rawData?: any }>;
   setNameservers?(domain: string, ns0?: string, ns1?: string): Promise<{ success: boolean; error?: string }>;
   getBalance?(): Promise<{ success: boolean; balance?: number; currency?: string; error?: string }>;
   testConnection?(): Promise<{ success: boolean; code: string; message: string }>;

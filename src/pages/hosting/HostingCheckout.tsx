@@ -130,6 +130,22 @@ export const HostingCheckout: React.FC = () => {
   const [copiedNumber, setCopiedNumber] = useState(false);
 
   useEffect(() => {
+    const initialCodes: Record<string, string> = {};
+    items.forEach(i => {
+      if (i.itemType === 'domain_transfer') {
+        const code = (i as any).authCode || (i as any).eppCode;
+        if (code) {
+          initialCodes[i.id] = code;
+          if (i.domain) initialCodes[i.domain] = code;
+        }
+      }
+    });
+    if (Object.keys(initialCodes).length > 0) {
+      setTransferAuthCodes(prev => ({ ...initialCodes, ...prev }));
+    }
+  }, [items]);
+
+  useEffect(() => {
     const fetchBkashNumber = async () => {
       try {
         const res = await fetch(getApiUrl('/api/public/config'));

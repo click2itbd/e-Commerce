@@ -33,7 +33,7 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     this.baseUrl = isSandbox ? 'https://api.cte.openprovider.eu/v1' : 'https://api.openprovider.eu/v1';
   }
 
-  private async fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 3500): Promise<Response> {
+  private async fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 12000): Promise<Response> {
     if (OpenproviderDomainProvider.circuitOpenUntil > Date.now()) {
       throw new Error('Openprovider API is temporarily unreachable (circuit breaker active).');
     }
@@ -50,10 +50,10 @@ export class OpenproviderDomainProvider implements IDomainProvider {
       return response;
     } catch (err: any) {
       OpenproviderDomainProvider.consecutiveFailures++;
-      const isTimeout = err.name === 'AbortError' || err.code === 'UND_ERR_CONNECT_TIMEOUT' || String(err.message || '').includes('fetch failed');
-      if (OpenproviderDomainProvider.consecutiveFailures >= 2 || isTimeout) {
-        OpenproviderDomainProvider.circuitOpenUntil = Date.now() + 60_000;
-        console.warn(`[Openprovider] Circuit breaker tripped for 60s due to connection failure: ${err.message}`);
+      const isConnectionError = err.code === 'UND_ERR_CONNECT_TIMEOUT' || String(err.message || '').includes('ECONNREFUSED');
+      if (OpenproviderDomainProvider.consecutiveFailures >= 3 || isConnectionError) {
+        OpenproviderDomainProvider.circuitOpenUntil = Date.now() + 30_000;
+        console.warn(`[Openprovider] Circuit breaker tripped for 30s due to connection failure: ${err.message}`);
       }
       throw err;
     } finally {
@@ -82,7 +82,7 @@ export class OpenproviderDomainProvider implements IDomainProvider {
           username: this.username,
           password: this.passwordHash
         })
-      }, 3500);
+      }, 15000);
 
       const result: any = await response.json();
       const token = result.data?.token;
@@ -116,7 +116,7 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     const response = await this.fetchWithTimeout(`${this.baseUrl}${endpoint}`, {
       ...options,
       headers
-    }, 4000);
+    }, 15000);
 
     const result: any = await response.json();
     if (result && typeof result === 'object') {
@@ -173,8 +173,8 @@ export class OpenproviderDomainProvider implements IDomainProvider {
         });
       }
     } catch (error: any) {
-      if (domains.length > 0) {
-        results.push({ domain: domains[0], available: false, error: error.message });
+      for (const d of domains) {
+        results.push({ domain: d, available: false, error: error.message });
       }
     }
     return results;
@@ -529,6 +529,46 @@ export class OpenproviderDomainProvider implements IDomainProvider {
       console.error('[Openprovider] getDomainDetails error:', error);
       return { success: false, error: error.message };
     }
+  }
+
+  async getTransferStatus(domain: string): Promise<{ success: boolean; status?: string; transferId?: string; error?: string; rawData?: any }> {
+    const cleanDomain = domain.trim().toLowerCase();
+    const domainObj = this.splitDomain(cleanDomain);
+    await this.authenticate();
+    try {
+      const domRes = await this.fetchApi(`/domains/${domainObj.name}/${domainObj.extension}`);
+      if (domRes?.data?.status) {
+        const raw = String(domRes.data.status).toUpperCase();
+        return {
+          success: true,
+          status: raw,
+          transferId: domRes.data.id ? String(domRes.data.id) : undefined,
+          rawData: domRes.data,
+        };
+      }
+    } catch (e: any) {
+      // Ignore and fallback to transfers query
+    }
+
+    try {
+      const trRes = await this.fetchApi(`/transfers?domain=${domainObj.name}&extension=${domainObj.extension}&limit=1`);
+      const item = trRes?.data?.results?.[0] || trRes?.data?.[0];
+      if (item) {
+        return {
+          success: true,
+          status: String(item.status || 'REQ').toUpperCase(),
+          transferId: item.id ? String(item.id) : undefined,
+          rawData: item,
+        };
+      }
+    } catch (trErr: any) {
+      console.warn('[Openprovider] getTransferStatus query error:', trErr?.message);
+    }
+
+    return {
+      success: false,
+      error: 'Unable to retrieve transfer status from Openprovider.',
+    };
   }
 
   

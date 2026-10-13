@@ -25,50 +25,115 @@ const domainRouter = Router();
 let domainPricingCache: { expiresAt: number; data: DomainPricing[] } | null = null;
 const PRICED_TLDS = ['com', 'net', 'org', 'xyz', 'io', 'co', 'dev', 'online', 'info', 'biz', 'store'];
 
-export const DEFAULT_CATALOG: DomainPricing[] = [
-  { tld: '.com', registerPrice: 1708, renewPrice: 2421, transferPrice: 1708, currency: 'BDT', isActive: true },
-  { tld: '.net', registerPrice: 2215, renewPrice: 2851, transferPrice: 2851, currency: 'BDT', isActive: true },
-  { tld: '.org', registerPrice: 1211, renewPrice: 2980, transferPrice: 2851, currency: 'BDT', isActive: true },
-  { tld: '.xyz', registerPrice: 428, renewPrice: 3151, transferPrice: 3151, currency: 'BDT', isActive: true },
-  { tld: '.io', registerPrice: 10692, renewPrice: 12831, transferPrice: 10692, currency: 'BDT', isActive: true },
-  { tld: '.co', registerPrice: 1425, renewPrice: 6699, transferPrice: 5701, currency: 'BDT', isActive: true },
-  { tld: '.dev', registerPrice: 3420, renewPrice: 3420, transferPrice: 3420, currency: 'BDT', isActive: true },
-  { tld: '.online', registerPrice: 712, renewPrice: 4275, transferPrice: 4275, currency: 'BDT', isActive: true },
-  { tld: '.biz', registerPrice: 3134, renewPrice: 4133, transferPrice: 3134, currency: 'BDT', isActive: true },
-  { tld: '.info', registerPrice: 854, renewPrice: 5701, transferPrice: 3847, currency: 'BDT', isActive: true },
-  { tld: '.store', registerPrice: 854, renewPrice: 6699, transferPrice: 6699, currency: 'BDT', isActive: true },
-];
+export async function fetchLiveOpenproviderPricingList(): Promise<DomainPricing[]> {
+  try {
+    const config = await getDomainConfig();
+    const provider = getDomainProvider(config);
+    let pricingSettings = { usdToBdtRate: 123, markupPercent: 15 };
+    try {
+      pricingSettings = await getDomainPricingSettings();
+    } catch {}
 
-export async function getEffectiveDomainPricingList(): Promise<DomainPricing[]> {
+    if (!provider.getTldPricing) return [];
+
+    const results = await Promise.all(
+      PRICED_TLDS.map(async (tld) => {
+        try {
+          const quote = await provider.getTldPricing!(tld);
+          if (
+            quote &&
+            quote.currency === 'USD' &&
+            Number.isFinite(quote.registrationPrice) && quote.registrationPrice > 0 &&
+            Number.isFinite(quote.renewalPrice) && quote.renewalPrice > 0 &&
+            Number.isFinite(quote.transferPrice) && quote.transferPrice > 0
+          ) {
+            return {
+              tld: quote.tld.startsWith('.') ? quote.tld : `.${quote.tld}`,
+              registerPrice: calculateCustomerPriceBdt(quote.registrationPrice, pricingSettings),
+              renewPrice: calculateCustomerPriceBdt(quote.renewalPrice, pricingSettings),
+              transferPrice: calculateCustomerPriceBdt(quote.transferPrice, pricingSettings),
+              currency: 'BDT',
+              isActive: true,
+            };
+          }
+          return null;
+        } catch (e: any) {
+          console.warn(`[Domain] Failed live pricing for .${tld}:`, e.message);
+          return null;
+        }
+      })
+    );
+
+    const livePricing = results.filter((p): p is DomainPricing => p !== null);
+    if (livePricing.length > 0) {
+      domainPricingCache = { expiresAt: Date.now() + 10 * 60_000, data: livePricing };
+      try {
+        const db = getAdminDb();
+        if (typeof db?.batch === 'function') {
+          const batch = db.batch();
+          for (const item of livePricing) {
+            const docRef = db.collection('domainPricing').doc(item.tld.replace(/^\./, ''));
+            batch.set(docRef, { ...item, updatedAt: new Date() }, { merge: true });
+          }
+          await batch.commit();
+        }
+      } catch (fsErr) {
+        console.warn('[Domain] Failed to persist live pricing to Firestore:', fsErr);
+      }
+    }
+    return livePricing;
+  } catch (err) {
+    console.warn('[Domain] Failed to fetch live Openprovider pricing list:', err);
+    return [];
+  }
+}
+
+export async function getEffectiveDomainPricingList(forceLive: boolean = false): Promise<DomainPricing[]> {
+  if (!forceLive && domainPricingCache && domainPricingCache.expiresAt > Date.now()) {
+    return domainPricingCache.data;
+  }
+
+  // 1. Fetch live Openprovider pricing first and sync to Firestore
+  const livePricing = await fetchLiveOpenproviderPricingList();
+  if (livePricing && livePricing.length > 0) {
+    return livePricing;
+  }
+
+  // 2. Fall back to Firestore if live Openprovider fetch fails
   try {
     const db = getAdminDb();
     const snap = await db.collection('domainPricing').get();
-    const map = new Map<string, DomainPricing>();
-
-    for (const item of DEFAULT_CATALOG) {
-      map.set(item.tld.toLowerCase(), { ...item });
+    if (!snap.empty) {
+      const list: DomainPricing[] = [];
+      for (const doc of snap.docs) {
+        const data = doc.data();
+        if (!data || data.isActive === false) continue;
+        const rawTld = String(data.tld || doc.id).trim().toLowerCase();
+        const formattedTld = rawTld.startsWith('.') ? rawTld : `.${rawTld}`;
+        const regPrice = Number(data.registerPrice) || 0;
+        const renPrice = Number(data.renewPrice) || 0;
+        const trnPrice = Number(data.transferPrice) || 0;
+        if (regPrice > 0) {
+          list.push({
+            tld: formattedTld,
+            registerPrice: regPrice,
+            renewPrice: renPrice,
+            transferPrice: trnPrice,
+            currency: data.currency || 'BDT',
+            isActive: true,
+          });
+        }
+      }
+      if (list.length > 0) {
+        domainPricingCache = { expiresAt: Date.now() + 5 * 60_000, data: list };
+        return list;
+      }
     }
-
-    for (const doc of snap.docs) {
-      const data = doc.data();
-      if (!data) continue;
-      const rawTld = String(data.tld || doc.id).trim().toLowerCase();
-      const formattedTld = rawTld.startsWith('.') ? rawTld : `.${rawTld}`;
-      map.set(formattedTld, {
-        tld: formattedTld,
-        registerPrice: Number(data.registerPrice) || map.get(formattedTld)?.registerPrice || 1708,
-        renewPrice: Number(data.renewPrice) || map.get(formattedTld)?.renewPrice || 2421,
-        transferPrice: Number(data.transferPrice) || map.get(formattedTld)?.transferPrice || 1708,
-        currency: data.currency || 'BDT',
-        isActive: data.isActive !== false,
-      });
-    }
-
-    return Array.from(map.values()).filter(p => p.isActive);
   } catch (error) {
-    console.warn('[Domain] Failed to read domainPricing from Firestore, returning default catalog:', error);
-    return DEFAULT_CATALOG;
+    console.warn('[Domain] Failed to read domainPricing from Firestore:', error);
   }
+
+  return [];
 }
 
 domainRouter.get('/check', async (req: any, res: Response) => {
@@ -135,27 +200,76 @@ domainRouter.post('/check', async (req: any, res: Response) => {
     }
 
     const fullPricing = await getEffectiveDomainPricingList();
-    const enriched = results.map(r => {
+    const pricingByTld = new Map<string, Promise<any>>();
+
+    const enriched = await Promise.all(results.map(async r => {
       const parts = r.domain.split('.');
       const tld = parts.length > 1 ? parts.slice(1).join('.').toLowerCase() : '';
       const formattedTld = `.${tld}`;
-      const match = fullPricing.find(p => p.tld.toLowerCase() === formattedTld)
-        || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === tld)
-        || fullPricing[0]
-        || DEFAULT_CATALOG[0];
 
-      const priceBdt = match?.registerPrice || 1708;
-      const renewalPriceBdt = match?.renewPrice || 2421;
+      if (tld && typeof provider.getTldPricing === 'function') {
+        let pricingPromise = pricingByTld.get(tld);
+        if (!pricingPromise) {
+          pricingPromise = provider.getTldPricing(tld);
+          pricingByTld.set(tld, pricingPromise);
+        }
+
+        try {
+          const quote = await pricingPromise;
+          if (quote) {
+            if (quote.currency !== 'USD' || !Number.isFinite(quote.registrationPrice) || quote.registrationPrice <= 0
+              || !Number.isFinite(quote.renewalPrice) || quote.renewalPrice <= 0) {
+              return {
+                ...r,
+                price: undefined,
+                priceBdt: undefined,
+                renewalPrice: undefined,
+                currency: 'BDT',
+                error: 'A valid registration and renewal price is unavailable for this domain.',
+              };
+            }
+
+            const regBdt = calculateCustomerPriceBdt(quote.registrationPrice, pricingSettings);
+            const renBdt = calculateCustomerPriceBdt(quote.renewalPrice, pricingSettings);
+            return {
+              ...r,
+              price: regBdt,
+              priceBdt: regBdt,
+              renewalPrice: renBdt,
+              currency: 'BDT',
+              error: undefined,
+            };
+          }
+        } catch (quoteErr: any) {
+          // If quote fetch threw, fallback to fullPricing below
+        }
+      }
+
+      const match = fullPricing.find(p => p.tld.toLowerCase() === formattedTld)
+        || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === tld);
+
+      if (match && match.registerPrice > 0) {
+        const priceBdt = match.registerPrice;
+        const renewalPriceBdt = match.renewPrice;
+        return {
+          ...r,
+          price: priceBdt,
+          priceBdt: priceBdt,
+          renewalPrice: renewalPriceBdt,
+          currency: 'BDT',
+          error: undefined,
+        };
+      }
 
       return {
         ...r,
-        price: priceBdt,
-        priceBdt: priceBdt,
-        renewalPrice: renewalPriceBdt,
+        price: undefined,
+        priceBdt: undefined,
+        renewalPrice: undefined,
         currency: 'BDT',
-        error: undefined,
+        error: 'A valid registration and renewal price could not be retrieved from registrar.',
       };
-    });
+    }));
 
     return res.json({ success: true, data: enriched });
   } catch (error: any) {
@@ -220,9 +334,14 @@ domainRouter.post('/register', async (req: any, res: Response) => {
     if (!supplierPriceUsd || supplierPriceUsd <= 0) {
       const tld = request.domain.split('.').pop()?.toLowerCase() || 'com';
       const fullPricing = await getEffectiveDomainPricingList();
-      const match = fullPricing.find(p => p.tld.replace(/^\./, '') === tld) || DEFAULT_CATALOG[0];
-      const customerPrice = match.registerPrice || 1708;
-      supplierPriceUsd = Math.round((customerPrice / pricingSettings.usdToBdtRate) * 100) / 100;
+      const match = fullPricing.find(p => p.tld.replace(/^\./, '') === tld);
+      if (match && match.registerPrice > 0) {
+        supplierPriceUsd = Math.round((match.registerPrice / pricingSettings.usdToBdtRate) * 100) / 100;
+      }
+    }
+
+    if (!supplierPriceUsd || supplierPriceUsd <= 0) {
+      return res.status(400).json({ success: false, error: 'Registration price could not be determined for this domain.' });
     }
 
     const years = request.years || 1;
@@ -278,58 +397,15 @@ domainRouter.post('/whois', async (req: any, res: Response) => {
 });
 
 domainRouter.get('/pricing', async (req: any, res: Response) => {
-  if (domainPricingCache && domainPricingCache.expiresAt > Date.now()) {
-    return res.json({ success: true, data: domainPricingCache.data });
-  }
-
   try {
-    const config = await getDomainConfig();
-    const provider = getDomainProvider(config);
-    let pricingSettings = { usdToBdtRate: 123, markupPercent: 15 };
-    try {
-      pricingSettings = await getDomainPricingSettings();
-    } catch {}
-
-    const data: DomainPricing[] = [];
-    const failed: Array<{ tld: string; error: string }> = [];
-
-    if (provider.getTldPricing) {
-      for (const tld of PRICED_TLDS) {
-        try {
-          const quote = await provider.getTldPricing(tld);
-          if (quote.currency === 'USD'
-            && Number.isFinite(quote.registrationPrice) && quote.registrationPrice > 0
-            && Number.isFinite(quote.renewalPrice) && quote.renewalPrice > 0
-            && Number.isFinite(quote.transferPrice) && quote.transferPrice > 0) {
-            data.push({
-              tld: quote.tld.startsWith('.') ? quote.tld : `.${quote.tld}`,
-              registerPrice: calculateCustomerPriceBdt(quote.registrationPrice, pricingSettings),
-              renewPrice: calculateCustomerPriceBdt(quote.renewalPrice, pricingSettings),
-              transferPrice: calculateCustomerPriceBdt(quote.transferPrice, pricingSettings),
-              currency: 'BDT',
-              isActive: true,
-            });
-          }
-        } catch (error: any) {
-          failed.push({ tld: `.${tld}`, error: error?.message || 'Failed to fetch TLD pricing.' });
-        }
-      }
+    const list = await getEffectiveDomainPricingList();
+    if (list && list.length > 0) {
+      return res.json({ success: true, data: list });
     }
-
-    if (data.length > 0) {
-      domainPricingCache = { expiresAt: Date.now() + 60_000, data };
-      return res.json({ success: true, data, failed });
-    }
-
-    // Fallback: If Openprovider failed or returned nothing, serve from Firestore / default catalogue
-    console.warn('[Domain] Live Openprovider pricing unavailable, returning Firestore fallback catalog.');
-    const fallbackData = await getEffectiveDomainPricingList();
-    domainPricingCache = { expiresAt: Date.now() + 120_000, data: fallbackData };
-    return res.json({ success: true, data: fallbackData, isFallback: true });
+    return res.status(502).json({ success: false, error: 'Domain pricing currently unavailable from Openprovider.' });
   } catch (error: any) {
-    console.error('Failed to fetch domain pricing, using fallback catalogue:', error);
-    const fallbackData = await getEffectiveDomainPricingList();
-    return res.json({ success: true, data: fallbackData, isFallback: true });
+    console.error('Failed to fetch domain pricing:', error);
+    return res.status(500).json({ success: false, error: error?.message || 'Failed to fetch domain pricing' });
   }
 });
 
@@ -421,37 +497,34 @@ domainRouter.post('/tld-pricing', async (req: any, res: Response) => {
       }
     }
 
-    // Fallback: lookup in Firestore / default catalog
+    // Lookup in dynamic fullPricing list
     const fullPricing = await getEffectiveDomainPricingList();
     const match = fullPricing.find(p => p.tld.toLowerCase() === formattedTld)
-      || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === cleanTld)
-      || DEFAULT_CATALOG[0];
+      || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === cleanTld);
 
-    return res.json({ 
-      success: true, 
-      data: { 
-        tld: formattedTld,
-        currency: 'BDT',
-        registrationPrice: match.registerPrice,
-        renewalPrice: match.renewPrice,
-        transferPrice: match.transferPrice,
-        restorePrice: match.renewPrice,
-      },
-      isFallback: true
+    if (match && match.registerPrice > 0) {
+      return res.json({ 
+        success: true, 
+        data: { 
+          tld: formattedTld,
+          currency: 'BDT',
+          registrationPrice: match.registerPrice,
+          renewalPrice: match.renewPrice,
+          transferPrice: match.transferPrice,
+          restorePrice: match.renewPrice,
+        }
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      error: `Pricing for ${formattedTld} is not available from Openprovider.`
     });
   } catch (error: any) {
     console.error('Domain TLD pricing error:', error);
-    return res.json({ 
-      success: true, 
-      data: { 
-        tld: `.${String(req.body?.tld || 'com').replace(/^\./, '')}`,
-        currency: 'BDT',
-        registrationPrice: 1708,
-        renewalPrice: 2421,
-        transferPrice: 1708,
-        restorePrice: 2421,
-      },
-      isFallback: true
+    return res.status(500).json({ 
+      success: false, 
+      error: error?.message || 'Failed to get TLD pricing'
     });
   }
 });
@@ -498,14 +571,13 @@ domainRouter.post('/tld-pricing-batch', async (req: any, res: Response) => {
       const clean = String(rawTld).trim().toLowerCase();
       const formatted = clean.startsWith('.') ? clean : `.${clean}`;
       const match = fullPricing.find(p => p.tld.toLowerCase() === formatted)
-        || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === clean.replace(/^\./, ''))
-        || DEFAULT_CATALOG[0];
+        || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === clean.replace(/^\./, ''));
 
       return {
         tld: formatted,
-        customerPriceBdt: match.registerPrice,
-        renewalPriceBdt: match.renewPrice,
-        transferPriceBdt: match.transferPrice,
+        customerPriceBdt: match?.registerPrice || 0,
+        renewalPriceBdt: match?.renewPrice || 0,
+        transferPriceBdt: match?.transferPrice || 0,
         currency: 'BDT',
       };
     });
@@ -557,19 +629,21 @@ domainRouter.post('/renewal-price', async (req: any, res: Response) => {
     const formattedTld = `.${tld}`;
     const fullPricing = await getEffectiveDomainPricingList();
     const match = fullPricing.find(p => p.tld.toLowerCase() === formattedTld)
-      || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === tld)
-      || DEFAULT_CATALOG[0];
+      || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === tld);
 
-    return res.json({ 
-      success: true, 
-      data: { 
-        domain,
-        tld: formattedTld,
-        renewalPriceBdt: match.renewPrice || 2421,
-        maxDuration: 10,
-      },
-      isFallback: true,
-    });
+    if (match && match.renewPrice > 0) {
+      return res.json({ 
+        success: true, 
+        data: { 
+          domain,
+          tld: formattedTld,
+          renewalPriceBdt: match.renewPrice,
+          maxDuration: 10,
+        }
+      });
+    }
+
+    return res.status(404).json({ success: false, error: `Renewal price for ${domain} could not be determined.` });
   } catch (error: any) {
     console.error('Domain renewal price error:', error);
     return res.json({ success: false, error: error?.message || 'Internal server error' });
@@ -620,10 +694,13 @@ domainRouter.post('/renewal-price-breakdown', async (req: any, res: Response) =>
     const formattedTld = `.${tld}`;
     const fullPricing = await getEffectiveDomainPricingList();
     const match = fullPricing.find(p => p.tld.toLowerCase() === formattedTld)
-      || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === tld)
-      || DEFAULT_CATALOG[0];
+      || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === tld);
 
-    const customerPriceBdt = match.renewPrice || 2421;
+    if (!match || !match.renewPrice) {
+      return res.status(404).json({ success: false, error: `Renewal price breakdown for ${domain} could not be determined.` });
+    }
+
+    const customerPriceBdt = match.renewPrice;
     const supplierPriceUsd = Math.round((customerPriceBdt / pricingSettings.usdToBdtRate) * 100) / 100;
     const sellingPriceUsd = supplierPriceUsd * (1 + pricingSettings.markupPercent / 100);
 
@@ -639,8 +716,7 @@ domainRouter.post('/renewal-price-breakdown', async (req: any, res: Response) =>
         markupPercent: pricingSettings.markupPercent,
         exchangeRate: pricingSettings.usdToBdtRate,
         isSandbox: false,
-      },
-      isFallback: true,
+      }
     });
   } catch (error: any) {
     console.error('Domain renewal price breakdown error:', error);
@@ -702,10 +778,14 @@ domainRouter.post('/renewal-order', async (req: any, res: Response) => {
       const formattedTld = `.${tld}`;
       const fullPricing = await getEffectiveDomainPricingList();
       const match = fullPricing.find(p => p.tld.toLowerCase() === formattedTld)
-        || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === tld)
-        || DEFAULT_CATALOG[0];
-      const customerPrice = match.renewPrice || 2421;
-      supplierPricePerYearUsd = Math.round((customerPrice / pricingSettings.usdToBdtRate) * 100) / 100;
+        || fullPricing.find(p => p.tld.toLowerCase().replace(/^\./, '') === tld);
+      if (match && match.renewPrice > 0) {
+        supplierPricePerYearUsd = Math.round((match.renewPrice / pricingSettings.usdToBdtRate) * 100) / 100;
+      }
+    }
+
+    if (!supplierPricePerYearUsd || supplierPricePerYearUsd <= 0) {
+      return res.status(400).json({ success: false, error: `Unable to determine renewal price for ${params.domain}.` });
     }
 
     const supplierPriceUsd = supplierPricePerYearUsd * renewalPeriod;
@@ -782,19 +862,24 @@ domainRouter.post('/transfer', async (req: any, res: Response) => {
     try {
       const tld = domain.split('.').pop() || '';
       const tldPricing = await (provider as any).getTldPricing?.(tld);
-      if (tldPricing && Number.isFinite(tldPricing.transferPrice) && tldPricing.transferPrice > 0 && tldPricing.currency !== 'USD') {
+      if (tldPricing && Number.isFinite(tldPricing.transferPrice) && tldPricing.transferPrice > 0 && tldPricing.currency === 'USD') {
         supplierPriceUsd = tldPricing.transferPrice;
       }
     } catch (error: any) {
-      console.warn('[Domain] Failed to get live supplier price for transfer, using stored catalog:', error?.message);
+      console.warn('[Domain] Failed to get live supplier price for transfer:', error?.message);
     }
 
     if (!supplierPriceUsd || supplierPriceUsd <= 0) {
       const cleanTld = domain.split('.').pop()?.toLowerCase() || 'com';
       const fullPricing = await getEffectiveDomainPricingList();
-      const match = fullPricing.find(p => p.tld.replace(/^\./, '') === cleanTld) || DEFAULT_CATALOG[0];
-      const transferPrice = match.transferPrice || 1708;
-      supplierPriceUsd = Math.round((transferPrice / pricingSettings.usdToBdtRate) * 100) / 100;
+      const match = fullPricing.find(p => p.tld.replace(/^\./, '') === cleanTld);
+      if (match && match.transferPrice > 0) {
+        supplierPriceUsd = Math.round((match.transferPrice / pricingSettings.usdToBdtRate) * 100) / 100;
+      }
+    }
+
+    if (!supplierPriceUsd || supplierPriceUsd <= 0) {
+      return res.status(400).json({ success: false, error: `Unable to determine transfer price for ${domain}.` });
     }
 
     const customerPriceBdt = calculateCustomerPriceBdt(supplierPriceUsd, pricingSettings);
@@ -929,6 +1014,125 @@ domainRouter.post('/transfer/check-eligibility', async (req: any, res: Response)
         domain: req.body?.domain || '',
       }
     });
+  }
+});
+
+domainRouter.post('/transfer/sync-status', requireFirebaseAuth, async (req: any, res: Response) => {
+  try {
+    const { orderId, domain } = req.body;
+    if (!orderId && !domain) {
+      return res.status(400).json({ success: false, error: 'orderId or domain is required' });
+    }
+
+    const db = getAdminDb();
+    let orderDoc: any = null;
+
+    if (orderId) {
+      const doc = await db.collection('domainOrders').doc(orderId).get();
+      if (doc.exists) {
+        orderDoc = doc;
+      } else {
+        const trDoc = await db.collection('domain_transfers').doc(orderId).get();
+        if (trDoc.exists) orderDoc = trDoc;
+      }
+    }
+
+    if (!orderDoc && domain) {
+      const clean = String(domain).trim().toLowerCase();
+      const q = await db.collection('domainOrders').where('domain', '==', clean).where('type', '==', 'transfer').limit(1).get();
+      if (!q.empty) {
+        orderDoc = q.docs[0];
+      } else {
+        const q2 = await db.collection('domain_transfers').where('domain', '==', clean).limit(1).get();
+        if (!q2.empty) orderDoc = q2.docs[0];
+      }
+    }
+
+    if (!orderDoc) {
+      return res.status(404).json({ success: false, error: 'Transfer order not found.' });
+    }
+
+    const orderData = orderDoc.data();
+    const cleanDomain = String(orderData.domain).trim().toLowerCase();
+
+    // Check user permission (must be owner or admin)
+    const isAdmin = await isUserAdmin(req.user?.uid);
+    if (!isAdmin && orderData.userId !== req.user?.uid) {
+      return res.status(403).json({ success: false, error: 'Unauthorized to view this order.' });
+    }
+
+    const config = await getDomainConfig();
+    const provider = getDomainProvider(config);
+    if (!provider || typeof (provider as any).getTransferStatus !== 'function') {
+      return res.status(501).json({ success: false, error: 'Status check not supported by registrar provider.' });
+    }
+
+    const statusResult = await (provider as any).getTransferStatus(cleanDomain);
+    if (!statusResult.success) {
+      return res.status(502).json({ success: false, error: statusResult.error || 'Failed to sync status from Openprovider.' });
+    }
+
+    const rawStatus = String(statusResult.status || '').toUpperCase();
+    let internalStatus = orderData.status;
+    let transferStatus = orderData.transferStatus;
+    let completedAt = orderData.completedAt || null;
+    let note = orderData.error || null;
+
+    if (rawStatus === 'ACT') {
+      internalStatus = 'active';
+      transferStatus = 'completed';
+      completedAt = new Date();
+      note = null;
+    } else if (rawStatus === 'REQ') {
+      internalStatus = 'pending_transfer';
+      transferStatus = 'pending_transfer';
+      note = 'Transfer is in progress at registry. Awaiting losing registrar confirmation (typically 5-7 days).';
+    } else if (rawStatus === 'FAIL') {
+      internalStatus = 'failed';
+      transferStatus = 'failed';
+      note = statusResult.error || 'Transfer failed or was rejected by current registrar.';
+    }
+
+    const updates: any = {
+      status: internalStatus,
+      transferStatus,
+      providerStatus: rawStatus,
+      transferId: statusResult.transferId || orderData.transferId || null,
+      error: note,
+      lastSyncedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    if (completedAt) updates.completedAt = completedAt;
+
+    await orderDoc.ref.update(updates);
+
+    if (typeof db?.batch === 'function') {
+      await db.collection('domainAuditLog').doc().set({
+        orderId: orderDoc.id,
+        domain: cleanDomain,
+        action: 'transfer_status_sync',
+        providerStatus: rawStatus,
+        internalStatus,
+        syncedBy: req.user?.uid,
+        timestamp: new Date(),
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        orderId: orderDoc.id,
+        domain: cleanDomain,
+        status: internalStatus,
+        transferStatus,
+        providerStatus: rawStatus,
+        completedAt,
+        note,
+      }
+    });
+  } catch (error: any) {
+    console.error('Transfer status sync error:', error);
+    return res.status(500).json({ success: false, error: error?.message || 'Internal server error' });
   }
 });
 
@@ -1075,16 +1279,22 @@ domainRouter.post('/fulfill', requireFirebaseAuth, async (req: any, res: Respons
     }
 
     const isSuccess = result?.success || false;
-    const newStatus = isSuccess ? 'active' : 'failed';
+    const providerStatus = String(result?.status || '').toUpperCase();
+    const isPendingTransfer = orderType === 'transfer' && isSuccess && providerStatus === 'REQ';
+    const newStatus = isPendingTransfer ? 'pending_transfer' : isSuccess ? 'active' : 'failed';
 
     const batch = db.batch();
     batch.update(orderRef, {
       status: newStatus,
+      transferStatus: isPendingTransfer ? 'pending_transfer' : isSuccess ? 'completed' : 'failed',
       ...(orderType === 'renewal' ? { renewalStatus: isSuccess ? 'renewed' : 'failed' } : {}),
       registrationId: result?.registrationId || result?.transferId || orderData.registrationId || null,
+      transferId: result?.transferId || orderData.transferId || null,
+      transferSubmittedAt: orderType === 'transfer' && isSuccess ? new Date() : (orderData.transferSubmittedAt || null),
+      completedAt: isSuccess && !isPendingTransfer ? new Date() : null,
       expiresAt: result?.expiresAt || orderData.expiresAt || null,
       newExpiryDate: result?.newExpiryDate || null,
-      error: result?.error || null,
+      error: result?.error || (isPendingTransfer ? 'Transfer request submitted to Openprovider; waiting for registry confirmation (5-7 days).' : null),
       providerStatus: result?.status || null,
       updatedAt: new Date(),
     });

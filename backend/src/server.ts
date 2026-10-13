@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './services/networkDns.js';
 import { createApp } from './app.js';
 import { config, validateEnvironment } from './config/index.js';
 import { setupExpiryReminders } from './jobs/expiryReminders.js';

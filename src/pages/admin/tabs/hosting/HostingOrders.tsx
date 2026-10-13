@@ -289,6 +289,42 @@ export default function HostingOrders() {
     }
   };
 
+  const [syncingTransferId, setSyncingTransferId] = useState<string | null>(null);
+
+  const handleSyncTransferStatus = async (domainOrder: DomainOrder) => {
+    setSyncingTransferId(domainOrder.id);
+    try {
+      const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
+      const res = await fetch(getApiUrl('/api/domains/transfer/sync-status'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: domainOrder.id,
+          domain: domainOrder.domain,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Transfer status synced: ${data.data?.status || 'updated'}`);
+        setDomainOrders(prev => prev.map(d => d.id === domainOrder.id ? {
+          ...d,
+          status: data.data.status,
+          providerStatus: data.data.providerStatus,
+          transferStatus: data.data.transferStatus,
+        } : d));
+      } else {
+        toast.error(data.error || 'Failed to sync transfer status');
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to sync transfer status');
+    } finally {
+      setSyncingTransferId(null);
+    }
+  };
+
   const handleProvisionCloudLinux = async (order: HostingOrder) => {
     const ip = prompt("Enter Server IP Address to provision CloudLinux License:");
     if (!ip) return;
@@ -1152,6 +1188,16 @@ export default function HostingOrders() {
                                         title="Update Auth Code"
                                       >
                                         <Edit3 size={11} /> Edit Code
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={syncingTransferId === domain.id}
+                                        onClick={() => handleSyncTransferStatus(domain)}
+                                        className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-semibold text-blue-800 bg-blue-100/80 hover:bg-blue-200 rounded transition-colors ml-1 disabled:opacity-50"
+                                        title="Sync live transfer status from Openprovider"
+                                      >
+                                        <RefreshCw size={11} className={syncingTransferId === domain.id ? "animate-spin" : ""} />
+                                        Sync Status
                                       </button>
                                     </div>
                                   )}

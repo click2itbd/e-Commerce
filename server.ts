@@ -1,3 +1,4 @@
+import "./backend/src/services/networkDns";
 import { createServer as createViteServer } from "vite";
 import { createApp } from "./backend/src/app";
 import { config, validateEnvironment } from "./backend/src/config";
