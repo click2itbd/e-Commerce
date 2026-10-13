@@ -8,8 +8,10 @@ export function DnsManagementTab({ state }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchZones();
-  }, []);
+    if (state.activeTab === 'dns-management') {
+      fetchZones();
+    }
+  }, [state.activeTab]);
 
   const fetchZones = async () => {
     setLoading(true);

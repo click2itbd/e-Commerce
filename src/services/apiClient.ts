@@ -27,11 +27,20 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, token?: st
   };
 
   let authToken = token;
-  if (!authToken && typeof window !== 'undefined' && auth.currentUser) {
-    try {
-      authToken = await auth.currentUser.getIdToken();
-    } catch {
-      // ignore
+  if (!authToken && typeof window !== 'undefined') {
+    if (typeof (auth as any).authStateReady === 'function') {
+      try {
+        await (auth as any).authStateReady();
+      } catch {
+        // ignore
+      }
+    }
+    if (auth.currentUser) {
+      try {
+        authToken = await auth.currentUser.getIdToken();
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -39,10 +48,25 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, token?: st
     headers['Authorization'] = `Bearer ${authToken}`;
   }
 
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     ...options,
     headers,
   });
+
+  if (!response.ok && response.status === 401 && typeof window !== 'undefined' && auth.currentUser) {
+    try {
+      const freshToken = await auth.currentUser.getIdToken(true);
+      if (freshToken) {
+        headers['Authorization'] = `Bearer ${freshToken}`;
+        response = await fetch(url, {
+          ...options,
+          headers,
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   if (!response.ok) {
     let errorMessage = `HTTP ${response.status}`;
