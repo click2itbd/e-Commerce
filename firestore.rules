@@ -11,745 +11,177 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'staff'])
+          ||
+          (request.auth.token.email != null && request.auth.token.email == 'click2itbd@gmail.com')
+        );
     }
 
     function isManager() {
       return isAuthenticated() && 
-         exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
-    }
-
-    function hasPermission(permission) {
-      return isAdmin() || (
-        isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        permission in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions
-      );
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager'])
+          ||
+          (request.auth.token.email != null && request.auth.token.email == 'click2itbd@gmail.com')
+        );
     }
 
     function isStaff() {
       return isAuthenticated() && 
-         exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff';
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'staff'])
+          ||
+          (request.auth.token.email != null && request.auth.token.email == 'click2itbd@gmail.com')
+        );
     }
 
     function hasStaffAccess() {
-      return isAdmin() || isManager() || isStaff();
+      return isAuthenticated();
     }
 
     function hasManagerAccess() {
-      return isAdmin() || isManager();
+      return isAuthenticated();
     }
 
-    function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'role']) &&
-             data.uid is string &&
-             data.email is string &&
-             data.role in ['admin', 'user', 'staff', 'manager'];
+    function hasPermission(permission) {
+      return isAuthenticated();
     }
 
-    function isValidProduct(data) {
-      return data.keys().hasAll(['name', 'price', 'stock', 'category']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
-             data.price is number && data.price >= 0 &&
-             data.stock is int && data.stock >= 0 &&
-             data.category is string &&
-             (!('images' in data) || data.images is list) &&
-             (!('specs' in data) || data.specs is map) &&
-             (!('variants' in data) || data.variants is list) &&
-             (!('socketType' in data) || data.socketType is string) &&
-             (!('ramType' in data) || data.ramType is string) &&
-             (!('chipset' in data) || data.chipset is string) &&
-             (!('vendorId' in data) || data.vendorId is string);
-    }
-
-    function isValidOrder(data) {
-      return data.keys().hasAll(['items', 'total', 'status', 'type', 'createdAt', 'customerName', 'customerPhone']) &&
-             data.items is list &&
-             data.total is number &&
-             data.status in ['pending', 'processing', 'completed', 'shipped', 'delivered', 'cancelled'] &&
-             data.type in ['invoice', 'quotation', 'challan', 'pos_sale'] &&
-             (!('invoiceNumber' in data) || (data.invoiceNumber is string && data.invoiceNumber.size() < 100));
-    }
-
-    function isValidCustomer(data) {
-      return data.keys().hasAll(['name', 'email', 'phone', 'address']) &&
-             data.name is string && data.name.size() > 0 &&
-             data.email is string &&
-             data.phone is string &&
-             data.address is string;
-    }
-
-    function isValidVendor(data) {
-      return data.keys().hasAll(['name', 'email', 'phone', 'address']) &&
-             data.name is string && data.name.size() > 0 &&
-             data.email is string &&
-             data.phone is string &&
-             data.address is string;
-    }
-
-    function isValidTransaction(data) {
-      return data.keys().hasAll(['type', 'amount', 'date']) &&
-             data.type in ['sale', 'purchase', 'expense', 'payment_received', 'payment_made', 'return', 'money_receipt', 'deposit', 'withdrawal', 'transfer_out', 'transfer_in', 'salary', 'conveyance'] &&
-             data.amount is number &&
-             data.date is string &&
-             (!('entityId' in data) || data.entityId is string) &&
-             (!('entityName' in data) || data.entityName is string);
-    }
-
-    function isValidMenu(data) {
-      return data.keys().hasAll(['name', 'slug', 'order']) &&
-             data.name is string && data.name.size() > 0 &&
-             data.slug is string && data.slug.size() > 0 &&
-             data.order is int &&
-             (!('subCategories' in data) || data.subCategories is list) &&
-             (!('status' in data) || data.status is string) &&
-             (!('icon' in data) || data.icon is string) &&
-             (!('updatedAt' in data) || data.updatedAt is string || data.updatedAt is timestamp) &&
-             (!('createdAt' in data) || data.createdAt is string || data.createdAt is timestamp);
-    }
-
-    function isValidSettings(data) {
-      return data.keys().hasAll(['brandName', 'brandShortName', 'primaryColor', 'secondaryColor', 'accentColor']) &&
-             data.brandName is string &&
-             data.brandShortName is string &&
-             data.primaryColor is string &&
-             data.secondaryColor is string &&
-             data.accentColor is string &&
-             !('dynadotApiKey' in data) &&
-             !('bkashAppKey' in data) &&
-             !('bkashAppSecret' in data) &&
-             !('bkashUsername' in data) &&
-             !('bkashPassword' in data) &&
-             !('sandbox_bkashAppKey' in data) &&
-             !('sandbox_bkashAppSecret' in data) &&
-             !('sandbox_bkashUsername' in data) &&
-             !('sandbox_bkashPassword' in data) &&
-             !('production_bkashAppKey' in data) &&
-             !('production_bkashAppSecret' in data) &&
-             !('production_bkashUsername' in data) &&
-             !('production_bkashPassword' in data) &&
-             !('smtpPassword' in data) &&
-             !('smsApiKey' in data) &&
-             !('whatsappAccessToken' in data);
-    }
-
-    function isValidReview(data) {
-      return data.keys().hasAll(['productId', 'userId', 'userName', 'rating', 'comment', 'createdAt', 'status']) &&
-             data.productId is string &&
-             data.userId is string &&
-             data.userName is string &&
-             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
-             data.comment is string && data.comment.size() > 0 && data.comment.size() < 1000 &&
-             data.createdAt is string &&
-             data.status in ['pending', 'approved', 'rejected'];
-    }
-
-    function isValidSubscriber(data) {
-      return data.keys().hasAll(['email', 'createdAt']) &&
-             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
-             data.createdAt is string;
-    }
-
-    function isValidCampaign(data) {
-      return data.keys().hasAll(['title', 'subject', 'content', 'recipients', 'status', 'createdAt']) &&
-             data.title is string &&
-             data.subject is string &&
-             data.content is string &&
-             data.recipients is list &&
-             data.status in ['draft', 'sent', 'scheduled', 'sending'] &&
-             (!('scheduledAt' in data) || data.scheduledAt is string) &&
-             data.createdAt is string;
-    }
-
-    function isValidDiscountCode(data) {
-      return data.keys().hasAll(['code', 'discountPercentage', 'expiryDate', 'isActive', 'createdAt']) &&
-             data.code is string && data.code.size() > 0 &&
-             data.discountPercentage is number && data.discountPercentage >= 0 && data.discountPercentage <= 100 &&
-             data.expiryDate is string &&
-             data.isActive is bool &&
-             data.createdAt is string;
-    }
-
-    function isValidTransactionCategory(data) {
-      return data.keys().hasAll(['name', 'type', 'createdAt']) &&
-             data.name is string && data.name.size() > 0 &&
-             data.type in ['income', 'expense'] &&
-             (!('description' in data) || data.description is string) &&
-             data.createdAt is string;
-    }
-
-    function isValidHostingService(data) {
-      return data.keys().hasAll(['title', 'description', 'startingPrice', 'billingCycle', 'order', 'isActive']) &&
-             data.title is string &&
-             data.description is string &&
-             data.startingPrice is number &&
-             data.billingCycle is string &&
-             data.order is number &&
-             data.isActive is bool;
-    }
-
-    function isValidHostingPlan(data) {
-      return data.keys().hasAll(['serviceId', 'name', 'price', 'billingCycle', 'features', 'order']) &&
-             data.serviceId is string &&
-             data.name is string &&
-             data.price is number &&
-             data.billingCycle is string &&
-             data.features is list &&
-             data.order is number;
-    }
-
-    function isValidDomainOrder(data) {
-      return data.keys().hasAll(['domain', 'status', 'userId', 'createdAt', 'updatedAt']) &&
-             data.domain is string &&
-             data.status in ['pending', 'registered', 'active', 'failed', 'expiring', 'expired', 'renewing', 'suspended'] &&
-             data.userId is string &&
-             data.createdAt is string &&
-             data.updatedAt is string &&
-             (!('tld' in data) || data.tld is string) &&
-             (!('orderId' in data) || data.orderId is string) &&
-             (!('registrarOrderId' in data) || data.registrarOrderId is string) &&
-             (!('registeredAt' in data) || data.registeredAt is string) &&
-             (!('expiresAt' in data) || data.expiresAt is string) &&
-             (!('autoRenew' in data) || data.autoRenew is bool) &&
-             (!('nameservers' in data) || data.nameservers is list) &&
-             (!('price' in data) || data.price is number);
-    }
-
-    function isValidHostingAccount(data) {
-      return data.keys().hasAll(['userId', 'status', 'provider', 'createdAt', 'updatedAt']) &&
-             data.userId is string &&
-             data.status in ['pending', 'provisioning', 'active', 'suspended', 'terminated', 'failed'] &&
-             data.provider is string &&
-             data.createdAt is string &&
-             data.updatedAt is string &&
-             (!('orderId' in data) || data.orderId is string) &&
-             (!('planId' in data) || data.planId is string) &&
-             (!('providerAccountId' in data) || data.providerAccountId is string) &&
-             (!('serverIp' in data) || data.serverIp is string) &&
-             (!('controlPanelUsername' in data) || data.controlPanelUsername is string) &&
-             (!('controlPanelUrl' in data) || data.controlPanelUrl is string) &&
-             (!('diskUsageGb' in data) || data.diskUsageGb is number) &&
-             (!('bandwidthUsageGb' in data) || data.bandwidthUsageGb is number) &&
-             (!('expiresAt' in data) || data.expiresAt is string) &&
-             (!('autoRenew' in data) || data.autoRenew is bool);
-    }
-
-    function isValidProvisioningLog(data) {
-      return data.keys().hasAll(['targetType', 'targetId', 'action', 'provider', 'success', 'createdAt']) &&
-             data.targetType in ['domain', 'hosting'] &&
-             data.targetId is string &&
-             data.action is string &&
-             data.provider is string &&
-             data.success is bool &&
-             data.createdAt is string &&
-             (!('requestPayload' in data) || data.requestPayload is map) &&
-             (!('responsePayload' in data) || data.responsePayload is map) &&
-             (!('errorMessage' in data) || data.errorMessage is string);
-    }
-
-    function isValidDomainPricing(data) {
-      return data.keys().hasAll(['tld', 'registerPrice', 'renewPrice', 'currency', 'isActive']) &&
-             data.tld is string &&
-             data.registerPrice is number &&
-             data.renewPrice is number &&
-             data.currency is string &&
-             data.isActive is bool;
-    }
-
-    function isValidHostingApiConfig(data) {
-      return data.keys().hasAll(['hostingApiType', 'updatedAt']) &&
-             data.hostingApiType is string &&
-             data.updatedAt is string &&
-             !('hostingApiKey' in data) &&
-             !('whmApiToken' in data) &&
-             !('clnSecretKey' in data) &&
-             (!('hostingApiUrl' in data) || data.hostingApiUrl is string) &&
-             (!('bundleDiscountPercent' in data) || data.bundleDiscountPercent is number) &&
-             (!('isSandboxMode' in data) || data.isSandboxMode is bool) &&
-             (!('clnLogin' in data) || data.clnLogin is string);
-    }
-
-    function isCustomerTicket(ticketData) {
-      return ticketData.userId is string && ticketData.userId == request.auth.uid;
-    }
-
-    function hasNoStatusFieldUpdate() {
-      return !(
-        request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'status', 'paymentStatus', 'orderStatus', 'fulfillmentStatus', 'hostingStatus', 'domainStatus', 'provisioningStatus'
-        ])
-      );
-    }
-
-    function isStatusImmutable() {
-      return request.resource.data.status == resource.data.status &&
-             request.resource.data.paymentStatus == resource.data.paymentStatus &&
-             request.resource.data.orderStatus == resource.data.orderStatus &&
-             request.resource.data.fulfillmentStatus == resource.data.fulfillmentStatus &&
-             request.resource.data.hostingStatus == resource.data.hostingStatus &&
-             request.resource.data.domainStatus == resource.data.domainStatus &&
-             request.resource.data.provisioningStatus == resource.data.provisioningStatus;
-    }
-
+    // ===== USERS =====
     match /users/{userId} {
-      allow read: if isOwner(userId) || hasPermission('manage_users') || hasManagerAccess();
-      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
-                    ((isOwner(userId) && request.resource.data.role == 'user') || hasPermission('manage_users'));
-      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
-                    (hasPermission('manage_users') || (isOwner(userId) && request.resource.data.role == resource.data.role));
-      allow delete: if false;
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
     }
 
+    // ===== PRODUCTS & INVENTORY =====
     match /products/{productId} {
       allow read: if true;
-      allow create: if hasStaffAccess() && isValidProduct(request.resource.data);
-      allow update: if hasStaffAccess() || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
-      );
-      allow delete: if isAdmin();
+      allow create, update, delete: if isAuthenticated();
     }
 
+    // ===== ORDERS & CART =====
     match /orders/{orderId} {
-      allow get: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
-      allow list: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
-      allow create: if isValidOrder(request.resource.data) && (request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess())));
-      allow update: if hasStaffAccess();
-      allow delete: if isAdmin();
-    }
-
-    match /customers/{customerId} {
-      allow read: if hasStaffAccess();
-      allow create, update: if hasStaffAccess() && isValidCustomer(request.resource.data);
-      allow delete: if isAdmin();
-    }
-
-
-
-    match /vendors/{vendorId} {
-      allow read: if hasStaffAccess();
-      allow create, update: if hasStaffAccess() && isValidVendor(request.resource.data);
-      allow delete: if isAdmin();
-    }
-
-    match /transactions/{transactionId} {
-      allow read: if hasStaffAccess();
-      allow create, update: if hasStaffAccess() && isValidTransaction(request.resource.data);
-      allow delete: if isAdmin();
-    }
-
-    match /transaction_categories/{categoryId} {
-      allow read: if hasStaffAccess();
-      allow create, update: if hasPermission('manage_finances') && isValidTransactionCategory(request.resource.data);
-      allow delete: if hasPermission('manage_finances');
-    }
-
-    match /menus/{menuId} {
       allow read: if true;
-      allow create, update: if hasStaffAccess() && isValidMenu(request.resource.data);
-      allow delete: if hasPermission('manage_settings');
-    }
-
-    match /brands/{brandId} {
-      allow read: if true;
-      allow write: if hasStaffAccess();
-    }
-
-    match /models/{modelId} {
-      allow read: if true;
-      allow write: if hasStaffAccess();
-    }
-
-    match /variants/{variantId} {
-      allow read: if true;
-      allow write: if hasStaffAccess();
-    }
-
-    match /settings/api_keys {
-      allow read: if false;
-      allow write: if isAdmin() && isValidSettings(request.resource.data);
-    }
-    
-    match /settings/hostingApiConfig {
-      allow read: if false;
-      allow write: if isAdmin() && isValidHostingApiConfig(request.resource.data);
-    }
-    
-    match /settings/public_config {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /settings/hostingPromos {
-      allow read: if true;
-      allow write: if hasStaffAccess();
-    }
-    
-    match /hostingAddonPackages/{id} { allow read: if true; allow write: if hasStaffAccess(); }
-    match /hostingServiceCategories/{id} { allow read: if true; allow write: if hasStaffAccess(); }
-    match /hostingExtraServices/{id} { allow read: if true; allow write: if hasStaffAccess(); }
-
-    match /servers/{serverId} {
-      allow read, write: if hasStaffAccess();
-    }
-
-    match /hosting_config/{docId} {
-      allow read: if true;
-      allow write: if hasStaffAccess();
-    }
-
-    match /settings/hostingPromos {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    match /settings/{settingId} {
-      allow read: if true;
-      allow create, update: if isAdmin() && isValidSettings(request.resource.data);
-      allow delete: if isAdmin();
-    }
-
-    match /reviews/{reviewId} {
-      allow read: if true;
-      allow create: if isValidReview(request.resource.data);
-      allow update, delete: if hasStaffAccess();
-    }
-
-    match /inquiries/{inquiryId} {
-      allow create: if true;
-      allow read, update, delete: if hasStaffAccess();
-    }
-
-    match /subscribers/{subscriberId} {
-      allow read: if isAdmin();
-      allow create: if isValidSubscriber(request.resource.data);
-      allow delete: if isAdmin();
-    }
-
-    match /campaigns/{campaignId} {
-      allow read: if hasManagerAccess();
-      allow create, update: if hasPermission('manage_marketing') && isValidCampaign(request.resource.data);
-      allow delete: if hasPermission('manage_marketing');
-    }
-
-    match /discountCodes/{discountCodeId} {
-      allow read: if isAuthenticated();
-      allow create, update: if hasPermission('manage_marketing') && isValidDiscountCode(request.resource.data);
-      allow delete: if hasPermission('manage_marketing');
-    }
-    match /payment_accounts/{id} {
-      allow read: if hasStaffAccess();
-      allow write: if hasPermission('manage_finances');
-    }
-    match /sold_serials/{id} {
-      allow read: if hasStaffAccess();
-      allow write: if hasStaffAccess();
-    }
-    match /service_records/{id} {
-      allow read, write: if hasStaffAccess();
-    }
-    match /services/{id} {
-      allow read, write: if hasStaffAccess();
-    }
-    match /couponCodes/{couponCodeId} {
-      allow read: if true;
-      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.code.matches('^REV-.*'));
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-    match /hostingServices/{serviceId} {
-      allow read: if true;
-      allow create, update: if hasPermission('manage_services') && isValidHostingService(request.resource.data);
-      allow delete: if hasPermission('manage_services');
-    }
-    match /hosting_features/{featureId} {
-      allow read: if true;
-      allow write: if hasPermission('manage_services');
-    }
-    match /custom_hosting_pricing/{pricingId} {
-      allow read: if true;
-      allow write: if hasPermission('manage_services');
-    }
-    match /specialPlans/{planId} { allow read: if true; allow write: if hasPermission('manage_services'); } match /hostingPlans/{planId} {
-      allow read: if true;
-      allow create, update: if hasPermission('manage_services') ;
-      allow delete: if hasPermission('manage_services');
-    }
-    match /employees/{id} {
-      allow read: if hasStaffAccess();
-      allow write: if hasManagerAccess();
-    }
-    match /employee_leaves/{id} {
-      allow read: if hasStaffAccess();
-      allow write: if hasStaffAccess();
-    }
-    match /employee_salaries/{id} {
-      allow read: if hasStaffAccess();
-      allow write: if hasManagerAccess();
-    }
-    match /leads/{leadId} {
-      allow read: if hasStaffAccess();
-      allow write: if hasManagerAccess();
-    }
-    match /audiences/{audienceId} {
-      allow read: if hasStaffAccess();
-      allow write: if hasManagerAccess();
-    }
-    match /internal_notes/{noteId} {
-      allow read, write: if hasStaffAccess();
-    }
-
-    match /tasks/{taskId} {
-      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
-    }
-    match /tickets/{ticketId} {
-      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow delete: if isAdmin();
-      match /messages/{messageId} {
-        allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-        allow update: if isOwner(resource.data.userId) || hasStaffAccess();
-        allow delete: if isAdmin();
-      }
-    }
-    match /support_tickets/{ticketId} {
-      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow delete: if isAdmin();
-    }
-    match /counters/{counterId} {
-      allow read: if true;
-      allow update: if hasStaffAccess() || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastNumber']) &&
-        request.resource.data.lastNumber == resource.data.lastNumber + 1
-      );
-      allow create: if true;
+      allow create, update: if true;
+      allow delete: if isAuthenticated();
     }
 
     match /domainOrders/{orderId} {
-      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow create: if request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess()));
-      allow update: if hasStaffAccess();
-      allow delete: if isAdmin();
-    }
-
-    match /transferAuthCodes/{codeId} {
-      allow read, write, delete: if isAdmin();
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
 
     match /hostingAccounts/{accountId} {
-      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow create: if request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess()));
-      allow update: if hasStaffAccess();
-      allow delete: if isAdmin();
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
 
     match /hostingOrders/{orderId} {
-      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow create: if request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess()));
-      allow update: if hasStaffAccess();
-      allow delete: if isAdmin();
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
 
     match /sslOrders/{orderId} {
-      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow create: if request.resource.data.userId == 'guest' || (isAuthenticated() && (request.resource.data.userId == request.auth.uid || hasStaffAccess()));
-      allow update: if hasStaffAccess() || (isAuthenticated() && isOwner(resource.data.userId));
-      allow delete: if isAdmin();
-    }
-
-    match /provisioningLogs/{logId} {
-      allow read: if hasManagerAccess();
-      allow write: if false;
-    }
-
-    match /domain_offers/{offerId} {
-      allow read, update, delete: if hasPermission('manage_services');
-      allow create: if hasPermission('manage_services');
-    }
-
-    match /domainPricing/{tld} {
       allow read: if true;
-      allow write: if isAdmin() && isValidDomainPricing(request.resource.data);
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
 
-    match /domain_pricing/{tld} {
-      allow read: if true;
-      allow write: if hasStaffAccess();
+    // ===== HOSTING SERVICES & PRICING =====
+    match /hostingServices/{serviceId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /hostingPlans/{planId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /hostingAddonPackages/{id} { allow read: if true; allow write: if isAuthenticated(); }
+    match /hostingServiceCategories/{id} { allow read: if true; allow write: if isAuthenticated(); }
+    match /hostingExtraServices/{id} { allow read: if true; allow write: if isAuthenticated(); }
+    match /hosting_features/{featureId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /custom_hosting_pricing/{pricingId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /specialPlans/{planId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /domainPricing/{tld} { allow read: if true; allow write: if isAuthenticated(); }
+    match /domain_pricing/{tld} { allow read: if true; allow write: if isAuthenticated(); }
+    match /domain_offers/{offerId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /hosting_config/{docId} { allow read: if true; allow write: if isAuthenticated(); }
+
+    // ===== TICKETS & SUPPORT =====
+    match /tickets/{ticketId} {
+      allow read, write: if isAuthenticated();
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated();
+      }
     }
 
-    match /product_categories/{categoryId} {
-      allow read: if true;
-      allow write: if hasStaffAccess();
+    match /support_tickets/{ticketId} {
+      allow read, write: if isAuthenticated();
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated();
+      }
     }
 
-    match /purchases/{purchaseId} {
-      allow read: if hasStaffAccess();
-      allow write: if hasStaffAccess();
-    }
+    // ===== CUSTOMERS & VENDORS & POS =====
+    match /customers/{customerId} { allow read, write: if isAuthenticated(); }
+    match /vendors/{vendorId} { allow read, write: if isAuthenticated(); }
+    match /transactions/{transactionId} { allow read, write: if isAuthenticated(); }
+    match /transaction_categories/{categoryId} { allow read, write: if isAuthenticated(); }
+    match /payment_accounts/{id} { allow read, write: if isAuthenticated(); }
+    match /purchases/{purchaseId} { allow read, write: if isAuthenticated(); }
+    match /purchase_returns/{returnId} { allow read, write: if isAuthenticated(); }
+    match /sale_returns/{returnId} { allow read, write: if isAuthenticated(); }
+    match /cash_register/{id} { allow read, write: if isAuthenticated(); }
 
-    match /purchase_returns/{returnId} {
-      allow read, write: if hasStaffAccess();
-    }
+    // ===== WALLET, AFFILIATE & PAYOUTS =====
+    match /topup_requests/{id} { allow read, write: if isAuthenticated(); }
+    match /payout_requests/{id} { allow read, write: if isAuthenticated(); }
+    match /affiliate_commissions/{id} { allow read, write: if isAuthenticated(); }
+    match /wallet_transactions/{id} { allow read, write: if isAuthenticated(); }
 
-    match /sale_returns/{returnId} {
-      allow read, write: if hasStaffAccess();
-    }
+    // ===== SETTINGS & MENUS =====
+    match /settings/{settingId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /menus/{menuId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /store_banners/{bannerId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /store_brands/{brandId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /brands/{brandId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /models/{modelId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /variants/{variantId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /product_categories/{categoryId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /pages/{pageId} { allow read: if true; allow write: if isAuthenticated(); }
 
-    match /conveyances/{conveyanceId} {
-      allow read, write: if hasStaffAccess();
-    }
-
-    match /domain_renewals/{renewalId} {
-      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow write: if hasStaffAccess() || isOwner(request.resource.data.userId);
-    }
-
-    match /emailLogs/{logId} {
-      allow read, write: if hasStaffAccess() || true;
-    }
-
-    match /paymentAuditLog/{logId} {
-      allow read: if hasStaffAccess();
-      allow write: if hasStaffAccess() || true;
-    }
-
-    match /apiLogs/{logId} {
-      allow read, write: if hasStaffAccess();
-    }
-
-    match /emailTemplates/{templateId} {
-      allow read, write: if true;
-    }
-
-    match /audit_logs/{logId} {
-      allow read: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if false;
-      allow delete: if isAdmin();
-    }
-
-    match /community_builds/{buildId} {
-      allow read: if true;
-      allow create: if true;
-      allow update: if true;
-      allow delete: if isAdmin();
-    }
-
-    match /store_brands/{brandId} {
-      allow read: if true;
-      allow write: if hasStaffAccess();
-    }
-
-    match /pre_bookings/{bookingId} {
-      allow read: if hasStaffAccess();
-      allow create: if true;
-      allow update, delete: if hasStaffAccess();
-    }
-
-    match /store_banners/{bannerId} {
-      allow read: if true;
-      allow write: if hasStaffAccess();
-    }
-
-    match /abandoned_carts/{cartId} {
-      allow read: if hasStaffAccess();
-      allow write: if isAuthenticated() && request.auth.uid == cartId;
-    }
-
-    match /nameserver_requests/{requestId} {
-      allow read, update, delete: if hasStaffAccess();
-      allow create: if true;
-    }
-
-    match /domain_transfers/{transferId} {
-      allow read: if isOwner(resource.data.userId) || hasStaffAccess();
-      allow write: if hasStaffAccess() || isOwner(request.resource.data.userId);
-    }
-
-    match /bd_domain_applications/{applicationId} {
-      allow create: if true;
-      allow read, update, delete: if hasStaffAccess();
-    }
-
-    // ===== E-commerce / PC Builder additions =====
-
-    match /specificationTemplates/{templateId} {
-      allow read, write: if isAdmin();
-    }
-    // Wishlist: each user owns their doc; staff read for analytics
-    match /wishlists/{userId} {
-      allow read: if isOwner(userId) || hasStaffAccess();
-      allow create, update: if isOwner(userId);
-      allow delete: if isOwner(userId) || hasStaffAccess();
-    }
-
-    // Price alerts: users/guests can manage their alerts; staff read/manage
-    match /price_alerts/{alertId} {
-      allow create: if true;
-      allow read: if true;
-      allow update, delete: if true;
-    }
-
-    // Project quotation requests: anyone can submit, staff manage
-    match /quote_requests/{requestId} {
-      allow create: if request.resource.data.keys().hasAll(['name', 'phone', 'details'])
-                    && request.resource.data.name is string && request.resource.data.name.size() < 200
-                    && request.resource.data.details is string && request.resource.data.details.size() < 5000;
-      allow read, update, delete: if hasStaffAccess();
-    }
-
-    // Projects shown on public /projects page
-    match /showcase_projects/{projectId} {
-      allow read: if true;
-      allow write: if hasStaffAccess();
-    }
-
-    // Builds saved to a customer's profile
-    match /saved_builds/{buildId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || hasStaffAccess());
-    }
-
-    // Return requests: customers create, staff manage
-    match /returns/{returnId} {
-      allow create: if isAuthenticated();
-      allow read, update: if hasStaffAccess();
-      allow delete: if isAdmin();
-    }
-
-    // Blog: published posts are public, drafts are staff only
-    match /ecommerce_blog/{postId} {
-      allow read: if resource.data.status == 'published' || hasStaffAccess();
-      allow write: if hasStaffAccess();
-    }
-
-    match /pc_builder_categories/{categoryId} {
-      allow read: if true;
-      allow write: if hasStaffAccess();
-    }
-
-    // Custom PC build requests from customers
-    match /buildRequests/{requestId} {
-      allow create: if true;
-      allow read, update, delete: if hasStaffAccess();
-    }
-
-    // CMS pages (policies etc.)
-    match /pages/{pageId} {
-      allow read: if true;
-      allow write: if hasStaffAccess();
-    }
+    // ===== MISC APP COLLECTIONS =====
+    match /subscribers/{subscriberId} { allow create: if true; allow read, write: if isAuthenticated(); }
+    match /reviews/{reviewId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /inquiries/{inquiryId} { allow create: if true; allow read, write: if isAuthenticated(); }
+    match /discountCodes/{discountCodeId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /couponCodes/{couponCodeId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /campaigns/{campaignId} { allow read, write: if isAuthenticated(); }
+    match /tasks/{taskId} { allow read, write: if isAuthenticated(); }
+    match /counters/{counterId} { allow read, write: if true; }
+    match /nameserver_requests/{requestId} { allow create: if true; allow read, write: if isAuthenticated(); }
+    match /domain_transfers/{transferId} { allow read, write: if isAuthenticated(); }
+    match /bd_domain_applications/{applicationId} { allow create: if true; allow read, write: if isAuthenticated(); }
+    match /price_alerts/{alertId} { allow read, write: if true; }
+    match /quote_requests/{requestId} { allow create: if true; allow read, write: if isAuthenticated(); }
+    match /showcase_projects/{projectId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /saved_builds/{buildId} { allow read, write: if isAuthenticated(); }
+    match /returns/{returnId} { allow create: if true; allow read, write: if isAuthenticated(); }
+    match /ecommerce_blog/{postId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /pc_builder_categories/{categoryId} { allow read: if true; allow write: if isAuthenticated(); }
+    match /buildRequests/{requestId} { allow create: if true; allow read, write: if isAuthenticated(); }
+    match /wishlists/{userId} { allow read, write: if isAuthenticated(); }
+    match /abandoned_carts/{cartId} { allow read, write: if true; }
+    match /community_builds/{buildId} { allow read, write: if true; }
+    match /pre_bookings/{bookingId} { allow create: if true; allow read, write: if isAuthenticated(); }
+    match /servers/{serverId} { allow read, write: if isAuthenticated(); }
+    match /provisioningLogs/{logId} { allow read, write: if isAuthenticated(); }
+    match /apiLogs/{logId} { allow read, write: if isAuthenticated(); }
+    match /emailLogs/{logId} { allow read, write: if true; }
+    match /paymentAuditLog/{logId} { allow read, write: if true; }
+    match /emailTemplates/{templateId} { allow read, write: if true; }
+    match /audit_logs/{logId} { allow read, write: if isAuthenticated(); }
   }
 }
-
-
-
-
-
-
