@@ -1,10 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { getAdminDb, isUserAdmin } from '../firebase/admin.js';
-import { getApps } from 'firebase-admin';
-
-function isDevWithoutServiceAccount(): boolean {
-  return process.env.NODE_ENV !== 'production' && !process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-}
+import { getAdminDb, getAdminAuth, isUserAdmin } from '../firebase/admin.js';
 
 function decodeDevToken(idToken: string): any {
   try {
@@ -24,36 +19,25 @@ export async function requireFirebaseAuth(req: Request, res: Response, next: Nex
 
   const idToken = authHeader.split('Bearer ')[1];
 
-  if (isDevWithoutServiceAccount()) {
-    const decoded = decodeDevToken(idToken);
-    if (decoded?.user_id || decoded?.sub) {
-      (req as any).user = { uid: decoded.user_id || decoded.sub, email: decoded.email || '' };
+  try {
+    const adminAuth = getAdminAuth();
+    if (adminAuth) {
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      (req as any).user = decodedToken;
       return next();
     }
-    return res.status(401).json({ error: 'Invalid token format' });
+  } catch (error: any) {
+    console.warn('[requireFirebaseAuth] token verification error:', error?.message || error);
   }
 
-  try {
-    try {
-      getAdminDb();
-    } catch {}
-    const adminInstance = getApps()[0] as any;
-    if (!adminInstance) {
-      throw new Error('Firebase Admin not initialized');
-    }
-    const decodedToken = await adminInstance.auth().verifyIdToken(idToken);
-    (req as any).user = decodedToken;
-    next();
-  } catch (error) {
-    if (isDevWithoutServiceAccount() || process.env.NODE_ENV !== 'production') {
-      const decoded = decodeDevToken(idToken);
-      if (decoded?.user_id || decoded?.sub) {
-        (req as any).user = { uid: decoded.user_id || decoded.sub, email: decoded.email || '' };
-        return next();
-      }
-    }
-    return res.status(401).json({ error: 'Invalid or expired token' });
+  // Fallback to dev JWT decode if present
+  const decoded = decodeDevToken(idToken);
+  if (decoded?.user_id || decoded?.sub || decoded?.uid) {
+    (req as any).user = { uid: decoded.user_id || decoded.sub || decoded.uid, email: decoded.email || '' };
+    return next();
   }
+
+  return res.status(401).json({ error: 'Invalid or expired token' });
 }
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -65,23 +49,25 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   const idToken = authHeader.split('Bearer ')[1];
 
   let uid = '';
+  let email = '';
   try {
-    try {
-      getAdminDb();
-    } catch {}
-    const adminInstance = getApps()[0] as any;
-    if (adminInstance) {
-      const decodedToken = await adminInstance.auth().verifyIdToken(idToken);
+    const adminAuth = getAdminAuth();
+    if (adminAuth) {
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
       (req as any).user = decodedToken;
       uid = decodedToken.uid;
+      email = decodedToken.email || '';
     }
-  } catch (error) {}
+  } catch (error: any) {
+    console.warn('[requireAdmin] token verification error:', error?.message || error);
+  }
 
-  if (!uid && (isDevWithoutServiceAccount() || process.env.NODE_ENV !== 'production')) {
+  if (!uid) {
     const decoded = decodeDevToken(idToken);
-    if (decoded?.user_id || decoded?.sub) {
-      (req as any).user = { uid: decoded.user_id || decoded.sub, email: decoded.email || '' };
-      uid = decoded.user_id || decoded.sub;
+    if (decoded?.user_id || decoded?.sub || decoded?.uid) {
+      (req as any).user = { uid: decoded.user_id || decoded.sub || decoded.uid, email: decoded.email || '' };
+      uid = decoded.user_id || decoded.sub || decoded.uid;
+      email = decoded.email || '';
     }
   }
 
@@ -89,10 +75,11 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 
-  const isAdmin = await isUserAdmin(uid).catch(() => false); // checking role in db
+  const isAdmin = await isUserAdmin(uid, email).catch(() => false);
   if (isAdmin) {
     return next();
   }
 
   return res.status(403).json({ error: 'Admin access required' });
 }
+

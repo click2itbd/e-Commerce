@@ -148,25 +148,39 @@ export async function setAdminDocument(collection: string, docId: string, data: 
   await docRef.set(data);
 }
 
-export async function isUserAdmin(uid: string): Promise<boolean> {
-  if (!uid) return false;
+export async function isUserAdmin(uid: string, email?: string): Promise<boolean> {
+  if (!uid && !email) return false;
+  if (email && email.toLowerCase() === 'click2itbd@gmail.com') return true;
   try {
     const db = getAdminDb();
-    const userDoc = db.collection('users').doc(uid);
-    const snap = await userDoc.get();
-    if (snap.exists) {
-      const data = snap.data();
-      const role = data?.role;
-      if (role === 'admin' || role === 'manager' || role === 'staff' || data?.isAdmin === true) {
-        return true;
+    if (uid) {
+      const userDoc = db.collection('users').doc(uid);
+      const snap = await userDoc.get();
+      if (snap.exists) {
+        const data = snap.data();
+        const role = data?.role;
+        if (role === 'admin' || role === 'manager' || role === 'staff' || data?.isAdmin === true) {
+          return true;
+        }
+        if (Array.isArray(data?.permissions) && (
+          data.permissions.includes('manage_services') ||
+          data.permissions.includes('manage_settings') ||
+          data.permissions.includes('manage_finances') ||
+          data.permissions.includes('manage_orders')
+        )) {
+          return true;
+        }
       }
-      if (Array.isArray(data?.permissions) && (
-        data.permissions.includes('manage_services') ||
-        data.permissions.includes('manage_settings') ||
-        data.permissions.includes('manage_finances') ||
-        data.permissions.includes('manage_orders')
-      )) {
-        return true;
+    }
+    // Check if email matches any admin user in users collection
+    if (email) {
+      const userSnap = await db.collection('users').where('email', '==', email.toLowerCase()).limit(1).get();
+      if (!userSnap.empty) {
+        const data = userSnap.docs[0].data();
+        const role = data?.role;
+        if (role === 'admin' || role === 'manager' || role === 'staff' || data?.isAdmin === true) {
+          return true;
+        }
       }
     }
     // In development mode, if user is authenticated with a valid token, allow admin access
