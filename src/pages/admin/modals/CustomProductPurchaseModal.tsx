@@ -129,20 +129,36 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
       
       const purchaseRef = await addDoc(collection(db, 'purchases'), purchaseData);
 
-      // 3. Create Transaction if payment made
+      // 3. Create Accounting Transactions
+      await addDoc(collection(db, 'transactions'), {
+        type: 'purchase',
+        amount: purchaseData.total,
+        date: purchaseData.date,
+        description: `Purchase from ${vendor?.name || 'Unknown Vendor'} (#${docNumber})`,
+        entityId: formData.vendorId,
+        entityName: vendor?.name || 'Unknown Vendor',
+        entityType: 'vendor',
+        referenceId: purchaseRef.id,
+        documentNumber: docNumber,
+        paymentAccountId: '',
+        paymentMethod: '',
+        createdAt: new Date().toISOString(),
+      });
+
       if (formData.paidAmount > 0) {
         await addDoc(collection(db, 'transactions'), {
           type: 'payment_made',
           amount: formData.paidAmount,
           date: purchaseData.date,
-          accountId: formData.paymentAccountId,
-          accountName: account?.name || 'Unknown Account',
-          vendorId: formData.vendorId,
-          vendorName: vendor?.name || 'Unknown Vendor',
-          reference: docNumber,
+          paymentAccountId: formData.paymentAccountId,
+          paymentMethod: account?.type || 'cash',
+          entityId: formData.vendorId,
+          entityName: vendor?.name || 'Unknown Vendor',
+          entityType: 'vendor',
+          referenceId: purchaseRef.id,
+          documentNumber: docNumber,
           description: `Payment for custom purchase #${docNumber}`,
-          linkedPurchaseId: purchaseRef.id,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         });
       }
 

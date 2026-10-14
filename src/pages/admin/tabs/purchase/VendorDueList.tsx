@@ -9,7 +9,11 @@ import { generatePDF } from '../../../../lib/pdf';
 import { Vendor, Transaction, PaymentAccount } from '../../../../types';
 
 import { where } from 'firebase/firestore';
+import { useAuth } from '../../../../context/AuthContext';
+import { logAudit } from '../../../../lib/audit';
+
 export default function VendorDueList() {
+  const { profile, user } = useAuth();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
@@ -111,17 +115,50 @@ export default function VendorDueList() {
       toast.error('Failed to view invoice');
     }
   };
-const fetchData = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const [custSnap, txSnap, accSnap] = await Promise.all([
+      const [custSnap, txSnap, accSnap, purSnap] = await Promise.all([
         getDocs(collection(db, 'vendors')),
         getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc'))),
-        getDocs(collection(db, 'payment_accounts'))
+        getDocs(collection(db, 'payment_accounts')),
+        getDocs(collection(db, 'purchases'))
       ]);
 
       setVendors(custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor)));
-      setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
+
+      const existingPurchaseIds = new Set(purSnap.docs.map(d => d.id));
+      const existingPurchaseDocs = new Set(purSnap.docs.map(d => d.data().documentNumber).filter(Boolean));
+
+      // Auto-detect and prune orphan transactions from previously deleted purchases
+      const orphanTxRefs: any[] = [];
+      const validTxList: Transaction[] = [];
+
+      txSnap.docs.forEach(d => {
+        const t = { id: d.id, ...d.data() } as Transaction;
+        
+        const isOrphanPurchase = t.type === 'purchase' && (
+          (t.referenceId && !existingPurchaseIds.has(t.referenceId) && (!t.documentNumber || !existingPurchaseDocs.has(t.documentNumber))) ||
+          (!t.referenceId && t.documentNumber && !existingPurchaseDocs.has(t.documentNumber))
+        );
+
+        const isOrphanPurchasePayment = t.type === 'payment_made' && 
+          t.referenceId && !t.referenceId.startsWith('PAY-') && 
+          !existingPurchaseIds.has(t.referenceId) && 
+          (!t.documentNumber || !existingPurchaseDocs.has(t.documentNumber));
+
+        if (isOrphanPurchase || isOrphanPurchasePayment) {
+          orphanTxRefs.push(d.ref);
+        } else {
+          validTxList.push(t);
+        }
+      });
+
+      if (orphanTxRefs.length > 0) {
+        Promise.all(orphanTxRefs.map(ref => deleteDoc(ref))).catch(e => console.error('Error cleaning orphan purchase transactions:', e));
+      }
+
+      setTransactions(validTxList);
       
       const allAccs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(allAccs);
@@ -143,7 +180,8 @@ const fetchData = async () => {
     const balances: Record<string, number> = {};
     
     transactions.forEach(t => {
-      if (t.entityType === 'vendor' && t.entityId) {
+      const isVendorTx = t.entityType === 'vendor' || (!t.entityType && t.type === 'purchase_return');
+      if (isVendorTx && t.entityId) {
         if (!balances[t.entityId]) balances[t.entityId] = 0;
         
         if (t.type === 'purchase' || t.type === 'opening_balance') {
@@ -177,6 +215,13 @@ const fetchData = async () => {
     if (!window.confirm("Are you sure you want to permanently delete this transaction? This will alter the ledger balance.")) return;
     try {
       await deleteDoc(doc(db, 'transactions', txId));
+      await logAudit(
+        'DELETE',
+        'Payment',
+        `Deleted transaction #${txId.slice(0, 8)} from ledger for vendor "${historyVendor?.name || 'Vendor'}"`,
+        profile?.displayName || user?.displayName || user?.email || 'Admin',
+        { entityId: txId }
+      );
       toast.success('Transaction deleted');
       fetchData();
     } catch (error) {
@@ -204,6 +249,13 @@ const fetchData = async () => {
         paymentMethod: 'n/a',
         createdAt: new Date().toISOString(),
       });
+      await logAudit(
+        'CREATE',
+        'Payment',
+        `Added opening balance of ৳${obAmount} for vendor "${historyVendor.name}"`,
+        profile?.displayName || user?.displayName || user?.email || 'Admin',
+        { entityId: historyVendor.id }
+      );
       toast.success('Opening balance added');
       setShowOpeningBalForm(false);
       setObAmount('');
@@ -273,6 +325,21 @@ const fetchData = async () => {
       } catch (err) {
         console.error('Failed to generate receipt PDF', err);
       }
+
+      await logAudit(
+        'CREATE',
+        'Payment',
+        `Paid vendor due of ৳${paymentAmount} to "${selectedVendor.name}" (${acc?.type || 'cash'})`,
+        profile?.displayName || user?.displayName || user?.email || 'Admin',
+        {
+          entityId: selectedVendor.id,
+          newState: {
+            amount: Number(paymentAmount),
+            previousDue: selectedVendor.due,
+            newDue: selectedVendor.due - Number(paymentAmount)
+          }
+        }
+      );
 
       toast.success('Payment received successfully & Receipt generated');
       setSelectedVendor(null);

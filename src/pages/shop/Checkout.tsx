@@ -286,6 +286,44 @@ export const Checkout: React.FC = () => {
       const batch = writeBatch(db);
       const newOrderRef = doc(collection(db, 'orders'));
       batch.set(newOrderRef, orderData);
+
+      // Record sale transaction in accounting ledger
+      const txRef = doc(collection(db, 'transactions'));
+      batch.set(txRef, {
+        type: 'sale',
+        amount: grandTotal,
+        date: new Date().toISOString(),
+        description: `Online Order #${docNumber} (${formData.firstName} ${formData.lastName})`,
+        entityId: currentUserId || 'web_customer',
+        entityName: `${formData.firstName} ${formData.lastName}`.trim(),
+        entityType: 'customer',
+        referenceId: newOrderRef.id,
+        documentNumber: docNumber,
+        paymentAccountId: '',
+        paymentMethod: paymentType === 'cod' ? 'cod' : (formData.paymentMethod || 'online'),
+        createdAt: new Date().toISOString(),
+        createdBy: 'Online Customer',
+      });
+
+      // If advance delivery fee was paid
+      if (isAdvanceCOD && shippingCost > 0) {
+        const advTxRef = doc(collection(db, 'transactions'));
+        batch.set(advTxRef, {
+          type: 'payment_received',
+          amount: shippingCost,
+          date: new Date().toISOString(),
+          description: `Advance Delivery Fee for Order #${docNumber}`,
+          entityId: currentUserId || 'web_customer',
+          entityName: `${formData.firstName} ${formData.lastName}`.trim(),
+          entityType: 'customer',
+          referenceId: newOrderRef.id,
+          documentNumber: docNumber,
+          paymentAccountId: '',
+          paymentMethod: 'online',
+          createdAt: new Date().toISOString(),
+          createdBy: 'Online Customer',
+        });
+      }
       
       const domainItems = items.filter(item => item.itemType === 'domain' || item.itemType === 'domain_transfer');
       const hostingItems = items.filter(item => item.itemType === 'hosting');

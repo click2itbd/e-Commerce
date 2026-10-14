@@ -487,10 +487,12 @@ export function useOrdersLogic({ setConfirmModal, fetchData, settings, customers
         type: 'sale',
         amount: Math.max(0, total),
         date: new Date().toISOString(),
-        description: `Sale to ${saleData.customerName}`,
+        description: `Sale to ${saleData.customerName} (#${docNumber})`,
         entityId: customer?.id || 'unknown',
         entityName: saleData.customerName,
+        entityType: 'customer',
         referenceId: orderRef.id,
+        documentNumber: docNumber,
         createdAt: new Date().toISOString(),
       });
 

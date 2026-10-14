@@ -1753,11 +1753,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               doc(db, "products", editingProduct.id),
               productData,
             );
+            
+            // Detailed changes summary
+            const changes: string[] = [];
+            if (editingProduct.price !== formData.price) changes.push(`Price: ৳${editingProduct.price} ➔ ৳${formData.price}`);
+            if (editingProduct.stock !== formData.stock) changes.push(`Stock: ${editingProduct.stock} ➔ ${formData.stock}`);
+            if (editingProduct.name !== formData.name) changes.push(`Name: "${editingProduct.name}" ➔ "${formData.name}"`);
+            if (editingProduct.costPrice !== formData.costPrice) changes.push(`Cost: ৳${editingProduct.costPrice || 0} ➔ ৳${formData.costPrice || 0}`);
+            const changeSummary = changes.length > 0 ? ` (${changes.join(', ')})` : '';
+
+            await logAudit(
+              'EDIT',
+              'Product',
+              `Updated product: "${formData.name}"${changeSummary}`,
+              profile?.displayName || profile?.email || 'Admin',
+              {
+                entityId: editingProduct.id,
+                previousState: { name: editingProduct.name, price: editingProduct.price, stock: editingProduct.stock, costPrice: editingProduct.costPrice },
+                newState: { name: formData.name, price: formData.price, stock: formData.stock, costPrice: formData.costPrice }
+              }
+            );
+
             toast.success("Product updated successfully");
             checkLowStock(productData.name, productData.stock);
           } else {
-            await addDoc(collection(db, "products"), productData);
-              await logAuditAction('CREATE', 'Product', `Created new product: ${formData.name}`);
+            const newProdRef = await addDoc(collection(db, "products"), productData);
+            await logAudit(
+              'CREATE',
+              'Product',
+              `Added new product: "${formData.name}" (Price: ৳${formData.price}, Stock: ${formData.stock}, Category: ${formData.category})`,
+              profile?.displayName || profile?.email || 'Admin',
+              {
+                entityId: newProdRef.id,
+                newState: { name: formData.name, price: formData.price, stock: formData.stock, category: formData.category }
+              }
+            );
             toast.success("Product added successfully");
             checkLowStock(productData.name, productData.stock);
           }
@@ -2398,15 +2428,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       confirmColor: "bg-red-600 hover:bg-red-700",
       onConfirm: async () => {
         try {
-          // 1. Delete associated transactions
-          const txSnap = await getDocs(
+          // 1. Delete associated transactions (by referenceId AND by documentNumber)
+          const txDocsToDelete = new Map<string, any>();
+          const txSnap1 = await getDocs(
             query(
               collection(db, "transactions"),
               where("referenceId", "==", order.id),
             ),
           );
+          txSnap1.docs.forEach((d) => txDocsToDelete.set(d.id, d.ref));
+
+          if (order.documentNumber) {
+            const txSnap2 = await getDocs(
+              query(
+                collection(db, "transactions"),
+                where("documentNumber", "==", order.documentNumber),
+              ),
+            );
+            txSnap2.docs.forEach((d) => txDocsToDelete.set(d.id, d.ref));
+          }
+
           await Promise.all(
-            txSnap.docs.map((d) => deleteDoc(doc(db, "transactions", d.id))),
+            Array.from(txDocsToDelete.values()).map((ref) => deleteDoc(ref)),
           );
 
           // 2. Revert stock and available serials
@@ -2485,9 +2528,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
              const order = orders.find(o => o.id === id);
              if (!order) continue;
              
-             // 1. Delete associated transactions
-             const txSnap = await getDocs(query(collection(db, "transactions"), where("referenceId", "==", order.id)));
-             await Promise.all(txSnap.docs.map(d => deleteDoc(doc(db, "transactions", d.id))));
+             // 1. Delete associated transactions (by referenceId AND by documentNumber)
+             const txDocsToDelete = new Map<string, any>();
+             const txSnap1 = await getDocs(query(collection(db, "transactions"), where("referenceId", "==", order.id)));
+             txSnap1.docs.forEach((d) => txDocsToDelete.set(d.id, d.ref));
+
+             if (order.documentNumber) {
+               const txSnap2 = await getDocs(query(collection(db, "transactions"), where("documentNumber", "==", order.documentNumber)));
+               txSnap2.docs.forEach((d) => txDocsToDelete.set(d.id, d.ref));
+             }
+
+             await Promise.all(Array.from(txDocsToDelete.values()).map((ref) => deleteDoc(ref)));
              
              // 2. Revert stock and available serials
              if (order.type === "invoice" || order.type === "challan" || order.type === "sale" || order.type === "pos_sale") {
@@ -5514,7 +5565,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           )}
         </div>
         <div className="p-4 border-t border-gray-100 shrink-0 mt-auto flex flex-col gap-2">
-          {!isStaff && (
+          {(!isStaff || isAdmin || isManager) && (
             <>
               <button
                 onClick={() => navigate("/admin/billing")}

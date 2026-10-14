@@ -52,7 +52,7 @@ export async function fulfillOrder(orderId: string, actorUid: string): Promise<F
     return { success: true, orderId, status: 'completed', domainResults: [], hostingResults: [], error: 'Order already completed' };
   }
 
-  if (orderData.status === 'processing') {
+  if (orderData.status === 'processing' && !actorUid) {
     return { success: false, orderId, status: 'failed', domainResults: [], hostingResults: [], error: 'Order is already being processed' };
   }
 

@@ -110,11 +110,12 @@ const TrialBalanceTab: React.FC<TrialBalanceProps> = ({ setActiveTab }) => {
   const totalPurchases = validTransactions.filter(tx => tx.type === 'purchase').reduce((sum, tx) => sum + (tx.amount || 0), 0);
   const totalExpenses = validTransactions.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + (tx.amount || 0), 0);
   const totalSalaries = validTransactions.filter(tx => tx.type === 'salary').reduce((sum, tx) => sum + (tx.amount || 0), 0);
+  const totalConveyance = validTransactions.filter(tx => tx.type === 'conveyance').reduce((sum, tx) => sum + (tx.amount || 0), 0);
   const totalOwnerDrawings = validTransactions.filter(tx => tx.type === 'withdrawal' && tx.category === 'Owner Withdrawal / Drawing').reduce((sum, tx) => sum + (tx.amount || 0), 0);
   const totalCapitalDeposits = validTransactions.filter(tx => tx.type === 'deposit' || (tx.type === 'money_receipt' && tx.category === 'Capital / Fund Deposit')).reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
-  // Debits: Assets (Cash, Receivables), Expenses, Purchases, Drawings
-  const totalDebits = totalCashAndBank + totalReceivables + totalPurchases + totalExpenses + totalSalaries + totalOwnerDrawings;
+  // Debits: Assets (Cash, Receivables), Expenses, Purchases, Drawings, Conveyance
+  const totalDebits = totalCashAndBank + totalReceivables + totalPurchases + totalExpenses + totalSalaries + totalConveyance + totalOwnerDrawings;
   
   // Credits: Liabilities (Payables), Revenue (Sales, Income), Equity (Capital Deposits)
   const totalCredits = totalAccountsPayable + totalSales + totalIncome + totalCapitalDeposits;
@@ -130,6 +131,7 @@ const TrialBalanceTab: React.FC<TrialBalanceProps> = ({ setActiveTab }) => {
     { account: 'Purchases (Cost of Goods)', debit: totalPurchases, credit: 0 },
     { account: 'Operating Expenses', debit: totalExpenses, credit: 0 },
     { account: 'Salary & Payroll', debit: totalSalaries, credit: 0 },
+    { account: 'Conveyance & Transport', debit: totalConveyance, credit: 0 },
     { account: 'Owner Drawings', debit: totalOwnerDrawings, credit: 0 },
     { account: 'Accounts Payable (Vendors)', debit: 0, credit: totalAccountsPayable },
     { account: 'Sales Revenue', debit: 0, credit: totalSales },

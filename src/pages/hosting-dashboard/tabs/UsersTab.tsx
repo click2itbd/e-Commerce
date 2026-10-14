@@ -669,198 +669,230 @@ export function UsersTab({ state }: { state: any }) {
       {/* MODAL 1: ADD / DEDUCT WALLET BALANCE MODAL */}
       {(isBalanceModalOpen || selectedUserForBalance) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden p-6 space-y-5">
-            <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
-                  <Wallet size={20} className="text-emerald-600" />
-                  Admin Add / Deduct Funds
-                </h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Directly manage wallet balance for any customer in the system
-                </p>
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh]">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-sm">
+                  <Wallet size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-800 tracking-tight">
+                    Admin Add / Deduct Funds
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Directly manage wallet balance for any customer in the system
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => {
                   setIsBalanceModalOpen(false);
                   setSelectedUserForBalance(null);
                 }}
-                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors"
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Target User Selector */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700 uppercase">
-                Select Customer Account <span className="text-rose-500">*</span>
-              </label>
-              <select
-                value={selectedUserForBalance?.id || selectedUserForBalance?.uid || ''}
-                onChange={e => {
-                  const found = users.find((u: any) => (u.id === e.target.value || u.uid === e.target.value));
-                  setSelectedUserForBalance(found || null);
-                }}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="" disabled>-- Select a customer to manage funds --</option>
-                {users.map((u: any) => {
-                  const uId = u.id || u.uid;
-                  const name = u.displayName || u.name || 'Unnamed';
-                  const email = u.email || 'No email';
-                  const bal = Number(u.balance || 0);
-                  return (
-                    <option key={uId} value={uId}>
-                      {name} ({email}) — Balance: ৳{bal.toLocaleString()}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            {/* Selected User Balance Card */}
-            {selectedUserForBalance && (
-              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
-                    {selectedUserForBalance.displayName || selectedUserForBalance.name || selectedUserForBalance.email || 'Selected Customer'}
-                  </span>
-                  <span className="text-xs text-emerald-700 font-medium">
-                    {selectedUserForBalance.email} {selectedUserForBalance.phone ? `• ${selectedUserForBalance.phone}` : ''}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Current Balance</span>
-                  <span className="text-2xl font-black text-emerald-600 font-mono">
-                    ৳{Number(selectedUserForBalance.balance || 0).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            <form onSubmit={handleAdjustBalance} className="space-y-4">
-              {/* Action Switch */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Action</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setBalanceAction('add')}
-                    className={cn(
-                      "py-2.5 px-4 rounded-xl text-xs font-bold border flex items-center justify-center gap-2 transition-all",
-                      balanceAction === 'add' ? "bg-emerald-600 text-white border-emerald-600 shadow-sm" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    )}
-                  >
-                    <PlusCircle size={16} /> Credit / Add Funds (+)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBalanceAction('deduct')}
-                    className={cn(
-                      "py-2.5 px-4 rounded-xl text-xs font-bold border flex items-center justify-center gap-2 transition-all",
-                      balanceAction === 'deduct' ? "bg-rose-600 text-white border-rose-600 shadow-sm" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    )}
-                  >
-                    <MinusCircle size={16} /> Debit / Deduct Funds (-)
-                  </button>
-                </div>
-              </div>
-
-              {/* Amount & Quick Chips */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Amount (BDT) <span className="text-rose-500">*</span></label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">৳</span>
-                  <input
-                    type="number"
-                    min="1"
-                    step="any"
-                    required
-                    placeholder="Enter amount (e.g. 1000)"
-                    value={balanceAmount}
-                    onChange={e => setBalanceAmount(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-                  />
-                </div>
-                {/* Preset Chips */}
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {[500, 1000, 2000, 5000, 10000].map(amt => (
-                    <button
-                      type="button"
-                      key={amt}
-                      onClick={() => setBalanceAmount(String(amt))}
-                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 text-slate-700 hover:bg-emerald-100 hover:text-emerald-800 transition-colors"
+            {/* Modal Body: Two-Column Horizontal Layout */}
+            <form onSubmit={handleAdjustBalance} className="flex-1 overflow-y-auto p-6 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                
+                {/* LEFT COLUMN: Customer Selection & Account Status */}
+                <div className="space-y-4">
+                  {/* Target User Selector */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                      Select Customer Account <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={selectedUserForBalance?.id || selectedUserForBalance?.uid || ''}
+                      onChange={e => {
+                        const found = users.find((u: any) => (u.id === e.target.value || u.uid === e.target.value));
+                        setSelectedUserForBalance(found || null);
+                      }}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     >
-                      +৳{amt.toLocaleString()}
-                    </button>
-                  ))}
+                      <option value="" disabled>-- Select a customer to manage funds --</option>
+                      {users.map((u: any) => {
+                        const uId = u.id || u.uid;
+                        const name = u.displayName || u.name || 'Unnamed';
+                        const email = u.email || 'No email';
+                        const bal = Number(u.balance || 0);
+                        return (
+                          <option key={uId} value={uId}>
+                            {name} ({email}) — Balance: ৳{bal.toLocaleString()}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  {/* Selected User Balance Card */}
+                  {selectedUserForBalance ? (
+                    <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200/80 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                      <div className="min-w-0 pr-3">
+                        <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider block truncate">
+                          {selectedUserForBalance.displayName || selectedUserForBalance.name || selectedUserForBalance.email || 'Selected Customer'}
+                        </span>
+                        <span className="text-xs text-emerald-700 font-medium block truncate">
+                          {selectedUserForBalance.email}
+                        </span>
+                        {selectedUserForBalance.phone && (
+                          <span className="text-[11px] text-slate-500 font-medium block">
+                            Phone: {selectedUserForBalance.phone}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Current Balance</span>
+                        <span className="text-2xl font-black text-emerald-600 font-mono">
+                          ৳{Number(selectedUserForBalance.balance || 0).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-2xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                      Please select a customer to view their balance and adjust funds.
+                    </div>
+                  )}
+
+                  {/* Action Switch */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Action</label>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setBalanceAction('add')}
+                        className={cn(
+                          "py-2.5 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all",
+                          balanceAction === 'add' ? "bg-emerald-600 text-white border-emerald-600 shadow-sm" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        )}
+                      >
+                        <PlusCircle size={15} /> Credit / Add Funds (+)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBalanceAction('deduct')}
+                        className={cn(
+                          "py-2.5 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all",
+                          balanceAction === 'deduct' ? "bg-rose-600 text-white border-rose-600 shadow-sm" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        )}
+                      >
+                        <MinusCircle size={15} /> Debit / Deduct Funds (-)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Projected Balance Preview */}
+                  {selectedUserForBalance && Number(balanceAmount) > 0 && (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-bold">
+                      <span className="text-slate-500">Projected New Balance:</span>
+                      <span className={cn(
+                        "text-base font-mono font-black",
+                        balanceAction === 'add' ? "text-emerald-600" : "text-rose-600"
+                      )}>
+                        ৳{(
+                          balanceAction === 'add'
+                            ? Number(selectedUserForBalance.balance || 0) + Number(balanceAmount)
+                            : Math.max(0, Number(selectedUserForBalance.balance || 0) - Number(balanceAmount))
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
+
+                {/* RIGHT COLUMN: Amount, Presets, Reason & Notes */}
+                <div className="space-y-4">
+                  {/* Amount & Quick Chips */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Amount (BDT) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">৳</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="any"
+                        required
+                        placeholder="Enter amount (e.g. 1000)"
+                        value={balanceAmount}
+                        onChange={e => setBalanceAmount(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                      />
+                    </div>
+                    {/* Preset Chips */}
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {[500, 1000, 2000, 5000, 10000].map(amt => (
+                        <button
+                          type="button"
+                          key={amt}
+                          onClick={() => setBalanceAmount(String(amt))}
+                          className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 text-slate-700 hover:bg-emerald-100 hover:text-emerald-800 transition-colors"
+                        >
+                          +৳{amt.toLocaleString()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Reason & Quick Chips */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Reason / Description <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Manual bKash Payment Verified #TX99120"
+                      value={balanceReason}
+                      onChange={e => setBalanceReason(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {['bKash Payment Verified', 'Nagad Payment Received', 'Bank Transfer Deposited', 'Manual Admin Top-up', 'Promotional Bonus'].map(r => (
+                        <button
+                          type="button"
+                          key={r}
+                          onClick={() => setBalanceReason(r)}
+                          className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Internal Admin Notes */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Internal Admin Notes (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Approved via WhatsApp confirmation"
+                      value={balanceAdminNotes}
+                      onChange={e => setBalanceAdminNotes(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
               </div>
 
-              {/* Reason & Quick Chips */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Reason / Description <span className="text-rose-500">*</span></label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Manual bKash Payment Verified #TX99120"
-                  value={balanceReason}
-                  onChange={e => setBalanceReason(e.target.value)}
-                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {['bKash Payment Verified', 'Nagad Payment Received', 'Bank Transfer Deposited', 'Manual Admin Top-up', 'Promotional Bonus'].map(r => (
-                    <button
-                      type="button"
-                      key={r}
-                      onClick={() => setBalanceReason(r)}
-                      className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                    >
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Admin Notes */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Internal Admin Notes (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Approved via WhatsApp confirmation"
-                  value={balanceAdminNotes}
-                  onChange={e => setBalanceAdminNotes(e.target.value)}
-                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              {/* Projected Balance Preview */}
-              {selectedUserForBalance && Number(balanceAmount) > 0 && (
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-bold">
-                  <span className="text-slate-500">Projected New Balance:</span>
-                  <span className={cn(
-                    "text-sm font-mono font-black",
-                    balanceAction === 'add' ? "text-emerald-600" : "text-rose-600"
-                  )}>
-                    ৳{(
-                      balanceAction === 'add'
-                        ? Number(selectedUserForBalance.balance || 0) + Number(balanceAmount)
-                        : Math.max(0, Number(selectedUserForBalance.balance || 0) - Number(balanceAmount))
-                    ).toLocaleString()}
-                  </span>
-                </div>
-              )}
-
-              {/* Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              {/* Bottom Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
                     setIsBalanceModalOpen(false);
                     setSelectedUserForBalance(null);
                   }}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   Cancel
                 </button>
@@ -869,7 +901,7 @@ export function UsersTab({ state }: { state: any }) {
                   disabled={submittingBalance || !selectedUserForBalance}
                   className={cn(
                     "px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-md transition-all flex items-center gap-2 disabled:opacity-50",
-                    balanceAction === 'add' ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"
+                    balanceAction === 'add' ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200" : "bg-rose-600 hover:bg-rose-700 shadow-rose-200"
                   )}
                 >
                   {submittingBalance ? <Spinner /> : (balanceAction === 'add' ? <PlusCircle size={16} /> : <MinusCircle size={16} />)}

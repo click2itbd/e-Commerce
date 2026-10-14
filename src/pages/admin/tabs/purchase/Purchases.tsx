@@ -10,6 +10,7 @@ const itemWarrantyMonths = (i: any): number =>
     : (Number(i.warrantyYears) || 0) * 12;
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
+import { logAudit } from '../../../../lib/audit';
 import {
   Edit2,
   ShoppingBag, Barcode, ScanLine,
@@ -89,6 +90,7 @@ const Purchases: React.FC<PurchasesProps> = ({
   setActiveTab,
   fetchData = async () => {},
 }) => {
+  const { profile } = useAuth();
   const [vendors, setVendors] = useState<Vendor[]>(initialVendors);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
@@ -899,6 +901,18 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
       }
 
       toast.success(`Purchase #${docNumber} recorded & inventory restocked successfully!`);
+
+      // Log purchase to Audit Trail
+      await logAudit(
+        'CREATE',
+        'Purchase',
+        `Recorded Purchase #${docNumber} from ${purchaseForm.vendorName} (Total: ৳${billTotal}, Paid: ৳${paid}, Items: ${purchaseForm.items.length})`,
+        purchaseForm.createdBy || profile?.displayName || profile?.email || 'Admin',
+        {
+          entityId: purchaseDocRef.id,
+          newState: { documentNumber: docNumber, total: billTotal, paidAmount: paid, vendorName: purchaseForm.vendorName, itemsCount: purchaseForm.items.length }
+        }
+      );
 
       // Reset form
       setIsCreatingPurchase(false);

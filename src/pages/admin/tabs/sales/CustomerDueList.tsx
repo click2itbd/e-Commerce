@@ -9,7 +9,11 @@ import { generatePDF } from '../../../../lib/pdf';
 import { Customer, Transaction, PaymentAccount } from '../../../../types';
 
 import { where } from 'firebase/firestore';
+import { useAuth } from '../../../../context/AuthContext';
+import { logAudit } from '../../../../lib/audit';
+
 export default function CustomerDueList() {
+  const { profile, user } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
@@ -63,17 +67,52 @@ export default function CustomerDueList() {
       toast.error('Failed to view invoice');
     }
   };
-const fetchData = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const [custSnap, txSnap, accSnap] = await Promise.all([
+      const [custSnap, txSnap, accSnap, ordSnap] = await Promise.all([
         getDocs(collection(db, 'customers')),
         getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc'))),
-        getDocs(collection(db, 'payment_accounts'))
+        getDocs(collection(db, 'payment_accounts')),
+        getDocs(collection(db, 'orders'))
       ]);
 
       setCustomers(custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer)));
-      setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
+
+      const existingOrderIds = new Set(ordSnap.docs.map(d => d.id));
+      const existingDocNumbers = new Set(ordSnap.docs.map(d => d.data().documentNumber).filter(Boolean));
+
+      // Auto-detect and prune orphan transactions from previously deleted orders
+      const orphanTxRefs: any[] = [];
+      const validTxList: Transaction[] = [];
+
+      txSnap.docs.forEach(d => {
+        const t = { id: d.id, ...d.data() } as Transaction;
+        
+        // Sale transaction without an active order
+        const isOrphanSale = t.type === 'sale' && (
+          (t.referenceId && !existingOrderIds.has(t.referenceId) && (!t.documentNumber || !existingDocNumbers.has(t.documentNumber))) ||
+          (!t.referenceId && t.documentNumber && !existingDocNumbers.has(t.documentNumber))
+        );
+
+        // Payment specifically linked to an order that no longer exists
+        const isOrphanOrderPayment = t.type === 'payment_received' && 
+          t.referenceId && !t.referenceId.startsWith('REC-') && 
+          !existingOrderIds.has(t.referenceId) && 
+          (!t.documentNumber || !existingDocNumbers.has(t.documentNumber));
+
+        if (isOrphanSale || isOrphanOrderPayment) {
+          orphanTxRefs.push(d.ref);
+        } else {
+          validTxList.push(t);
+        }
+      });
+
+      if (orphanTxRefs.length > 0) {
+        Promise.all(orphanTxRefs.map(ref => deleteDoc(ref))).catch(e => console.error('Error cleaning orphan transactions:', e));
+      }
+
+      setTransactions(validTxList);
       
       const allAccs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(allAccs);
@@ -95,7 +134,8 @@ const fetchData = async () => {
     const balances: Record<string, number> = {};
     
     transactions.forEach(t => {
-      if (t.entityType === 'customer' && t.entityId) {
+      const isCustomerTx = t.entityType === 'customer' || (!t.entityType && (t.type === 'sale_return' || t.type === 'return'));
+      if (isCustomerTx && t.entityId) {
         if (!balances[t.entityId]) balances[t.entityId] = 0;
         
         if (t.type === 'sale' || t.type === 'opening_balance') {
@@ -129,6 +169,13 @@ const fetchData = async () => {
     if (!window.confirm("Are you sure you want to permanently delete this transaction? This will alter the ledger balance.")) return;
     try {
       await deleteDoc(doc(db, 'transactions', txId));
+      await logAudit(
+        'DELETE',
+        'Payment',
+        `Deleted transaction #${txId.slice(0, 8)} from ledger for customer "${historyCustomer?.name || 'Customer'}"`,
+        profile?.displayName || user?.displayName || user?.email || 'Admin',
+        { entityId: txId }
+      );
       toast.success('Transaction deleted');
       fetchData();
     } catch (error) {
@@ -156,6 +203,13 @@ const fetchData = async () => {
         paymentMethod: 'n/a',
         createdAt: new Date().toISOString(),
       });
+      await logAudit(
+        'CREATE',
+        'Payment',
+        `Added opening balance of ৳${obAmount} for customer "${historyCustomer.name}"`,
+        profile?.displayName || user?.displayName || user?.email || 'Admin',
+        { entityId: historyCustomer.id }
+      );
       toast.success('Opening balance added');
       setShowOpeningBalForm(false);
       setObAmount('');
@@ -225,6 +279,21 @@ const fetchData = async () => {
       } catch (err) {
         console.error('Failed to generate receipt PDF', err);
       }
+
+      await logAudit(
+        'CREATE',
+        'Payment',
+        `Received customer due payment of ৳${paymentAmount} from "${selectedCustomer.name}" (${acc?.type || 'cash'})`,
+        profile?.displayName || user?.displayName || user?.email || 'Admin',
+        {
+          entityId: selectedCustomer.id,
+          newState: {
+            amount: Number(paymentAmount),
+            previousDue: selectedCustomer.due,
+            newDue: selectedCustomer.due - Number(paymentAmount)
+          }
+        }
+      );
 
       toast.success('Payment received successfully & Receipt generated');
       setSelectedCustomer(null);

@@ -284,6 +284,7 @@ export const SaleReturnTab: React.FC = () => {
           description: `Sale Return ${referenceNo} (Invoice #${selectedOrder.documentNumber || selectedOrder.id})`,
           entityId: selectedCustomerId || selectedOrder.customerName || 'customer',
           entityName: selectedOrder.customerName || 'Customer',
+          entityType: 'customer',
           referenceId: returnDocRef.id,
           paymentMethod: paymentMethod,
           createdAt: new Date().toISOString(),

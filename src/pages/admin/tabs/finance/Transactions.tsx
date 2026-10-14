@@ -41,11 +41,18 @@ const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions = [], cu
                       <td className="px-6 py-4 text-sm text-gray-600">{new Date(tx.date).toLocaleDateString()}</td>
                       <td className="px-6 py-4">
                         <span className={cn(
-                          "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
-                          tx.type === 'sale' || tx.type === 'payment_received' || tx.type === 'money_receipt' ? "bg-green-100 text-green-700" : 
-                          tx.type === 'purchase' || tx.type === 'payment_made' ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"
+                          "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase",
+                          tx.type === 'payment_received' || tx.type === 'money_receipt' || tx.type === 'income' || tx.type === 'deposit'
+                            ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                            : tx.type === 'payment_made' || tx.type === 'expense' || tx.type === 'salary' || tx.type === 'conveyance' || tx.type === 'withdrawal'
+                            ? "bg-rose-100 text-rose-700 border border-rose-200"
+                            : tx.type === 'sale'
+                            ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                            : tx.type === 'purchase'
+                            ? "bg-amber-100 text-amber-700 border border-amber-200"
+                            : "bg-slate-100 text-slate-700 border border-slate-200"
                         )}>
-                          {tx.type.replace('_', ' ')}
+                          {tx.type === 'sale' ? 'Sale Invoice' : tx.type === 'purchase' ? 'Purchase Bill' : tx.type.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -65,10 +72,23 @@ const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions = [], cu
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">{tx.description}</td>
                       <td className={cn(
-                        "px-6 py-4 text-right font-bold",
-                        tx.type === 'sale' || tx.type === 'payment_received' || tx.type === 'money_receipt' ? "text-green-600" : "text-red-600"
+                        "px-6 py-4 text-right font-bold text-sm",
+                        tx.type === 'payment_received' || tx.type === 'money_receipt' || tx.type === 'income' || tx.type === 'deposit'
+                          ? "text-emerald-600"
+                          : tx.type === 'payment_made' || tx.type === 'expense' || tx.type === 'salary' || tx.type === 'conveyance' || tx.type === 'withdrawal'
+                          ? "text-rose-600"
+                          : tx.type === 'sale'
+                          ? "text-indigo-800"
+                          : tx.type === 'purchase'
+                          ? "text-amber-800"
+                          : "text-slate-700"
                       )}>
-                        {tx.type === 'sale' || tx.type === 'payment_received' || tx.type === 'money_receipt' ? '+' : '-'}{formatCurrency(tx.amount, settings)}
+                        {tx.type === 'payment_received' || tx.type === 'money_receipt' || tx.type === 'income' || tx.type === 'deposit'
+                          ? '+ '
+                          : tx.type === 'payment_made' || tx.type === 'expense' || tx.type === 'salary' || tx.type === 'conveyance' || tx.type === 'withdrawal'
+                          ? '- '
+                          : ''}
+                        {formatCurrency(tx.amount, settings)}
                       </td>
                     </tr>
                   ))}

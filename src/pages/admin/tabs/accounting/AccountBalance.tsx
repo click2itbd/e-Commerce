@@ -72,15 +72,15 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
 
   const customerBalances = customers.map(c => {
     const cTx = validTransactions.filter(tx => tx.entityId === c.id || tx.entityName === c.name);
-    const debits = cTx.filter(tx => ['sale'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
-    const credits = cTx.filter(tx => ['payment_received', 'money_receipt', 'sale_return'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const debits = cTx.filter(tx => ['sale', 'opening_balance'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const credits = cTx.filter(tx => ['payment_received', 'money_receipt', 'sale_return', 'return'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
     return { ...c, currentBalance: Math.max(0, debits - credits) };
   }).filter(c => c.currentBalance > 0);
 
   const vendorBalances = vendors.map(v => {
     const vTx = validTransactions.filter(tx => tx.entityId === v.id || tx.entityName === v.name);
-    const credits = vTx.filter(tx => ['purchase'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
-    const debits = vTx.filter(tx => ['payment_made', 'purchase_return'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const credits = vTx.filter(tx => ['purchase', 'opening_balance'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const debits = vTx.filter(tx => ['payment_made', 'purchase_return', 'return'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
     return { ...v, currentBalance: Math.max(0, credits - debits) };
   }).filter(v => v.currentBalance > 0);
 

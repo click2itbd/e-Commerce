@@ -9,6 +9,8 @@ import { db, storage } from '../../firebase';
 import { collection, addDoc, updateDoc, doc, setDoc, getDocs } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { useConfirm } from '../../context/ConfirmContext';
+import { useAuth } from '../../context/AuthContext';
+import { logAudit } from '../../lib/audit';
 
 interface EcommerceInventoryProps {
   products: Product[];
@@ -26,6 +28,7 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
   setActiveTab
 }) => {
   const { confirm } = useConfirm();
+  const { user } = useAuth();
   const { settings } = useSettings();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -293,12 +296,32 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
 
       if (editingId) {
         await updateDoc(doc(db, 'products', editingId), productData);
+        await logAudit(
+          'EDIT',
+          'Product',
+          `Updated product: "${formData.name}" via E-Commerce Admin (Price: ৳${formData.price}, Stock: ${formData.stock})`,
+          user?.displayName || user?.email || 'Admin',
+          {
+            entityId: editingId,
+            newState: { name: formData.name, price: formData.price, stock: formData.stock }
+          }
+        );
         toast.success('Product updated successfully!');
       } else {
-        await addDoc(collection(db, 'products'), {
+        const newDocRef = await addDoc(collection(db, 'products'), {
           ...productData,
           createdAt: new Date().toISOString()
         });
+        await logAudit(
+          'CREATE',
+          'Product',
+          `Added new product: "${formData.name}" via E-Commerce Admin (Price: ৳${formData.price}, Stock: ${formData.stock})`,
+          user?.displayName || user?.email || 'Admin',
+          {
+            entityId: newDocRef.id,
+            newState: { name: formData.name, price: formData.price, stock: formData.stock }
+          }
+        );
         toast.success('Product added successfully!');
       }
       

@@ -84,6 +84,24 @@ const SalesReportTab: React.FC = () => {
               paymentStatus: order.paymentStatus || 'paid',
             });
           });
+
+          // Include shipping charge so the report matches the invoice grand total
+          if (order.shippingCost && Number(order.shippingCost) > 0) {
+            records.push({
+              id: `${docSnap.id}-shipping`,
+              orderId: docSnap.id,
+              documentNumber: docNum,
+              date: orderDate,
+              customerName: custName,
+              customerPhone: custPhone,
+              productName: 'Delivery / Shipping Fee',
+              quantity: 1,
+              unitPrice: Number(order.shippingCost),
+              total: Number(order.shippingCost),
+              paymentMethod: order.paymentMethod || 'cash',
+              paymentStatus: order.paymentStatus || 'paid',
+            });
+          }
         } else {
           // Single order entry if items array is missing
           records.push({

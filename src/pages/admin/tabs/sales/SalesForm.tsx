@@ -26,6 +26,7 @@ import {
 import { generateDocumentNumber } from '../../../../lib/numbering';
 import { CustomProductPurchaseModal } from '../../modals/CustomProductPurchaseModal';
 import { sendEmail } from '../../../../services/emailService';
+import { logAudit } from '../../../../lib/audit';
 
 interface SalesFormProps {
   users?: any[];
@@ -760,7 +761,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           
         } else {
           const orderRef = await addDoc(collection(db, 'orders'), orderData);
-          orderRefId = orderRefId;
+          orderRefId = orderRef.id;
         }
 
       // Deduct stock and record serial warranties if invoice/challan
@@ -910,6 +911,18 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       }
 
       toast.success(`${typeStr} #${docNumber} created successfully!`);
+
+      // Log sale to Audit Trail
+      await logAudit(
+        editingOrder ? 'EDIT' : 'CREATE',
+        'Sale',
+        `${editingOrder ? 'Updated' : 'Created'} ${typeStr} #${docNumber} for ${saleData.customerName} (Net Total: ৳${netTotal}, Paid: ৳${paid}, Items: ${saleData.items.length})`,
+        saleData.preparedBy || profile?.displayName || profile?.email || 'Admin',
+        {
+          entityId: orderRefId,
+          newState: { documentNumber: docNumber, type: saleData.type, netTotal, paid, customerName: saleData.customerName, itemsCount: saleData.items.length }
+        }
+      );
 
       // Auto-print invoice/challan/quotation
       try {

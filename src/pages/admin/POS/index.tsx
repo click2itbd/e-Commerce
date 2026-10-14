@@ -23,6 +23,7 @@ import { POSHeader } from "./components/POSHeader";
 import { POSCartArea } from "./components/POSCartArea";
 import { POSSidebar } from "./components/POSSidebar";
 import { POSModals } from "./components/POSModals";
+import { logAudit } from "../../../lib/audit";
 
 export const RetailPOS = () => {
   const { settings } = useSettings();
@@ -714,6 +715,18 @@ export const RetailPOS = () => {
       const pointsEarned = Math.floor(total / 100);
 
       toast.success("Sale completed successfully!");
+
+      // Log sale to Audit Trail
+      await logAudit(
+        "CREATE",
+        "Sale",
+        `POS Sale #${docNumber} completed (Total: ৳${total}, Customer: ${orderData.customerName}, Items: ${cart.length})`,
+        user?.displayName || user?.email || "POS Operator",
+        {
+          entityId: orderRefId,
+          newState: { documentNumber: docNumber, total, customerName: orderData.customerName, itemsCount: cart.length }
+        }
+      );
 
       if (selectedCustomer) {
         try {

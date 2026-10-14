@@ -99,8 +99,8 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
           data[key] = { date: displayDate, income: 0, expense: 0, balance: 0, details: [] };
         }
 
-        const isIncome = ['sale', 'income', 'purchase_return', 'opening_balance'].includes(tx.type);
-          const isExpense = ['purchase', 'expense', 'salary', 'conveyance', 'sale_return'].includes(tx.type);
+        const isIncome = ['sale', 'income', 'purchase_return'].includes(tx.type) || (tx.type === 'opening_balance' && tx.entityType === 'customer');
+        const isExpense = ['purchase', 'expense', 'salary', 'conveyance', 'sale_return'].includes(tx.type) || (tx.type === 'opening_balance' && tx.entityType === 'vendor');
           
           if (isIncome) {
             data[key].income += tx.amount;

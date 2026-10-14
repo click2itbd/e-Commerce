@@ -281,6 +281,7 @@ export const PurchaseReturnTab: React.FC = () => {
           description: `Purchase Return ${referenceNo} to Vendor ${vendor?.name || ''}`,
           entityId: selectedVendorId,
           entityName: vendor?.name || 'Vendor',
+          entityType: 'vendor',
           referenceId: returnDocRef.id,
           paymentMethod: paymentMethod,
           createdAt: new Date().toISOString(),

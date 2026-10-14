@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, doc, updateDoc, getDoc, query, orderBy, limit, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, getDoc, query, orderBy, limit, deleteDoc, where, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Product, Order, Customer, Transaction, Vendor, NavigationMenu } from '../../types';
@@ -17,6 +17,7 @@ import { AdminNotifications } from '../../components/AdminNotifications';
 const NotificationsPage = lazy(() => import('../admin/tabs/notifications/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
 const BuildRequestsTab = lazy(() => import('../admin/tabs/sales/BuildRequests').then(m => ({ default: m.BuildRequestsTab })));
 import { toast } from 'react-hot-toast';
+import { logAudit } from '../../lib/audit';
 
 // Lazy loaded components
 const EcommerceOverview = lazy(() => import('./EcommerceOverview').then(m => ({ default: m.EcommerceOverview })));
@@ -145,6 +146,30 @@ const EcommerceDashboard: React.FC = () => {
     try {
       await updateDoc(doc(db, 'orders', orderId), { paymentStatus });
       setOrders(prev => prev.map(o => o.id === orderId ? ({ ...o, paymentStatus } as any) : o));
+
+      if (paymentStatus === 'paid') {
+        const order = orders.find(o => o.id === orderId);
+        if (order) {
+          const paidAmount = Number(order.total || 0) - Number(order.advancePaidAmount || 0);
+          if (paidAmount > 0) {
+            await addDoc(collection(db, 'transactions'), {
+              type: 'payment_received',
+              amount: paidAmount,
+              date: new Date().toISOString(),
+              description: `Payment for Order #${order.documentNumber || order.id.slice(0, 8)}`,
+              entityId: order.userId || 'web_customer',
+              entityName: order.customerName || 'Online Customer',
+              entityType: 'customer',
+              referenceId: order.id,
+              documentNumber: order.documentNumber || order.id.slice(0, 8),
+              paymentAccountId: '',
+              paymentMethod: order.paymentMethod || 'cash',
+              createdAt: new Date().toISOString(),
+              createdBy: 'Admin',
+            });
+          }
+        }
+      }
       toast.success('Payment status updated!');
     } catch (error: any) {
       toast.error('Error: ' + error.message);
@@ -185,6 +210,17 @@ const EcommerceDashboard: React.FC = () => {
       await updateDoc(orderRef, { status: newStatus });
       setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
       toast.success('Status updated', { id: toastId });
+
+      await logAudit(
+        'STATUS_CHANGE',
+        'Order',
+        `Updated Order #${orderId.slice(0, 8)} status to "${newStatus}"`,
+        user?.displayName || user?.email || 'Admin',
+        {
+          entityId: orderId,
+          newState: { status: newStatus }
+        }
+      );
     } catch (error: any) {
       console.error("Error updating order status:", error);
       toast.error(`Error: ${error.message}`);
@@ -192,10 +228,55 @@ const EcommerceDashboard: React.FC = () => {
   };
   const handleDeleteOrder = async (id: string) => {
     try {
+      const orderToDelete = orders.find(o => o.id === id);
+
+      // 1. Delete associated transactions (by referenceId AND by documentNumber)
+      const txDocsToDelete = new Map<string, any>();
+      const txSnap1 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', id)));
+      txSnap1.docs.forEach(d => txDocsToDelete.set(d.id, d.ref));
+
+      if (orderToDelete?.documentNumber) {
+        const txSnap2 = await getDocs(query(collection(db, 'transactions'), where('documentNumber', '==', orderToDelete.documentNumber)));
+        txSnap2.docs.forEach(d => txDocsToDelete.set(d.id, d.ref));
+      }
+
+      await Promise.all(Array.from(txDocsToDelete.values()).map(ref => deleteDoc(ref)));
+
+      // 2. Revert product stock if order was not cancelled/returned
+      if (orderToDelete && orderToDelete.status !== 'cancelled' && orderToDelete.status !== 'returned') {
+        for (const item of orderToDelete.items || []) {
+          const prodId = item.productId || (item as any).id;
+          if (prodId) {
+            try {
+              const prodRef = doc(db, 'products', prodId);
+              await updateDoc(prodRef, {
+                stock: increment(item.quantity || 1)
+              });
+            } catch (err) {
+              console.error('Failed to revert stock for item:', prodId, err);
+            }
+          }
+        }
+      }
+
+      // 3. Delete order document
       await deleteDoc(doc(db, 'orders', id));
       setOrders(orders.filter(o => o.id !== id));
+      toast.success('Order and associated ledger records deleted');
+
+      await logAudit(
+        'DELETE',
+        'Order',
+        `Deleted Order #${orderToDelete?.documentNumber || id.slice(0, 8)} (${orderToDelete?.customerName || 'Customer'}) of total ৳${orderToDelete?.total || 0}`,
+        user?.displayName || user?.email || 'Admin',
+        {
+          entityId: id,
+          previousState: orderToDelete
+        }
+      );
     } catch (error) {
       console.error("Error deleting order:", error);
+      toast.error('Failed to delete order');
     }
   };
   

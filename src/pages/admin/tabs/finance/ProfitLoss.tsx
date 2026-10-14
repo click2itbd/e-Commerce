@@ -92,7 +92,10 @@ export default function ProfitLoss() {
       const txDate = new Date(tx.createdAt || tx.date);
       if (txDate >= start && txDate <= end) {
         const isVendorStockPayment = tx.entityType === 'vendor' || tx.description?.toLowerCase().includes('purchase');
-        if (tx.type === 'expense' || (tx.type === 'payment_made' && !isVendorStockPayment)) {
+        if (
+          ['expense', 'salary', 'conveyance'].includes(tx.type) ||
+          (tx.type === 'payment_made' && !isVendorStockPayment)
+        ) {
           totalExpenses += (tx.amount || 0);
         }
       }
