@@ -522,7 +522,11 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                 const trackingNumber = (form.elements.namedItem('trackingNumber') as HTMLInputElement).value;
                 
                 try {
-                  await updateDoc(doc(db, 'orders', shippingModalOrder.id), { courierName, trackingNumber });
+                  await updateDoc(doc(db, 'orders', shippingModalOrder.id), { 
+                    courierName, 
+                    courier: courierName, 
+                    trackingNumber 
+                  });
                   toast.success('Shipping details updated');
                   if (fetchData) fetchData();
                   setShippingModalOrder(null);
@@ -542,7 +546,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                 <input 
                   type="text" 
                   name="courierName"
-                  defaultValue={shippingModalOrder.courierName || ''}
+                  defaultValue={shippingModalOrder.courierName || shippingModalOrder.courier || ''}
                   placeholder="e.g. Steadfast, Pathao, RedX" 
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   disabled={!hasPermission('manage_orders')}

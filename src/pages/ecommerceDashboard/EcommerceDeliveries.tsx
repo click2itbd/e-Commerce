@@ -396,7 +396,7 @@ export const EcommerceDeliveries = () => {
                     <td className="py-4 px-6">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">
                         <Package size={14} />
-                        {order.courier || 'Unknown'}
+                        {order.courier || (order as any).courierName || 'Unknown'}
                       </span>
                     </td>
                     <td className="py-4 px-6">
