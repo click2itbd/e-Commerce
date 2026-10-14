@@ -14,6 +14,19 @@ export interface DomainRegistrationRequest {
   contactId?: string;
   nameServers?: string[];
   autoRenew?: boolean;
+  contact?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    country?: string;
+    companyName?: string;
+    [key: string]: any;
+  };
 }
 
 export interface DomainRegistrationResult {
@@ -41,13 +54,16 @@ export interface WhoisResult {
   domain: string;
   registrar?: string;
   createdAt?: string;
+  createdDate?: string;
   updatedAt?: string;
   expiresAt?: string;
-  status?: string[];
+  expiryDate?: string;
+  status?: string[] | string;
   nameServers?: string[];
   registrantName?: string;
   registrantEmail?: string;
   error?: string;
+  raw?: string;
 }
 
 export interface TldPricingResult {

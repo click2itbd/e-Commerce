@@ -28,27 +28,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         setUser(firebaseUser);
         if (firebaseUser) {
-          const isOwnerAdminEmail = firebaseUser.email?.toLowerCase() === 'click2itbd@gmail.com';
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
-            const data = userDoc.data() as UserProfile;
-            if (isOwnerAdminEmail && data.role !== 'admin') {
-              const updatedProfile = { ...data, role: 'admin' as const };
-              await setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile, { merge: true });
-              setProfile(updatedProfile);
-            } else {
-              setProfile(data);
-            }
+            setProfile(userDoc.data() as UserProfile);
           } else {
             const newProfile: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
               displayName: firebaseUser.displayName || 'User',
-              role: isOwnerAdminEmail ? 'admin' : 'user',
-              permissions: isOwnerAdminEmail ? [
-                'manage_inventory', 'manage_orders', 'manage_finances', 'manage_hr',
-                'manage_services', 'manage_marketing', 'manage_reports', 'manage_settings'
-              ] : [],
+              role: 'user',
+              permissions: [],
               createdAt: new Date().toISOString(),
             };
             await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
@@ -86,7 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe;
   }, []);
 
-  const isAdmin = profile?.role === 'admin' || user?.email?.toLowerCase() === 'click2itbd@gmail.com';
+  const isAdmin = profile?.role === 'admin';
   const isManager = profile?.role === 'manager';
   const isStaff = profile?.role === 'staff' || isAdmin;
   const canAccessAdmin = isAdmin || isManager || isStaff;

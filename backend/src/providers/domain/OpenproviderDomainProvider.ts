@@ -323,10 +323,15 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     let responseReceivedAt: string | undefined;
     let providerHttpStatus: number | undefined;
     try {
+      const hasContact = Boolean(request.contact && (request.contact.email || request.contact.firstName || request.contact.lastName));
+      if (!handle && !hasContact) {
+        throw new Error('Set OPENPROVIDER_DEFAULT_HANDLE or provide a valid Openprovider contact handle before registering domains.');
+      }
+
       await this.authenticate();
 
       if (!handle) {
-        if (request.contact && (request.contact.email || request.contact.firstName || request.contact.lastName)) {
+        if (hasContact && request.contact) {
           try {
             handle = await this.createCustomerHandle(request.contact);
           } catch (e: any) {
@@ -348,7 +353,7 @@ export class OpenproviderDomainProvider implements IDomainProvider {
       }
 
       if (!handle) {
-        throw new Error('Openprovider requires a Customer Handle (e.g. JD000000-EA). Please set Default Handle in Domain Registrars settings or create a customer profile in https://cp.openprovider.eu/.');
+        throw new Error('Set OPENPROVIDER_DEFAULT_HANDLE or provide a valid Openprovider contact handle before registering domains.');
       }
       requestStartedAt = new Date().toISOString();
       console.info('[Openprovider] Domain registration request started', {
