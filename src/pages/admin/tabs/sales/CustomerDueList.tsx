@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, doc, updateDoc, query, orderBy, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, getDoc, addDoc, doc, updateDoc, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../../../../context/SettingsContext';
@@ -46,10 +46,20 @@ export default function CustomerDueList() {
       if (!snap.empty) {
         const order = { id: snap.docs[0].id, ...snap.docs[0].data() };
         generatePDF(order as any, 'invoice', settings);
-      } else {
-        toast.error('Invoice not found');
+        return;
       }
+
+      // Check by direct order ID
+      const orderDocSnap = await getDoc(doc(db, 'orders', documentNumber));
+      if (orderDocSnap.exists()) {
+        const order = { id: orderDocSnap.id, ...orderDocSnap.data() };
+        generatePDF(order as any, 'invoice', settings);
+        return;
+      }
+
+      toast.error('Invoice not found');
     } catch (e) {
+      console.error('Failed to view invoice:', e);
       toast.error('Failed to view invoice');
     }
   };

@@ -91,7 +91,8 @@ export default function ProfitLoss() {
     transactions.forEach(tx => {
       const txDate = new Date(tx.createdAt || tx.date);
       if (txDate >= start && txDate <= end) {
-        if (tx.type === 'payment_made' || tx.type === 'expense') {
+        const isVendorStockPayment = tx.entityType === 'vendor' || tx.description?.toLowerCase().includes('purchase');
+        if (tx.type === 'expense' || (tx.type === 'payment_made' && !isVendorStockPayment)) {
           totalExpenses += (tx.amount || 0);
         }
       }

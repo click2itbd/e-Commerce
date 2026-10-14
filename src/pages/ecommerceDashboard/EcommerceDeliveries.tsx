@@ -25,21 +25,30 @@ export const EcommerceDeliveries = () => {
   const [savingKeys, setSavingKeys] = useState(false);
 
   useEffect(() => {
-    // Listen to orders that have a tracking number
+    // Listen to latest orders and filter those with tracking numbers in memory (prevents Firestore index errors)
     const q = query(
       collection(db, 'orders'),
-      where('trackingNumber', '!=', '')
+      orderBy('createdAt', 'desc'),
+      limit(250)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-      // Sort in memory by createdAt descending
-      fetchedOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      const fetchedOrders = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Order))
+        .filter(o => Boolean(o.trackingNumber && typeof o.trackingNumber === 'string' && o.trackingNumber.trim() !== ''));
       setOrders(fetchedOrders);
       setLoading(false);
     }, (error) => {
-      console.error(error);
-      setLoading(false);
+      console.error("Error subscribing to delivery orders:", error);
+      // Fallback in case of index constraint
+      getDocs(query(collection(db, 'orders'), limit(150))).then(snap => {
+        const fallbackOrders = snap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Order))
+          .filter(o => Boolean(o.trackingNumber && typeof o.trackingNumber === 'string' && o.trackingNumber.trim() !== ''));
+        fallbackOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setOrders(fallbackOrders);
+        setLoading(false);
+      }).catch(() => setLoading(false));
     });
 
     return () => unsubscribe();
@@ -377,12 +386,12 @@ export const EcommerceDeliveries = () => {
                 orders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                     <td className="py-4 px-6">
-                      <span className="font-bold text-gray-900">#{order.id.slice(0, 8).toUpperCase()}</span>
+                      <span className="font-bold text-gray-900">#{order.documentNumber || order.id.slice(0, 8).toUpperCase()}</span>
                       <div className="text-xs text-gray-500 mt-1">{format(new Date(order.createdAt || 0), 'MMM dd, yyyy')}</div>
                     </td>
                     <td className="py-4 px-6">
-                      <div className="font-medium text-gray-900">{String(order.shippingInfo?.fullName ?? '')}</div>
-                      <div className="text-sm text-gray-500">{String(order.shippingInfo?.phone ?? '')}</div>
+                      <div className="font-medium text-gray-900">{String(order.customerName || order.shippingInfo?.fullName || 'Customer')}</div>
+                      <div className="text-sm text-gray-500">{String(order.customerPhone || order.shippingInfo?.phone || '')}</div>
                     </td>
                     <td className="py-4 px-6">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">

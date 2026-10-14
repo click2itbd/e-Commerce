@@ -712,8 +712,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     "sale_return",
     "orders",
     "customers",
+    "deliveries",
     "customer_due_list",
     "quotations",
+    "build_requests",
     "purchases",
     "purchase_return",
     "vendors",
@@ -732,6 +734,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     "account_statement",
     "balance_sheet",
     "trial_balance",
+    "day_book",
     "transaction_history",
     "all_reports",
     "stock_accounting",
@@ -742,6 +745,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     "employees",
     "leave",
     "internal_notes",
+    "notifications",
   ];
 
   useEffect(() => {
@@ -4507,6 +4511,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               />{" "}
               {!isSidebarCollapsed && (
                 <span className="truncate">Quotation System</span>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("build_requests");
+                setIsMobileMenuOpen(false);
+              }}
+              className={cn(
+                "w-full flex items-center rounded-md text-[13px] transition-colors",
+                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
+                activeTab === "build_requests"
+                  ? "text-blue-600 font-bold bg-blue-50"
+                  : "text-gray-600 hover:bg-gray-50",
+              )}
+            >
+              <Cpu
+                size={16}
+                className={
+                  activeTab === "build_requests" ? "text-blue-600" : "text-gray-400"
+                }
+              />{" "}
+              {!isSidebarCollapsed && (
+                <span className="truncate">PC Build Requests</span>
               )}
             </button>
           </div>

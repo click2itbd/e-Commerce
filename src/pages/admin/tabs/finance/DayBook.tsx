@@ -46,28 +46,38 @@ export default function DayBook() {
 
   const calculateStats = async (register: CashRegister) => {
     try {
-      const ordersQ = query(collection(db, 'orders'), where('createdAt', '>=', register.openedAt));
-      const ordersSnap = await getDocs(ordersQ);
       let income = 0;
       let expense = 0;
 
-      ordersSnap.docs.forEach(d => {
-        const order = d.data() as Order;
-        if (order.paymentMethod?.toLowerCase().includes('cash')) {
-          income += (order.total || 0);
+      // Inflow & Outflow from real transaction records
+      const txQ = query(collection(db, 'transactions'), where('createdAt', '>=', register.openedAt));
+      const txSnap = await getDocs(txQ);
+      const coveredOrderIds = new Set<string>();
+
+      txSnap.docs.forEach(d => {
+        const tx = d.data() as Transaction;
+        if (tx.referenceId) {
+          coveredOrderIds.add(tx.referenceId);
+        }
+        if (tx.paymentMethod?.toLowerCase().includes('cash')) {
+          const type = tx.type;
+          // Actual cash inflows and outflows
+          if (['income', 'payment_received', 'money_receipt'].includes(type)) {
+            income += Number(tx.amount || 0);
+          } else if (['expense', 'payment_made'].includes(type)) {
+            expense += Number(tx.amount || 0);
+          }
         }
       });
 
-      const txQ = query(collection(db, 'transactions'), where('createdAt', '>=', register.openedAt));
-      const txSnap = await getDocs(txQ);
-      txSnap.docs.forEach(d => {
-        const tx = d.data() as Transaction;
-        if (tx.paymentMethod?.toLowerCase().includes('cash')) {
-          const type = tx.type;
-          if (['income', 'payment_received', 'money_receipt', 'opening_balance', 'sale'].includes(type)) {
-            income += tx.amount;
-          } else if (['expense', 'payment_made', 'purchase', 'return', 'purchase_return'].includes(type)) {
-            expense += tx.amount;
+      // Also check cash orders that didn't generate a transaction entry (avoids duplicate counting)
+      const ordersQ = query(collection(db, 'orders'), where('createdAt', '>=', register.openedAt));
+      const ordersSnap = await getDocs(ordersQ);
+      ordersSnap.docs.forEach(d => {
+        if (!coveredOrderIds.has(d.id)) {
+          const order = d.data() as Order;
+          if (order.paymentMethod?.toLowerCase().includes('cash')) {
+            income += Number(order.amountPaid ?? order.total ?? 0);
           }
         }
       });
@@ -75,7 +85,7 @@ export default function DayBook() {
       setStats({
         totalIncome: income,
         totalExpense: expense,
-        expectedBalance: register.openingBalance + income - expense
+        expectedBalance: Number(register.openingBalance || 0) + income - expense
       });
     } catch (error) {
       console.error('Error calculating stats:', error);

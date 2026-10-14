@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, doc, updateDoc, query, orderBy, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, getDoc, addDoc, doc, updateDoc, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../../../../context/SettingsContext';
@@ -40,15 +40,74 @@ export default function VendorDueList() {
   
   const handleViewInvoice = async (documentNumber: string) => {
     try {
-      const q = query(collection(db, 'orders'), where('documentNumber', '==', documentNumber));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const order = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        generatePDF(order as any, 'invoice', settings);
-      } else {
-        toast.error('Invoice not found');
+      // 1. Try purchases collection
+      let q = query(collection(db, 'purchases'), where('billNumber', '==', documentNumber));
+      let snap = await getDocs(q);
+      if (snap.empty) {
+        q = query(collection(db, 'purchases'), where('documentNumber', '==', documentNumber));
+        snap = await getDocs(q);
       }
+      if (!snap.empty) {
+        const pur = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
+        const pseudoOrder: any = {
+          id: pur.id,
+          documentNumber: pur.billNumber || pur.documentNumber || documentNumber,
+          customerName: pur.vendorName || 'Vendor',
+          customerPhone: pur.vendorPhone || '',
+          customerAddress: pur.vendorAddress || '',
+          items: pur.items || [],
+          total: pur.total || pur.grandTotal || 0,
+          amountPaid: pur.paid || 0,
+          due: (pur.total || 0) - (pur.paid || 0),
+          createdAt: pur.date || pur.createdAt || new Date().toISOString(),
+          paymentMethod: pur.paymentMethod || 'cash',
+          type: 'purchase'
+        };
+        generatePDF(pseudoOrder as any, 'invoice', settings);
+        return;
+      }
+
+      // Check purchase direct doc id
+      const purDocSnap = await getDoc(doc(db, 'purchases', documentNumber));
+      if (purDocSnap.exists()) {
+        const pur = { id: purDocSnap.id, ...purDocSnap.data() } as any;
+        const pseudoOrder: any = {
+          id: pur.id,
+          documentNumber: pur.billNumber || pur.documentNumber || documentNumber,
+          customerName: pur.vendorName || 'Vendor',
+          customerPhone: pur.vendorPhone || '',
+          customerAddress: pur.vendorAddress || '',
+          items: pur.items || [],
+          total: pur.total || pur.grandTotal || 0,
+          amountPaid: pur.paid || 0,
+          due: (pur.total || 0) - (pur.paid || 0),
+          createdAt: pur.date || pur.createdAt || new Date().toISOString(),
+          paymentMethod: pur.paymentMethod || 'cash',
+          type: 'purchase'
+        };
+        generatePDF(pseudoOrder as any, 'invoice', settings);
+        return;
+      }
+
+      // 2. Fallback to orders collection
+      const orderQ = query(collection(db, 'orders'), where('documentNumber', '==', documentNumber));
+      const orderSnap = await getDocs(orderQ);
+      if (!orderSnap.empty) {
+        const order = { id: orderSnap.docs[0].id, ...orderSnap.docs[0].data() };
+        generatePDF(order as any, 'invoice', settings);
+        return;
+      }
+
+      const orderDocSnap = await getDoc(doc(db, 'orders', documentNumber));
+      if (orderDocSnap.exists()) {
+        const order = { id: orderDocSnap.id, ...orderDocSnap.data() };
+        generatePDF(order as any, 'invoice', settings);
+        return;
+      }
+
+      toast.error('Invoice not found');
     } catch (e) {
+      console.error('Failed to view invoice:', e);
       toast.error('Failed to view invoice');
     }
   };

@@ -8,13 +8,14 @@ import { Product, Order, Customer, Transaction, Vendor, NavigationMenu } from '.
 import { logoBase64 } from '../../lib/logoBase64';
 import { 
   Menu as MenuIcon, X, Activity, Package, ShoppingBag, Users, type LucideIcon,
-  Tag, Globe, Settings, ExternalLink, ArrowLeft, Star, CalendarPlus, MessageCircle, HelpCircle, Zap, RefreshCcw, Truck, ShoppingCart, PieChart as PieChartIcon, Layers, Heart, FileText
+  Tag, Globe, Settings, ExternalLink, ArrowLeft, Star, CalendarPlus, MessageCircle, HelpCircle, Zap, RefreshCcw, Truck, ShoppingCart, PieChart as PieChartIcon, Layers, Heart, FileText, Cpu
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { generatePDF } from '../../lib/pdf';
 import { BannersManagerTab } from '../admin/tabs/marketing/BannersManagerTab';
 import { AdminNotifications } from '../../components/AdminNotifications';
 const NotificationsPage = lazy(() => import('../admin/tabs/notifications/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
+const BuildRequestsTab = lazy(() => import('../admin/tabs/sales/BuildRequests').then(m => ({ default: m.BuildRequestsTab })));
 import { toast } from 'react-hot-toast';
 
 // Lazy loaded components
@@ -189,7 +190,6 @@ const EcommerceDashboard: React.FC = () => {
       toast.error(`Error: ${error.message}`);
     }
   };
-  const generatePDF = () => {};
   const handleDeleteOrder = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'orders', id));
@@ -267,6 +267,7 @@ const EcommerceDashboard: React.FC = () => {
           <NavGroup title="Sales">
             {renderNavBtn('orders', 'Orders', ShoppingBag)}
             {renderNavBtn('customers', 'Customers', Users)}
+            {renderNavBtn('buildRequests', 'PC Build Requests', Cpu)}
             {renderNavBtn('abandonedCarts', 'Abandoned Carts', ShoppingCart)}
           </NavGroup>
           <NavGroup title="Marketing">
@@ -389,8 +390,12 @@ const EcommerceDashboard: React.FC = () => {
                 <EcommerceDeliveries />
               ) : activeTab === 'projects' ? (
                   <EcommerceProjects />
-                ) : activeTab === 'abandonedCarts' ? (
+              ) : activeTab === 'buildRequests' ? (
+                <BuildRequestsTab />
+              ) : activeTab === 'abandonedCarts' ? (
                 <EcommerceAbandonedCarts />
+              ) : activeTab === 'notifications' ? (
+                <NotificationsPage setActiveTab={setActiveTab as any} />
               ) : (
                 <div className="text-center p-8 text-gray-500">Select an item from the menu</div>
               )}
