@@ -37,7 +37,7 @@ customersRouter.get('/me/wallet', requireFirebaseAuth, async (req: any, res: Res
       .limit(50)
       .get();
 
-    const transactions = txSnap.docs.map(doc => ({
+    const transactions = txSnap.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data()
     }));
@@ -49,7 +49,7 @@ customersRouter.get('/me/wallet', requireFirebaseAuth, async (req: any, res: Res
       .limit(20)
       .get();
 
-    const deposits = depSnap.docs.map(doc => ({
+    const deposits = depSnap.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data()
     }));
@@ -475,7 +475,7 @@ customersRouter.get('/admin/list', requireFirebaseAuth, async (req: any, res: Re
       }
     });
 
-    const customers = usersSnap.docs.map(doc => {
+    const customers = usersSnap.docs.map((doc: any) => {
       const data = doc.data();
       const uid = doc.id;
       return {
@@ -653,7 +653,7 @@ customersRouter.get('/admin/:userId/transactions', requireFirebaseAuth, async (r
       .limit(100)
       .get();
 
-    const transactions = txSnap.docs.map(doc => ({
+    const transactions = txSnap.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data()
     }));
@@ -686,7 +686,7 @@ customersRouter.get('/admin/deposits/pending', requireFirebaseAuth, async (req: 
       .limit(100)
       .get();
 
-    const deposits = depSnap.docs.map(doc => ({
+    const deposits = depSnap.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data()
     }));

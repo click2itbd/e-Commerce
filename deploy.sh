@@ -13,26 +13,32 @@ echo "Starting deployment to $DEST..."
 # FRONTEND
 # ==============================
 
-# Clean old frontend files
-/bin/rm -rf "$DEST/assets"
-/bin/rm -f "$DEST/index.html"
-/bin/rm -f "$DEST/_redirects"
-/bin/rm -f "$DEST/.htaccess"
-/bin/rm -f "$DEST/robots.txt"
-/bin/rm -f "$DEST/sitemap.xml"
-/bin/rm -f "$DEST/logo.png"
-/bin/rm -f "$DEST/upload.php"
-/bin/rm -f "$DEST/share.php"
-/bin/rm -f "$DEST/steadfast.php"
+# Verify frontend build exists BEFORE touching public_html
+if [ ! -d "dist" ] || [ ! -f "dist/index.html" ]; then
+  echo "Warning: dist folder or dist/index.html not found! Attempting emergency build..."
+  npm run build 2>/dev/null || npx vite build 2>/dev/null || true
+fi
 
-# Deploy frontend build
-if [ -d "dist" ]; then
+if [ -d "dist" ] && [ -f "dist/index.html" ]; then
+  # Clean old frontend files only after confirming new build is ready
+  /bin/rm -rf "$DEST/assets"
+  /bin/rm -f "$DEST/index.html"
+  /bin/rm -f "$DEST/_redirects"
+  /bin/rm -f "$DEST/robots.txt"
+  /bin/rm -f "$DEST/sitemap.xml"
+  /bin/rm -f "$DEST/logo.png"
+  /bin/rm -f "$DEST/upload.php"
+  /bin/rm -f "$DEST/share.php"
+  /bin/rm -f "$DEST/steadfast.php"
+
+  # Deploy frontend build
   /bin/cp -R dist/. "$DEST/"
   /bin/cp -f upload.php "$DEST/" 2>/dev/null || true
   /bin/cp -f share.php "$DEST/" 2>/dev/null || true
   /bin/cp -f steadfast.php "$DEST/" 2>/dev/null || true
+  echo "Frontend deployed successfully to $DEST"
 else
-  echo "Error: dist folder not found! Please run npm run build before pushing."
+  echo "Error: dist/index.html not found! Existing live site preserved without wiping."
   exit 1
 fi
 

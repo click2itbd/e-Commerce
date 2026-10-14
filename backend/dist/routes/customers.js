@@ -31,7 +31,7 @@ customersRouter.get('/me/wallet', requireFirebaseAuth, async (req, res) => {
             .orderBy('createdAt', 'desc')
             .limit(50)
             .get();
-        const transactions = txSnap.docs.map(doc => ({
+        const transactions = txSnap.docs.map((doc) => ({
             id: doc.id,
             ...doc.data()
         }));
@@ -41,7 +41,7 @@ customersRouter.get('/me/wallet', requireFirebaseAuth, async (req, res) => {
             .orderBy('createdAt', 'desc')
             .limit(20)
             .get();
-        const deposits = depSnap.docs.map(doc => ({
+        const deposits = depSnap.docs.map((doc) => ({
             id: doc.id,
             ...doc.data()
         }));
@@ -392,7 +392,7 @@ customersRouter.post('/renew-domain', requireFirebaseAuth, async (req, res) => {
  */
 customersRouter.get('/admin/list', requireFirebaseAuth, async (req, res) => {
     const adminUid = req.user?.uid;
-    const isAdmin = await isUserAdmin(adminUid).catch(() => false);
+    const isAdmin = await isUserAdmin(adminUid, req.user?.email).catch(() => false);
     if (!isAdmin) {
         return res.status(403).json({ error: 'Admin authorization required.' });
     }
@@ -427,7 +427,7 @@ customersRouter.get('/admin/list', requireFirebaseAuth, async (req, res) => {
                 }
             }
         });
-        const customers = usersSnap.docs.map(doc => {
+        const customers = usersSnap.docs.map((doc) => {
             const data = doc.data();
             const uid = doc.id;
             return {
@@ -458,22 +458,26 @@ customersRouter.get('/admin/list', requireFirebaseAuth, async (req, res) => {
     }
 });
 /**
- * POST /api/admin/customers/:userId/balance
+ * POST /api/admin/customers/:userId/balance or /api/customers/admin/balance or /api/customers/admin/add-funds
  * Admin Add or Deduct Balance / Funds to Customer Account
  */
-customersRouter.post('/admin/:userId/balance', requireFirebaseAuth, async (req, res) => {
+const handleAdminBalanceAdjust = async (req, res) => {
     const adminUid = req.user?.uid;
-    const { userId } = req.params;
+    const userId = req.params?.userId || req.body?.userId;
     const { amount, action, reason, adminNotes } = req.body;
-    const isAdmin = await isUserAdmin(adminUid).catch(() => false);
+    const isAdmin = await isUserAdmin(adminUid, req.user?.email).catch(() => false);
     if (!isAdmin) {
         return res.status(403).json({ error: 'Admin authorization required.' });
+    }
+    if (!userId) {
+        return res.status(400).json({ error: 'Target customer User ID is required.' });
     }
     const numAmount = Number(amount);
     if (!numAmount || numAmount <= 0) {
         return res.status(400).json({ error: 'Valid positive amount is required.' });
     }
-    if (!['add', 'deduct'].includes(action)) {
+    const effectiveAction = (action || 'add').toLowerCase();
+    if (!['add', 'deduct'].includes(effectiveAction)) {
         return res.status(400).json({ error: 'Action must be "add" or "deduct".' });
     }
     if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
@@ -552,7 +556,7 @@ customersRouter.post('/admin/:userId/balance', requireFirebaseAuth, async (req, 
         }
         return res.json({
             success: true,
-            message: `Balance successfully ${action === 'add' ? 'credited' : 'debited'}.`,
+            message: `Balance successfully ${effectiveAction === 'add' ? 'credited' : 'debited'}.`,
             newBalance,
             transaction: txData
         });
@@ -561,7 +565,10 @@ customersRouter.post('/admin/:userId/balance', requireFirebaseAuth, async (req, 
         console.error('Failed to adjust customer balance:', error);
         return res.status(500).json({ error: error.message || 'Failed to adjust balance.' });
     }
-});
+};
+customersRouter.post('/admin/:userId/balance', requireFirebaseAuth, handleAdminBalanceAdjust);
+customersRouter.post('/admin/balance', requireFirebaseAuth, handleAdminBalanceAdjust);
+customersRouter.post('/admin/add-funds', requireFirebaseAuth, handleAdminBalanceAdjust);
 /**
  * GET /api/admin/customers/:userId/transactions
  * Admin Get Wallet Transactions for a specific customer
@@ -569,7 +576,7 @@ customersRouter.post('/admin/:userId/balance', requireFirebaseAuth, async (req, 
 customersRouter.get('/admin/:userId/transactions', requireFirebaseAuth, async (req, res) => {
     const adminUid = req.user?.uid;
     const { userId } = req.params;
-    const isAdmin = await isUserAdmin(adminUid).catch(() => false);
+    const isAdmin = await isUserAdmin(adminUid, req.user?.email).catch(() => false);
     if (!isAdmin) {
         return res.status(403).json({ error: 'Admin authorization required.' });
     }
@@ -580,7 +587,7 @@ customersRouter.get('/admin/:userId/transactions', requireFirebaseAuth, async (r
             .orderBy('createdAt', 'desc')
             .limit(100)
             .get();
-        const transactions = txSnap.docs.map(doc => ({
+        const transactions = txSnap.docs.map((doc) => ({
             id: doc.id,
             ...doc.data()
         }));
@@ -600,7 +607,7 @@ customersRouter.get('/admin/:userId/transactions', requireFirebaseAuth, async (r
  */
 customersRouter.get('/admin/deposits/pending', requireFirebaseAuth, async (req, res) => {
     const adminUid = req.user?.uid;
-    const isAdmin = await isUserAdmin(adminUid).catch(() => false);
+    const isAdmin = await isUserAdmin(adminUid, req.user?.email).catch(() => false);
     if (!isAdmin) {
         return res.status(403).json({ error: 'Admin authorization required.' });
     }
@@ -610,7 +617,7 @@ customersRouter.get('/admin/deposits/pending', requireFirebaseAuth, async (req, 
             .orderBy('createdAt', 'desc')
             .limit(100)
             .get();
-        const deposits = depSnap.docs.map(doc => ({
+        const deposits = depSnap.docs.map((doc) => ({
             id: doc.id,
             ...doc.data()
         }));
@@ -632,7 +639,7 @@ customersRouter.post('/admin/deposits/:depositId/verify', requireFirebaseAuth, a
     const adminUid = req.user?.uid;
     const { depositId } = req.params;
     const { action, adminNotes } = req.body;
-    const isAdmin = await isUserAdmin(adminUid).catch(() => false);
+    const isAdmin = await isUserAdmin(adminUid, req.user?.email).catch(() => false);
     if (!isAdmin) {
         return res.status(403).json({ error: 'Admin authorization required.' });
     }

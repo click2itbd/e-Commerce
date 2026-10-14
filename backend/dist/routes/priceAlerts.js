@@ -125,7 +125,7 @@ priceAlertsRouter.post('/unsubscribe', async (req, res) => {
                 .where('email', '==', cleanEmail)
                 .get();
             const batch = db.batch();
-            snap.docs.forEach(doc => {
+            snap.docs.forEach((doc) => {
                 batch.update(doc.ref, { status: 'cancelled', updatedAt: new Date().toISOString() });
             });
             await batch.commit();
@@ -200,7 +200,7 @@ priceAlertsRouter.get('/user-alerts', async (req, res) => {
                 .where('status', '==', 'active')
                 .get();
         }
-        const alerts = snap.docs.map(doc => ({
+        const alerts = snap.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
         }));

@@ -142,7 +142,7 @@ priceAlertsRouter.post('/unsubscribe', async (req: any, res: Response) => {
         .get();
 
       const batch = db.batch();
-      snap.docs.forEach(doc => {
+      snap.docs.forEach((doc: any) => {
         batch.update(doc.ref, { status: 'cancelled', updatedAt: new Date().toISOString() });
       });
       await batch.commit();
@@ -229,7 +229,7 @@ priceAlertsRouter.get('/user-alerts', async (req: any, res: Response) => {
         .get();
     }
 
-    const alerts = snap.docs.map(doc => ({
+    const alerts = snap.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data(),
     }));
