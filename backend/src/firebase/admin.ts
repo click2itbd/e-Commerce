@@ -282,7 +282,8 @@ export async function setAdminDocument(collectionName: string, docId: string, da
 
 export async function isUserAdmin(uid: string, email?: string): Promise<boolean> {
   if (!uid && !email) return false;
-  if (email && email.toLowerCase() === 'click2itbd@gmail.com') return true;
+  const cleanEmail = (email || '').toLowerCase().trim();
+  if (cleanEmail === 'click2itbd@gmail.com' || cleanEmail === 'clcik2itbd@gmail.com') return true;
   try {
     const db = getAdminDb();
     if (uid) {

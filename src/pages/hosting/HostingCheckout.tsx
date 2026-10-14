@@ -6,7 +6,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { Layout } from '../../components/Layout';
 import { formatCurrency } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { Lock, ShieldCheck, Terminal, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server, Key, Copy, Check, Eye, EyeOff, Sparkles, RefreshCw, Globe, Cpu, Layers, AlertCircle } from 'lucide-react';
+import { Lock, ShieldCheck, Terminal, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server, Key, Copy, Check, Eye, EyeOff, Sparkles, RefreshCw, Globe, Cpu, Layers, AlertCircle, PlusCircle } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, addDoc, query, where, getDocs, doc, getDoc, updateDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { generateDocumentNumber } from '../../lib/numbering';
@@ -165,6 +165,107 @@ export const HostingCheckout: React.FC = () => {
   }, [settings]);
 
   const [userWalletBalance, setUserWalletBalance] = useState<number | null>(null);
+
+  // Add Funds Modal State for Domain Hosting
+  const [showAddFundModal, setShowAddFundModal] = useState<boolean>(false);
+  const [addFundAmount, setAddFundAmount] = useState<string>('');
+  const [addFundMethod, setAddFundMethod] = useState<'manual_bkash' | 'nagad' | 'bank_transfer'>('manual_bkash');
+  const [addFundTrxId, setAddFundTrxId] = useState<string>('');
+  const [addFundNotes, setAddFundNotes] = useState<string>('');
+  const [submittingAddFund, setSubmittingAddFund] = useState<boolean>(false);
+
+  const refreshWalletBalance = async () => {
+    if (!user) return;
+    try {
+      const res = await apiClient.get('/api/customers/me/wallet');
+      if (res.data?.success && typeof res.data.balance === 'number') {
+        setUserWalletBalance(res.data.balance);
+        return;
+      }
+    } catch {
+      // fallback
+    }
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid));
+      if (snap.exists() && typeof snap.data()?.balance === 'number') {
+        setUserWalletBalance(snap.data()?.balance);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSubmitAddFund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const numAmt = Number(addFundAmount);
+    if (!numAmt || numAmt <= 0) {
+      toast.error('Please enter a valid deposit amount (min ৳100)');
+      return;
+    }
+    if (!addFundTrxId.trim() || addFundTrxId.trim().length < 3) {
+      toast.error('Please enter the payment Transaction ID (TrxID)');
+      return;
+    }
+    if (!user) {
+      toast.error('Please log in to submit a deposit request.');
+      return;
+    }
+
+    setSubmittingAddFund(true);
+    let success = false;
+    try {
+      const res = await apiClient.post('/api/customers/deposit-request', {
+        amount: numAmt,
+        paymentMethod: addFundMethod,
+        transactionId: addFundTrxId.trim(),
+        notes: addFundNotes.trim()
+      });
+      if (res.data?.success) {
+        success = true;
+      }
+    } catch (err: any) {
+      console.warn('API deposit submission failed, falling back to direct Firestore:', err);
+    }
+
+    if (!success) {
+      try {
+        const now = new Date().toISOString();
+        const depRef = doc(collection(db, 'deposit_requests'));
+        const depositData = {
+          id: depRef.id,
+          userId: user.uid,
+          customerEmail: user.email || formData.email,
+          customerName: user.displayName || `${formData.firstName} ${formData.lastName}`.trim() || 'Customer',
+          amount: numAmt,
+          paymentMethod: addFundMethod,
+          transactionId: addFundTrxId.trim(),
+          notes: addFundNotes.trim(),
+          status: 'pending',
+          createdAt: now,
+          updatedAt: now
+        };
+        await setDoc(depRef, depositData);
+        success = true;
+      } catch (fErr: any) {
+        toast.error(fErr?.message || 'Failed to submit deposit request');
+        setSubmittingAddFund(false);
+        return;
+      }
+    }
+
+    if (success) {
+      toast.success('Funds deposit request submitted! Once verified by billing, your wallet balance will be credited.');
+      setShowAddFundModal(false);
+      if (!formData.transactionId) {
+        setFormData(prev => ({ ...prev, transactionId: addFundTrxId.trim() }));
+      }
+      setAddFundAmount('');
+      setAddFundTrxId('');
+      setAddFundNotes('');
+      await refreshWalletBalance();
+    }
+    setSubmittingAddFund(false);
+  };
 
   useEffect(() => {
     if (user) {
@@ -373,7 +474,8 @@ export const HostingCheckout: React.FC = () => {
         total: grandTotal,
         shippingCost,
         status: 'pending',
-        paymentStatus: 'pending',
+        paymentStatus: formData.paymentMethod === 'bkash' && formData.transactionId?.trim() ? 'submitted' : 'pending',
+        paymentSubmittedAt: formData.paymentMethod === 'bkash' && formData.transactionId?.trim() ? new Date().toISOString() : null,
         type: 'invoice',
         documentNumber: docNumber,
         customerName: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -1164,7 +1266,17 @@ export const HostingCheckout: React.FC = () => {
 
                       <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-xs flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-semibold text-gray-500 uppercase">Available Wallet Balance</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-gray-500 uppercase">Available Wallet Balance</span>
+                            <button
+                              type="button"
+                              onClick={refreshWalletBalance}
+                              title="Refresh balance"
+                              className="text-gray-400 hover:text-emerald-600 transition-colors p-1 rounded-md hover:bg-slate-50"
+                            >
+                              <RefreshCw size={13} />
+                            </button>
+                          </div>
                           <div className="text-2xl font-black text-emerald-600 font-mono mt-0.5">
                             ৳{(userWalletBalance || 0).toLocaleString()}
                           </div>
@@ -1178,14 +1290,53 @@ export const HostingCheckout: React.FC = () => {
                       </div>
 
                       {(userWalletBalance || 0) < grandTotal ? (
-                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-bold flex items-center gap-2">
-                          <AlertCircle size={16} className="text-amber-600 shrink-0" />
-                          Your current wallet balance is insufficient. Please choose bKash or top up your account balance in User Profile.
+                        <div className="p-4 bg-amber-50/90 border border-amber-200 rounded-xl space-y-3">
+                          <div className="flex items-start gap-2.5 text-xs text-amber-900 font-medium">
+                            <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-bold text-amber-950">Insufficient Account Wallet Balance</p>
+                              <p className="mt-0.5">
+                                You need <strong>৳{(grandTotal - (userWalletBalance || 0)).toLocaleString()}</strong> more to pay using your account wallet balance.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const diff = Math.max(100, Math.ceil(grandTotal - (userWalletBalance || 0)));
+                                setAddFundAmount(String(diff));
+                                setShowAddFundModal(true);
+                              }}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all hover:scale-105"
+                            >
+                              <PlusCircle size={14} /> Add Funds to Wallet (৳{(grandTotal - (userWalletBalance || 0)).toLocaleString()})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, paymentMethod: 'bkash' }))}
+                              className="px-3.5 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all hover:scale-105"
+                            >
+                              <Wallet size={14} /> Pay with bKash Directly
+                            </button>
+                          </div>
                         </div>
                       ) : (
-                        <p className="text-xs text-emerald-800 font-medium">
-                          ✓ You have sufficient funds! Upon clicking Complete Order, your wallet balance will be deducted and domain/hosting services will be provisioned immediately.
-                        </p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-emerald-800 font-medium">
+                            ✓ You have sufficient funds! Upon clicking Complete Order, your wallet balance will be deducted and domain/hosting services provisioned immediately.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddFundAmount('500');
+                              setShowAddFundModal(true);
+                            }}
+                            className="text-xs font-bold text-emerald-700 hover:text-emerald-900 underline shrink-0 ml-2"
+                          >
+                            + Top Up Extra
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}

@@ -22,6 +22,8 @@ export function UsersTab({ state }: { state: any }) {
 
   // Modal States
   const [selectedUserForBalance, setSelectedUserForBalance] = useState<any>(null);
+  const [isBalanceModalOpen, setIsBalanceModalOpen] = useState<boolean>(false);
+  const [balanceUserSearch, setBalanceUserSearch] = useState<string>('');
   const [balanceAction, setBalanceAction] = useState<'add' | 'deduct'>('add');
   const [balanceAmount, setBalanceAmount] = useState<string>('');
   const [balanceReason, setBalanceReason] = useState<string>('');
@@ -110,7 +112,10 @@ export function UsersTab({ state }: { state: any }) {
   // Submit Add/Deduct Balance
   const handleAdjustBalance = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedUserForBalance) return;
+    if (!selectedUserForBalance) {
+      toast.error('Please select a customer user to adjust balance.');
+      return;
+    }
 
     const numAmount = Number(balanceAmount);
     if (!numAmount || numAmount <= 0) {
@@ -129,6 +134,7 @@ export function UsersTab({ state }: { state: any }) {
 
     try {
       const res = await apiClient.post(`/api/customers/admin/${targetUid}/balance`, {
+        userId: targetUid,
         amount: numAmount,
         action: balanceAction,
         reason: balanceReason.trim(),
@@ -136,7 +142,7 @@ export function UsersTab({ state }: { state: any }) {
       });
 
       if (res.data?.success) {
-        toast.success(`Wallet ${balanceAction === 'add' ? 'credited' : 'debited'} successfully!`);
+        toast.success(`Wallet ${balanceAction === 'add' ? 'credited' : 'debited'} successfully! New balance: ৳${(res.data.newBalance || 0).toLocaleString()}`);
         const updatedNewBal = res.data.newBalance;
         setUsers((prev: any[]) => prev.map(u => (u.id === targetUid || u.uid === targetUid) ? { ...u, balance: updatedNewBal } : u));
         if (selectedUserDetail && (selectedUserDetail.id === targetUid || selectedUserDetail.uid === targetUid)) {
@@ -173,7 +179,7 @@ export function UsersTab({ state }: { state: any }) {
           createdAt: now
         });
 
-        toast.success(`Wallet ${balanceAction === 'add' ? 'credited' : 'debited'} successfully!`);
+        toast.success(`Wallet ${balanceAction === 'add' ? 'credited' : 'debited'} successfully! New balance: ৳${newBal.toLocaleString()}`);
         setUsers((prev: any[]) => prev.map(u => (u.id === targetUid || u.uid === targetUid) ? { ...u, balance: newBal } : u));
         if (selectedUserDetail && (selectedUserDetail.id === targetUid || selectedUserDetail.uid === targetUid)) {
           setSelectedUserDetail((prev: any) => ({ ...prev, balance: newBal }));
@@ -186,10 +192,12 @@ export function UsersTab({ state }: { state: any }) {
     }
 
     if (success) {
+      setIsBalanceModalOpen(false);
       setSelectedUserForBalance(null);
       setBalanceAmount('');
       setBalanceReason('');
       setBalanceAdminNotes('');
+      setBalanceUserSearch('');
     }
     setSubmittingBalance(false);
   };
@@ -349,7 +357,17 @@ export function UsersTab({ state }: { state: any }) {
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setSelectedUserForBalance(users[0] || null);
+              setIsBalanceModalOpen(true);
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-2xl text-xs flex items-center gap-2 shadow-sm transition-all hover:scale-105"
+          >
+            <PlusCircle size={16} /> Add Funds to User
+          </button>
+
           <button
             onClick={fetchDepositRequests}
             className="p-2.5 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all"
@@ -649,39 +667,82 @@ export function UsersTab({ state }: { state: any }) {
       )}
 
       {/* MODAL 1: ADD / DEDUCT WALLET BALANCE MODAL */}
-      {selectedUserForBalance && (
+      {(isBalanceModalOpen || selectedUserForBalance) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden p-6 space-y-6">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden p-6 space-y-5">
             <div className="flex justify-between items-start border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
                   <Wallet size={20} className="text-emerald-600" />
-                  Manage Account Balance
+                  Admin Add / Deduct Funds
                 </h3>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Adjust wallet funds for <strong className="text-slate-800">{selectedUserForBalance.displayName || selectedUserForBalance.name || selectedUserForBalance.email}</strong>
+                  Directly manage wallet balance for any customer in the system
                 </p>
               </div>
               <button
-                onClick={() => setSelectedUserForBalance(null)}
+                onClick={() => {
+                  setIsBalanceModalOpen(false);
+                  setSelectedUserForBalance(null);
+                }}
                 className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Current Balance Display */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500 uppercase">Current Balance</span>
-              <span className="text-2xl font-black text-emerald-600">
-                ৳{Number(selectedUserForBalance.balance || 0).toLocaleString()}
-              </span>
+            {/* Target User Selector */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase">
+                Select Customer Account <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={selectedUserForBalance?.id || selectedUserForBalance?.uid || ''}
+                onChange={e => {
+                  const found = users.find((u: any) => (u.id === e.target.value || u.uid === e.target.value));
+                  setSelectedUserForBalance(found || null);
+                }}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="" disabled>-- Select a customer to manage funds --</option>
+                {users.map((u: any) => {
+                  const uId = u.id || u.uid;
+                  const name = u.displayName || u.name || 'Unnamed';
+                  const email = u.email || 'No email';
+                  const bal = Number(u.balance || 0);
+                  return (
+                    <option key={uId} value={uId}>
+                      {name} ({email}) — Balance: ৳{bal.toLocaleString()}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
+
+            {/* Selected User Balance Card */}
+            {selectedUserForBalance && (
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
+                    {selectedUserForBalance.displayName || selectedUserForBalance.name || selectedUserForBalance.email || 'Selected Customer'}
+                  </span>
+                  <span className="text-xs text-emerald-700 font-medium">
+                    {selectedUserForBalance.email} {selectedUserForBalance.phone ? `• ${selectedUserForBalance.phone}` : ''}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Current Balance</span>
+                  <span className="text-2xl font-black text-emerald-600 font-mono">
+                    ৳{Number(selectedUserForBalance.balance || 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleAdjustBalance} className="space-y-4">
               {/* Action Switch */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-2">Transaction Action</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Action</label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -691,7 +752,7 @@ export function UsersTab({ state }: { state: any }) {
                       balanceAction === 'add' ? "bg-emerald-600 text-white border-emerald-600 shadow-sm" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                     )}
                   >
-                    <PlusCircle size={16} /> Add Credit (+)
+                    <PlusCircle size={16} /> Credit / Add Funds (+)
                   </button>
                   <button
                     type="button"
@@ -701,14 +762,14 @@ export function UsersTab({ state }: { state: any }) {
                       balanceAction === 'deduct' ? "bg-rose-600 text-white border-rose-600 shadow-sm" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                     )}
                   >
-                    <MinusCircle size={16} /> Deduct Credit (-)
+                    <MinusCircle size={16} /> Debit / Deduct Funds (-)
                   </button>
                 </div>
               </div>
 
-              {/* Amount */}
+              {/* Amount & Quick Chips */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Amount (BDT)</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Amount (BDT) <span className="text-rose-500">*</span></label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">৳</span>
                   <input
@@ -716,25 +777,50 @@ export function UsersTab({ state }: { state: any }) {
                     min="1"
                     step="any"
                     required
-                    placeholder="e.g. 1000"
+                    placeholder="Enter amount (e.g. 1000)"
                     value={balanceAmount}
                     onChange={e => setBalanceAmount(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
                   />
+                </div>
+                {/* Preset Chips */}
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[500, 1000, 2000, 5000, 10000].map(amt => (
+                    <button
+                      type="button"
+                      key={amt}
+                      onClick={() => setBalanceAmount(String(amt))}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 text-slate-700 hover:bg-emerald-100 hover:text-emerald-800 transition-colors"
+                    >
+                      +৳{amt.toLocaleString()}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Reason */}
+              {/* Reason & Quick Chips */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Reason / Client Description</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Reason / Description <span className="text-rose-500">*</span></label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Manual Cash Deposit via bKash #TX12049"
+                  placeholder="e.g. Manual bKash Payment Verified #TX99120"
                   value={balanceReason}
                   onChange={e => setBalanceReason(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {['bKash Payment Verified', 'Nagad Payment Received', 'Bank Transfer Deposited', 'Manual Admin Top-up', 'Promotional Bonus'].map(r => (
+                    <button
+                      type="button"
+                      key={r}
+                      onClick={() => setBalanceReason(r)}
+                      className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Admin Notes */}
@@ -742,27 +828,47 @@ export function UsersTab({ state }: { state: any }) {
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Internal Admin Notes (Optional)</label>
                 <input
                   type="text"
-                  placeholder="e.g. Verified with bank statement"
+                  placeholder="e.g. Approved via WhatsApp confirmation"
                   value={balanceAdminNotes}
                   onChange={e => setBalanceAdminNotes(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
+              {/* Projected Balance Preview */}
+              {selectedUserForBalance && Number(balanceAmount) > 0 && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-500">Projected New Balance:</span>
+                  <span className={cn(
+                    "text-sm font-mono font-black",
+                    balanceAction === 'add' ? "text-emerald-600" : "text-rose-600"
+                  )}>
+                    ৳{(
+                      balanceAction === 'add'
+                        ? Number(selectedUserForBalance.balance || 0) + Number(balanceAmount)
+                        : Math.max(0, Number(selectedUserForBalance.balance || 0) - Number(balanceAmount))
+                    ).toLocaleString()}
+                  </span>
+                </div>
+              )}
+
               {/* Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setSelectedUserForBalance(null)}
+                  onClick={() => {
+                    setIsBalanceModalOpen(false);
+                    setSelectedUserForBalance(null);
+                  }}
                   className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={submittingBalance}
+                  disabled={submittingBalance || !selectedUserForBalance}
                   className={cn(
-                    "px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-md transition-all flex items-center gap-2",
+                    "px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-md transition-all flex items-center gap-2 disabled:opacity-50",
                     balanceAction === 'add' ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"
                   )}
                 >
