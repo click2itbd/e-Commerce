@@ -70,8 +70,8 @@ export const OrderSuccess: React.FC = () => {
 
   const copyBkashNumber = async () => {
     const number = order?.paymentMethod === 'bkash' || order?.paymentMethod === 'manual_bkash' 
-      ? (order as any).bkashNumber || '01712-345678' 
-      : '';
+      ? (order as any).bkashNumber || '01727666677' 
+      : '01727666677';
     if (number) {
       await navigator.clipboard.writeText(number);
       toast.success('bKash number copied.');
@@ -143,7 +143,7 @@ export const OrderSuccess: React.FC = () => {
                 <div className="bg-white p-4 rounded-lg border border-pink-200 mb-4">
                   <p className="text-sm text-gray-600 mb-1">Send payment to:</p>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-2xl font-bold text-pink-600">{(order as any).bkashNumber || '01XXXXXXXXX'}</p>
+                    <p className="text-2xl font-bold text-pink-600">{(order as any).bkashNumber || '01727666677'}</p>
                     <button
                       type="button"
                       onClick={copyBkashNumber}

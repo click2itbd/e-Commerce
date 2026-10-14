@@ -8,7 +8,7 @@ import { formatCurrency } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { Lock, ShieldCheck, Terminal, CheckCircle, CreditCard, Landmark, Wallet, ArrowRight, Loader2, Server, Key, Copy, Check, Eye, EyeOff, Sparkles, RefreshCw, Globe, Cpu, Layers, AlertCircle } from 'lucide-react';
 import { db } from '../../firebase';
-import { collection, addDoc, query, where, getDocs, doc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, doc, getDoc, updateDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { generateDocumentNumber } from '../../lib/numbering';
 import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../../services/paymentApi';
 import { apiPost, getApiUrl, apiClient } from '../../services/apiClient';
@@ -168,13 +168,26 @@ export const HostingCheckout: React.FC = () => {
 
   useEffect(() => {
     if (user) {
+      // 1. Try API
       apiClient.get('/api/customers/me/wallet')
         .then(res => {
           if (res.data?.success && typeof res.data.balance === 'number') {
             setUserWalletBalance(res.data.balance);
           }
         })
-        .catch(e => console.warn('Failed to load wallet balance:', e));
+        .catch(e => console.warn('Failed to load wallet balance from API:', e));
+
+      // 2. Direct Firestore check to ensure immediate balance display
+      getDoc(doc(db, 'users', user.uid))
+        .then(snap => {
+          if (snap.exists()) {
+            const bal = snap.data()?.balance;
+            if (typeof bal === 'number') {
+              setUserWalletBalance(bal);
+            }
+          }
+        })
+        .catch(e => console.warn('Direct Firestore wallet check:', e));
     }
   }, [user]);
 
@@ -590,17 +603,63 @@ export const HostingCheckout: React.FC = () => {
           setIsProcessing(false);
           return;
         }
-        const token = await user.getIdToken();
-        const res = await apiClient.post('/api/customers/pay-order', { orderId }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.data?.success) {
+
+        let walletPaid = false;
+        try {
+          const token = await user.getIdToken();
+          const res = await apiClient.post('/api/customers/pay-order', { orderId }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.data?.success) {
+            walletPaid = true;
+          }
+        } catch (apiErr: any) {
+          console.warn('API pay-order error, attempting direct Firestore fallback:', apiErr);
+        }
+
+        // Direct fallback if API was unreachable
+        if (!walletPaid) {
+          try {
+            const userDocSnap = await getDoc(doc(db, 'users', user.uid));
+            const currentBal = typeof userDocSnap.data()?.balance === 'number' ? userDocSnap.data()?.balance : 0;
+            if (currentBal >= grandTotal) {
+              const newBal = currentBal - grandTotal;
+              const now = new Date().toISOString();
+              await updateDoc(doc(db, 'users', user.uid), { balance: newBal, updatedAt: now });
+              await updateDoc(doc(db, 'orders', orderId), {
+                paymentStatus: 'verified',
+                paymentMethod: 'wallet_balance',
+                status: 'completed',
+                paidAt: now,
+                updatedAt: now
+              });
+              const txDoc = doc(collection(db, 'wallet_transactions'));
+              await setDoc(txDoc, {
+                id: txDoc.id,
+                userId: user.uid,
+                customerEmail: user.email || formData.email,
+                type: 'debit',
+                amount: grandTotal,
+                balanceBefore: currentBal,
+                balanceAfter: newBal,
+                reason: `Payment for Order #${orderId.slice(0, 8)}`,
+                orderId,
+                createdAt: now
+              });
+              walletPaid = true;
+            }
+          } catch (fErr) {
+            console.error('Direct Firestore wallet payment failed:', fErr);
+          }
+        }
+
+        if (walletPaid) {
           toast.success('Order paid instantly using Account Wallet Balance!');
           clearCart();
           navigate(`/order-success/${orderId}`);
           return;
         } else {
-          throw new Error(res.data?.error || 'Wallet payment failed.');
+          throw new Error('Insufficient wallet balance or payment failed. Please add funds in User Profile or choose bKash.');
         }
       } else if (formData.paymentMethod === 'bkash') {
         clearCart();

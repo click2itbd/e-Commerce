@@ -1,6 +1,22 @@
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
+import { initializeApp as initAdminApp, getApps as getAdminApps, cert } from 'firebase-admin/app';
+import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
+import { getAuth as getAdminAuthSdk } from 'firebase-admin/auth';
+import { initializeApp as initClientApp, getApps as getClientApps } from 'firebase/app';
+import { 
+  initializeFirestore, 
+  doc, 
+  getDoc, 
+  getDocs, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  writeBatch 
+} from 'firebase/firestore';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -8,8 +24,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let adminDb: ReturnType<typeof getFirestore> | null = null;
-let adminAuth: ReturnType<typeof getAuth> | null = null;
+let adminDb: any = null;
+let adminAuth: any = null;
+let clientAdapterDb: any = null;
 let initializationFailed = false;
 
 export function validateServiceAccountStructure(serviceAccount: any): void {
@@ -45,96 +62,211 @@ export function validateServiceAccountStructure(serviceAccount: any): void {
   }
 }
 
-export function getAdminDb() {
-  if (initializationFailed && !adminDb) {
-    throw new Error('Firebase Admin SDK is not available.');
+function getFirebaseClientConfig(): any {
+  const candidatePaths = [
+    path.resolve(process.cwd(), 'firebase-applet-config.json'),
+    path.resolve(__dirname, '..', '..', 'firebase-applet-config.json'),
+    path.resolve(__dirname, '..', '..', '..', 'firebase-applet-config.json')
+  ];
+
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      try {
+        return JSON.parse(fs.readFileSync(p, 'utf8'));
+      } catch (err) {
+        console.warn('[Firebase] Error reading config from', p, err);
+      }
+    }
   }
 
-  if (!adminDb) {
-    let app = getApps()[0];
-    if (!app) {
-      const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.trim();
-      let serviceAccount: any = null;
+  return {
+    projectId: process.env.GOOGLE_CLOUD_PROJECT || 'gen-lang-client-0990631330',
+    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || 'ai-studio-422fbad2-d827-4e69-8599-aed85390d277'
+  };
+}
 
-      if (serviceAccountKey) {
-        if (serviceAccountKey.endsWith('.json') || serviceAccountKey.startsWith('.') || serviceAccountKey.includes('/') || serviceAccountKey.includes('\\')) {
-          // It's a file path. Check candidate locations
-          const candidatePaths = [
-            path.isAbsolute(serviceAccountKey) ? serviceAccountKey : path.resolve(process.cwd(), serviceAccountKey),
-            path.resolve(__dirname, '..', '..', serviceAccountKey),
-            path.resolve(__dirname, '..', '..', '..', serviceAccountKey),
-          ];
-          const foundPath = candidatePaths.find(p => fs.existsSync(p));
-          if (foundPath) {
-            try {
-              console.log('[Firebase Admin] Reading service account key from file:', foundPath);
-              const fileContent = fs.readFileSync(foundPath, 'utf8');
-              serviceAccount = JSON.parse(fileContent);
-              validateServiceAccountStructure(serviceAccount);
-            } catch (err) {
-              console.warn('[Firebase Admin] Could not parse service account file:', err);
-              serviceAccount = null;
-            }
-          } else {
-            console.log(`[Firebase Admin] Service account file "${serviceAccountKey}" not on disk. Using cloud environment credentials.`);
-          }
-        } else {
-          // Raw JSON string
+function wrapDocSnapshot(snap: any) {
+  const exists = typeof snap.exists === 'function' ? snap.exists() : Boolean(snap.exists);
+  const data = exists ? snap.data() : undefined;
+  return {
+    id: snap.id,
+    exists,
+    data: () => data,
+    get: (field: string) => data?.[field],
+    ref: wrapDocRef(snap.ref)
+  };
+}
+
+function wrapDocRef(rawRef: any) {
+  return {
+    id: rawRef.id,
+    path: rawRef.path,
+    _webDocRef: rawRef,
+    get: async () => wrapDocSnapshot(await getDoc(rawRef)),
+    set: async (data: any, opts?: any) => setDoc(rawRef, data, opts || {}),
+    update: async (data: any) => updateDoc(rawRef, data),
+    delete: async () => deleteDoc(rawRef)
+  };
+}
+
+class QueryAdapter {
+  protected ref: any;
+  protected constraints: any[];
+
+  constructor(ref: any, constraints: any[] = []) {
+    this.ref = ref;
+    this.constraints = constraints;
+  }
+
+  where(field: string, op: any, val: any) {
+    return new QueryAdapter(this.ref, [...this.constraints, where(field, op, val)]);
+  }
+
+  orderBy(field: string, dir: 'asc' | 'desc' = 'asc') {
+    return new QueryAdapter(this.ref, [...this.constraints, orderBy(field, dir)]);
+  }
+
+  limit(n: number) {
+    return new QueryAdapter(this.ref, [...this.constraints, limit(n)]);
+  }
+
+  async get() {
+    const q = query(this.ref, ...this.constraints);
+    const snap = await getDocs(q);
+    const docs = snap.docs.map(wrapDocSnapshot);
+    return {
+      empty: snap.empty,
+      size: snap.size,
+      docs,
+      forEach: (cb: (doc: any) => void) => docs.forEach(cb)
+    };
+  }
+}
+
+class CollectionAdapter extends QueryAdapter {
+  private name: string;
+  private webDb: any;
+
+  constructor(name: string, webDb: any) {
+    const colRef = collection(webDb, name);
+    super(colRef, []);
+    this.name = name;
+    this.webDb = webDb;
+  }
+
+  doc(id?: string) {
+    const dRef = id ? doc(this.webDb, this.name, id) : doc(collection(this.webDb, this.name));
+    return wrapDocRef(dRef);
+  }
+}
+
+function createClientFirestoreAdapter() {
+  const config = getFirebaseClientConfig();
+  const clientApp = getClientApps().length > 0 
+    ? getClientApps()[0] 
+    : initClientApp(config, 'backend-client-adapter');
+  
+  const webDb = initializeFirestore(clientApp, {}, config.firestoreDatabaseId || 'ai-studio-422fbad2-d827-4e69-8599-aed85390d277');
+
+  return {
+    collection: (name: string) => new CollectionAdapter(name, webDb),
+    batch: () => {
+      const batch = writeBatch(webDb);
+      const unwrap = (target: any) => target?._webDocRef || target?.ref?._webDocRef || target?.ref || target;
+      return {
+        set: (target: any, data: any, opts?: any) => batch.set(unwrap(target), data, opts || {}),
+        update: (target: any, data: any) => batch.update(unwrap(target), data),
+        delete: (target: any) => batch.delete(unwrap(target)),
+        commit: () => batch.commit()
+      };
+    }
+  };
+}
+
+export function getAdminDb(): any {
+  // Check if a service account was provided and validated
+  if (!adminDb && !clientAdapterDb) {
+    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.trim();
+    let serviceAccount: any = null;
+
+    if (serviceAccountKey) {
+      if (serviceAccountKey.endsWith('.json') || serviceAccountKey.startsWith('.') || serviceAccountKey.includes('/') || serviceAccountKey.includes('\\')) {
+        const candidatePaths = [
+          path.isAbsolute(serviceAccountKey) ? serviceAccountKey : path.resolve(process.cwd(), serviceAccountKey),
+          path.resolve(__dirname, '..', '..', serviceAccountKey),
+          path.resolve(__dirname, '..', '..', '..', serviceAccountKey),
+        ];
+        const foundPath = candidatePaths.find(p => fs.existsSync(p));
+        if (foundPath) {
           try {
-            serviceAccount = JSON.parse(serviceAccountKey);
+            const fileContent = fs.readFileSync(foundPath, 'utf8');
+            serviceAccount = JSON.parse(fileContent);
             validateServiceAccountStructure(serviceAccount);
           } catch (err) {
-            console.warn('[Firebase Admin] Invalid JSON in FIREBASE_SERVICE_ACCOUNT_KEY:', err);
+            console.warn('[Firebase Admin] Could not parse service account file:', err);
             serviceAccount = null;
           }
         }
-      }
-
-      try {
-        if (serviceAccount) {
-          app = initializeApp({ credential: cert(serviceAccount) });
-        } else {
-          const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || 'gen-lang-client-0990631330';
-          app = initializeApp({ projectId });
-        }
-      } catch (error: any) {
-        if (getApps().length > 0) {
-          app = getApps()[0];
-        } else {
-          initializationFailed = true;
-          console.error('[Firebase Admin] Failed to initialize Firebase Admin SDK:', error);
-          throw new Error('Failed to initialize Firebase Admin SDK.');
+      } else {
+        try {
+          serviceAccount = JSON.parse(serviceAccountKey);
+          validateServiceAccountStructure(serviceAccount);
+        } catch {
+          serviceAccount = null;
         }
       }
     }
 
-    const dbId = process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || 'ai-studio-422fbad2-d827-4e69-8599-aed85390d277';
+    if (serviceAccount) {
+      try {
+        let app = getAdminApps()[0];
+        if (!app) {
+          app = initAdminApp({ credential: cert(serviceAccount) });
+        }
+        const dbId = process.env.FIREBASE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || 'ai-studio-422fbad2-d827-4e69-8599-aed85390d277';
+        adminDb = getAdminFirestore(app, dbId);
+        return adminDb;
+      } catch (err) {
+        console.warn('[Firebase Admin] Falling back to Web SDK adapter:', err);
+      }
+    }
+
+    // Fallback: Initialize Firestore Client SDK adapter (100% full read/write via client config)
     try {
-      adminDb = getFirestore(app, dbId);
-    } catch {
-      adminDb = getFirestore(app);
+      clientAdapterDb = createClientFirestoreAdapter();
+      return clientAdapterDb;
+    } catch (adapterErr) {
+      console.error('[Firebase Admin] Failed to initialize Firestore adapter:', adapterErr);
+      initializationFailed = true;
+      throw adapterErr;
     }
   }
-  return adminDb;
+
+  return adminDb || clientAdapterDb;
 }
 
 export function getAdminAuth() {
-  getAdminDb();
   if (!adminAuth) {
-    const app = getApps()[0];
-    adminAuth = app ? getAuth(app) : getAuth();
+    const app = getAdminApps()[0];
+    if (app) {
+      try {
+        adminAuth = getAdminAuthSdk(app);
+      } catch {
+        adminAuth = null;
+      }
+    }
   }
   return adminAuth;
 }
 
 export function isAdminDbAvailable(): boolean {
   if (initializationFailed) return false;
-  return Boolean(adminDb || getApps().length > 0);
+  return Boolean(adminDb || clientAdapterDb || getAdminApps().length > 0 || getClientApps().length > 0);
 }
 
-export async function getAdminDocument(collection: string, docId: string) {
+export async function getAdminDocument(collectionName: string, docId: string) {
   const db = getAdminDb();
-  const docRef = db.collection(collection).doc(docId);
+  const docRef = db.collection(collectionName).doc(docId);
   const snap = await docRef.get();
   if (snap.exists) {
     return { exists: true, data: snap.data() };
@@ -142,9 +274,9 @@ export async function getAdminDocument(collection: string, docId: string) {
   return { exists: false, data: null };
 }
 
-export async function setAdminDocument(collection: string, docId: string, data: any) {
+export async function setAdminDocument(collectionName: string, docId: string, data: any) {
   const db = getAdminDb();
-  const docRef = db.collection(collection).doc(docId);
+  const docRef = db.collection(collectionName).doc(docId);
   await docRef.set(data);
 }
 

@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Wallet, PlusCircle, History, Clock, ArrowDownLeft, ArrowUpRight, CheckCircle2, AlertCircle, X, Copy, Check } from 'lucide-react';
+import { Wallet, PlusCircle, History, Clock, ArrowDownLeft, ArrowUpRight, AlertCircle, X, Copy, Check, RefreshCw } from 'lucide-react';
 import { apiClient } from '../services/apiClient';
 import { toast } from 'react-hot-toast';
 import { Spinner } from '../pages/hosting-dashboard/components/SharedUI';
+import { auth, db } from '../firebase';
+import { collection, doc, getDoc, getDocs, setDoc, query, where, orderBy, limit } from 'firebase/firestore';
 
 export function CustomerWalletTab() {
   const [balance, setBalance] = useState<number>(0);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [deposits, setDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [copiedNumber, setCopiedNumber] = useState<boolean>(false);
 
   // Deposit Modal state
   const [showDepositModal, setShowDepositModal] = useState<boolean>(false);
@@ -20,38 +23,105 @@ export function CustomerWalletTab() {
 
   const fetchWallet = async () => {
     setLoading(true);
+    const currentUser = auth.currentUser;
+
     try {
+      // 1. Try API
       const res = await apiClient.get('/api/customers/me/wallet');
       if (res.data?.success) {
-        setBalance(res.data.balance || 0);
+        setBalance(typeof res.data.balance === 'number' ? res.data.balance : 0);
         setTransactions(res.data.transactions || []);
         setDeposits(res.data.deposits || []);
+        setLoading(false);
+        return;
       }
     } catch (err: any) {
-      console.warn('Failed to fetch wallet info:', err);
-    } finally {
-      setLoading(false);
+      console.warn('API wallet fetch failed, attempting direct Firestore fallback:', err);
     }
+
+    // 2. Direct Firestore fallback if user is authenticated
+    if (currentUser) {
+      try {
+        const userDocSnap = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          setBalance(typeof userData?.balance === 'number' ? userData.balance : 0);
+        }
+
+        // Transactions
+        try {
+          const txQ = query(
+            collection(db, 'wallet_transactions'),
+            where('userId', '==', currentUser.uid),
+            orderBy('createdAt', 'desc'),
+            limit(50)
+          );
+          const txSnap = await getDocs(txQ);
+          setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } catch (e) {
+          console.warn('Direct tx fallback query skipped orderBy:', e);
+          const txQ = query(collection(db, 'wallet_transactions'), where('userId', '==', currentUser.uid), limit(50));
+          const txSnap = await getDocs(txQ);
+          setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
+
+        // Deposit requests
+        try {
+          const depQ = query(
+            collection(db, 'deposit_requests'),
+            where('userId', '==', currentUser.uid),
+            orderBy('createdAt', 'desc'),
+            limit(20)
+          );
+          const depSnap = await getDocs(depQ);
+          setDeposits(depSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } catch {
+          const depQ = query(collection(db, 'deposit_requests'), where('userId', '==', currentUser.uid), limit(20));
+          const depSnap = await getDocs(depQ);
+          setDeposits(depSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
+      } catch (fErr) {
+        console.error('Firestore wallet fallback failed:', fErr);
+      }
+    }
+
+    setLoading(false);
   };
 
   useEffect(() => {
     fetchWallet();
   }, []);
 
+  const handleCopyNumber = (num: string) => {
+    navigator.clipboard.writeText(num);
+    setCopiedNumber(true);
+    toast.success(`Copied ${num} to clipboard!`);
+    setTimeout(() => setCopiedNumber(false), 2500);
+  };
+
   const handleSubmitDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     const numAmt = Number(depositAmount);
     if (!numAmt || numAmt <= 0) {
-      toast.error('Please enter a valid deposit amount');
+      toast.error('Please enter a valid deposit amount (min ৳100)');
       return;
     }
 
     if (!transactionId.trim() || transactionId.trim().length < 3) {
-      toast.error('Please enter the payment Transaction ID');
+      toast.error('Please enter the payment Transaction ID (TrxID)');
+      return;
+    }
+
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      toast.error('Please log in to submit a deposit request.');
       return;
     }
 
     setSubmittingDeposit(true);
+    let success = false;
+
+    // 1. Try backend API endpoint
     try {
       const res = await apiClient.post('/api/customers/deposit-request', {
         amount: numAmt,
@@ -61,20 +131,49 @@ export function CustomerWalletTab() {
       });
 
       if (res.data?.success) {
-        toast.success('Deposit request submitted! Funds will be credited after payment verification.');
-        setShowDepositModal(false);
-        setDepositAmount('');
-        setTransactionId('');
-        setDepositNotes('');
-        fetchWallet();
-      } else {
-        toast.error(res.data?.error || 'Failed to submit deposit request');
+        success = true;
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.error || err.message || 'Failed to submit deposit request');
-    } finally {
-      setSubmittingDeposit(false);
+      console.warn('API deposit submission failed, falling back to direct Firestore write:', err);
     }
+
+    // 2. Direct Firestore fallback
+    if (!success) {
+      try {
+        const now = new Date().toISOString();
+        const depRef = doc(collection(db, 'deposit_requests'));
+        const depositData = {
+          id: depRef.id,
+          userId: currentUser.uid,
+          customerEmail: currentUser.email || '',
+          customerName: currentUser.displayName || currentUser.email || 'Customer',
+          amount: numAmt,
+          paymentMethod: depositMethod,
+          transactionId: transactionId.trim(),
+          notes: depositNotes.trim(),
+          status: 'pending',
+          createdAt: now,
+          updatedAt: now
+        };
+        await setDoc(depRef, depositData);
+        success = true;
+      } catch (fErr: any) {
+        console.error('Direct Firestore deposit write failed:', fErr);
+        toast.error(fErr.message || 'Failed to submit deposit request. Please try again.');
+        setSubmittingDeposit(false);
+        return;
+      }
+    }
+
+    if (success) {
+      toast.success('Deposit request submitted! Funds will be credited after payment verification.');
+      setShowDepositModal(false);
+      setDepositAmount('');
+      setTransactionId('');
+      setDepositNotes('');
+      fetchWallet();
+    }
+    setSubmittingDeposit(false);
   };
 
   return (
@@ -91,8 +190,15 @@ export function CustomerWalletTab() {
             <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider mb-1">
               <Wallet size={16} /> Client Account Wallet
             </div>
-            <div className="text-3xl sm:text-4xl font-black text-white tracking-tight mt-1">
+            <div className="text-3xl sm:text-4xl font-black text-white tracking-tight mt-1 flex items-baseline gap-2">
               ৳{balance.toLocaleString()} <span className="text-sm font-medium text-slate-400">BDT</span>
+              <button 
+                onClick={fetchWallet} 
+                title="Refresh Wallet Balance"
+                className="text-slate-400 hover:text-white transition-colors ml-2 p-1.5 rounded-lg hover:bg-white/10"
+              >
+                <RefreshCw size={16} className={loading ? "animate-spin text-emerald-400" : ""} />
+              </button>
             </div>
             <p className="text-xs text-slate-400 mt-2 max-w-md">
               Use your prepaid balance for instant 1-click domain registration, domain renewals, and web hosting invoices.
@@ -126,7 +232,7 @@ export function CustomerWalletTab() {
             </div>
           ) : transactions.length === 0 ? (
             <div className="text-center py-12 text-slate-400 text-xs font-medium">
-              No wallet transactions found.
+              No wallet transactions found. Top up your funds above to get started!
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -178,7 +284,7 @@ export function CustomerWalletTab() {
             <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
               <Clock size={18} className="text-amber-500" /> Pending Top-Ups
             </h3>
-            <span className="text-xs text-slate-500 font-semibold">{deposits.length} Pending</span>
+            <span className="text-xs text-slate-500 font-semibold">{deposits.length} Records</span>
           </div>
 
           {deposits.length === 0 ? (
@@ -234,10 +340,16 @@ export function CustomerWalletTab() {
             <div className="bg-pink-50 border border-pink-200 rounded-2xl p-4 space-y-2">
               <div className="text-xs font-bold text-pink-900 flex justify-between items-center">
                 <span>bKash Personal Number:</span>
-                <span className="font-mono text-sm font-black text-pink-600">01727666677</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyNumber('01727666677')}
+                  className="font-mono text-sm font-black text-pink-600 flex items-center gap-1.5 hover:text-pink-800 transition-colors"
+                >
+                  01727666677 {copiedNumber ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                </button>
               </div>
               <p className="text-[11px] text-pink-800 leading-relaxed">
-                Send payment to the bKash personal number above using "Send Money" or "Make Payment". Enter the 10-character Transaction ID below.
+                Send payment to the bKash personal number above using "Send Money" or "Make Payment". Enter the Transaction ID (TrxID) below.
               </p>
             </div>
 
