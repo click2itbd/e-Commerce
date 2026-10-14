@@ -22,6 +22,7 @@ fi
 if [ -d "dist" ] && [ -f "dist/index.html" ]; then
   # Clean old frontend files only after confirming new build is ready
   /bin/rm -rf "$DEST/assets"
+  /bin/rm -rf "$DEST/api"
   /bin/rm -f "$DEST/index.html"
   /bin/rm -f "$DEST/_redirects"
   /bin/rm -f "$DEST/robots.txt"
@@ -33,6 +34,7 @@ if [ -d "dist" ] && [ -f "dist/index.html" ]; then
 
   # Deploy frontend build
   /bin/cp -R dist/. "$DEST/"
+  /bin/cp -f dist/.htaccess "$DEST/.htaccess" 2>/dev/null || true
   /bin/cp -f upload.php "$DEST/" 2>/dev/null || true
   /bin/cp -f share.php "$DEST/" 2>/dev/null || true
   /bin/cp -f steadfast.php "$DEST/" 2>/dev/null || true
