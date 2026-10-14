@@ -419,27 +419,28 @@ domainRouter.post('/renew', async (req, res) => {
 });
 domainRouter.post('/test-connection', async (req, res) => {
     let providerType = 'dummy';
+    const serverIp = process.env.SERVER_IP || '160.191.14.26';
     try {
         const config = await getDomainConfig();
         providerType = config.domainApiType || 'dummy';
         const provider = getDomainProvider(config);
         if (provider.testConnection) {
             const result = await provider.testConnection();
-            return res.json({ ...result, providerType, serverIp: '34.34.254.195' });
+            return res.json({ ...result, providerType, serverIp: result.serverIp || serverIp });
         }
         const results = await provider.checkAvailability(['test-click2itbd.com']);
         const success = results.length > 0 && !results[0].error;
         return res.json({
             success,
             providerType,
-            serverIp: '34.34.254.195',
+            serverIp,
             message: success ? 'Connection test successful' : 'Connection test failed',
             data: results,
         });
     }
     catch (error) {
         console.error('Domain test connection error:', error);
-        return res.json({ success: false, providerType, serverIp: '34.34.254.195', message: error?.message || 'Internal server error' });
+        return res.json({ success: false, providerType, serverIp, message: error?.message || 'Internal server error' });
     }
 });
 domainRouter.post('/tld-pricing', async (req, res) => {

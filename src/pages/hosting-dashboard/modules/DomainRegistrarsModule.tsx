@@ -32,7 +32,7 @@ export function DomainRegistrarsModule() {
   } | null>(null);
   const [copiedIp, setCopiedIp] = useState(false);
 
-  const serverIp = '34.34.254.195';
+  const serverIp = testResult?.serverIp || '160.191.14.26';
 
   useEffect(() => {
     loadSettings();

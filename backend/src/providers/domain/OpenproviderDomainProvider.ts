@@ -116,8 +116,9 @@ export class OpenproviderDomainProvider implements IDomainProvider {
 
       if (!response.ok || (result.code !== undefined && result.code !== 0) || typeof token !== 'string' || !token) {
         const desc = result.desc || 'Authentication failed';
-        if (/ip/i.test(desc) || /not allowed|whitelist|unauthorized/i.test(desc)) {
-          throw new Error(`Openprovider IP Not Authorized: Please whitelist server IP (34.34.254.195) in your Openprovider Control Panel at https://cp.openprovider.eu/ (Account -> Security / API settings). Details: ${desc}`);
+        if (/ip/i.test(desc) || /not allowed|whitelist|unauthorized|access denied/i.test(desc)) {
+          const serverIp = process.env.SERVER_IP || '160.191.14.26';
+          throw new Error(`Openprovider IP Not Authorized: Please whitelist server IP (${serverIp}) in your Openprovider Control Panel at https://cp.openprovider.eu/ (Account -> Contact persons / Security / API settings). Details: ${desc}`);
         }
         throw new Error(`Openprovider Auth Failed: ${desc}`);
       }
@@ -164,8 +165,9 @@ export class OpenproviderDomainProvider implements IDomainProvider {
 
     if (!response.ok || (result.code !== undefined && result.code !== 0)) {
       const desc = result.desc || `Openprovider API Error: ${response.status}`;
-      if (/ip/i.test(desc) || /not allowed|whitelist/i.test(desc)) {
-        throw new Error(`Openprovider IP Not Authorized: Please whitelist server IP (34.34.254.195) in your Openprovider Control Panel at https://cp.openprovider.eu/`);
+      if (/ip/i.test(desc) || /not allowed|whitelist|access denied/i.test(desc)) {
+        const serverIp = process.env.SERVER_IP || '160.191.14.26';
+        throw new Error(`Openprovider IP Not Authorized: Please whitelist server IP (${serverIp}) in your Openprovider Control Panel at https://cp.openprovider.eu/ (Account -> Contact persons / Security / API settings)`);
       }
       const error: any = new Error(desc);
       error.providerHttpStatus = response.status;
@@ -836,10 +838,10 @@ export class OpenproviderDomainProvider implements IDomainProvider {
         environment: isSandbox ? 'sandbox' : 'production',
         balance: balanceRes.success ? balanceRes.balance : undefined,
         currency: balanceRes.success ? balanceRes.currency : undefined,
-        serverIp: '34.34.254.195',
+        serverIp: process.env.SERVER_IP || '160.191.14.26',
       };
     } catch (error: any) {
-      return { success: false, code: 'AUTH_FAILED', message: error.message, serverIp: '34.34.254.195' };
+      return { success: false, code: 'AUTH_FAILED', message: error.message, serverIp: process.env.SERVER_IP || '160.191.14.26' };
     }
   }
 

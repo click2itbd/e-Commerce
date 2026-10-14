@@ -135,5 +135,5 @@ export interface IDomainProvider {
   getTransferStatus?(domain: string): Promise<{ success: boolean; status?: string; transferId?: string; error?: string; rawData?: any }>;
   setNameservers?(domain: string, ns0?: string, ns1?: string): Promise<{ success: boolean; error?: string }>;
   getBalance?(): Promise<{ success: boolean; balance?: number; currency?: string; error?: string }>;
-  testConnection?(): Promise<{ success: boolean; code: string; message: string }>;
+  testConnection?(): Promise<{ success: boolean; code: string; message: string; balance?: number; currency?: string; environment?: string; serverIp?: string }>;
 }

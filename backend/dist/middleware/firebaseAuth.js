@@ -65,6 +65,7 @@ export async function requireAdmin(req, res, next) {
     if (!uid) {
         return res.status(401).json({ error: 'Invalid or expired token' });
     }
+    // Verifies user role field from users collection via isUserAdmin
     const isAdmin = await isUserAdmin(uid, email).catch(() => false);
     if (isAdmin) {
         return next();

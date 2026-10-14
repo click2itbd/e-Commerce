@@ -159,16 +159,17 @@ adminRouter.post('/domain/test-connection', async (req, res) => {
                 ? (config.isSandbox === true)
                 : process.env.OPENPROVIDER_SANDBOX_MODE === 'true';
             const defaultHandle = config?.defaultHandle || process.env.OPENPROVIDER_DEFAULT_HANDLE || '';
+            const serverIp = process.env.SERVER_IP || '160.191.14.26';
             if (!username || !password) {
-                return res.json({ success: false, code: 'NOT_CONFIGURED', message: 'Openprovider credentials are missing. Please enter your Username and Password.', serverIp: '34.34.254.195' });
+                return res.json({ success: false, code: 'NOT_CONFIGURED', message: 'Openprovider credentials are missing. Please enter your Username and Password.', serverIp });
             }
             const provider = new OpenproviderDomainProvider(username, password, isSandbox, defaultHandle);
             try {
                 const testRes = await provider.testConnection();
-                return res.json({ ...testRes, serverIp: '34.34.254.195' });
+                return res.json({ ...testRes, serverIp: testRes.serverIp || serverIp });
             }
             catch (e) {
-                return res.json({ success: false, code: 'AUTH_FAILED', message: e.message || 'Authentication failed', serverIp: '34.34.254.195' });
+                return res.json({ success: false, code: 'AUTH_FAILED', message: e.message || 'Authentication failed', serverIp });
             }
         }
         return res.json({ success: false, code: 'UNKNOWN_PROVIDER', message: 'Unknown provider specified' });
