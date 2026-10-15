@@ -22,6 +22,7 @@ import {
 import { Pagination } from '../../../../components/common/Pagination';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { logAudit } from '../../../../lib/audit';
 
 interface ManualExpenseTabProps {
   setSelectedLedgerEntity?: (v: any) => void;
@@ -31,7 +32,7 @@ interface ManualExpenseTabProps {
 const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
   setActiveTab,
 }) => {
-  const { hasPermission, isAdmin } = useAuth();
+  const { hasPermission, isAdmin, user, profile } = useAuth();
   const { settings } = useSettings();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -127,14 +128,37 @@ const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
         updatedAt: new Date().toISOString(),
       };
 
+      const currentOperator = user?.displayName || user?.email || profile?.displayName || 'Admin';
+
       if (editingTx) {
         await updateDoc(doc(db, 'transactions', editingTx.id), expenseData);
+        await logAudit(
+          'EDIT',
+          'Expense',
+          `Updated expense entry: ৳${formData.amount} (${formData.description})`,
+          currentOperator,
+          {
+            entityId: editingTx.id,
+            previousState: editingTx,
+            newState: expenseData,
+          }
+        );
         toast.success('Expense entry updated successfully');
       } else {
-        await addDoc(collection(db, 'transactions'), {
+        const docRef = await addDoc(collection(db, 'transactions'), {
           ...expenseData,
           createdAt: new Date().toISOString(),
         });
+        await logAudit(
+          'CREATE',
+          'Expense',
+          `Recorded manual expense: ৳${formData.amount} (${formData.description})`,
+          currentOperator,
+          {
+            entityId: docRef.id,
+            newState: expenseData,
+          }
+        );
         toast.success('Expense entry recorded successfully');
       }
 
@@ -175,7 +199,19 @@ const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this expense entry?')) return;
     try {
+      const targetTx = transactions.find(t => t.id === id);
       await deleteDoc(doc(db, 'transactions', id));
+      const currentOperator = user?.displayName || user?.email || profile?.displayName || 'Admin';
+      await logAudit(
+        'DELETE',
+        'Expense',
+        `Deleted expense entry: ৳${targetTx?.amount || 0} (${targetTx?.description || id})`,
+        currentOperator,
+        {
+          entityId: id,
+          previousState: targetTx,
+        }
+      );
       toast.success('Expense entry deleted');
       fetchData();
     } catch (err) {

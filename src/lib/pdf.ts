@@ -406,8 +406,8 @@ export const generatePDF = async (
     // Table Data
     const isChallan = type === "challan";
     const tableHeaders = isChallan
-      ? ["S.N.", "Product Name", "Description", "Brand", "Unit", "Warranty"]
-      : ["S.N.", "Product Name", "Description", "Brand", "Unit", "Unit Price", "Warranty", "Total (TK.)"];
+      ? ["S.N.", "Product Name", "Brand", "Unit", "Warranty"]
+      : ["S.N.", "Product Name", "Brand", "Unit", "Unit Price", "Warranty", "Total (TK.)"];
 
         // Enrich items with brand and warranty from DB if missing
     if (o.items && Array.isArray(o.items)) {
@@ -435,10 +435,6 @@ export const generatePDF = async (
     }
 
     const tableData = o.items.map((item: any, idx: number) => {
-      let desc = item.description || "-";
-      desc = desc.replace(/<[^>]+>/g, "").trim();
-      if (desc.length > 50) desc = desc.substring(0, 47) + "...";
-
       let warranty = "-";
       if (item.warranty) {
         warranty = item.warranty;
@@ -452,19 +448,18 @@ export const generatePDF = async (
       const row = [
         (idx + 1).toString(),
         item.name,
-        desc,
         item.brand || "-",
         item.quantity + ' ' + (item.unit || 'pcs')
       ];
       
       if (!isChallan) {
-        row.push(item.price.toFixed(2));
+        row.push((Number(item.price) || 0).toFixed(2));
       }
       
       row.push(warranty);
       
       if (!isChallan) {
-        row.push((item.price * item.quantity).toFixed(2));
+        row.push(((Number(item.price) || 0) * (Number(item.quantity) || 1)).toFixed(2));
       }
 
       return row;
@@ -484,20 +479,18 @@ export const generatePDF = async (
       styles: { fontSize: 7.5, cellPadding: 1.5, textColor: [15, 23, 42] },
       columnStyles: isChallan ? {
         0: { halign: "center", cellWidth: 12 },
-        1: { halign: "left", cellWidth: 70 },
-        2: { halign: "left", cellWidth: 43 },
+        1: { halign: "left", cellWidth: 95 },
+        2: { halign: "center", cellWidth: 28 },
         3: { halign: "center", cellWidth: 20 },
-        4: { halign: "center", cellWidth: 15 },
-        5: { halign: "center", cellWidth: 20 },
+        4: { halign: "center", cellWidth: 25 },
       } : {
         0: { halign: "center", cellWidth: 12 },
-        1: { halign: "left", cellWidth: 45 },
-        2: { halign: "left", cellWidth: 40 },
-        3: { halign: "center", cellWidth: 16 },
-        4: { halign: "center", cellWidth: 12 },
-        5: { halign: "right", cellWidth: 18 },
-        6: { halign: "center", cellWidth: 16 },
-        7: { halign: "right", cellWidth: 21 },
+        1: { halign: "left", cellWidth: 73 },
+        2: { halign: "center", cellWidth: 18 },
+        3: { halign: "center", cellWidth: 15 },
+        4: { halign: "right", cellWidth: 20 },
+        5: { halign: "center", cellWidth: 18 },
+        6: { halign: "right", cellWidth: 24 },
       },
       didDrawCell: (data: any) => {
         // Draw bottom border for rows
@@ -518,7 +511,7 @@ export const generatePDF = async (
         let finalY = (doc as any).lastAutoTable.finalY + 5;
         
         // Ensure enough space for summary, terms, and signatures
-        if (finalY > doc.internal.pageSize.getHeight() - 75) {
+        if (finalY > doc.internal.pageSize.getHeight() - 80) {
           doc.addPage();
           finalY = 20;
         }
@@ -550,48 +543,48 @@ export const generatePDF = async (
         finalY += 7;
       }
 
-      const prevDue = Number(o.previousDue || 0);
-        if (prevDue > 0) {
-          doc.setFont("helvetica", "bold");
-          doc.text("Current Bill:", pageWidth - 60, finalY);
-          doc.text(Number(o.total).toFixed(2), alignRightX, finalY, { align: "right" });
-          finalY += 7;
+      const billTotal = Number(o.total || 0);
+      const paidVal = Number(o.paidAmount || 0);
+      const billRemainingDue = Math.max(0, billTotal - paidVal);
+      const isPaid = o.paymentStatus === 'paid' || (paidVal >= billTotal && billTotal > 0);
 
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(220, 38, 38);
-          doc.text("Previous Due:", pageWidth - 60, finalY);
-          doc.text(prevDue.toFixed(2), alignRightX, finalY, { align: "right" });
-          doc.setTextColor(15, 23, 42);
-          finalY += 7;
+      // Right side bill summary (Strictly for this invoice)
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text("Total TK.", pageWidth - 60, finalY);
+      doc.text(billTotal.toFixed(2), alignRightX, finalY, { align: "right" });
+      finalY += 7;
 
-          doc.setFont("helvetica", "bold");
-          doc.text("Grand Total:", pageWidth - 60, finalY);
-          doc.text((Number(o.total) + prevDue).toFixed(2), alignRightX, finalY, { align: "right" });
-          finalY += 7;
-        } else {
-          doc.setFont("helvetica", "bold");
-          doc.text("Total TK.", pageWidth - 60, finalY);
-          doc.text(Number(o.total).toFixed(2), alignRightX, finalY, { align: "right" });
-          finalY += 7;
-        }
+      if (isPaid) {
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(22, 163, 74);
+        doc.text("Paid Amount:", pageWidth - 60, finalY);
+        doc.text((paidVal > 0 ? paidVal : billTotal).toFixed(2), alignRightX, finalY, { align: "right" });
+        finalY += 7;
 
-        if (Number(o.paidAmount) > 0 || prevDue > 0) {
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(22, 163, 74);
-          doc.text("Paid Amount:", pageWidth - 60, finalY);
-          doc.text(Number(o.paidAmount || 0).toFixed(2), alignRightX, finalY, { align: "right" });
-          doc.setTextColor(15, 23, 42);
-          finalY += 7;
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(22, 163, 74);
+        doc.text("Payment Status:", pageWidth - 60, finalY);
+        doc.text("PAID", alignRightX, finalY, { align: "right" });
+        doc.setTextColor(15, 23, 42);
+      } else {
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(22, 163, 74);
+        doc.text("Paid Amount:", pageWidth - 60, finalY);
+        doc.text(paidVal.toFixed(2), alignRightX, finalY, { align: "right" });
+        finalY += 7;
 
-          const remainingDue = (Number(o.total) + prevDue) - Number(o.paidAmount || 0);
-          doc.setFont("helvetica", "bold");
-          doc.text("Remaining Due:", pageWidth - 60, finalY);
-          doc.text(Math.max(0, remainingDue).toFixed(2), alignRightX, finalY, { align: "right" });
-        }
-        
-        finalY += 12;
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(220, 38, 38);
+        doc.text("Remaining Due:", pageWidth - 60, finalY);
+        doc.text(billRemainingDue.toFixed(2), alignRightX, finalY, { align: "right" });
+        doc.setTextColor(15, 23, 42);
+      }
 
-      // Amount in words Box
+      finalY += 8;
+
+      // Amount in words Box (strictly for billTotal)
       doc.setFillColor(248, 250, 252);
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.5);
@@ -602,7 +595,7 @@ export const generatePDF = async (
       doc.setTextColor(15, 23, 42);
       doc.text("Taka In Word: ", 20, finalY + 8);
 
-      const words = amountToWords(o.total);
+      const words = amountToWords(billTotal);
       if (words) {
         doc.setFont("helvetica", "normal");
         doc.text(`Taka ${words} Only`, 48, finalY + 8);
@@ -613,71 +606,108 @@ export const generatePDF = async (
     }
   }
 
-  // Terms and Conditions Section (For Quotations, Invoices, etc.)
-  let signatureY = doc.internal.pageSize.getHeight() - 30;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const footerReservedHeight = 36; // Total footer height needed (preparedBy, lines, labels, note, thank you)
   const ord = order as any;
-  if (ord.termsAndConditions || ord.notes) {
-    // currentY is already at the correct position from above, just add a small margin
-    currentY += 5;
 
-    // Draw terms without arbitrarily skipping
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(15, 23, 42);
-      const termsTitle = ord.termsAndConditions ? "Terms & Conditions" : "Notes";
-      const termsContent = ord.termsAndConditions || ord.notes;
-      doc.text(termsTitle + ":", 15, currentY);
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(71, 85, 105);
-      const splitTerms = doc.splitTextToSize(termsContent || "", pageWidth - 30);
-      doc.text(splitTerms, 15, currentY + 6);
-      currentY += 6 + (splitTerms.length * 4);
+  // Terms and Conditions Section (For Quotations, Invoices, etc.)
+  if (ord.termsAndConditions || ord.notes) {
+    currentY += 4;
+    const termsTitle = ord.termsAndConditions ? "Terms & Conditions" : "Notes";
+    const termsContent = ord.termsAndConditions || ord.notes;
+    const splitTerms = doc.splitTextToSize(termsContent || "", pageWidth - 30);
+    const termsHeight = 6 + (splitTerms.length * 4);
+
+    // If terms will collide with the footer space, move terms to next page
+    if (currentY + termsHeight > pageHeight - footerReservedHeight - 10) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    doc.setFontSize(9.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text(termsTitle + ":", 15, currentY);
+    doc.setFontSize(8.5);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text(splitTerms, 15, currentY + 5);
+    currentY += 5 + (splitTerms.length * 4);
   }
 
-  // Footer / Signatures
-  const bottomY = Math.max(signatureY, currentY + 15);
+  // Check if currentY leaves enough space for footer on this page
+  // If not, add a new page so it never overlaps or gets cut off!
+  if (currentY > pageHeight - footerReservedHeight - 8) {
+    doc.addPage();
+    currentY = 20;
+  }
+
+  // Lift the bottom section up:
+  // Signature line at pageHeight - 34 (e.g. 263mm on A4)
+  const standardSignatureY = pageHeight - 34;
+  let bottomY = Math.max(standardSignatureY, currentY + 12);
+
+  // Safety check: ensure bottomY + 20 doesn't push off the page
+  if (bottomY + 20 > pageHeight - 8) {
+    doc.addPage();
+    currentY = 20;
+    bottomY = standardSignatureY;
+  }
 
   doc.setDrawColor(15, 23, 42);
   doc.setLineWidth(0.5);
 
-
-
   // Authorized Signature
   if (ord?.preparedBy) {
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setFont("helvetica", "italic");
     doc.setTextColor(71, 85, 105);
-    doc.text(`Prepared By: ${ord.preparedBy}`, 15, bottomY - 5);
+    doc.text(`Prepared By: ${ord.preparedBy}`, 15, bottomY - 4);
   }
   doc.line(15, bottomY, 70, bottomY);
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(15, 23, 42);
-  doc.text("Authorized Signature", 15, bottomY + 5);
+  doc.text("Authorized Signature", 15, bottomY + 4.5);
 
   // Customer Signature
   if (type === "invoice" || type === "challan" || type === "quotation" || type === "receipt") {
     doc.line(pageWidth - 70, bottomY, pageWidth - 15, bottomY);
-    doc.text("Customer Signature", pageWidth - 15, bottomY + 5, {
+    doc.text("Customer Signature", pageWidth - 15, bottomY + 4.5, {
       align: "right",
     });
   }
 
-  doc.setFontSize(9);
+  // Warranty Note (lifted to bottomY + 11.5)
+  doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
   doc.text(
     "* Note: There is no warranty in case of Burning or Physical Damages.",
     15,
-    bottomY + 20,
+    bottomY + 11.5,
   );
 
-  doc.setFontSize(11);
+  // THANK YOU FOR YOUR BUSINESS (lifted to bottomY + 18.5, well above page edge)
+  doc.setFontSize(10.5);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(71, 85, 105);
-  doc.text("THANK YOU FOR YOUR BUSINESS", pageWidth / 2, bottomY + 30, {
+  doc.text("THANK YOU FOR YOUR BUSINESS", pageWidth / 2, bottomY + 18.5, {
     align: "center",
   });
+
+  // Page numbering in a corner (Bottom-Right corner) for multi-page documents
+  const totalPages = doc.internal.getNumberOfPages();
+  if (totalPages > 1) {
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(148, 163, 184); // slate-400
+      doc.text(`Page-${i} / ${totalPages}`, pageWidth - 15, pageHeight - 6, {
+        align: "right",
+      });
+    }
+  }
 
   if ((order as any)._autoPrint) {
     doc.autoPrint();
@@ -695,7 +725,8 @@ export const generatePDF = async (
       }, 100);
     };
   } else if (action === "download") {
-    doc.save(type + "_" + (order.id || "") + ".pdf");
+    const docName = (order as any).documentNumber || (order as any).invoiceNumber || order.id || "document";
+    doc.save(`${type.charAt(0).toUpperCase() + type.slice(1)}_${docName}.pdf`);
   }
 
   return doc;

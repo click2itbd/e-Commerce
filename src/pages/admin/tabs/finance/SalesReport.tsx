@@ -48,6 +48,8 @@ const SalesReportTab: React.FC = () => {
         if (order.status === 'cancelled' || order.status === 'failed') return;
         // Completely exclude quotations (they are estimates, not finalized sales)
         if (order.type === 'quotation') return;
+        // Exclude hosting orders
+        if ((order as any).platform === 'hosting' || (order as any).isHostingOrder || order.type === 'hosting' || order.type === 'domain') return;
 
         const orderDate = order.createdAt || new Date().toISOString();
         const docNum = order.documentNumber || docSnap.id.slice(0, 8);
@@ -59,6 +61,10 @@ const SalesReportTab: React.FC = () => {
           const orderSubtotal = order.items.reduce((sum: number, i: any) => sum + ((i.price || i.unitPrice || 0) * (i.quantity || 1)), 0);
 
           order.items.forEach((item: any, idx: number) => {
+            const itemType = (item as any).itemType || '';
+            const itemCat = ((item as any).category || '').toLowerCase();
+            if (itemType === 'hosting' || itemType === 'domain' || itemType === 'domain_renewal' || itemType === 'domain_transfer' || itemType === 'ssl' || itemCat.includes('hosting') || itemCat.includes('domain')) return;
+
             const itemQty = item.quantity || 1;
             const itemPrice = item.price || item.unitPrice || 0;
             const lineTotal = itemQty * itemPrice;

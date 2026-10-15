@@ -97,7 +97,7 @@ export const LoyaltyPointsReport: React.FC = () => {
                     </span>
                   </td>
                   <td className="p-4 text-right font-black text-slate-800">
-                    ? {Math.floor(c.loyaltyPoints / 100) * 40}
+                    ৳{(Math.floor((Number(c.loyaltyPoints) || 0) / 100) * 40).toLocaleString()}
                   </td>
                 </tr>
               ))

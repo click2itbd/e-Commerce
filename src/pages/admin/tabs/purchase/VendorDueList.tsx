@@ -302,10 +302,10 @@ export default function VendorDueList() {
       const acc = paymentAccounts.find(a => a.id === paymentAccountId);
       
       const txData = {
-        type: 'payment_received',
+        type: 'payment_made',
         amount: Number(paymentAmount),
         date: new Date().toISOString(),
-        description: paymentNotes || 'Received vendor due payment',
+        description: paymentNotes || 'Paid vendor due payment',
         entityId: selectedVendor.id,
         entityName: selectedVendor.name,
         entityType: 'vendor',
@@ -318,8 +318,35 @@ export default function VendorDueList() {
 
       const txRef = await addDoc(collection(db, 'transactions'), txData);
       
-      // Generate PDF receipt immediately
-      const savedTx = { id: txRef.id, referenceId: `REC-${Date.now().toString().slice(-6)}`, ...txData, _autoPrint: true };
+      // Sync payment to vendor's unpaid purchases
+      try {
+        let remPay = Number(paymentAmount);
+        const purSnap = await getDocs(query(
+          collection(db, 'purchases'),
+          where('vendorId', '==', selectedVendor.id)
+        ));
+        const unpaidPurchases = purSnap.docs
+          .map(d => ({ id: d.id, ...d.data() as any }))
+          .filter(p => (Number(p.total) || 0) > (Number(p.paidAmount) || 0))
+          .sort((a, b) => new Date(a.createdAt || a.date || 0).getTime() - new Date(b.createdAt || b.date || 0).getTime());
+
+        for (const pur of unpaidPurchases) {
+          if (remPay <= 0) break;
+          const dueOnPur = (Number(pur.total) || 0) - (Number(pur.paidAmount) || 0);
+          const payAmt = Math.min(remPay, dueOnPur);
+          const updatedPaid = (Number(pur.paidAmount) || 0) + payAmt;
+          await updateDoc(doc(db, 'purchases', pur.id), {
+            paidAmount: updatedPaid,
+            paymentStatus: updatedPaid >= (Number(pur.total) || 0) ? 'paid' : 'partial'
+          });
+          remPay -= payAmt;
+        }
+      } catch (err) {
+        console.warn('Failed to sync purchase payment status:', err);
+      }
+
+      // Generate PDF receipt / voucher immediately
+      const savedTx = { id: txRef.id, referenceId: `VOU-${Date.now().toString().slice(-6)}`, ...txData, _autoPrint: true };
       try {
         generatePDF(savedTx as any, 'receipt', settings);
       } catch (err) {
@@ -341,7 +368,7 @@ export default function VendorDueList() {
         }
       );
 
-      toast.success('Payment received successfully & Receipt generated');
+      toast.success('Payment recorded successfully & Voucher generated');
       setSelectedVendor(null);
       setPaymentAmount('');
       setPaymentAccountId('');

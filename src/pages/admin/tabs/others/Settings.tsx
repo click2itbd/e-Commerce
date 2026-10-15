@@ -15,7 +15,7 @@ import {
   BarChart2,
   Activity,
   CheckCircle,
-  AlertCircle, Cpu, Truck,
+  AlertCircle, Cpu, Truck, ExternalLink,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn, formatCurrency } from "../../../../lib/utils";
@@ -24,7 +24,8 @@ import { db } from "../../../../firebase";
 import { useSettings } from "../../../../context/SettingsContext";
 import { SiteSettings } from "../../../../types";
 import { useAuth } from "../../../../context/AuthContext";
-import { getApiUrl } from "../../../../services/apiClient";
+import { getApiUrl, apiPost } from "../../../../services/apiClient";
+import { logAudit } from "../../../../lib/audit";
 import EmailTemplatesManager from "./EmailTemplatesManager";
 import { PagesManager } from "./PagesManager";
 import { PCBuilderCategoriesManager } from "../inventory/PCBuilderCategoriesManager";
@@ -59,6 +60,26 @@ export const Settings = () => {
   const [loading, setLoading] = useState(false);
   const [apiKeys, setApiKeys] = useState<Record<string, any>>({});
   const [apiKeysLoading, setApiKeysLoading] = useState(true);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
+
+  const handleTestSmtpConnection = async () => {
+    setIsTestingSmtp(true);
+    const toastId = toast.loading('Testing SMTP connection...');
+    try {
+      await updateSettings(settingsFormData);
+      const res = await apiPost<{ success: boolean; code?: string; message?: string }>('/api/verify-smtp', {});
+      if (res?.success) {
+        toast.success(res.message || 'SMTP Connection Successful! Emails are ready to send.', { id: toastId });
+      } else {
+        toast.error(res?.message || 'SMTP Connection Failed. Please check host, port, user and password.', { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to verify SMTP connection', { id: toastId });
+    } finally {
+      setIsTestingSmtp(false);
+    }
+  };
 
   useEffect(() => {
     const loadKeys = async () => {
@@ -136,6 +157,8 @@ export const Settings = () => {
       await setDoc(doc(db, 'counters', 'REC'), { lastNumber: 0 });
       await setDoc(doc(db, 'counters', 'SR'), { lastNumber: 0 });
       await setDoc(doc(db, 'counters', 'PR'), { lastNumber: 0 });
+      const currentOperator = user?.displayName || user?.email || 'Admin';
+      await logAudit('SETTINGS', 'Counters', 'Reset all document counters (INV, CHA, QUO, REC, SR, PR) back to 1', currentOperator);
       toast.success('All document counters reset to 1!');
     } catch (e) {
       console.error(e);
@@ -146,6 +169,7 @@ export const Settings = () => {
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    const currentOperator = user?.displayName || user?.email || 'Admin';
     try {
       if (settingsTab === "domain_reseller") {
         const payload = buildApiKeysPayload();
@@ -174,9 +198,20 @@ export const Settings = () => {
           setApiKeys(freshJson.data as any);
         }
 
+        await logAudit('SETTINGS', 'ApiConfig', 'Updated domain reseller and API configurations', currentOperator);
         toast.success("API configuration saved successfully");
       } else {
         await updateSettings(settingsFormData);
+        await logAudit(
+          'SETTINGS',
+          'Settings',
+          `Updated site settings under tab "${settingsTab}"`,
+          currentOperator,
+          {
+            previousState: settings,
+            newState: settingsFormData,
+          }
+        );
         toast.success("Site settings updated successfully");
       }
     } catch (error: any) {
@@ -873,11 +908,103 @@ export const Settings = () => {
           ) : settingsTab === "email" ? (
             <>
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-              <div className="p-4 border-b border-gray-100">
-                <h3 className="text-sm font-bold text-gray-700">
-                  Email Setting
-                </h3>
+              <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                    <Mail size={16} className="text-[#EF4444]" /> Email & SMTP Configuration
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Configure SMTP credentials for automated order confirmations, password resets, and marketing campaigns.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestSmtpConnection}
+                  disabled={isTestingSmtp}
+                  className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs border border-indigo-200 flex items-center gap-1.5 transition-all shadow-2xs self-start sm:self-auto cursor-pointer"
+                >
+                  <CheckCircle size={14} />
+                  {isTestingSmtp ? 'Testing...' : 'Test SMTP Connection'}
+                </button>
               </div>
+
+              {/* Quick Provider Presets */}
+              <div className="px-6 py-4 bg-gray-50/80 border-b border-gray-100 flex flex-wrap items-center gap-3">
+                <span className="text-xs font-bold text-gray-600">Quick Setup Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const isCurrentGmail = settingsFormData.mailUsername?.toLowerCase().endsWith("@gmail.com");
+                    setSettingsFormData({
+                      ...settingsFormData,
+                      mailDriver: "smtp",
+                      mailHost: "smtp.gmail.com",
+                      mailPort: "465",
+                      mailEncryption: "ssl",
+                      mailFromAddress: isCurrentGmail ? settingsFormData.mailUsername : (settingsFormData.mailFromAddress || ""),
+                    });
+                    toast.success("Gmail preset loaded! Enter your Gmail & App Password below.");
+                  }}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 border transition-all cursor-pointer shadow-2xs",
+                    (settingsFormData.mailHost === "smtp.gmail.com" || (settingsFormData.mailUsername && settingsFormData.mailUsername.toLowerCase().endsWith("@gmail.com")))
+                      ? "bg-red-50 text-red-700 border-red-300 ring-2 ring-red-100"
+                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                  )}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0"></span>
+                  Simple Gmail (Google Account)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsFormData({
+                      ...settingsFormData,
+                      mailDriver: "smtp",
+                      mailHost: "mail.click2itbd.com",
+                      mailPort: "465",
+                      mailEncryption: "ssl",
+                      mailUsername: settingsFormData.mailUsername && settingsFormData.mailUsername.endsWith("@gmail.com") ? "info@click2itbd.com" : settingsFormData.mailUsername,
+                    });
+                    toast.success("cPanel preset loaded! Enter your Webmail password.");
+                  }}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 border transition-all cursor-pointer shadow-2xs",
+                    (settingsFormData.mailHost && settingsFormData.mailHost.includes("click2itbd"))
+                      ? "bg-blue-50 text-blue-700 border-blue-300 ring-2 ring-blue-100"
+                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                  )}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0"></span>
+                  cPanel / Webmail (mail.click2itbd.com)
+                </button>
+              </div>
+
+              {/* Gmail Specific App Password Guide Box */}
+              {(settingsFormData.mailHost === "smtp.gmail.com" || (settingsFormData.mailUsername && settingsFormData.mailUsername.toLowerCase().endsWith("@gmail.com"))) && (
+                <div className="mx-6 mt-6 p-4 bg-amber-50/80 border border-amber-200 rounded-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-xs">!</div>
+                      <h4 className="text-xs font-bold text-amber-900">Gmail Setup Guide (১৬ অক্ষরের App Password প্রয়োজন)</h4>
+                    </div>
+                    <a
+                      href="https://myaccount.google.com/apppasswords"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-amber-100/50 text-amber-900 border border-amber-300 rounded-md font-bold text-xs transition-colors shadow-2xs self-start sm:self-auto"
+                    >
+                      <ExternalLink size={12} />
+                      Generate Google App Password
+                    </a>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    Google সিকিউরিটির কারণে সাধারণ জিমেইল পাসওয়ার্ড দিয়ে SMTP কাজ করে না। উপরের লিংকে গিয়ে আপনার Google Account-এ <strong>2-Step Verification</strong> অন করে একটি <strong>App Password</strong> তৈরি করুন (নাম দিন e.g. <em>Click2IT</em>), তারপর পাওয়া ১৬ অক্ষরের পাসওয়ার্ডটি নিচে <strong>SMTP Password</strong> বক্সে পেস্ট করুন।
+                  </p>
+                </div>
+              )}
+
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">
@@ -897,7 +1024,7 @@ export const Settings = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">
-                    Mail Host
+                    Mail Host *
                   </label>
                   <input
                     type="text"
@@ -909,16 +1036,16 @@ export const Settings = () => {
                       })
                     }
                     className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
-                    placeholder="smtp.gmail.com"
+                    placeholder="e.g. smtp.gmail.com or mail.click2itbd.com"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">
-                    Mail Port
+                    Mail Port *
                   </label>
                   <input
                     type="text"
-                    value={settingsFormData.mailPort || "587"}
+                    value={settingsFormData.mailPort || "465"}
                     onChange={(e) =>
                       setSettingsFormData({
                         ...settingsFormData,
@@ -926,36 +1053,15 @@ export const Settings = () => {
                       })
                     }
                     className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
+                    placeholder="465 (SSL) or 587 (TLS)"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">
-                    Mail Username
-                  </label>
-                  <input
-                    type="text"
-                    value={settingsFormData.mailUsername || ""}
-                    onChange={(e) =>
-                      setSettingsFormData({
-                        ...settingsFormData,
-                        mailUsername: e.target.value,
-                      })
-                    }
-                    className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
-                  />
-                </div>
-                <div className="md:col-span-2 bg-gray-50 border border-dashed border-gray-200 rounded-md p-3">
-                  <p className="text-xs text-gray-600">
-                    <span className="font-bold">SMTP Password:</span> Managed securely on server.
-                    Contact your administrator to update SMTP credentials.
-                  </p>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">
                     Mail Encryption
                   </label>
                   <select
-                    value={settingsFormData.mailEncryption || "tls"}
+                    value={settingsFormData.mailEncryption || "ssl"}
                     onChange={(e) =>
                       setSettingsFormData({
                         ...settingsFormData,
@@ -964,9 +1070,100 @@ export const Settings = () => {
                     }
                     className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
                   >
-                    <option value="tls">TLS</option>
-                    <option value="ssl">SSL</option>
+                    <option value="ssl">SSL (Port 465 - Recommended for Gmail/cPanel)</option>
+                    <option value="tls">TLS (Port 587)</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">
+                    Mail Username / Account Email *
+                  </label>
+                  <input
+                    type="text"
+                    value={settingsFormData.mailUsername || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const update: any = { mailUsername: val };
+                      if (val.toLowerCase().endsWith("@gmail.com")) {
+                        if (!settingsFormData.mailHost) update.mailHost = "smtp.gmail.com";
+                        if (!settingsFormData.mailPort) update.mailPort = "465";
+                        if (!settingsFormData.mailEncryption) update.mailEncryption = "ssl";
+                        if (!settingsFormData.mailFromAddress) update.mailFromAddress = val;
+                      }
+                      setSettingsFormData({
+                        ...settingsFormData,
+                        ...update,
+                      });
+                    }}
+                    className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
+                    placeholder="e.g. your-email@gmail.com or info@click2itbd.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">
+                    SMTP Password / Google App Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showSmtpPassword ? "text" : "password"}
+                      value={settingsFormData.mailPassword || ""}
+                      onChange={(e) =>
+                        setSettingsFormData({
+                          ...settingsFormData,
+                          mailPassword: e.target.value,
+                        })
+                      }
+                      className="w-full text-sm border-gray-200 rounded-md pr-10 focus:ring-[#7B61FF] font-mono"
+                      placeholder="Enter 16-character App Password or Webmail Password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showSmtpPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">
+                    From Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={settingsFormData.mailFromAddress || ""}
+                    onChange={(e) =>
+                      setSettingsFormData({
+                        ...settingsFormData,
+                        mailFromAddress: e.target.value,
+                      })
+                    }
+                    className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
+                    placeholder="e.g. your-email@gmail.com or info@click2itbd.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">
+                    From Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={settingsFormData.mailFromName || ""}
+                    onChange={(e) =>
+                      setSettingsFormData({
+                        ...settingsFormData,
+                        mailFromName: e.target.value,
+                      })
+                    }
+                    className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
+                    placeholder="e.g. Click2IT BD"
+                  />
+                </div>
+
+                <div className="md:col-span-2 bg-blue-50/70 border border-blue-200 rounded-lg p-4 text-xs text-blue-900 space-y-1.5">
+                  <p className="font-bold">💡 Quick Reference:</p>
+                  <p>• <strong>Gmail:</strong> Click the "Simple Gmail" preset above, enter your Gmail ID, and paste the 16-character App Password.</p>
+                  <p>• <strong>cPanel / Webmail:</strong> Click the "cPanel / Webmail" preset above, enter your webmail address and password.</p>
                 </div>
               </div>
             </div>

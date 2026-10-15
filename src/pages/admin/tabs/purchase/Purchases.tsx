@@ -683,11 +683,17 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                 }
             }
          }
-         // Delete old transactions
-         const snap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', purchaseForm.id)));
-         for (const d of snap.docs) {
-             await deleteDoc(doc(db, 'transactions', d.id));
+         // Delete old transactions (both by referenceId and documentNumber)
+         const txToDelete = new Map<string, any>();
+         const snap1 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', purchaseForm.id)));
+         snap1.docs.forEach(d => txToDelete.set(d.id, d.ref));
+         if (purchaseForm.documentNumber) {
+           const snap2 = await getDocs(query(collection(db, 'transactions'), where('documentNumber', '==', purchaseForm.documentNumber)));
+           snap2.docs.forEach(d => txToDelete.set(d.id, d.ref));
+           const snap3 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', purchaseForm.documentNumber)));
+           snap3.docs.forEach(d => txToDelete.set(d.id, d.ref));
          }
+         await Promise.all(Array.from(txToDelete.values()).map(ref => deleteDoc(ref)));
          // We will overwrite the purchase doc using setDoc later
       } else {
          finalDocNumber = await generateDocumentNumber('PUR');
@@ -916,7 +922,10 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
 
       // Reset form
       setIsCreatingPurchase(false);
+      localStorage.removeItem('draft_purchase_form');
       setPurchaseForm({
+        id: undefined,
+        documentNumber: undefined,
         vendorId: '',
         vendorName: '',
         date: new Date().toISOString().split('T')[0],
@@ -927,6 +936,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
         paidAmount: 0,
         shippingCost: 0,
         notes: '',
+        createdBy: '',
       });
 
       loadData();
@@ -1070,7 +1080,43 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
               <Printer size={14} /> PDF
             </button>
             <button
-              onClick={() => setIsCreatingPurchase(!isCreatingPurchase)}
+              onClick={() => {
+                if (isCreatingPurchase) {
+                  setIsCreatingPurchase(false);
+                  setPurchaseForm({
+                    id: undefined,
+                    documentNumber: undefined,
+                    vendorId: '',
+                    vendorName: '',
+                    date: new Date().toISOString().split('T')[0],
+                    reference: '',
+                    items: [],
+                    paymentAccountId: paymentAccounts[0]?.id || '',
+                    paymentMethod: paymentAccounts[0]?.type || 'cash',
+                    paidAmount: 0,
+                    shippingCost: 0,
+                    notes: '',
+                    createdBy: ''
+                  });
+                } else {
+                  setPurchaseForm({
+                    id: undefined,
+                    documentNumber: undefined,
+                    vendorId: '',
+                    vendorName: '',
+                    date: new Date().toISOString().split('T')[0],
+                    reference: '',
+                    items: [],
+                    paymentAccountId: paymentAccounts[0]?.id || '',
+                    paymentMethod: paymentAccounts[0]?.type || 'cash',
+                    paidAmount: 0,
+                    shippingCost: 0,
+                    notes: '',
+                    createdBy: ''
+                  });
+                  setIsCreatingPurchase(true);
+                }
+              }}
               className={cn(
                 "px-5 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 shadow-md border",
                 isCreatingPurchase 
@@ -1079,7 +1125,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
               )}
             >
               {isCreatingPurchase ? <X size={16} /> : <Plus size={16} />}
-              {isCreatingPurchase ? 'Close Purchase Form' : 'New Product Purchase'}
+              {isCreatingPurchase ? (purchaseForm.id ? 'Cancel Edit' : 'Close Purchase Form') : 'New Product Purchase'}
             </button>
           </div>
         </div>
@@ -1093,7 +1139,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                 <h3 className="font-bold text-base text-gray-900 flex items-center gap-2">
-                  <Boxes className="text-[#EF4444]" /> Purchase Voucher & Supplier Bill
+                  <Boxes className="text-[#EF4444]" /> {purchaseForm.id ? `Edit Purchase Voucher #${purchaseForm.documentNumber || ''}` : 'Purchase Voucher & Supplier Bill'}
                 </h3>
                 <div className="flex items-center gap-4">
                   <button 
@@ -1101,14 +1147,14 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                     onClick={() => {
                       if(window.confirm('Clear all drafted data?')) {
                         localStorage.removeItem('draft_purchase_form');
-                        setPurchaseForm({ vendorId: '', vendorName: '', date: new Date().toISOString().split('T')[0], reference: '', items: [], paymentAccountId: '', paymentMethod: 'cash', paidAmount: 0, shippingCost: 0, notes: '', createdBy: '' });
+                        setPurchaseForm({ id: undefined, documentNumber: undefined, vendorId: '', vendorName: '', date: new Date().toISOString().split('T')[0], reference: '', items: [], paymentAccountId: '', paymentMethod: 'cash', paidAmount: 0, shippingCost: 0, notes: '', createdBy: '' });
                       }
                     }}
                     className="text-xs text-red-500 hover:text-red-700 font-bold"
                   >
                     Clear Draft
                   </button>
-                  <span className="text-xs text-gray-400">Restocks Inventory on Save</span>
+                  <span className="text-xs text-gray-400">{purchaseForm.id ? 'Updates Inventory on Save' : 'Restocks Inventory on Save'}</span>
                 </div>
               </div>
 
@@ -1537,7 +1583,9 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                   className="w-full bg-[#081621] hover:bg-[#EF4444] disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm transition-all shadow-md flex items-center justify-center gap-2"
                 >
                   <CheckCircle size={18} />
-                  {submitting ? 'Restocking Inventory...' : 'Confirm Purchase & Restock Inventory'}
+                  {submitting 
+                    ? (purchaseForm.id ? 'Updating Purchase...' : 'Restocking Inventory...') 
+                    : (purchaseForm.id ? 'Update & Save Purchase' : 'Confirm Purchase & Restock Inventory')}
                 </button>
               </form>
             </div>

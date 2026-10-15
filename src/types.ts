@@ -426,7 +426,11 @@ export interface SiteSettings {
   mailHost?: string;
   mailPort?: string;
   mailUsername?: string;
+  mailPassword?: string;
   mailEncryption?: string;
+  mailFromAddress?: string;
+  mailFromName?: string;
+  resendApiKey?: string;
 
   // SMS Setting
   smsApiUrl?: string;

@@ -62,6 +62,8 @@ export default function ProfitLoss() {
 
     const billedServiceIds = new Set();
     orders.forEach(order => {
+      if ((order as any).platform === 'hosting' || (order as any).isHostingOrder || order.type === 'hosting' || order.type === 'domain') return;
+
       order.items?.forEach(item => {
         if (item.id && String(item.id).startsWith('svc-')) {
           billedServiceIds.add(String(item.id).replace('svc-', ''));
@@ -73,6 +75,10 @@ export default function ProfitLoss() {
           totalRevenue += (order.total || 0);
           
           order.items?.forEach(item => {
+            const itemType = (item as any).itemType || '';
+            const itemCat = ((item as any).category || '').toLowerCase();
+            if (itemType === 'hosting' || itemType === 'domain' || itemType === 'domain_renewal' || itemType === 'domain_transfer' || itemType === 'ssl' || itemCat.includes('hosting') || itemCat.includes('domain')) return;
+
             const cost = (item as any).costPrice || 0;
             cogs += cost * (item.quantity || 1);
           });

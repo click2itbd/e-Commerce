@@ -21,6 +21,7 @@ import {
 import { Pagination } from '../../../../components/common/Pagination';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { logAudit } from '../../../../lib/audit';
 
 interface ManualIncomeTabProps {
   setSelectedLedgerEntity?: (v: any) => void;
@@ -30,7 +31,7 @@ interface ManualIncomeTabProps {
 const ManualIncomeTab: React.FC<ManualIncomeTabProps> = ({
   setActiveTab,
 }) => {
-  const { hasPermission, isAdmin } = useAuth();
+  const { hasPermission, isAdmin, user, profile } = useAuth();
   const { settings } = useSettings();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -126,14 +127,37 @@ const ManualIncomeTab: React.FC<ManualIncomeTabProps> = ({
         updatedAt: new Date().toISOString(),
       };
 
+      const currentOperator = user?.displayName || user?.email || profile?.displayName || 'Admin';
+
       if (editingTx) {
         await updateDoc(doc(db, 'transactions', editingTx.id), incomeData);
+        await logAudit(
+          'EDIT',
+          'Income',
+          `Updated income entry: ৳${formData.amount} (${formData.description})`,
+          currentOperator,
+          {
+            entityId: editingTx.id,
+            previousState: editingTx,
+            newState: incomeData,
+          }
+        );
         toast.success('Income entry updated successfully');
       } else {
-        await addDoc(collection(db, 'transactions'), {
+        const docRef = await addDoc(collection(db, 'transactions'), {
           ...incomeData,
           createdAt: new Date().toISOString(),
         });
+        await logAudit(
+          'CREATE',
+          'Income',
+          `Recorded manual income: ৳${formData.amount} (${formData.description})`,
+          currentOperator,
+          {
+            entityId: docRef.id,
+            newState: incomeData,
+          }
+        );
         toast.success('Income entry recorded successfully');
       }
 
@@ -174,7 +198,19 @@ const ManualIncomeTab: React.FC<ManualIncomeTabProps> = ({
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this income entry?')) return;
     try {
+      const targetTx = transactions.find(t => t.id === id);
       await deleteDoc(doc(db, 'transactions', id));
+      const currentOperator = user?.displayName || user?.email || profile?.displayName || 'Admin';
+      await logAudit(
+        'DELETE',
+        'Income',
+        `Deleted income entry: ৳${targetTx?.amount || 0} (${targetTx?.description || id})`,
+        currentOperator,
+        {
+          entityId: id,
+          previousState: targetTx,
+        }
+      );
       toast.success('Income entry deleted');
       fetchData();
     } catch (err) {

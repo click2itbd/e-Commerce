@@ -23,22 +23,71 @@ export interface EmailLog {
   createdAt: string;
 }
 
-let smtpProvider: SmtpEmailProvider | null = null;
+let cachedSmtpProvider: SmtpEmailProvider | null = null;
+let lastSmtpConfigHash = '';
 
-export function getSmtpProvider(): SmtpEmailProvider {
-  if (!smtpProvider) {
-    const config: SmtpConfig = {
-      host: process.env.SMTP_HOST || '',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
-      user: process.env.SMTP_USER || '',
-      password: process.env.SMTP_PASSWORD || '',
-      fromName: process.env.SMTP_FROM_NAME || 'Click2IT',
-      fromEmail: process.env.SMTP_FROM_EMAIL || 'noreply@click2itbd.com',
-    };
-    smtpProvider = new SmtpEmailProvider(config);
+export async function getSmtpProvider(forceReload = false): Promise<SmtpEmailProvider> {
+  let host = '';
+  let port = 587;
+  let secure = false;
+  let user = '';
+  let password = '';
+  let fromName = 'Click2IT';
+  let fromEmail = 'noreply@click2itbd.com';
+
+  // 1. Check Firestore settings/site first (allows runtime admin configuration from UI)
+  try {
+    const db = getAdminDb();
+    if (db) {
+      const snap = await db.collection('settings').doc('site').get();
+      if (snap.exists) {
+        const data = snap.data() || {};
+        if (data.mailUsername && data.mailPassword) {
+          user = data.mailUsername.trim();
+          password = data.mailPassword.trim();
+          const isGmailUser = user.toLowerCase().endsWith('@gmail.com');
+          host = data.mailHost ? data.mailHost.trim() : (isGmailUser ? 'smtp.gmail.com' : '');
+          port = parseInt(data.mailPort) || (isGmailUser ? 465 : 587);
+          secure = data.mailEncryption === 'ssl' || String(port) === '465';
+          if (data.mailFromName) fromName = data.mailFromName.trim();
+          if (data.mailFromAddress) fromEmail = data.mailFromAddress.trim();
+          else if (user.includes('@')) fromEmail = user;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not read email settings from Firestore:', err);
   }
-  return smtpProvider;
+
+  // 2. Fallback to environment variables if not configured in Firestore
+  if (!host || !user || !password) {
+    user = user || process.env.SMTP_USER || process.env.GMAIL_USER || '';
+    password = password || process.env.SMTP_PASSWORD || process.env.GMAIL_APP_PASSWORD || '';
+    const isGmail = (user && user.toLowerCase().endsWith('@gmail.com')) || !!process.env.GMAIL_USER;
+    host = host || process.env.SMTP_HOST || (isGmail ? 'smtp.gmail.com' : '');
+    port = port || parseInt(process.env.SMTP_PORT || (isGmail ? '465' : '587'));
+    secure = process.env.SMTP_SECURE === 'true' || port === 465 || isGmail;
+    if (process.env.SMTP_FROM_NAME) fromName = process.env.SMTP_FROM_NAME;
+    if (process.env.SMTP_FROM_EMAIL) fromEmail = process.env.SMTP_FROM_EMAIL;
+    else if (user && user.includes('@')) fromEmail = user;
+  }
+
+  const currentHash = `${host}:${port}:${user}:${password}:${fromEmail}:${fromName}:${secure}`;
+  if (!cachedSmtpProvider || forceReload || currentHash !== lastSmtpConfigHash) {
+    const config: SmtpConfig = {
+      host,
+      port,
+      secure,
+      user,
+      password,
+      fromName,
+      fromEmail,
+    };
+    cachedSmtpProvider = new SmtpEmailProvider(config);
+    lastSmtpConfigHash = currentHash;
+  }
+
+  return cachedSmtpProvider;
 }
 
 export async function logEmailToFirestore(options: EmailOptions, status: 'sent' | 'failed', error?: string): Promise<void> {
@@ -88,7 +137,7 @@ export async function sendEmail(options: EmailOptions, retries: number = 2): Pro
     return { success: true };
   }
 
-  const provider = getSmtpProvider();
+  const provider = await getSmtpProvider();
 
   let lastError: string | undefined;
 
@@ -118,7 +167,7 @@ export async function sendEmail(options: EmailOptions, retries: number = 2): Pro
 }
 
 export async function verifySmtpConnection(): Promise<{ success: boolean; code: string; message: string }> {
-  const provider = getSmtpProvider();
+  const provider = await getSmtpProvider(true);
   return provider.verifyConnection();
 }
 

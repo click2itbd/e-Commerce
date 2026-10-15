@@ -57,16 +57,21 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
 }) => {
   const { settings } = useSettings();
 
+  // Filter out hosting and domain orders so Admin Overview strictly reflects Retail Hardware, Shop & Services
+  const retailOrders = useMemo(() => {
+    return orders.filter(o => (o as any).platform !== 'hosting' && !(o as any).isHostingOrder && o.type !== 'hosting' && o.type !== 'domain');
+  }, [orders]);
+
   // Summary Metrics
   const totalProducts = products.length;
   const totalCustomers = customers.length;
-  const totalOrders = orders.filter(o => o.type !== 'quotation').length;
+  const totalOrders = retailOrders.filter(o => o.type !== 'quotation').length;
 
   const totalRevenue = useMemo(() => {
-    return orders
+    return retailOrders
       .filter(o => o.status !== 'cancelled' && o.type !== 'quotation')
       .reduce((sum, order) => sum + (order.total || 0), 0);
-  }, [orders]);
+  }, [retailOrders]);
 
   const totalRevenueTransactions = useMemo(() => {
      return transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
@@ -78,7 +83,7 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
 
   const netProfit = useMemo(() => {
     const billedServiceIds = new Set();
-    orders.filter(o => o.status !== 'cancelled' && o.type !== 'quotation').forEach(o => {
+    retailOrders.filter(o => o.status !== 'cancelled' && o.type !== 'quotation').forEach(o => {
         o.items?.forEach(item => {
             if (item.id && String(item.id).startsWith('svc-')) {
                 billedServiceIds.add(String(item.id).replace('svc-', ''));
@@ -90,12 +95,12 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
       .filter(s => !billedServiceIds.has(String(s.id)) && s.serviceCharge > 0 && (s.status === 'delivered' || s.status === 'ready' || s.status === 'repaired'))
       .reduce((sum, s) => sum + (Number(s.serviceCharge) || 0), 0);
     return totalRevenue + standaloneService + totalRevenueTransactions - totalExpenseTransactions;
-  }, [totalRevenue, totalRevenueTransactions, totalExpenseTransactions, serviceRecords, orders]);
+  }, [totalRevenue, totalRevenueTransactions, totalExpenseTransactions, serviceRecords, retailOrders]);
 
   const { serviceRevenue, ordersServiceRevenue } = useMemo(() => {
     const billedServiceIds = new Set();
     
-    const ordersService = orders
+    const ordersService = retailOrders
       .filter(o => o.status !== 'cancelled' && o.type !== 'quotation')
       .reduce((sum, o) => {
         let orderServiceTotal = 0;
@@ -118,32 +123,16 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
       serviceRevenue: ordersService + standaloneService, 
       ordersServiceRevenue: ordersService 
     };
-  }, [orders, serviceRecords]);
-
-  // Hosting & Domain Specific Metrics
-  const pendingHostingOrders = useMemo(() => {
-    return orders.filter(o => o.status === 'pending' || (o as any).paymentStatus === 'submitted');
-  }, [orders]);
-
-  const todayHostingRevenue = useMemo(() => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    return orders
-      .filter(o => {
-        const d = new Date(o.createdAt);
-        return d >= todayStart && o.status !== 'cancelled';
-      })
-      .reduce((sum, o) => sum + (o.total || 0), 0);
-  }, [orders]);
+  }, [retailOrders, serviceRecords]);
 
   const totalCompletedOrders = useMemo(() => {
-    return orders.filter(o => o.status === 'active' || o.status === 'completed' || o.status === 'delivered').length;
-  }, [orders]);
+    return retailOrders.filter(o => o.status === 'active' || o.status === 'completed' || o.status === 'delivered').length;
+  }, [retailOrders]);
 
   // Recent Orders
   const recentOrders = useMemo(() => {
-    return [...orders].filter(o => o.type !== 'quotation').slice(0, 5);
-  }, [orders]);
+    return [...retailOrders].filter(o => o.type !== 'quotation').slice(0, 5);
+  }, [retailOrders]);
 
   // Chart Data: Sales Last 7 Days
   const salesChartData = useMemo(() => {
@@ -157,7 +146,7 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
       const dayStart = new Date(d.setHours(0, 0, 0, 0));
       const dayEnd = new Date(d.setHours(23, 59, 59, 999));
       
-      const dayOrders = orders.filter(o => {
+      const dayOrders = retailOrders.filter(o => {
         const orderDate = new Date(o.createdAt);
         return orderDate >= dayStart && orderDate <= dayEnd && o.type !== 'quotation' && o.status !== 'cancelled';
       });
@@ -171,7 +160,7 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
       });
     }
     return data;
-  }, [orders]);
+  }, [retailOrders]);
 
   return (
     <div className="space-y-6">

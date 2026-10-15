@@ -189,6 +189,12 @@ export const getEmailLogsForOrder = async (orderId: string): Promise<EmailLog[]>
   }
 };
 
+export interface SendEmailResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
+}
+
 export const sendEmail = async ({
   to,
   subject,
@@ -203,9 +209,9 @@ export const sendEmail = async ({
   attachments?: any[];
   category?: string;
   orderId?: string;
-}) => {
+}): Promise<SendEmailResponse> => {
   try {
-    const response = await apiRequest<{ success: boolean }>('/api/send-email', {
+    const response = await apiRequest<{ success: boolean; error?: string; message?: string }>('/api/send-email', {
       method: 'POST',
       body: JSON.stringify({
         to,
@@ -216,10 +222,16 @@ export const sendEmail = async ({
         orderId,
       }),
     });
-    return response?.success ?? true;
-  } catch (err) {
+    return { 
+      success: response?.success ?? true,
+      message: response?.message 
+    };
+  } catch (err: any) {
     console.error('Failed to send email:', err);
-    return false;
+    return { 
+      success: false, 
+      error: err?.message || 'Email delivery failed. Please verify SMTP settings.' 
+    };
   }
 };
 

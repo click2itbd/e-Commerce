@@ -319,7 +319,7 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
         </div>
       `;
 
-      const success = await sendEmail({
+      const successRes = await sendEmail({
         to: q.customerEmail,
         subject: `Your Quotation from Click2ItBD (${q.documentNumber || q.id.slice(0,8)})`,
         html: htmlContent,
@@ -327,10 +327,10 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
         orderId: q.id
       });
 
-      if (success) {
+      if (successRes.success) {
         toast.success('Email sent successfully!', { id: toastId });
       } else {
-        toast.error('Failed to send email.', { id: toastId });
+        toast.error(successRes.error || 'Failed to send email. Please check SMTP settings.', { id: toastId });
       }
   };
 

@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { sendEmail, EmailTemplates } from '../services/email.js';
+import { sendEmail, EmailTemplates, verifySmtpConnection } from '../services/email.js';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
 import { getDynamicTemplate } from '../services/templateHelper.js';
 
@@ -22,7 +22,17 @@ emailRouter.post('/send-email', requireFirebaseAuth, async (req: any, res: Respo
     res.status(200).json({ success: true, message: 'Email sent successfully' });
   } catch (error: any) {
     console.error('Email send error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+emailRouter.post('/verify-smtp', requireFirebaseAuth, async (req: any, res: Response) => {
+  try {
+    const result = await verifySmtpConnection();
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error('SMTP verify error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Verification failed' });
   }
 });
 

@@ -283,6 +283,11 @@ const CustomerReceiveReportTab = lazy(() =>
     default: m.default,
   })),
 );
+const LoyaltyPointsReportTab = lazy(() =>
+  import("./admin/tabs/reports/LoyaltyPointsReport").then((m) => ({
+    default: m.LoyaltyPointsReport,
+  })),
+);
 const TransactionHistoryTab = lazy(() =>
   import("./admin/tabs/accounting/TransactionHistory").then((m) => ({
     default: m.default,
@@ -6077,6 +6082,8 @@ handleReturnOrder={handleReturnOrder}
                   settings={settings}
                   hasPermission={hasPermission}
                 />
+              ) : activeTab === "loyalty_points" ? (
+                <LoyaltyPointsReportTab />
               ) : activeTab === "customer_due_list" ? (
                 <CustomerDueListTab />
               ) : activeTab === "vendor_due_list" ? (

@@ -51,8 +51,14 @@ export default function EditOrderModal({ order, onClose, onSuccess, onEditInSale
 
       // 2. Update the 'sale' transaction amount so the ledger stays accurate
       if (order.total !== total) {
-        const txSnap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', order.id), where('type', '==', 'sale')));
-        await Promise.all(txSnap.docs.map(d => updateDoc(doc(db, 'transactions', d.id), { amount: total })));
+        const txIdsToUpdate = new Set<string>();
+        const txSnap1 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', order.id), where('type', '==', 'sale')));
+        txSnap1.docs.forEach(d => txIdsToUpdate.add(d.id));
+        if (order.documentNumber) {
+          const txSnap2 = await getDocs(query(collection(db, 'transactions'), where('documentNumber', '==', order.documentNumber), where('type', '==', 'sale')));
+          txSnap2.docs.forEach(d => txIdsToUpdate.add(d.id));
+        }
+        await Promise.all(Array.from(txIdsToUpdate).map(id => updateDoc(doc(db, 'transactions', id), { amount: total })));
       }
 
       await logAudit('EDIT', 'Order', `Edited order #${order.documentNumber || order.id} (Total: ${total})`, profile?.displayName || profile?.email || 'Unknown');

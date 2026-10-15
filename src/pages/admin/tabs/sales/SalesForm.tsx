@@ -172,6 +172,44 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       });
     }
   }, [editingOrder]);
+
+  // Robustly identify if a transaction belongs to the order currently being edited
+  const isTransactionLinkedToEditingOrder = (t: any) => {
+    if (!editingOrder) return false;
+    const editingId = String(editingOrder.id || '').trim();
+    const editingDocNum = String(editingOrder.documentNumber || '').trim();
+    const editingInvNum = String(editingOrder.invoiceNumber || '').trim();
+
+    // Check referenceId against editing order id or document numbers
+    if (editingId && t.referenceId === editingId) return true;
+    if (editingDocNum && t.referenceId === editingDocNum) return true;
+    if (editingInvNum && t.referenceId === editingInvNum) return true;
+
+    // Check documentNumber against editing order document numbers or id
+    if (editingDocNum && t.documentNumber === editingDocNum) return true;
+    if (editingId && t.documentNumber === editingId) return true;
+    if (editingInvNum && t.documentNumber === editingInvNum) return true;
+
+    // Check description for document number
+    if (editingDocNum && typeof t.description === 'string' && t.description.includes(editingDocNum)) return true;
+    if (editingInvNum && typeof t.description === 'string' && t.description.includes(editingInvNum)) return true;
+
+    return false;
+  };
+
+  // Calculate actual previous due for a customer excluding the order currently being edited
+  const getCustomerPreviousDue = (customerId: string) => {
+    if (!customerId || !transactions) return 0;
+    let due = 0;
+    transactions.forEach(t => {
+      if (t.entityId === customerId && !isTransactionLinkedToEditingOrder(t)) {
+        if (t.type === 'sale' || t.type === 'opening_balance') due += Number(t.amount) || 0;
+        else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') due -= Number(t.amount) || 0;
+      }
+    });
+    return due > 0 ? due : 0;
+  };
+
   const [showCustomProductModal, setShowCustomProductModal] = useState(false);
 
   const [heldSales, setHeldSales] = useState<{ id: string; time: string; saleData: any }[]>(() => {
@@ -672,15 +710,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         };
       });
 
-            let previousDue = 0;
-      if (saleData.customerId && transactions) {
-          transactions.forEach(t => {
-              if (t.entityId === saleData.customerId && (!editingOrder || t.referenceId !== editingOrder.id)) {
-                  if (t.type === 'sale' || t.type === 'opening_balance') previousDue += Number(t.amount);
-                  else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') previousDue -= Number(t.amount);
-              }
-          });
-      }
+      const previousDue = getCustomerPreviousDue(saleData.customerId);
 
       const totalCost = processedItems.reduce((acc, i) => acc + (i.costPrice * i.quantity), 0);
       const profit = netTotal - totalCost;
@@ -755,9 +785,17 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             await Promise.all(oldSerialsSnap.docs.map(d => deleteDoc(doc(db, 'sold_serials', d.id))));
           }
           
-          // DELETE OLD TRANSACTIONS
-          const oldTxSnap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', editingOrder.id)));
-          await Promise.all(oldTxSnap.docs.map(d => deleteDoc(doc(db, 'transactions', d.id))));
+          // DELETE OLD TRANSACTIONS (by referenceId AND by documentNumber to ensure complete cleanup)
+          const txDocsToDelete = new Map<string, any>();
+          const oldTxSnap1 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', editingOrder.id)));
+          oldTxSnap1.docs.forEach(d => txDocsToDelete.set(d.id, d.ref));
+          if (editingOrder.documentNumber) {
+            const oldTxSnap2 = await getDocs(query(collection(db, 'transactions'), where('documentNumber', '==', editingOrder.documentNumber)));
+            oldTxSnap2.docs.forEach(d => txDocsToDelete.set(d.id, d.ref));
+            const oldTxSnap3 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', editingOrder.documentNumber)));
+            oldTxSnap3.docs.forEach(d => txDocsToDelete.set(d.id, d.ref));
+          }
+          await Promise.all(Array.from(txDocsToDelete.values()).map(ref => deleteDoc(ref)));
           
         } else {
           const orderRef = await addDoc(collection(db, 'orders'), orderData);
@@ -986,9 +1024,32 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       <div className="lg:col-span-7 space-y-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
           <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <ShoppingBag className="text-[#EF4444]" /> Create Sale & Invoice
-            </h2>
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <ShoppingBag className="text-[#EF4444]" />
+                {editingOrder ? (
+                  <span>Editing Invoice <span className="text-blue-600 font-black">#{editingOrder.documentNumber || editingOrder.id}</span></span>
+                ) : (
+                  <span>Create Sale & Invoice</span>
+                )}
+              </h2>
+              {editingOrder && (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                    Editing Mode
+                  </span>
+                  {onCancelEdit && (
+                    <button
+                      type="button"
+                      onClick={onCancelEdit}
+                      className="text-[11px] font-bold text-red-600 hover:text-red-700 underline"
+                    >
+                      Cancel & Exit Edit
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -1060,15 +1121,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               </div>
               <div>
                 {(() => {
-                    let due = 0;
-                    if (saleData.customerId && transactions) {
-                        transactions.forEach(t => {
-                            if (t.entityId === saleData.customerId && (!editingOrder || t.referenceId !== editingOrder.id)) {
-                                if (t.type === 'sale' || t.type === 'opening_balance') due += Number(t.amount);
-                                  else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') due -= Number(t.amount);
-                            }
-                        });
-                    }
+                    const due = getCustomerPreviousDue(saleData.customerId);
                     return (
                       <label className="block font-bold text-gray-700 uppercase mb-1 flex justify-between">
                         <span>Customer <span className="text-red-500">*</span></span>
@@ -1573,15 +1626,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
                   {/* Due preview */}
                     {(() => {
-                        let prevDue = 0;
-                        if (saleData.customerId && transactions) {
-                            transactions.forEach(t => {
-                                if (t.entityId === saleData.customerId && (!editingOrder || t.referenceId !== editingOrder.id)) {
-                                    if (t.type === 'sale' || t.type === 'opening_balance') prevDue += Number(t.amount);
-                                    else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') prevDue -= Number(t.amount);
-                                }
-                            });
-                        }
+                        const prevDue = getCustomerPreviousDue(saleData.customerId);
                         const totalDueNow = netTotal + (prevDue > 0 ? prevDue : 0) - (Number(saleData.paidAmount) || 0);
                         if (totalDueNow > 0) {
                             return (
@@ -1614,15 +1659,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   <span className="text-xl text-gray-800">{formatCurrency(netTotal, settings)}</span>
                 </div>
                 {(() => {
-                  let prevDue = 0;
-                  if (saleData.customerId && transactions) {
-                      transactions.forEach(t => {
-                          if (t.entityId === saleData.customerId && (!editingOrder || t.referenceId !== editingOrder.id)) {
-                              if (t.type === 'sale' || t.type === 'opening_balance') prevDue += Number(t.amount);
-                              else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') prevDue -= Number(t.amount);
-                          }
-                      });
-                  }
+                  const prevDue = getCustomerPreviousDue(saleData.customerId);
                   if (prevDue > 0) {
                       return (
                         <>

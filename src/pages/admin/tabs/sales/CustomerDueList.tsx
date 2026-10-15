@@ -295,6 +295,35 @@ export default function CustomerDueList() {
         }
       );
 
+      // Automatically sync payment to customer's unpaid invoice orders
+      try {
+        let remPay = Number(paymentAmount);
+        const ordSnap = await getDocs(query(
+          collection(db, 'orders'),
+          where('customerId', '==', selectedCustomer.id),
+          where('type', '==', 'invoice')
+        ));
+        const unpaidOrders = ordSnap.docs
+          .map(d => ({ id: d.id, ...d.data() as any }))
+          .filter(o => o.paymentStatus !== 'paid' && ((Number(o.total) || 0) > (Number(o.paidAmount) || 0)))
+          .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+
+        for (const ord of unpaidOrders) {
+          if (remPay <= 0) break;
+          const dueOnOrder = (Number(ord.total) || 0) - (Number(ord.paidAmount) || 0);
+          const payAmt = Math.min(remPay, dueOnOrder);
+          const updatedPaid = (Number(ord.paidAmount) || 0) + payAmt;
+          const updatedStatus = updatedPaid >= (Number(ord.total) || 0) ? 'paid' : 'partial';
+          await updateDoc(doc(db, 'orders', ord.id), {
+            paidAmount: updatedPaid,
+            paymentStatus: updatedStatus
+          });
+          remPay -= payAmt;
+        }
+      } catch (err) {
+        console.warn('Failed to sync order payment status:', err);
+      }
+
       toast.success('Payment received successfully & Receipt generated');
       setSelectedCustomer(null);
       setPaymentAmount('');
