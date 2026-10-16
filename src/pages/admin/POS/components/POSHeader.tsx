@@ -106,10 +106,21 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
                 
                 let matchedSerial: string | undefined = undefined;
                 const exactMatches = products.filter(p => {
-                  if (p.id.toLowerCase() === searchLower || 
-                      (p as any).sku?.toLowerCase() === searchLower ||
-                      (p.model && p.model.toLowerCase() === searchLower) || 
-                      p.name.toLowerCase() === searchLower) {
+                  const foundVariant = p.variants?.find(v =>
+                    (v.barcode && v.barcode.toLowerCase() === searchLower) ||
+                    (v.sku && v.sku.toLowerCase() === searchLower) ||
+                    v.id.toLowerCase() === searchLower ||
+                    v.name.toLowerCase() === searchLower
+                  );
+                  if (foundVariant) return true;
+
+                  if (
+                    p.id.toLowerCase() === searchLower || 
+                    (p.barcode && p.barcode.toLowerCase() === searchLower) ||
+                    (p.sku && p.sku.toLowerCase() === searchLower) ||
+                    (p.model && p.model.toLowerCase() === searchLower) || 
+                    p.name.toLowerCase() === searchLower
+                  ) {
                     return true;
                   }
                   const foundSerial = (p.availableSerials || []).find((s: string) => s.toLowerCase() === searchLower);
@@ -120,7 +131,11 @@ export const POSHeader: React.FC<POSHeaderProps> = ({
                   return false;
                 });
                 
-                const partialMatches = products.filter(p => p.name.toLowerCase().includes(searchLower));
+                const partialMatches = products.filter(p => 
+                  p.name.toLowerCase().includes(searchLower) ||
+                  (p.sku && p.sku.toLowerCase().includes(searchLower)) ||
+                  (p.barcode && p.barcode.toLowerCase().includes(searchLower))
+                );
                 
                 const bestMatch = exactMatches.length === 1 ? exactMatches[0] : (partialMatches.length === 1 ? partialMatches[0] : null);
 

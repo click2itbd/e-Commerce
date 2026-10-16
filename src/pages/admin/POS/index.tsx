@@ -207,6 +207,7 @@ export const RetailPOS = () => {
 
           const exactMatches = products.filter((p) => {
             const foundVariant = p.variants?.find(variant =>
+              (variant.barcode && variant.barcode.toLowerCase() === searchLower) ||
               variant.id.toLowerCase() === searchLower ||
               variant.sku.toLowerCase() === searchLower ||
               variant.name.toLowerCase() === searchLower
@@ -217,6 +218,7 @@ export const RetailPOS = () => {
             }
             if (
               p.id.toLowerCase() === searchLower ||
+              (p.barcode && p.barcode.toLowerCase() === searchLower) ||
               (p.sku || "").toLowerCase() === searchLower ||
               (p.model || "").toLowerCase() === searchLower ||
               p.name.toLowerCase() === searchLower
@@ -236,7 +238,8 @@ export const RetailPOS = () => {
           const partialMatches = products.filter(
             (p) =>
               p.name.toLowerCase().includes(searchLower) ||
-              (p.sku || "").toLowerCase().includes(searchLower),
+              (p.sku || "").toLowerCase().includes(searchLower) ||
+              (p.barcode || "").toLowerCase().includes(searchLower),
           );
           const bestMatch =
             exactMatches.length === 1
@@ -246,18 +249,20 @@ export const RetailPOS = () => {
                 : null;
 
           if (bestMatch) {
-            if (bestMatch.hasSerialTracking && !matchedSerial) {
-              playBeep("error");
-              toast.error(
-                "This product requires a Serial Number! Please scan the S/N instead.",
-                { duration: 4000 },
-              );
-            } else {
-              addToCart(bestMatch, matchedSerial, matchedVariant);
-              setSearchQuery("");
-              playBeep("success");
-              toast.success(`Scanned: ${bestMatch.name}`);
+            let serialToUse = matchedSerial;
+            if (bestMatch.hasSerialTracking && !serialToUse) {
+              const existingItem = cart.find(ci => ci.product.id === bestMatch.id);
+              const alreadySelected = existingItem?.selectedSerials || [];
+              const available = (bestMatch.availableSerials || []).find(s => !alreadySelected.includes(s));
+              if (available) {
+                serialToUse = available;
+              }
             }
+
+            addToCart(bestMatch, serialToUse, matchedVariant);
+            setSearchQuery("");
+            playBeep("success");
+            toast.success(`Scanned: ${bestMatch.name}${serialToUse ? ` [S/N: ${serialToUse}]` : ''}`);
           } else if (exactMatches.length > 1 || partialMatches.length > 1) {
             playBeep("error");
             toast.success(`Found multiple items. Please select manually.`);
@@ -272,7 +277,7 @@ export const RetailPOS = () => {
         clearTimeout(timeout);
         timeout = setTimeout(() => {
           barcode = "";
-        }, 200);
+        }, 350);
       }
     };
 
@@ -360,6 +365,12 @@ export const RetailPOS = () => {
 
       if (existingIdx >= 0 && (!hasVariants || scannedVariant)) {
         const newCart = [...prev];
+        // Prevent duplicate serial scan
+        if (scannedSerial && newCart[existingIdx].selectedSerials?.includes(scannedSerial)) {
+          toast.error(`Serial '${scannedSerial}' is already in the cart!`);
+          return prev;
+        }
+
         if (newCart[existingIdx].quantity < availableStock) {
           newCart[existingIdx].quantity += 1;
           if (

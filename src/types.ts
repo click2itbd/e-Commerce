@@ -34,6 +34,7 @@ export interface ProductVariant {
   id: string;
   name: string; // e.g., "Red", "Large"
   sku: string;
+  barcode?: string;
   price: number;
   stock: number;
 }
@@ -42,6 +43,7 @@ export interface Product {
   costPrice?: number;
   unit?: string;
   sku?: string;
+  barcode?: string;
   lowStockThreshold?: number;
   isFreeShipping?: boolean;
   model?: string;
