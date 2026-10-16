@@ -10,6 +10,7 @@ import { BtclDomainProvider, isBdDomain } from '../providers/domain/BtclDomainPr
 import { resolveDomainProvider, getBtclConfig, saveBtclConfig, maskBtclConfig } from '../services/btclConfig.js';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
 import { getDomainProviderConfig as getDomainConfig } from '../services/domainProviderConfig.js';
+import { getPublicServerIp } from '../services/ipService.js';
 
 interface DomainPricing {
   id?: string;
@@ -407,6 +408,15 @@ domainRouter.post('/whois', async (req: any, res: Response) => {
   } catch (error: any) {
     console.error('Domain whois error:', error);
     return res.json({ success: false, error: error?.message || 'Internal server error' });
+  }
+});
+
+domainRouter.get('/server-ip', async (req: any, res: Response) => {
+  try {
+    const serverIp = await getPublicServerIp();
+    return res.json({ success: true, serverIp });
+  } catch (error: any) {
+    return res.json({ success: false, serverIp: 'Server IP', error: error?.message });
   }
 });
 

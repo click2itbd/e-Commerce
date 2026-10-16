@@ -527,16 +527,17 @@ export const generatePDF = async (
       const discount = (Number(o.discountAmount) || 0) + itemDiscounts;
 
       const alignRightX = pageWidth - 15;
+      const labelX = pageWidth - 90;
 
       doc.setFontSize(11);
 
       if (discount > 0) {
         doc.setFont("helvetica", "normal");
-        doc.text("Subtotal:", pageWidth - 60, finalY);
+        doc.text("Subtotal:", labelX, finalY);
         doc.text(subtotal.toFixed(2), alignRightX, finalY, { align: "right" });
         finalY += 7;
 
-        doc.text("Discount:", pageWidth - 60, finalY);
+        doc.text("Discount:", labelX, finalY);
         doc.text(`-${discount.toFixed(2)}`, alignRightX, finalY, {
           align: "right",
         });
@@ -552,32 +553,32 @@ export const generatePDF = async (
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(15, 23, 42);
-      doc.text("Total TK.", pageWidth - 60, finalY);
+      doc.text("Total TK.", labelX, finalY);
       doc.text(billTotal.toFixed(2), alignRightX, finalY, { align: "right" });
       finalY += 7;
 
       if (isPaid) {
         doc.setFont("helvetica", "normal");
         doc.setTextColor(22, 163, 74);
-        doc.text("Paid Amount:", pageWidth - 60, finalY);
+        doc.text("Paid Amount:", labelX, finalY);
         doc.text((paidVal > 0 ? paidVal : billTotal).toFixed(2), alignRightX, finalY, { align: "right" });
         finalY += 7;
 
         doc.setFont("helvetica", "bold");
         doc.setTextColor(22, 163, 74);
-        doc.text("Payment Status:", pageWidth - 60, finalY);
+        doc.text("Payment Status:", labelX, finalY);
         doc.text("PAID", alignRightX, finalY, { align: "right" });
         doc.setTextColor(15, 23, 42);
       } else {
         doc.setFont("helvetica", "normal");
         doc.setTextColor(22, 163, 74);
-        doc.text("Paid Amount:", pageWidth - 60, finalY);
+        doc.text("Paid Amount:", labelX, finalY);
         doc.text(paidVal.toFixed(2), alignRightX, finalY, { align: "right" });
         finalY += 7;
 
         doc.setFont("helvetica", "bold");
         doc.setTextColor(220, 38, 38);
-        doc.text("Remaining Due:", pageWidth - 60, finalY);
+        doc.text("Remaining Due:", labelX, finalY);
         doc.text(billRemainingDue.toFixed(2), alignRightX, finalY, { align: "right" });
         doc.setTextColor(15, 23, 42);
       }

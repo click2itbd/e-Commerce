@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { sendEmail, EmailTemplates } from '../services/email.js';
+import { sendEmail, EmailTemplates, verifySmtpConnection } from '../services/email.js';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
 import { getDynamicTemplate } from '../services/templateHelper.js';
 const emailRouter = Router();
@@ -17,7 +17,17 @@ emailRouter.post('/send-email', requireFirebaseAuth, async (req, res) => {
     }
     catch (error) {
         console.error('Email send error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+emailRouter.post('/verify-smtp', requireFirebaseAuth, async (req, res) => {
+    try {
+        const result = await verifySmtpConnection();
+        res.status(200).json(result);
+    }
+    catch (error) {
+        console.error('SMTP verify error:', error);
+        res.status(500).json({ success: false, message: error.message || 'Verification failed' });
     }
 });
 // --- Customer E-Commerce Emails ---

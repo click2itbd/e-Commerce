@@ -9,18 +9,38 @@ export class SmtpEmailProvider {
     }
     getTransporter() {
         if (!this.transporter) {
-            this.transporter = nodemailer.createTransport({
-                host: this.config.host,
-                port: this.config.port,
-                secure: this.config.secure,
-                auth: {
-                    user: this.config.user,
-                    pass: this.config.password,
-                },
-                connectionTimeout: this.requestTimeout,
-                greetingTimeout: this.requestTimeout,
-                socketTimeout: this.requestTimeout,
-            });
+            const isGmail = (this.config.host && this.config.host.toLowerCase().includes('gmail')) ||
+                (this.config.user && this.config.user.toLowerCase().endsWith('@gmail.com'));
+            const cleanPassword = (this.config.password || '').trim().replace(/\s+/g, '');
+            if (isGmail) {
+                this.transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    auth: {
+                        user: this.config.user.trim(),
+                        pass: cleanPassword,
+                    },
+                    connectionTimeout: this.requestTimeout,
+                    greetingTimeout: this.requestTimeout,
+                    socketTimeout: this.requestTimeout,
+                });
+            }
+            else {
+                this.transporter = nodemailer.createTransport({
+                    host: this.config.host,
+                    port: this.config.port,
+                    secure: this.config.secure,
+                    auth: {
+                        user: this.config.user.trim(),
+                        pass: cleanPassword,
+                    },
+                    tls: {
+                        rejectUnauthorized: false,
+                    },
+                    connectionTimeout: this.requestTimeout,
+                    greetingTimeout: this.requestTimeout,
+                    socketTimeout: this.requestTimeout,
+                });
+            }
         }
         return this.transporter;
     }
@@ -69,7 +89,17 @@ export class SmtpEmailProvider {
         }
         catch (error) {
             const code = this.classifyError(error);
-            const message = error?.message || 'SMTP connection verification failed';
+            let message = error?.message || 'SMTP connection verification failed';
+            if (message.includes('Invalid login') || message.includes('535') || message.includes('Username and Password not accepted')) {
+                const isGmail = (this.config.host && this.config.host.toLowerCase().includes('gmail')) ||
+                    (this.config.user && this.config.user.toLowerCase().endsWith('@gmail.com'));
+                if (isGmail) {
+                    message = 'Gmail Authentication Failed: Please use a 16-character Google App Password (generated from myaccount.google.com/apppasswords), not your regular password.';
+                }
+                else {
+                    message = `Invalid Login (535): Incorrect username (${this.config.user}) or password for mail host ${this.config.host}.`;
+                }
+            }
             return {
                 success: false,
                 code,
@@ -79,7 +109,7 @@ export class SmtpEmailProvider {
     }
     classifyError(error) {
         const message = error?.message || '';
-        if (message.includes('Invalid login') || message.includes('Authentication') || message.includes('535')) {
+        if (message.includes('Invalid login') || message.includes('Authentication') || message.includes('535') || message.includes('Username and Password not accepted')) {
             return 'SMTP_AUTH_FAILED';
         }
         if (message.includes('ECONNREFUSED') || message.includes('ENOTFOUND')) {

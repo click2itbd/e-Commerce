@@ -9,6 +9,7 @@ import {
   BatchTldPricingItem,
   DomainTransferResult
 } from './IDomainProvider.js';
+import { getPublicServerIp } from '../../services/ipService.js';
 
 export class OpenproviderDomainProvider implements IDomainProvider {
   private readonly baseUrl: string;
@@ -117,7 +118,7 @@ export class OpenproviderDomainProvider implements IDomainProvider {
       if (!response.ok || (result.code !== undefined && result.code !== 0) || typeof token !== 'string' || !token) {
         const desc = result.desc || 'Authentication failed';
         if (/ip/i.test(desc) || /not allowed|whitelist|unauthorized|access denied/i.test(desc)) {
-          const serverIp = process.env.SERVER_IP || '160.191.14.26';
+          const serverIp = await getPublicServerIp();
           throw new Error(`Openprovider IP Not Authorized: Please whitelist server IP (${serverIp}) in your Openprovider Control Panel at https://cp.openprovider.eu/ (Account -> Contact persons / Security / API settings). Details: ${desc}`);
         }
         throw new Error(`Openprovider Auth Failed: ${desc}`);
@@ -166,7 +167,7 @@ export class OpenproviderDomainProvider implements IDomainProvider {
     if (!response.ok || (result.code !== undefined && result.code !== 0)) {
       const desc = result.desc || `Openprovider API Error: ${response.status}`;
       if (/ip/i.test(desc) || /not allowed|whitelist|access denied/i.test(desc)) {
-        const serverIp = process.env.SERVER_IP || '160.191.14.26';
+        const serverIp = await getPublicServerIp();
         throw new Error(`Openprovider IP Not Authorized: Please whitelist server IP (${serverIp}) in your Openprovider Control Panel at https://cp.openprovider.eu/ (Account -> Contact persons / Security / API settings)`);
       }
       const error: any = new Error(desc);
@@ -827,6 +828,7 @@ export class OpenproviderDomainProvider implements IDomainProvider {
   }
 
   async testConnection(): Promise<{ success: boolean; code: string; message: string; balance?: number; currency?: string; environment?: string; serverIp?: string }> {
+    const serverIp = await getPublicServerIp();
     try {
       await this.authenticate();
       const isSandbox = this.baseUrl.includes('cte');
@@ -838,10 +840,10 @@ export class OpenproviderDomainProvider implements IDomainProvider {
         environment: isSandbox ? 'sandbox' : 'production',
         balance: balanceRes.success ? balanceRes.balance : undefined,
         currency: balanceRes.success ? balanceRes.currency : undefined,
-        serverIp: process.env.SERVER_IP || '160.191.14.26',
+        serverIp,
       };
     } catch (error: any) {
-      return { success: false, code: 'AUTH_FAILED', message: error.message, serverIp: process.env.SERVER_IP || '160.191.14.26' };
+      return { success: false, code: 'AUTH_FAILED', message: error.message, serverIp };
     }
   }
 

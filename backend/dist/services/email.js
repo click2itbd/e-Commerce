@@ -1,20 +1,72 @@
 import { getAdminDb } from '../firebase/admin.js';
 import { SmtpEmailProvider } from '../providers/email/SmtpEmailProvider.js';
-let smtpProvider = null;
-export function getSmtpProvider() {
-    if (!smtpProvider) {
-        const config = {
-            host: process.env.SMTP_HOST || '',
-            port: parseInt(process.env.SMTP_PORT || '587'),
-            secure: process.env.SMTP_SECURE === 'true',
-            user: process.env.SMTP_USER || '',
-            password: process.env.SMTP_PASSWORD || '',
-            fromName: process.env.SMTP_FROM_NAME || 'Click2IT',
-            fromEmail: process.env.SMTP_FROM_EMAIL || 'noreply@click2itbd.com',
-        };
-        smtpProvider = new SmtpEmailProvider(config);
+let cachedSmtpProvider = null;
+let lastSmtpConfigHash = '';
+export async function getSmtpProvider(forceReload = false) {
+    let host = '';
+    let port = 587;
+    let secure = false;
+    let user = '';
+    let password = '';
+    let fromName = 'Click2IT';
+    let fromEmail = 'noreply@click2itbd.com';
+    // 1. Check Firestore settings/site first (allows runtime admin configuration from UI)
+    try {
+        const db = getAdminDb();
+        if (db) {
+            const snap = await db.collection('settings').doc('site').get();
+            if (snap.exists) {
+                const data = snap.data() || {};
+                if (data.mailUsername && data.mailPassword) {
+                    user = data.mailUsername.trim();
+                    password = data.mailPassword.trim();
+                    const isGmailUser = user.toLowerCase().endsWith('@gmail.com');
+                    host = data.mailHost ? data.mailHost.trim() : (isGmailUser ? 'smtp.gmail.com' : '');
+                    port = parseInt(data.mailPort) || (isGmailUser ? 465 : 587);
+                    secure = data.mailEncryption === 'ssl' || String(port) === '465';
+                    if (data.mailFromName)
+                        fromName = data.mailFromName.trim();
+                    if (data.mailFromAddress)
+                        fromEmail = data.mailFromAddress.trim();
+                    else if (user.includes('@'))
+                        fromEmail = user;
+                }
+            }
+        }
     }
-    return smtpProvider;
+    catch (err) {
+        console.warn('Could not read email settings from Firestore:', err);
+    }
+    // 2. Fallback to environment variables if not configured in Firestore
+    if (!host || !user || !password) {
+        user = user || process.env.SMTP_USER || process.env.GMAIL_USER || '';
+        password = password || process.env.SMTP_PASSWORD || process.env.GMAIL_APP_PASSWORD || '';
+        const isGmail = (user && user.toLowerCase().endsWith('@gmail.com')) || !!process.env.GMAIL_USER;
+        host = host || process.env.SMTP_HOST || (isGmail ? 'smtp.gmail.com' : '');
+        port = port || parseInt(process.env.SMTP_PORT || (isGmail ? '465' : '587'));
+        secure = process.env.SMTP_SECURE === 'true' || port === 465 || isGmail;
+        if (process.env.SMTP_FROM_NAME)
+            fromName = process.env.SMTP_FROM_NAME;
+        if (process.env.SMTP_FROM_EMAIL)
+            fromEmail = process.env.SMTP_FROM_EMAIL;
+        else if (user && user.includes('@'))
+            fromEmail = user;
+    }
+    const currentHash = `${host}:${port}:${user}:${password}:${fromEmail}:${fromName}:${secure}`;
+    if (!cachedSmtpProvider || forceReload || currentHash !== lastSmtpConfigHash) {
+        const config = {
+            host,
+            port,
+            secure,
+            user,
+            password,
+            fromName,
+            fromEmail,
+        };
+        cachedSmtpProvider = new SmtpEmailProvider(config);
+        lastSmtpConfigHash = currentHash;
+    }
+    return cachedSmtpProvider;
 }
 export async function logEmailToFirestore(options, status, error) {
     try {
@@ -59,7 +111,7 @@ export async function sendEmail(options, retries = 2) {
         console.log(`Duplicate email prevented: ${subject} to ${to}`);
         return { success: true };
     }
-    const provider = getSmtpProvider();
+    const provider = await getSmtpProvider();
     let lastError;
     for (let attempt = 0; attempt <= retries; attempt++) {
         if (attempt > 0) {
@@ -81,7 +133,7 @@ export async function sendEmail(options, retries = 2) {
     return { success: false, error: lastError };
 }
 export async function verifySmtpConnection() {
-    const provider = getSmtpProvider();
+    const provider = await getSmtpProvider(true);
     return provider.verifyConnection();
 }
 export const EmailTemplates = {

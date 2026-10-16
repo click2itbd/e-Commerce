@@ -31,12 +31,28 @@ export function DomainRegistrarsModule() {
     serverIp?: string;
   } | null>(null);
   const [copiedIp, setCopiedIp] = useState(false);
+  const [detectedIp, setDetectedIp] = useState<string>('');
 
-  const serverIp = testResult?.serverIp || '160.191.14.26';
+  const serverIp = testResult?.serverIp || detectedIp || 'Detecting IP...';
 
   useEffect(() => {
     loadSettings();
+    fetchServerIp();
   }, []);
+
+  const fetchServerIp = async () => {
+    try {
+      const res = await fetch('/api/domains/server-ip');
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.serverIp && data.serverIp !== 'Server IP') {
+          setDetectedIp(data.serverIp);
+        }
+      }
+    } catch {
+      // Ignore background IP detection error
+    }
+  };
 
   const loadSettings = async () => {
     try {
@@ -47,7 +63,7 @@ export function DomainRegistrarsModule() {
           ...prev,
           openprovider: { 
             ...prev.openprovider, 
-            ...data.openprovider,
+            ...data.openprovider, 
             // Ensure default is production (isSandbox: false) for members
             isSandbox: data.openprovider?.isSandbox === true,
           }
