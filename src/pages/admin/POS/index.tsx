@@ -787,8 +787,10 @@ export const RetailPOS = () => {
   };
 
   const printReceipt = (orderData: any) => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
+    let printWindow: Window | null = null;
+    try {
+      printWindow = window.open("", "_blank");
+    } catch (_) {}
 
     let itemsHtml = "";
     const isThermal = settings?.receiptPrinterType === "Thermal Printer";
@@ -978,8 +980,39 @@ export const RetailPOS = () => {
       </html>
     `;
 
-    printWindow.document.write(html);
-    printWindow.document.close();
+    if (printWindow) {
+      try {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        return;
+      } catch (e) {
+        console.warn("Writing to printWindow failed, falling back to hidden iframe", e);
+      }
+    }
+
+    // Fallback: If browser blocked popup window, print seamlessly via single reusable hidden iframe
+    let printIframe = document.getElementById("__pos_print_iframe__") as HTMLIFrameElement;
+    if (printIframe && printIframe.parentNode) {
+      try {
+        printIframe.parentNode.removeChild(printIframe);
+      } catch (_) {}
+    }
+    printIframe = document.createElement("iframe");
+    printIframe.id = "__pos_print_iframe__";
+    printIframe.style.position = "fixed";
+    printIframe.style.right = "0";
+    printIframe.style.bottom = "0";
+    printIframe.style.width = "0px";
+    printIframe.style.height = "0px";
+    printIframe.style.border = "none";
+    printIframe.style.visibility = "hidden";
+    document.body.appendChild(printIframe);
+    const doc = printIframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(html);
+      doc.close();
+    }
   };
 
   if (loading) {

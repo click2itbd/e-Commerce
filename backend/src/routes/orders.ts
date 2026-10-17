@@ -3,8 +3,36 @@ import { getAdminDb, isUserAdmin } from '../firebase/admin.js';
 import { sendEmail } from '../services/email.js';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
 import { fulfillOrder } from '../services/fulfillment.js';
+import { calculateAndCreateServerOrder } from '../services/orderPricing.js';
 
 const ordersRouter = Router();
+
+ordersRouter.post('/create', requireFirebaseAuth, async (req: any, res: Response) => {
+  const userId = req.user?.uid;
+  if (!userId) {
+    return res.status(401).json({ success: false, error: 'Authentication required to create an order.' });
+  }
+
+  try {
+    const result = await calculateAndCreateServerOrder(userId, req.body);
+    return res.status(201).json({
+      success: true,
+      orderId: result.orderId,
+      orderData: result.orderData,
+      subtotal: result.subtotal,
+      discountAmount: result.discountAmount,
+      shippingCost: result.shippingCost,
+      grandTotal: result.grandTotal,
+      payNowAmount: result.payNowAmount,
+    });
+  } catch (error: any) {
+    console.error('[Orders] Server-side order creation failed:', error);
+    return res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to validate and create order.',
+    });
+  }
+});
 
 ordersRouter.post('/:orderId/payment/manual-bkash', requireFirebaseAuth, async (req: any, res: Response) => {
   const userId = req.user?.uid;

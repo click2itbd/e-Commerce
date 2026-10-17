@@ -89,11 +89,92 @@ function amountToWords(num: number): string {
   return str.trim();
 }
 
+// Memory-safe printing infrastructure & Caches
+let activePrintIframe: HTMLIFrameElement | null = null;
+let activeBlobUrl: string | null = null;
+let printCleanupTimeout: any = null;
+
+let cachedLogoDataUrl: string | null = null;
+let cachedLogoWidthRatio: number = 1;
+let cachedLogoSourceUrl: string | null = null;
+
+const productDetailCache = new Map<string, any>();
+
+export const printBlobPdf = (blob: Blob) => {
+  if (printCleanupTimeout) {
+    clearTimeout(printCleanupTimeout);
+    printCleanupTimeout = null;
+  }
+
+  // Revoke previous blob and remove previous iframe if still attached
+  if (activeBlobUrl) {
+    try {
+      URL.revokeObjectURL(activeBlobUrl);
+    } catch (_) {}
+    activeBlobUrl = null;
+  }
+  
+  if (activePrintIframe && activePrintIframe.parentNode) {
+    try {
+      activePrintIframe.parentNode.removeChild(activePrintIframe);
+    } catch (_) {}
+    activePrintIframe = null;
+  }
+
+  try {
+    const blobURL = URL.createObjectURL(blob);
+    activeBlobUrl = blobURL;
+
+    const iframe = document.createElement("iframe");
+    iframe.id = "__pdf_print_iframe__";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0px";
+    iframe.style.height = "0px";
+    iframe.style.border = "none";
+    iframe.style.visibility = "hidden";
+
+    iframe.onload = () => {
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (err) {
+          console.error("Print dialog trigger error:", err);
+        }
+      }, 250);
+    };
+
+    iframe.src = blobURL;
+    document.body.appendChild(iframe);
+    activePrintIframe = iframe;
+
+    // Automatic garbage collection after 60 seconds
+    printCleanupTimeout = setTimeout(() => {
+      if (activePrintIframe && activePrintIframe.parentNode) {
+        try {
+          activePrintIframe.parentNode.removeChild(activePrintIframe);
+        } catch (_) {}
+        activePrintIframe = null;
+      }
+      if (activeBlobUrl) {
+        try {
+          URL.revokeObjectURL(activeBlobUrl);
+        } catch (_) {}
+        activeBlobUrl = null;
+      }
+    }, 60000);
+  } catch (err) {
+    console.error("Failed to setup print iframe:", err);
+  }
+};
+
 export const generatePDF = async (
   order: Order | Transaction,
   type: "invoice" | "quotation" | "challan" | "receipt",
   settings: SiteSettings,
-  action: "download" | "doc" = "download",
+  action: "download" | "doc" | "print" = "download",
 ): Promise<any> => {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
@@ -114,50 +195,71 @@ export const generatePDF = async (
   doc.setTextColor(71, 85, 105);
 
   try {
-    const urlsToTry = [settings?.logoUrl, "/logo.png", "/logo.jpeg"].filter(Boolean);
-    let dataUrl = "";
-    let loadedImg: HTMLImageElement | null = null;
-
-    for (const url of urlsToTry) {
-      if (!url) continue;
-      try {
-        const img = new Image();
-        img.crossOrigin = "Anonymous";
-        await new Promise((resolve, reject) => {
-          img.onload = () => resolve(true);
-          img.onerror = reject;
-          img.src = url;
-        });
-
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          dataUrl = canvas.toDataURL("image/png");
-          loadedImg = img;
-          break; // successfully loaded
-        }
-      } catch (e) {
-        console.warn(`Failed to load logo from ${url}`, e);
-      }
-    }
-
+    const primaryUrl = settings?.logoUrl || "/logo.png";
     const businessNameText = settings?.businessName || settings?.brandName || "CLICK2IT BD";
-    
-    if (loadedImg && dataUrl) {
+
+    if (cachedLogoDataUrl && cachedLogoSourceUrl === primaryUrl) {
       const textWidth = doc.getTextWidth(businessNameText);
       const logoHeight = 16;
-      const logoWidth = (loadedImg.width / loadedImg.height) * logoHeight;
+      const logoWidth = cachedLogoWidthRatio * logoHeight;
       doc.addImage(
-        dataUrl,
+        cachedLogoDataUrl,
         "PNG",
         pageWidth - 15 - textWidth - logoWidth - 5,
         currentY - 11,
         logoWidth,
         logoHeight,
       );
+    } else {
+      const urlsToTry = [settings?.logoUrl, "/logo.png", "/logo.jpeg"].filter(Boolean);
+      let dataUrl = "";
+      let loadedRatio = 1;
+
+      for (const url of urlsToTry) {
+        if (!url) continue;
+        try {
+          const img = new Image();
+          img.crossOrigin = "Anonymous";
+          const loadPromise = new Promise<HTMLImageElement>((resolve, reject) => {
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = url;
+          });
+          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+          const loadedImg = await Promise.race([loadPromise, timeoutPromise]);
+          if (!loadedImg) continue;
+
+          const canvas = document.createElement("canvas");
+          canvas.width = loadedImg.width;
+          canvas.height = loadedImg.height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(loadedImg, 0, 0);
+            dataUrl = canvas.toDataURL("image/png");
+            loadedRatio = loadedImg.width / loadedImg.height;
+            cachedLogoDataUrl = dataUrl;
+            cachedLogoWidthRatio = loadedRatio;
+            cachedLogoSourceUrl = primaryUrl;
+            break;
+          }
+        } catch (e) {
+          // silently continue
+        }
+      }
+
+      if (dataUrl) {
+        const textWidth = doc.getTextWidth(businessNameText);
+        const logoHeight = 16;
+        const logoWidth = loadedRatio * logoHeight;
+        doc.addImage(
+          dataUrl,
+          "PNG",
+          pageWidth - 15 - textWidth - logoWidth - 5,
+          currentY - 11,
+          logoWidth,
+          logoHeight,
+        );
+      }
     }
   } catch (err) {
     console.error("Error in logo processing for PDF", err);
@@ -409,28 +511,42 @@ export const generatePDF = async (
       ? ["S.N.", "Product Name", "Brand", "Unit", "Warranty"]
       : ["S.N.", "Product Name", "Brand", "Unit", "Unit Price", "Warranty", "Total (TK.)"];
 
-        // Enrich items with brand and warranty from DB if missing
+    // Enrich items with brand and warranty from DB if missing (Parallel with Cache & 1.5s timeout)
     if (o.items && Array.isArray(o.items)) {
-      const enrichedItems: any[] = [];
-      for (let i = 0; i < o.items.length; i++) {
-        let item: any = { ...o.items[i] };
-        const pId = item.productId || item.id;
-        if (pId && (!item.brand || (!item.warranty && !item.warrantyMonths && !item.specs?.Warranty))) {
-          try {
-            const pDoc = await getDoc(fsDoc(db, 'products', pId));
-            if (pDoc.exists()) {
-              const pData: any = pDoc.data();
-              if (!item.brand && pData.brand) item.brand = pData.brand;
-              if (!item.brand && !pData.brand) item.brand = pData.category || pData.vendorName || '-';
+      const enrichedItems = await Promise.all(
+        o.items.map(async (rawItem: any) => {
+          const item = { ...rawItem };
+          const pId = item.productId || item.id;
+          if (pId && (!item.brand || (!item.warranty && !item.warrantyMonths && !item.specs?.Warranty))) {
+            if (productDetailCache.has(pId)) {
+              const cached = productDetailCache.get(pId);
+              if (!item.brand && cached.brand) item.brand = cached.brand;
+              if (!item.brand && !cached.brand) item.brand = cached.category || cached.vendorName || '-';
               if (!item.warranty && !item.warrantyMonths && !item.specs?.Warranty) {
-                if (pData.specs?.Warranty) item.warranty = pData.specs.Warranty;
-                else if (pData.warrantyMonths) { item.warrantyMonths = pData.warrantyMonths; item.warrantyUnit = item.warrantyUnit || pData.warrantyUnit; }
+                if (cached.specs?.Warranty) item.warranty = cached.specs.Warranty;
+                else if (cached.warrantyMonths) { item.warrantyMonths = cached.warrantyMonths; item.warrantyUnit = item.warrantyUnit || cached.warrantyUnit; }
               }
+            } else {
+              try {
+                const fetchPromise = getDoc(fsDoc(db, 'products', pId));
+                const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+                const pDoc = await Promise.race([fetchPromise, timeoutPromise]);
+                if (pDoc && pDoc.exists()) {
+                  const pData: any = pDoc.data();
+                  productDetailCache.set(pId, pData);
+                  if (!item.brand && pData.brand) item.brand = pData.brand;
+                  if (!item.brand && !pData.brand) item.brand = pData.category || pData.vendorName || '-';
+                  if (!item.warranty && !item.warrantyMonths && !item.specs?.Warranty) {
+                    if (pData.specs?.Warranty) item.warranty = pData.specs.Warranty;
+                    else if (pData.warrantyMonths) { item.warrantyMonths = pData.warrantyMonths; item.warrantyUnit = item.warrantyUnit || pData.warrantyUnit; }
+                  }
+                }
+              } catch(e) {}
             }
-          } catch(e) {}
-        }
-        enrichedItems.push(item);
-      }
+          }
+          return item;
+        })
+      );
       o.items = enrichedItems;
     }
 
@@ -445,9 +561,17 @@ export const generatePDF = async (
         warranty = item.specs.Warranty;
       }
 
+      let productName = item.name || "Item";
+      if (item.variantName) {
+        productName += ` (${item.variantName})`;
+      }
+      if (item.selectedSerials && Array.isArray(item.selectedSerials) && item.selectedSerials.length > 0) {
+        productName += `\nS/N: ${item.selectedSerials.join(", ")}`;
+      }
+
       const row = [
         (idx + 1).toString(),
-        item.name,
+        productName,
         item.brand || "-",
         item.quantity + ' ' + (item.unit || 'pcs')
       ];
@@ -527,7 +651,7 @@ export const generatePDF = async (
       const discount = (Number(o.discountAmount) || 0) + itemDiscounts;
 
       const alignRightX = pageWidth - 15;
-      const labelX = pageWidth - 90;
+      const labelX = pageWidth - 68;
 
       doc.setFontSize(11);
 
@@ -570,17 +694,13 @@ export const generatePDF = async (
         doc.text("PAID", alignRightX, finalY, { align: "right" });
         doc.setTextColor(15, 23, 42);
       } else {
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(22, 163, 74);
-        doc.text("Paid Amount:", labelX, finalY);
-        doc.text(paidVal.toFixed(2), alignRightX, finalY, { align: "right" });
-        finalY += 7;
-
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(220, 38, 38);
-        doc.text("Remaining Due:", labelX, finalY);
-        doc.text(billRemainingDue.toFixed(2), alignRightX, finalY, { align: "right" });
-        doc.setTextColor(15, 23, 42);
+        if (paidVal > 0) {
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(22, 163, 74);
+          doc.text("Paid Amount:", labelX, finalY);
+          doc.text(paidVal.toFixed(2), alignRightX, finalY, { align: "right" });
+          finalY += 7;
+        }
       }
 
       finalY += 8;
@@ -710,21 +830,10 @@ export const generatePDF = async (
     }
   }
 
-  if ((order as any)._autoPrint) {
+  if ((order as any)._autoPrint || action === "print") {
     doc.autoPrint();
-    const blobURL = URL.createObjectURL(doc.output("blob"));
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "absolute";
-    iframe.style.width = "0px";
-    iframe.style.height = "0px";
-    iframe.style.border = "none";
-    iframe.src = blobURL;
-    document.body.appendChild(iframe);
-    iframe.onload = () => {
-      setTimeout(() => {
-        iframe.contentWindow?.print();
-      }, 100);
-    };
+    const blob = doc.output("blob");
+    printBlobPdf(blob);
   } else if (action === "download") {
     const docName = (order as any).documentNumber || (order as any).invoiceNumber || order.id || "document";
     doc.save(`${type.charAt(0).toUpperCase() + type.slice(1)}_${docName}.pdf`);

@@ -457,215 +457,68 @@ export const HostingCheckout: React.FC = () => {
       let orderId = existingOrderId;
 
       if (!orderId) {
-      const docType = 'INV'; 
-      const docNumber = await generateDocumentNumber(docType);
+        if (!user) {
+          toast.error('Please log in to complete your order.');
+          setIsProcessing(false);
+          return;
+        }
+        const token = await user.getIdToken();
 
-      const orderData = {
-        userId: user?.uid || 'guest',
-        platform: 'hosting',
-        items: items.map(({ eppCode: _eppCode, authCode: _authCode, ...item }) => {
-          const code = item.itemType === 'domain_transfer' ? (transferAuthCodes[item.id]?.trim() || transferAuthCodes[item.domain]?.trim()) : undefined;
-          return {
-            ...item,
-            isDigital: true,
-            ...(code ? { authCode: code, eppCode: code } : {}),
-          };
-        }),
-        total: grandTotal,
-        shippingCost,
-        status: 'pending',
-        paymentStatus: formData.paymentMethod === 'bkash' && formData.transactionId?.trim() ? 'submitted' : 'pending',
-        paymentSubmittedAt: formData.paymentMethod === 'bkash' && formData.transactionId?.trim() ? new Date().toISOString() : null,
-        type: 'invoice',
-        documentNumber: docNumber,
-        customerName: `${formData.firstName} ${formData.lastName}`.trim(),
-        customerEmail: formData.email,
-        customerPhone: fullPhone,
-        shippingAddress: `${formData.address1}, ${formData.address2 ? formData.address2 + ', ' : ''}${formData.city}, ${formData.state} - ${formData.postcode}, ${formData.country}`,
-        company: formData.company,
-        paymentMethod: formData.paymentMethod,
-        transactionId: ['bkash', 'bank'].includes(formData.paymentMethod) ? formData.transactionId.trim() : null,
-        discountAmount: discountAmount,
-        appliedDiscountCode: appliedDiscount ? appliedDiscount.code : null,
-        vpsConfig: hasVps ? {
-          hostname: vpsConfig.hostname.trim(),
-          os: vpsConfig.os,
-          serverLocation: vpsConfig.serverLocation,
-          rootPassword: vpsConfig.rootPassword,
-          sshKey: vpsConfig.sshKey.trim(),
-          notes: vpsConfig.notes.trim()
-        } : null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+        const minimalItems = items.map((item: any) => ({
+          id: item.id,
+          productId: item.productId || item.id,
+          variantId: item.variantId || undefined,
+          quantity: item.quantity || 1,
+          itemType: item.itemType,
+          domain: item.domain,
+          domainTld: item.domainTld,
+          termYears: item.termYears,
+          billingCycle: item.billingCycle,
+          planId: item.planId,
+          planSlug: item.planSlug,
+          bdAppId: item.bdAppId,
+          details: item.details,
+        }));
 
-      const batch = writeBatch(db);
-      const newOrderRef = doc(collection(db, 'orders'));
-      batch.set(newOrderRef, orderData);
-      
-      
-      
-      const sslItems = items.filter(item => item.itemType === 'ssl');
-      for (const sslItem of sslItems) {
-        const sOrderRef = doc(collection(db, 'sslOrders'));
-        batch.set(sOrderRef, {
-          userId: user?.uid || 'guest',
-          orderId: newOrderRef.id,
-          productId: sslItem.id.split('_')[0] + '_' + sslItem.id.split('_')[1], // e.g. ssl_positive
-          name: sslItem.name,
-          termYears: sslItem.termYears || 1,
-          price: sslItem.price,
-          status: 'pending_configuration', // User needs to enter CSR later
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-      }
-
-      const domainItems = items.filter(item => item.itemType === 'domain');
-      
-      const renewalItems = items.filter(item => item.itemType === 'domain_renewal');
-      const transferItems = items.filter(item => item.itemType === 'domain_transfer');
-
-
-      const hostingItems = items.filter(item => item.itemType === 'hosting');
-
-      for (const domainItem of domainItems) {
-        const domain = domainItem.id.replace('domain_', '');
-        const tld = domainItem.domainTld || domain.split('.').pop() || '';
-        const dOrderRef = doc(collection(db, 'domainOrders'));
-        batch.set(dOrderRef, {
-          userId: user?.uid || 'guest',
-          orderId: newOrderRef.id,
-          domain: domain,
-          tld: tld,
-          termYears: domainItem.termYears || 1,
-          price: domainItem.price,
-          nameservers: domainConfig.useCustomNs
-            ? [domainConfig.ns1.trim(), domainConfig.ns2.trim()].filter(Boolean)
-            : ['ns1.click2itbd.com', 'ns2.click2itbd.com'],
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-      }
-
-      
-      for (const rItem of renewalItems) {
-        const dOrderRef = doc(collection(db, 'domainOrders'));
-        batch.set(dOrderRef, {
-          userId: user?.uid || 'guest',
-          orderId: newOrderRef.id,
-          domain: rItem.domain,
-          tld: rItem.domain.split('.').pop() || '',
-          termYears: rItem.termYears || 1,
-          price: rItem.price,
-          status: 'pending',
-          action: 'renewal',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-      }
-
-      
-      for (const tItem of transferItems) {
-        const dOrderRef = doc(collection(db, 'domainOrders'));
-        const code = (transferAuthCodes[tItem.id] || transferAuthCodes[tItem.domain])?.trim() || '';
-        const domainClean = (tItem.domain || tItem.id.replace('domain_transfer_', '')).trim().toLowerCase();
-        batch.set(dOrderRef, {
-          userId: user?.uid || 'guest',
-          orderId: newOrderRef.id,
-          domain: domainClean,
-          tld: domainClean.split('.').pop() || '',
-          termYears: tItem.termYears || 1,
-          years: tItem.termYears || 1,
-          price: tItem.price,
-          status: 'pending',
-          type: 'transfer',
-          ...(code ? { authCode: code, eppCode: code } : {}),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-      }
-
-      for (const hostingItem of hostingItems) {
-        const hAccountRef = doc(collection(db, 'hostingAccounts'));
-        const isItemVps = isVpsItem(hostingItem);
-        const packageSlug = hostingItem.planSlug || hostingItem.planId || hostingItem.id.replace('hosting_', '').replace('dynamic-hosting-', '').split('-')[0] || (isItemVps ? 'vps_starter' : 'starter');
-        
-        batch.set(hAccountRef, {
-          userId: user?.uid || 'guest',
-          orderId: newOrderRef.id,
-          planId: packageSlug,
-          domain: isItemVps ? vpsConfig.hostname.trim() : (hostingConfig.domain || null),
-          provider: isItemVps ? 'vps' : 'cpanel',
-          type: isItemVps ? 'vps' : 'shared',
-          status: 'pending',
-          provisioningStatus: 'pending',
-          billingCycle: hostingItem.billingCycle || 'monthly',
-          autoRenew: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          ...(isItemVps ? {
-            vpsDetails: {
-              hostname: vpsConfig.hostname.trim(),
-              os: vpsConfig.os,
-              serverLocation: vpsConfig.serverLocation,
-              rootPassword: vpsConfig.rootPassword,
-              sshKey: vpsConfig.sshKey.trim(),
-              notes: vpsConfig.notes.trim(),
-              cores: hostingItem.details?.cores || '2 vCPU',
-              ram: hostingItem.details?.ram || '4 GB',
-              storage: hostingItem.details?.storage || '60 GB NVMe',
-              bandwidth: hostingItem.details?.bandwidth || '2 TB',
-              ipv4: hostingItem.details?.ipv4 || '1 Dedicated IPv4'
-            }
-          } : {})
-        });
-
-        // Also write to hostingOrders collection with explicit fields
-        const hostingOrderDocRef = doc(collection(db, 'hostingOrders'), newOrderRef.id);
-        batch.set(hostingOrderDocRef, {
-          ...orderData,
-          id: newOrderRef.id,
-          orderId: newOrderRef.id,
-          packageSlug: packageSlug,
-          billingCycle: hostingItem.billingCycle || 'monthly',
-          price: grandTotal,
-          domain: isItemVps ? vpsConfig.hostname.trim() : (hostingConfig.domain || ''),
-          customerInfo: {
-            name: `${formData.firstName} ${formData.lastName}`.trim(),
-            email: formData.email,
-            phone: fullPhone,
-            address: formData.address1,
-            city: formData.city,
-            country: formData.country,
-          },
-          status: 'pending',
-          vpsConfig: isItemVps ? {
+        const createRes = await apiPost('/api/orders/create', {
+          platform: 'hosting',
+          items: minimalItems,
+          couponCode: appliedDiscount ? appliedDiscount.code : null,
+          customerName: `${formData.firstName} ${formData.lastName}`.trim(),
+          customerEmail: formData.email,
+          customerPhone: fullPhone,
+          shippingAddress: `${formData.address1}, ${formData.address2 ? formData.address2 + ', ' : ''}${formData.city}, ${formData.state} - ${formData.postcode}, ${formData.country}`,
+          city: formData.city,
+          state: formData.state,
+          company: formData.company,
+          paymentMethod: formData.paymentMethod,
+          transactionId: ['bkash', 'bank'].includes(formData.paymentMethod) ? formData.transactionId.trim() : null,
+          domainConfig,
+          hostingConfig,
+          vpsConfig: hasVps ? {
             hostname: vpsConfig.hostname.trim(),
             os: vpsConfig.os,
             serverLocation: vpsConfig.serverLocation,
             rootPassword: vpsConfig.rootPassword,
             sshKey: vpsConfig.sshKey.trim(),
             notes: vpsConfig.notes.trim()
-          } : null
-        });
-      }
+          } : null,
+        }, token);
 
-      await batch.commit();
-      
-      // Notify Admin
-      try {
-        if (user) {
-          const token = await user.getIdToken();
-          await apiPost('/api/send-email/notify-admin-new-order', { orderId: newOrderRef.id, orderData }, token);
+        if (!createRes?.success || !createRes?.orderId) {
+          throw new Error(createRes?.error || 'Failed to create order on server');
         }
-      } catch (err) {
-        console.error('Failed to notify admin:', err);
-      }
-      
-      orderId = newOrderRef.id;
+
+        orderId = createRes.orderId;
+        const serverOrderData = createRes.orderData;
         setExistingOrderId(orderId);
+
+        // Notify Admin
+        try {
+          await apiPost('/api/send-email/notify-admin-new-order', { orderId, orderData: serverOrderData }, token);
+        } catch (err) {
+          console.error('Failed to notify admin:', err);
+        }
       } // End if (!orderId)
 
       // Store transfer auth codes securely via backend API
@@ -682,7 +535,7 @@ export const HostingCheckout: React.FC = () => {
               };
             })
             .filter(entry => Boolean(entry.authCode));
-          
+
           if (authCodesPayload.length > 0) {
             const token = user ? await user.getIdToken() : undefined;
             await apiPost('/api/domains/transfer-auth-codes', {
@@ -716,43 +569,7 @@ export const HostingCheckout: React.FC = () => {
             walletPaid = true;
           }
         } catch (apiErr: any) {
-          console.warn('API pay-order error, attempting direct Firestore fallback:', apiErr);
-        }
-
-        // Direct fallback if API was unreachable
-        if (!walletPaid) {
-          try {
-            const userDocSnap = await getDoc(doc(db, 'users', user.uid));
-            const currentBal = typeof userDocSnap.data()?.balance === 'number' ? userDocSnap.data()?.balance : 0;
-            if (currentBal >= grandTotal) {
-              const newBal = currentBal - grandTotal;
-              const now = new Date().toISOString();
-              await updateDoc(doc(db, 'users', user.uid), { balance: newBal, updatedAt: now });
-              await updateDoc(doc(db, 'orders', orderId), {
-                paymentStatus: 'verified',
-                paymentMethod: 'wallet_balance',
-                status: 'completed',
-                paidAt: now,
-                updatedAt: now
-              });
-              const txDoc = doc(collection(db, 'wallet_transactions'));
-              await setDoc(txDoc, {
-                id: txDoc.id,
-                userId: user.uid,
-                customerEmail: user.email || formData.email,
-                type: 'debit',
-                amount: grandTotal,
-                balanceBefore: currentBal,
-                balanceAfter: newBal,
-                reason: `Payment for Order #${orderId.slice(0, 8)}`,
-                orderId,
-                createdAt: now
-              });
-              walletPaid = true;
-            }
-          } catch (fErr) {
-            console.error('Direct Firestore wallet payment failed:', fErr);
-          }
+          console.error('API pay-order error:', apiErr);
         }
 
         if (walletPaid) {
@@ -769,10 +586,10 @@ export const HostingCheckout: React.FC = () => {
         return;
       } else if (formData.paymentMethod === 'card') {
         const res = await initiateSSLCommerzPayment(
-          orderId, 
-          grandTotal, 
-          formData.email, 
-          `${formData.firstName} ${formData.lastName}`, 
+          orderId,
+          grandTotal,
+          formData.email,
+          `${formData.firstName} ${formData.lastName}`,
           fullPhone
         );
         if (res.success && res.paymentUrl) {

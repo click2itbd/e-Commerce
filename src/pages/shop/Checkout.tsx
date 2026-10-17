@@ -243,9 +243,6 @@ export const Checkout: React.FC = () => {
       }
       const fullPhone = `+880${cleanPhone}`;
 
-      const docType = 'INV'; // default to invoice
-      const docNumber = await generateDocumentNumber(docType);
-
       let affiliateRefId = null;
       try {
         const stored = localStorage.getItem('affiliate_ref');
@@ -259,184 +256,91 @@ export const Checkout: React.FC = () => {
         }
       } catch(e) {}
 
-      const orderData = {
-        userId: currentUserId,
+      const currentAuthUser = auth.currentUser || user;
+      if (!currentAuthUser) {
+        toast.error("Authentication required to place an order.");
+        setIsProcessing(false);
+        return;
+      }
+      const token = await currentAuthUser.getIdToken();
+
+      // Send only item identifiers, quantities, and couponCode to backend for server-side price & stock verification
+      const minimalItems = items.map((item: any) => ({
+        id: item.id,
+        productId: item.productId || item.id,
+        variantId: item.variantId || undefined,
+        quantity: item.quantity || 1,
+        itemType: item.itemType,
+        domain: item.domain,
+        domainTld: item.domainTld,
+        termYears: item.termYears,
+        billingCycle: item.billingCycle,
+        planId: item.planId,
+        planSlug: item.planSlug,
+        bdAppId: item.bdAppId,
+        details: item.details,
+      }));
+
+      const createRes = await apiPost('/api/orders/create', {
         platform: 'ecommerce',
-        items,
-        total: grandTotal,
-        shippingCost,
-        status: 'pending',
-        paymentStatus: 'pending',
-        type: 'invoice',
-        documentNumber: docNumber,
+        items: minimalItems,
+        couponCode: appliedDiscount ? appliedDiscount.code : null,
         customerName: `${formData.firstName} ${formData.lastName}`.trim(),
         customerEmail: formData.email,
         customerPhone: fullPhone,
         shippingAddress: `${formData.address1}, ${formData.address2 ? formData.address2 + ', ' : ''}${formData.union ? formData.union + ', ' : ''}${formData.thana ? formData.thana + ', ' : ''}${formData.city}, ${formData.state} - ${formData.postcode}, ${formData.country}`,
+        city: formData.city,
+        state: formData.state,
         company: formData.company,
-        discountCode: appliedDiscount ? appliedDiscount.code : null,
-        discountAmount: promoDiscount,
-        paymentMethod: paymentType === 'cod' ? (advanceDelivery ? 'cod_advance_paid' : 'cod') : formData.paymentMethod,
-        advancePaidAmount: isAdvanceCOD ? shippingCost : 0,
+        paymentType,
+        advanceDelivery,
+        paymentMethod: formData.paymentMethod,
         notes: formData.notes,
-        createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+        affiliateRefId,
+      }, token);
 
-      const batch = writeBatch(db);
-      const newOrderRef = doc(collection(db, 'orders'));
-      batch.set(newOrderRef, orderData);
-
-      // Record sale transaction in accounting ledger
-      const txRef = doc(collection(db, 'transactions'));
-      batch.set(txRef, {
-        type: 'sale',
-        amount: grandTotal,
-        date: new Date().toISOString(),
-        description: `Online Order #${docNumber} (${formData.firstName} ${formData.lastName})`,
-        entityId: currentUserId || 'web_customer',
-        entityName: `${formData.firstName} ${formData.lastName}`.trim(),
-        entityType: 'customer',
-        referenceId: newOrderRef.id,
-        documentNumber: docNumber,
-        paymentAccountId: '',
-        paymentMethod: paymentType === 'cod' ? 'cod' : (formData.paymentMethod || 'online'),
-        createdAt: new Date().toISOString(),
-        createdBy: 'Online Customer',
-      });
-
-      // If advance delivery fee was paid
-      if (isAdvanceCOD && shippingCost > 0) {
-        const advTxRef = doc(collection(db, 'transactions'));
-        batch.set(advTxRef, {
-          type: 'payment_received',
-          amount: shippingCost,
-          date: new Date().toISOString(),
-          description: `Advance Delivery Fee for Order #${docNumber}`,
-          entityId: currentUserId || 'web_customer',
-          entityName: `${formData.firstName} ${formData.lastName}`.trim(),
-          entityType: 'customer',
-          referenceId: newOrderRef.id,
-          documentNumber: docNumber,
-          paymentAccountId: '',
-          paymentMethod: 'online',
-          createdAt: new Date().toISOString(),
-          createdBy: 'Online Customer',
-        });
-      }
-      
-      const domainItems = items.filter(item => item.itemType === 'domain' || item.itemType === 'domain_transfer');
-      const hostingItems = items.filter(item => item.itemType === 'hosting');
-
-      const sslItems = items.filter(item => item.itemType === 'ssl');
-      for (const sslItem of sslItems) {
-        const sOrderRef = doc(collection(db, 'sslOrders'));
-        batch.set(sOrderRef, {
-          userId: user?.uid || 'guest',
-          orderId: newOrderRef.id,
-          productId: sslItem.id.split('_')[0] + '_' + sslItem.id.split('_')[1],
-          name: sslItem.name,
-          termYears: sslItem.termYears || 1,
-          price: sslItem.price,
-          status: 'pending_configuration',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
+      if (!createRes?.success || !createRes?.orderId) {
+        throw new Error(createRes?.error || 'Failed to create order on server');
       }
 
-      
-      const productItems = items.filter(item => !item.itemType || item.itemType === 'product');
-      for (const pItem of productItems) {
-        if (pItem.id) {
-          const prodRef = doc(db, 'products', pItem.id);
-          batch.update(prodRef, { stock: increment(-pItem.quantity) });
-        }
+      const createdOrderId = createRes.orderId;
+      const serverOrderData = createRes.orderData;
+      const verifiedPayNowAmount = typeof createRes.payNowAmount === 'number' ? createRes.payNowAmount : payNowAmount;
+
+      // Notify Admin and Customer
+      try {
+        await apiPost('/api/send-email/notify-admin-new-order', { orderId: createdOrderId, orderData: serverOrderData }, token);
+
+        // Generate PDF for customer using server-verified order data
+        const pdfDoc = await generatePDF({ id: createdOrderId, ...serverOrderData } as any, 'invoice', settings, 'doc');
+        const pdfBase64 = pdfDoc.output('datauristring');
+
+        // Send Order Confirmation to Customer
+        await apiPost('/api/send-email/order-confirmation', {
+          orderId: createdOrderId,
+          customerName: `${formData.firstName} ${formData.lastName}`,
+          customerEmail: formData.email,
+          attachments: [
+            {
+              filename: `Invoice-${createdOrderId}.pdf`,
+              content: pdfBase64.split('base64,')[1],
+              encoding: 'base64',
+              contentType: 'application/pdf'
+            }
+          ]
+        }, token);
+      } catch (err) {
+        console.error('Failed to send order emails:', err);
       }
 
-      for (const domainItem of domainItems) {
-        const domain = domainItem.id.replace('domain_', '');
-        const tld = domainItem.domainTld || domain.split('.').pop() || '';
-        const dOrderRef = doc(collection(db, 'domainOrders'));
-        batch.set(dOrderRef, {
-          domain,
-          tld,
-          userId: currentUserId,
-          orderId: newOrderRef.id,
-          status: 'pending',
-          years: domainItem.termYears || 1,
-          autoRenew: false,
-          nameservers: [],
-          price: domainItem.price,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        
-        if ((domainItem as any).bdAppId) {
-          const appRef = doc(db, 'bd_domain_applications', (domainItem as any).bdAppId);
-          batch.update(appRef, {
-            status: 'processing',
-            orderId: newOrderRef.id,
-            updatedAt: new Date().toISOString()
-          });
-        }
-      }
-
-      for (const hostingItem of hostingItems) {
-        const hAccountRef = doc(collection(db, 'hostingAccounts'));
-        batch.set(hAccountRef, {
-          userId: currentUserId,
-          orderId: newOrderRef.id,
-          planId: hostingItem.id.replace('hosting_', ''),
-          provider: 'dummy',
-          status: 'pending',
-          billingCycle: hostingItem.billingCycle || 'monthly',
-          autoRenew: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-      }
-
-        await batch.commit();
-        
-        // Notify Admin and Customer
-        try {
-          if (user) {
-            const token = await user.getIdToken();
-            await apiPost('/api/send-email/notify-admin-new-order', { orderId: newOrderRef.id, orderData }, token);
-            
-            // Generate PDF for customer
-            const pdfDoc = await generatePDF({ id: newOrderRef.id, ...orderData } as any, 'invoice', settings, 'doc');
-            const pdfBase64 = pdfDoc.output('datauristring');
-            
-            // Send Order Confirmation to Customer
-            await apiPost('/api/send-email/order-confirmation', {
-              orderId: newOrderRef.id,
-              customerName: `${formData.firstName} ${formData.lastName}`,
-              customerEmail: formData.email,
-              attachments: [
-                {
-                  filename: `Invoice-${newOrderRef.id}.pdf`,
-                  content: pdfBase64.split('base64,')[1],
-                  encoding: 'base64',
-                  contentType: 'application/pdf'
-                }
-              ]
-            }, token);
-          }
-        } catch (err) {
-          console.error('Failed to send order emails:', err);
-        }
-      
-      // Update docRef for payment initiation logic below
-      const docRef = newOrderRef;
       // Only clear cart and show success if not redirecting to a payment gateway
-        const selectedPayment = paymentType === 'cod' ? 'cod' : formData.paymentMethod;
-        if (selectedPayment === 'bkash' || selectedPayment === 'card' || selectedPayment === 'nagad' || isAdvanceCOD) {
+      const selectedPayment = paymentType === 'cod' ? 'cod' : formData.paymentMethod;
+      if (selectedPayment === 'bkash' || selectedPayment === 'card' || selectedPayment === 'nagad' || isAdvanceCOD) {
         // Online payments or Advance COD route to a gateway
         const gateway = isAdvanceCOD ? (formData.paymentMethod || 'bkash') : selectedPayment;
-        
+
         if (gateway === 'bkash') {
-          const res = await initiateBkashPayment(docRef.id, payNowAmount, formData.email, `${formData.firstName} ${formData.lastName}`, fullPhone);
+          const res = await initiateBkashPayment(createdOrderId, verifiedPayNowAmount, formData.email, `${formData.firstName} ${formData.lastName}`, fullPhone);
           if (res.success && res.paymentUrl) {
             window.location.href = res.paymentUrl;
             return;
@@ -445,10 +349,10 @@ export const Checkout: React.FC = () => {
           }
         } else if (gateway === 'card') {
           const res = await initiateSSLCommerzPayment(
-            docRef.id, 
-            payNowAmount, 
-            formData.email, 
-            `${formData.firstName} ${formData.lastName}`, 
+            createdOrderId,
+            verifiedPayNowAmount,
+            formData.email,
+            `${formData.firstName} ${formData.lastName}`,
             fullPhone
           );
           if (res.success && res.paymentUrl) {
@@ -458,7 +362,7 @@ export const Checkout: React.FC = () => {
             throw new Error(res.errorMessage || 'Failed to initiate Card payment');
           }
         } else if (gateway === 'nagad') {
-          const res = await initiateNagadPayment(docRef.id, payNowAmount, fullPhone);
+          const res = await initiateNagadPayment(createdOrderId, verifiedPayNowAmount, fullPhone);
           if (res.success && res.paymentUrl) {
             window.location.href = res.paymentUrl;
             return;
@@ -469,7 +373,7 @@ export const Checkout: React.FC = () => {
       } else {
         // Pure COD without advance
         clearCart();
-        navigate(`/order-success/${docRef.id}`);
+        navigate(`/order-success/${createdOrderId}`);
         toast.success('Order placed successfully!');
         return;
       }
@@ -477,7 +381,7 @@ export const Checkout: React.FC = () => {
       // For manual methods (bank transfer, etc), proceed directly
       toast.success('Order placed successfully!');
       clearCart();
-      navigate(`/order-success/${docRef.id}`);
+      navigate(`/order-success/${createdOrderId}`);
     } catch (error: any) {
       console.error('Checkout error:', error);
       toast.error(error.message || 'Failed to place order');

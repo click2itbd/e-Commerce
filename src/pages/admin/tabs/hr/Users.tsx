@@ -9,9 +9,10 @@ import { toast } from 'react-hot-toast';
 import { Users as UsersIcon, Mail, X, Trash2, Shield, Key } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 import { Pagination } from '../../../../components/common/Pagination';
+import { logAudit } from '../../../../lib/audit';
 
 const UsersTab: React.FC = () => {
-  const { isAdmin, hasPermission } = useAuth();
+  const { profile, isAdmin, hasPermission } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -37,6 +38,10 @@ const UsersTab: React.FC = () => {
 
   const handleUpdateUserRole = async (userId: string, newRole: string) => {
     try {
+      const targetUser = users.find(u => (u.uid || (u as any).id) === userId);
+      const oldRole = targetUser?.role || 'user';
+      const oldPermissions = targetUser?.permissions || [];
+
       let permissions: UserPermission[] = [];
       if (newRole === 'admin') permissions = ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing'];
       else if (newRole === 'manager') permissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports'];
@@ -46,6 +51,19 @@ const UsersTab: React.FC = () => {
         role: newRole,
         permissions
       });
+
+      await logAudit(
+        'ROLE_CHANGE',
+        'User',
+        `Changed role of "${targetUser?.displayName || targetUser?.email || userId}" (${targetUser?.email || userId}) from "${oldRole}" to "${newRole}"`,
+        profile?.displayName || profile?.email || 'Admin',
+        {
+          entityId: userId,
+          previousState: { role: oldRole, permissions: oldPermissions },
+          newState: { role: newRole, permissions },
+        }
+      );
+
       toast.success('User role and permissions updated successfully');
       fetchData();
     } catch (error) {
@@ -88,6 +106,17 @@ const UsersTab: React.FC = () => {
       });
       
       await secondaryAuth.signOut();
+
+      await logAudit(
+        'CREATE',
+        'User',
+        `Created portal user "${userFormData.name || userFormData.email}" (${userFormData.email}) with role "${userFormData.role}"`,
+        profile?.displayName || profile?.email || 'Admin',
+        {
+          entityId: userCred.user.uid,
+          newState: { email: userFormData.email, role: userFormData.role, permissions: defaultPermissions },
+        }
+      );
       
       toast.success('Staff/Portal user added successfully');
       setIsAddingUser(false);
@@ -101,7 +130,18 @@ const UsersTab: React.FC = () => {
   const handleDeleteUser = async (user: UserProfile) => {
     if (!window.confirm(`Are you sure you want to remove ${user.displayName || user.email}?`)) return;
     try {
-      await deleteDoc(doc(db, 'users', user.uid || (user as any).id));
+      const targetId = user.uid || (user as any).id;
+      await deleteDoc(doc(db, 'users', targetId));
+      await logAudit(
+        'DELETE',
+        'User',
+        `Removed user "${user.displayName || user.email}" (${user.email}) with role "${user.role}"`,
+        profile?.displayName || profile?.email || 'Admin',
+        {
+          entityId: targetId,
+          previousState: { email: user.email, displayName: user.displayName, role: user.role, permissions: user.permissions },
+        }
+      );
       toast.success('User removed from database');
       fetchData();
     } catch (err: any) {
@@ -464,7 +504,19 @@ const UsersTab: React.FC = () => {
             <div className="p-5 bg-white border-t border-slate-100 flex justify-end gap-3 shrink-0">
               <button onClick={() => setShowPermissionsModal(false)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
               <button onClick={async () => {
+                const prevUser = users.find(u => (u.uid || (u as any).id) === editingUserPermissions.uid);
                 await updateDoc(doc(db, 'users', editingUserPermissions.uid), { permissions: editingUserPermissions.permissions, displayName: editingUserPermissions.displayName });
+                await logAudit(
+                  'PERMISSION_CHANGE',
+                  'User',
+                  `Updated permissions for "${editingUserPermissions.displayName || editingUserPermissions.email}" (${editingUserPermissions.email || editingUserPermissions.uid})`,
+                  profile?.displayName || profile?.email || 'Admin',
+                  {
+                    entityId: editingUserPermissions.uid,
+                    previousState: { permissions: prevUser?.permissions || [], displayName: prevUser?.displayName },
+                    newState: { permissions: editingUserPermissions.permissions, displayName: editingUserPermissions.displayName },
+                  }
+                );
                 toast.success('Permissions updated successfully');
                 setShowPermissionsModal(false);
                 fetchData();

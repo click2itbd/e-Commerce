@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { collection, addDoc, updateDoc, doc, deleteDoc, writeBatch } from 'firebase/firestore';
-import { db } from '../../../firebase';
+import { auth, db } from '../../../firebase';
 import toast from 'react-hot-toast';
 import { Product, ProductVariant } from '../../../types';
+import { logAudit } from '../../../lib/audit';
 
 export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, setLoading, fileInputRef }: any) {
 
@@ -53,11 +54,55 @@ export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, se
           };
 
           if (editingProduct) {
+            const oldPrice = Number(editingProduct.price) || 0;
+            const newPrice = Number(formData.price) || 0;
+            const oldDiscount = editingProduct.discountPrice;
+            const newDiscount = formData.discountPrice;
+            const priceChanged = oldPrice !== newPrice || oldDiscount !== newDiscount;
+
             await updateDoc(doc(db, 'products', editingProduct.id), productData);
+            await logAudit(
+              priceChanged ? 'PRICE_CHANGE' : 'EDIT',
+              'Product',
+              priceChanged
+                ? `Changed price of "${formData.name}" from ৳${oldPrice}${oldDiscount ? ` (Discount: ৳${oldDiscount})` : ''} to ৳${newPrice}${newDiscount ? ` (Discount: ৳${newDiscount})` : ''}`
+                : `Updated product "${formData.name}" (Price: ৳${newPrice}, Stock: ${formData.stock})`,
+              auth.currentUser?.email || 'Admin',
+              {
+                entityId: editingProduct.id,
+                previousState: {
+                  name: editingProduct.name,
+                  price: oldPrice,
+                  discountPrice: oldDiscount ?? null,
+                  stock: editingProduct.stock,
+                },
+                newState: {
+                  name: formData.name,
+                  price: newPrice,
+                  discountPrice: newDiscount ?? null,
+                  stock: formData.stock,
+                },
+              }
+            );
             toast.success('Product updated successfully');
             checkLowStock(productData.name, productData.stock);
           } else {
-            await addDoc(collection(db, 'products'), productData);
+            const docRef = await addDoc(collection(db, 'products'), productData);
+            await logAudit(
+              'CREATE',
+              'Product',
+              `Created product "${formData.name}" (Price: ৳${formData.price}, Stock: ${formData.stock})`,
+              auth.currentUser?.email || 'Admin',
+              {
+                entityId: docRef.id,
+                newState: {
+                  name: formData.name,
+                  price: formData.price,
+                  discountPrice: formData.discountPrice ?? null,
+                  stock: formData.stock,
+                },
+              }
+            );
             toast.success('Product added successfully');
             checkLowStock(productData.name, productData.stock);
           }
@@ -103,7 +148,18 @@ export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, se
       message: 'Are you sure you want to delete this product? This action cannot be undone.',
       onConfirm: async () => {
         try {
+          const targetProd = products.find(p => p.id === id);
           await deleteDoc(doc(db, 'products', id));
+          await logAudit(
+            'DELETE',
+            'Product',
+            `Deleted product "${targetProd?.name || id}" (Price: ৳${targetProd?.price ?? 0})`,
+            auth.currentUser?.email || 'Admin',
+            {
+              entityId: id,
+              previousState: targetProd ? { name: targetProd.name, price: targetProd.price, stock: targetProd.stock } : undefined,
+            }
+          );
           toast.success('Product deleted');
           fetchData();
         } catch (error) {

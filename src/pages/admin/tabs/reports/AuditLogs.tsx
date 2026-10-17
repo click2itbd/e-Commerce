@@ -858,6 +858,20 @@ _Automated Digest from System Audit Trail_`;
         </span>
       );
     }
+    if (act === 'PRICE_CHANGE') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-orange-100 text-orange-700 border border-orange-200">
+          <TrendingUp size={12} className="text-orange-600" /> PRICE CHANGE
+        </span>
+      );
+    }
+    if (act === 'ROLE_CHANGE' || act === 'PERMISSION_CHANGE') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-indigo-100 text-indigo-700 border border-indigo-200">
+          <Shield size={12} className="text-indigo-600" /> {act.replace('_', ' ')}
+        </span>
+      );
+    }
     if (act === 'EDIT') {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-700 border border-amber-200">
@@ -905,14 +919,14 @@ _Automated Digest from System Audit Trail_`;
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider">
               <Shield size={14} className="text-blue-400" />
-              Enterprise Audit Engine
+              Enterprise Audit Engine (Immutable)
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-1" title="Real-time Active" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
               System Audit Logs & Activity Trail
             </h1>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Transparent, tamper-evident record of all administrative activities, record creations, financial edits, and security events across the entire platform.
+              Tamper-proof, append-only record of all administrative activities, product price changes, role updates, and security events with IP and User-Agent tracking.
             </p>
           </div>
 
@@ -985,17 +999,6 @@ _Automated Digest from System Audit Trail_`;
               <Printer size={16} className="text-blue-400" />
               <span>Print</span>
             </button>
-
-            {isAdmin && (
-              <button
-                onClick={() => setIsPurgeModalOpen(true)}
-                className="px-4 py-2.5 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-white text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-rose-900/30"
-                title="Purge Old Audit Logs"
-              >
-                <Trash2 size={16} />
-                <span>Purge Records</span>
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -1574,15 +1577,22 @@ _Automated Digest from System Audit Trail_`;
                         )}
                       </td>
 
-                      {/* Operator */}
+                      {/* Operator & IP */}
                       <td className="py-3.5 px-5 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-black text-xs flex items-center justify-center shrink-0">
                             {(log.performedBy || 'A').charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-bold text-slate-700 text-xs truncate max-w-[140px]" title={log.performedBy}>
-                            {log.performedBy || 'System / Auto'}
-                          </span>
+                          <div>
+                            <span className="font-bold text-slate-700 text-xs truncate max-w-[140px] block" title={log.performedBy}>
+                              {log.performedBy || 'System / Auto'}
+                            </span>
+                            {log.ipAddress && (
+                              <span className="text-[10px] font-mono text-slate-400 block" title="Admin IP Address">
+                                IP: {log.ipAddress}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
 
@@ -1617,15 +1627,6 @@ _Automated Digest from System Audit Trail_`;
                           >
                             <Eye size={16} />
                           </button>
-                          {isAdmin && (
-                            <button
-                              onClick={() => log.id && handleDelete(log.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                              title="Delete Record"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -1643,7 +1644,7 @@ _Automated Digest from System Audit Trail_`;
           </div>
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" /> High-security Audit Store
+              <span className="w-2 h-2 rounded-full bg-emerald-500" /> Immutable Append-Only Audit Store
             </span>
             <span>Retained up to 1000 latest system events</span>
           </div>
@@ -1665,7 +1666,7 @@ _Automated Digest from System Audit Trail_`;
                   <Shield size={20} />
                 </div>
                 <div>
-                  <h3 className="font-black text-base">Audit Record Inspector</h3>
+                  <h3 className="font-black text-base">Immutable Audit Record Inspector</h3>
                   <p className="text-xs text-slate-300">Detailed compliance trace for event #{inspectLog.id?.slice(-8) || 'N/A'}</p>
                 </div>
               </div>
@@ -1704,6 +1705,24 @@ _Automated Digest from System Audit Trail_`;
                     {inspectLog.timestamp ? format(new Date(inspectLog.timestamp), 'dd MMMM yyyy, hh:mm:ss a') : 'N/A'}
                   </span>
                 </div>
+
+                {inspectLog.ipAddress && (
+                  <div>
+                    <span className="text-slate-400 uppercase font-bold block mb-1">Admin IP Address</span>
+                    <span className="font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 inline-block">
+                      {inspectLog.ipAddress}
+                    </span>
+                  </div>
+                )}
+
+                {inspectLog.adminUid && (
+                  <div>
+                    <span className="text-slate-400 uppercase font-bold block mb-1">Admin UID</span>
+                    <span className="font-mono text-slate-600 text-[11px]">
+                      {inspectLog.adminUid}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Event Description */}
@@ -1728,7 +1747,7 @@ _Automated Digest from System Audit Trail_`;
               {inspectLog.userAgent && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <Laptop size={14} /> Device & Browser Environment
+                    <Laptop size={14} /> Device & Browser Environment (User-Agent)
                   </label>
                   <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600 font-mono break-all leading-relaxed">
                     {inspectLog.userAgent}

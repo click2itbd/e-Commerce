@@ -1767,8 +1767,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             if (editingProduct.costPrice !== formData.costPrice) changes.push(`Cost: ৳${editingProduct.costPrice || 0} ➔ ৳${formData.costPrice || 0}`);
             const changeSummary = changes.length > 0 ? ` (${changes.join(', ')})` : '';
 
+            const priceChanged = editingProduct.price !== formData.price || editingProduct.costPrice !== formData.costPrice;
+
             await logAudit(
-              'EDIT',
+              priceChanged ? 'PRICE_CHANGE' : 'EDIT',
               'Product',
               `Updated product: "${formData.name}"${changeSummary}`,
               profile?.displayName || profile?.email || 'Admin',
@@ -2064,17 +2066,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   
   const logAuditAction = async (action: 'CREATE' | 'EDIT' | 'DELETE', entityType: string, details: string) => {
-    try {
-      await addDoc(collection(db, 'audit_logs'), {
-        action,
-        entityType,
-        details,
-        performedBy: auth.currentUser?.email || 'Admin',
-        timestamp: new Date().toISOString()
-      });
-    } catch(e) {
-      console.error('Audit log failed', e);
-    }
+    await logAudit(action, entityType, details, auth.currentUser?.email || 'Admin');
   };
 
   const handleDeleteProduct = async (id: string) => {

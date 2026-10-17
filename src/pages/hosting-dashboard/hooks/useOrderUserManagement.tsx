@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../../firebase';
+import { auth, db } from '../../../firebase';
 import { toast } from 'react-hot-toast';
+import { logAudit } from '../../../lib/audit';
 
 export function useOrderUserManagement(orders, setOrders, users, setUsers) {
   const [orderPage, setOrderPage] = useState(1);
@@ -28,7 +29,20 @@ export function useOrderUserManagement(orders, setOrders, users, setUsers) {
     if (!newStatus) return;
     setSavingOrderStatus(prev => ({ ...prev, [id]: true }));
     try {
+      const targetOrder = orders.find(o => o.id === id);
+      const oldStatus = targetOrder?.status || 'pending';
       await updateDoc(doc(db, 'orders', id), { status: newStatus });
+      await logAudit(
+        'STATUS_CHANGE',
+        'Order',
+        `Changed status of Order #${targetOrder?.documentNumber || id.slice(0, 8)} from "${oldStatus}" to "${newStatus}"`,
+        auth.currentUser?.email || 'Admin',
+        {
+          entityId: id,
+          previousState: { status: oldStatus },
+          newState: { status: newStatus },
+        }
+      );
       setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
       toast.success('Order status updated');
     } catch {
@@ -52,7 +66,20 @@ export function useOrderUserManagement(orders, setOrders, users, setUsers) {
     if (!newRole) return;
     setSavingUserRole(prev => ({ ...prev, [id]: true }));
     try {
+      const targetUser = users.find(u => u.id === id || u.uid === id);
+      const oldRole = targetUser?.role || 'user';
       await updateDoc(doc(db, 'users', id), { role: newRole });
+      await logAudit(
+        'ROLE_CHANGE',
+        'User',
+        `Changed role of "${targetUser?.displayName || targetUser?.email || id}" (${targetUser?.email || id}) from "${oldRole}" to "${newRole}"`,
+        auth.currentUser?.email || 'Admin',
+        {
+          entityId: id,
+          previousState: { role: oldRole },
+          newState: { role: newRole },
+        }
+      );
       setUsers(prev => prev.map(u => u.id === id ? { ...u, role: newRole } : u));
       toast.success('User role updated');
     } catch {

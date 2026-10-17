@@ -295,15 +295,27 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
       };
 
       if (editingId) {
+        const existingProd = products.find(p => p.id === editingId);
+        const oldPrice = Number(existingProd?.price) || 0;
+        const newPrice = Number(formData.price) || 0;
+        const oldDiscount = existingProd?.discountPrice;
+        const newDiscount = formData.discountPrice;
+        const priceChanged = oldPrice !== newPrice || oldDiscount !== newDiscount;
+
         await updateDoc(doc(db, 'products', editingId), productData);
         await logAudit(
-          'EDIT',
+          priceChanged ? 'PRICE_CHANGE' : 'EDIT',
           'Product',
-          `Updated product: "${formData.name}" via E-Commerce Admin (Price: ৳${formData.price}, Stock: ${formData.stock})`,
+          priceChanged
+            ? `Changed price of "${formData.name}" from ৳${oldPrice}${oldDiscount ? ` (Discount: ৳${oldDiscount})` : ''} to ৳${newPrice}${newDiscount ? ` (Discount: ৳${newDiscount})` : ''}`
+            : `Updated product: "${formData.name}" via E-Commerce Admin (Price: ৳${formData.price}, Stock: ${formData.stock})`,
           user?.displayName || user?.email || 'Admin',
           {
             entityId: editingId,
-            newState: { name: formData.name, price: formData.price, stock: formData.stock }
+            previousState: existingProd
+              ? { name: existingProd.name, price: oldPrice, discountPrice: oldDiscount ?? null, stock: existingProd.stock }
+              : undefined,
+            newState: { name: formData.name, price: newPrice, discountPrice: newDiscount ?? null, stock: formData.stock }
           }
         );
         toast.success('Product updated successfully!');

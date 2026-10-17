@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, collection, getDocs, query, orderBy, setDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { auth, db } from '../../firebase';
 import { Product } from '../../types';
 import { Zap, Save, Clock, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { logAudit } from '../../lib/audit';
 
 export const EcommerceFlashSales: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -61,7 +62,19 @@ export const EcommerceFlashSales: React.FC = () => {
 
   const toggleProductFlashSale = async (productId: string, currentStatus: boolean) => {
     try {
+      const targetProd = products.find(p => p.id === productId);
       await updateDoc(doc(db, 'products', productId), { isFlashSale: !currentStatus });
+      await logAudit(
+        'EDIT',
+        'Product',
+        `${!currentStatus ? 'Enabled' : 'Disabled'} Flash Sale for product "${targetProd?.name || productId}"`,
+        auth.currentUser?.email || 'Admin',
+        {
+          entityId: productId,
+          previousState: { isFlashSale: currentStatus },
+          newState: { isFlashSale: !currentStatus },
+        }
+      );
       setProducts(products.map(p => p.id === productId ? { ...p, isFlashSale: !currentStatus } : p));
       toast.success(currentStatus ? 'Removed from Flash Sale' : 'Added to Flash Sale');
     } catch (error) {
@@ -74,7 +87,20 @@ export const EcommerceFlashSales: React.FC = () => {
     const numPrice = Number(newPrice);
     if (isNaN(numPrice) || numPrice <= 0) return;
     try {
+      const targetProd = products.find(p => p.id === productId);
+      const oldDiscount = targetProd?.discountPrice ?? targetProd?.price ?? 0;
       await updateDoc(doc(db, 'products', productId), { discountPrice: numPrice });
+      await logAudit(
+        'PRICE_CHANGE',
+        'Product',
+        `Updated Flash Sale offer price of "${targetProd?.name || productId}" from ৳${oldDiscount} to ৳${numPrice}`,
+        auth.currentUser?.email || 'Admin',
+        {
+          entityId: productId,
+          previousState: { discountPrice: targetProd?.discountPrice ?? null, price: targetProd?.price },
+          newState: { discountPrice: numPrice, price: targetProd?.price },
+        }
+      );
       setProducts(products.map(p => p.id === productId ? { ...p, discountPrice: numPrice } : p));
       toast.success('Offer price updated');
     } catch (error) {

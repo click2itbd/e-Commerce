@@ -1,9 +1,918 @@
 rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model & Security Architecture
+// ===============================================================
+//
+// This security rules file enforces Role-Based Access Control (RBAC),
+// ownership isolation, and field-level integrity for the Click2IT
+// e-Commerce, Domain & Web Hosting platform.
+//
+// Core Collections & Access Models:
+//
+// 1. users/{userId}
+//    - Fields: uid, name, displayName, email, phone, address, city,
+//      company, photoURL, addresses, balance, role, isAdmin,
+//      permissions, createdAt, updatedAt
+//    - Access: Owner can read/create/update their own profile, but
+//      can NEVER set or modify `role`, `isAdmin`, or `permissions`,
+//      nor inflate `balance`. Admins/Staff can read all users; only
+//      Admins can modify `role`, `isAdmin`, `permissions`, or delete.
+//
+// 2. settings/{docId}
+//    - Sensitive documents (`api_keys`, `hostingApiConfig`):
+//      Completely blocked from all client reads and writes (`if false`).
+//      Only accessible via Backend Server / Admin SDK.
+//    - Public storefront settings (`site`, `general`, `public_config`,
+//      `ecommerce_shipping`, `hostingPromos`, `custom_hosting_pricing`):
+//      Public read (`if true`), Admin/Staff write only.
+//
+// 3. orders/{orderId} & hostingOrders/{orderId}
+//    - Fields: userId, items, total, subtotal, discount, discountAmount,
+//      shippingCost, status, paymentStatus, paymentVerificationStatus,
+//      paymentMethod, transactionId, customerName, customerEmail,
+//      customerPhone, shippingAddress, createdAt, updatedAt
+//    - Read: Authenticated owner (`resource.data.userId == request.auth.uid`)
+//      or Admin/Staff.
+//    - Create: Admin/Staff only (`isStaffOrAdmin()`). Customer checkout
+//      creates orders exclusively via the backend `POST /api/orders/create`
+//      endpoint (Admin SDK), which computes prices, validates coupons, and
+//      decrements stock server-side.
+//    - Update: Clients can NEVER modify `total`, `subtotal`, `discount`,
+//      `discountAmount`, `items`, `userId`, or set `paymentStatus == 'verified'`
+//      or `paymentVerificationStatus == 'verified'`. Clients may only
+//      submit manual payment TrxID (`paymentStatus == 'submitted'`) or
+//      cancel a pending order. Full updates restricted to Admin/Staff.
+//
+// 4. Public Storefront & Catalog Collections
+//    - `products`, `categories`, `menus`, `brands`, `store_brands`,
+//      `store_banners`, `banners`, `hostingPlans`, `hosting_plans`,
+//      `hostingServices`, `hosting_features`, `hostingAddonPackages`,
+//      `hostingExtraServices`, `hostingServiceCategories`, `specialPlans`,
+//      `custom_hosting_pricing`, `sslProducts`, `domainPricing`,
+//      `couponCodes`, `coupons`, `ecommerce_blog`, `blog`, `pages`,
+//      `faqs`, `announcements`, `showcase_projects`,
+//      `pc_builder_categories`, `specificationTemplates`, `services`
+//    - Access: Public read (`if true`), Admin/Staff write only.
+//
+// 5. Customer Service & Account Collections
+//    - `hostingAccounts`, `domainOrders`, `domain_renewals`,
+//      `domain_transfers`, `sslOrders`, `tickets` (+ `messages`
+//      subcollection), `support_tickets`, `wishlists`, `abandoned_carts`,
+//      `carts`, `saved_builds`, `wallet_transactions`, `deposit_requests`,
+//      `payout_requests`, `affiliate_commissions`, `returns`, `invoices`,
+//      `notifications`, `bd_domain_applications`, `domain_offers`,
+//      `pre_bookings`, `price_alerts`, `priceAlerts`
+//    - Access: Strictly scoped to the authenticated resource owner and
+//      Admin/Staff (with `hostingAccounts`, `domainOrders`, and `sslOrders`
+//      creation restricted to backend/Admin/Staff).
+//
+// 6. Internal ERP, Accounting, HR & Audit Collections
+//    - `customers`, `vendors`, `transactions`, `transaction_categories`,
+//      `payment_accounts`, `employees`, `employee_leaves`,
+//      `employee_salaries`, `sold_serials`, `service_records`,
+//      `campaigns`, `audiences`, `tasks`, `internal_notes`,
+//      `cash_register`, `conveyances`, `purchases`, `purchase_returns`,
+//      `sale_returns`, `emailTemplates`, `servers`, `hosting_config`,
+//      `audit_logs`, `auditLogs`, `paymentAuditLog`, `domainAuditLog`,
+//      `fulfillmentAuditLog`, `provisioningLogs`, `apiLogs`, `emailLogs`
+//    - Access: Restricted to Admin/Staff (with `private_config` and
+//      `transferAuthCodes` locked down completely).
+// ===============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Universal permission rule ensuring no 'Missing or insufficient permissions' errors
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isBootstrapAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin' ||
+        (request.auth.token.email != null &&
+         request.auth.token.email_verified == true &&
+         (request.auth.token.email == 'click2itbd@gmail.com' ||
+          request.auth.token.email == 'clcik2itbd@gmail.com'))
+      );
+    }
+
+    function hasUserDoc() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isBootstrapAdmin() || (
+        hasUserDoc() && (
+          getUserData().get('role', 'user') == 'admin' ||
+          getUserData().get('isAdmin', false) == true
+        )
+      );
+    }
+
+    function isStaffOrAdmin() {
+      return isBootstrapAdmin() || (
+        isAuthenticated() && (
+          request.auth.token.role in ['admin', 'manager', 'staff'] ||
+          (hasUserDoc() && (
+            getUserData().get('role', 'user') in ['admin', 'manager', 'staff'] ||
+            getUserData().get('isAdmin', false) == true
+          ))
+        )
+      );
+    }
+
+    function isResourceOwner(field) {
+      return isAuthenticated() &&
+        field in resource.data &&
+        resource.data[field] == request.auth.uid;
+    }
+
+    function isEmailOwner(field) {
+      return isAuthenticated() &&
+        request.auth.token.email != null &&
+        field in resource.data &&
+        resource.data[field] == request.auth.token.email;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    // User profile create validator for non-admin self-registration
+    function isValidUserCreate(userId, data) {
+      return (!('uid' in data) || data.uid == userId) &&
+        (!('role' in data) || data.role == 'user') &&
+        (!('isAdmin' in data) || data.isAdmin == false) &&
+        (!('permissions' in data) || (data.permissions is list && data.permissions.size() == 0)) &&
+        (!('balance' in data) || data.balance == 0) &&
+        (!('name' in data) || (data.name is string && data.name.size() <= 200)) &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 200)) &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 320));
+    }
+
+    // User profile update validator for non-admin self-updates
+    // Strictly blocks adding or modifying `role`, `isAdmin`, `permissions`, or `uid`,
+    // and prevents users from increasing their own wallet `balance`.
+    function isValidUserSelfUpdate(data, prev) {
+      let changedKeys = data.diff(prev).affectedKeys();
+      let noPrivilegeEscalation = !changedKeys.hasAny(['role', 'isAdmin', 'permissions', 'uid']) &&
+        data.get('role', 'user') == prev.get('role', 'user') &&
+        data.get('isAdmin', false) == prev.get('isAdmin', false) &&
+        data.get('permissions', []) == prev.get('permissions', []);
+      let validBalanceChange = !changedKeys.hasAny(['balance']) || (
+        data.balance is number &&
+        prev.get('balance', 0) is number &&
+        data.balance >= 0 &&
+        data.balance <= prev.get('balance', 0)
+      );
+      return noPrivilegeEscalation &&
+        validBalanceChange &&
+        (!('name' in data) || (data.name is string && data.name.size() <= 200)) &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 200)) &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 50)) &&
+        (!('address' in data) || (data.address is string && data.address.size() <= 1000)) &&
+        (!('city' in data) || (data.city is string && data.city.size() <= 200)) &&
+        (!('company' in data) || (data.company is string && data.company.size() <= 200));
+    }
+
+    // Order update validator for authenticated customers
+    // Clients can NEVER modify financial/cart/ownership fields (`total`, `subtotal`,
+    // `discount`, `discountAmount`, `items`, `userId`, etc.) or mark payment as `'verified'`.
+    function isValidClientOrderUpdate(data, prev) {
+      let changedKeys = data.diff(prev).affectedKeys();
+      let forbiddenKeys = [
+        'total', 'subtotal', 'discount', 'discountAmount', 'discountCode',
+        'appliedDiscountCode', 'shippingCost', 'items', 'userId', 'createdAt',
+        'documentNumber', 'invoiceNumber', 'paidAmount', 'paymentVerificationStatus'
+      ];
+      let allowedClientKeys = [
+        'paymentStatus', 'providerStatus', 'transactionId', 'paymentReference',
+        'paymentMethod', 'paymentSubmittedAt', 'status', 'notes', 'updatedAt'
+      ];
+      return isAuthenticated() &&
+        prev.userId == request.auth.uid &&
+        data.userId == prev.userId &&
+        prev.get('paymentStatus', 'pending') != 'verified' &&
+        prev.get('paymentVerificationStatus', 'pending') != 'verified' &&
+        !changedKeys.hasAny(forbiddenKeys) &&
+        changedKeys.hasOnly(allowedClientKeys) &&
+        data.get('paymentStatus', 'pending') != 'verified' &&
+        data.get('paymentVerificationStatus', 'pending') != 'verified' &&
+        data.get('paymentStatus', 'pending') in ['pending', 'unpaid', 'submitted', 'processing', 'failed', 'cancelled'] &&
+        data.get('status', 'pending') in [prev.get('status', 'pending'), 'pending', 'cancelled'];
+    }
+
+    // ===============================================================
+    // 1. Settings & Secret Configuration Rules
+    // ===============================================================
+
+    // Sensitive API keys and provider credentials:
+    // Completely blocked from all client reads and writes (Admin SDK only)
+    match /settings/api_keys {
+      allow read, write: if false;
+    }
+
+    match /settings/hostingApiConfig {
+      allow read, write: if false;
+    }
+
+    match /private_config/{docId} {
+      allow read, write: if false;
+    }
+
+    match /transferAuthCodes/{docId} {
+      allow read, write: if false;
+    }
+
+    // Non-secret storefront settings (e.g. `site`, `general`, `public_config`,
+    // `ecommerce_shipping`, `hostingPromos`, `custom_hosting_pricing`)
+    match /settings/{docId} {
+      allow read: if !(docId in ['api_keys', 'hostingApiConfig']);
+      allow write: if !(docId in ['api_keys', 'hostingApiConfig']) && isStaffOrAdmin();
+    }
+
+    // ===============================================================
+    // 2. Users Collection (Strict RBAC & Anti-Privilege-Escalation)
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isStaffOrAdmin();
+      allow create: if isAdmin() || (isOwner(userId) && isValidUserCreate(userId, request.resource.data));
+      allow update: if isAdmin() || (isOwner(userId) && isValidUserSelfUpdate(request.resource.data, resource.data));
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 3. Orders & Hosting Orders Collections
+    // ===============================================================
+
+    match /orders/{orderId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin();
+      allow update: if isStaffOrAdmin() || isValidClientOrderUpdate(request.resource.data, resource.data);
+      allow delete: if isStaffOrAdmin();
+    }
+
+    match /hostingOrders/{orderId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin();
+      allow update: if isStaffOrAdmin() || isValidClientOrderUpdate(request.resource.data, resource.data);
+      allow delete: if isStaffOrAdmin();
+    }
+
+    // ===============================================================
+    // 4. Public Catalog & Storefront Content Collections
+    // ===============================================================
+
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /categories/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /menus/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /brands/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /store_brands/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /store_banners/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /banners/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /hostingPlans/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /hosting_plans/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /hostingServices/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /hosting_features/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /hostingAddonPackages/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /hostingExtraServices/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /hostingServiceCategories/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /specialPlans/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /custom_hosting_pricing/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /sslProducts/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /domainPricing/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /couponCodes/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /coupons/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /ecommerce_blog/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /blog/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /pages/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /faqs/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /announcements/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /showcase_projects/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /pc_builder_categories/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /specificationTemplates/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /services/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    // Product & Service Reviews
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.rating is number &&
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5 &&
+        request.resource.data.comment is string &&
+        request.resource.data.comment.size() <= 2000
+      );
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    // Community PC Builds
+    match /community_builds/{buildId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.keys().size() <= 30;
+      allow update: if isStaffOrAdmin() || (
+        isAuthenticated() && (
+          resource.data.userId == request.auth.uid ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'upvotedBy', 'likes'])
+        )
+      );
+      allow delete: if isStaffOrAdmin() || isResourceOwner('userId');
+    }
+
+    // ===============================================================
+    // 5. Customer Hosting, Domains, SSL & Support Collections
+    // ===============================================================
+
+    match /hostingAccounts/{accountId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin();
+      allow update: if isStaffOrAdmin() || (
+        isResourceOwner('userId') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['autoRenew', 'updatedAt'])
+      );
+      allow delete: if isStaffOrAdmin();
+    }
+
+    match /domainOrders/{domainOrderId} {
+      allow read: if isStaffOrAdmin() ||
+        isResourceOwner('userId') ||
+        isResourceOwner('customerId');
+      allow create: if isStaffOrAdmin();
+      allow update: if isStaffOrAdmin() || (
+        (isResourceOwner('userId') || isResourceOwner('customerId')) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['autoRenew', 'nameservers', 'updatedAt'])
+      );
+      allow delete: if isStaffOrAdmin();
+    }
+
+    match /domain_renewals/{renewalId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.get('paymentStatus', 'pending') != 'verified'
+      );
+      allow update: if isStaffOrAdmin() || (
+        isResourceOwner('userId') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'transactionId', 'paymentMethod', 'updatedAt']) &&
+        request.resource.data.get('paymentStatus', 'pending') in ['pending', 'processing', 'submitted']
+      );
+      allow delete: if isStaffOrAdmin();
+    }
+
+    match /domain_transfers/{transferId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.get('paymentStatus', 'pending') != 'verified'
+      );
+      allow update: if isStaffOrAdmin() || (
+        isResourceOwner('userId') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'transactionId', 'paymentMethod', 'updatedAt']) &&
+        request.resource.data.get('paymentStatus', 'pending') in ['pending', 'processing', 'submitted']
+      );
+      allow delete: if isStaffOrAdmin();
+    }
+
+    match /sslOrders/{sslOrderId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin();
+      allow update: if isStaffOrAdmin() || (
+        isResourceOwner('userId') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['csr', 'domain', 'approverEmail', 'status', 'updatedAt']) &&
+        request.resource.data.get('status', 'pending_configuration') in ['pending', 'pending_configuration', 'configuration_submitted']
+      );
+      allow delete: if isStaffOrAdmin();
+    }
+
+    match /bd_domain_applications/{appId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId') || isEmailOwner('email');
+      allow create: if isStaffOrAdmin() || (
+        request.resource.data.get('status', 'pending') in ['pending', 'submitted'] &&
+        request.resource.data.keys().size() <= 30
+      );
+      allow update: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        (isResourceOwner('userId') || isEmailOwner('email')) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'orderId', 'updatedAt']) &&
+        request.resource.data.get('status', 'processing') == 'processing'
+      );
+      allow delete: if isStaffOrAdmin();
+    }
+
+    match /nameserver_requests/{reqId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isAuthenticated() &&
+        request.resource.data.get('status', 'pending') == 'pending' &&
+        request.resource.data.keys().size() <= 20;
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    // Support Tickets & Subcollection Messages
+    match /tickets/{ticketId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.keys().size() <= 20
+      );
+      allow update: if isStaffOrAdmin() || (
+        isResourceOwner('userId') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+        request.resource.data.status in ['open', 'customer-reply', 'closed']
+      );
+      allow delete: if isStaffOrAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isStaffOrAdmin() || (
+          isAuthenticated() &&
+          get(/databases/$(database)/documents/tickets/$(ticketId)).data.userId == request.auth.uid
+        );
+        allow create: if isStaffOrAdmin() || (
+          isAuthenticated() &&
+          get(/databases/$(database)/documents/tickets/$(ticketId)).data.userId == request.auth.uid &&
+          request.resource.data.sender == 'customer' &&
+          request.resource.data.message is string &&
+          request.resource.data.message.size() > 0 &&
+          request.resource.data.message.size() <= 5000
+        );
+        allow update, delete: if isStaffOrAdmin();
+      }
+    }
+
+    match /support_tickets/{ticketId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.keys().size() <= 20
+      );
+      allow update: if isStaffOrAdmin() || (
+        isResourceOwner('userId') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+      );
+      allow delete: if isStaffOrAdmin();
+    }
+
+    // ===============================================================
+    // 6. User Carts, Wishlists, Wallet, Affiliate & Saved Items
+    // ===============================================================
+
+    match /wishlists/{userId} {
+      allow read, write: if isOwner(userId) || isStaffOrAdmin();
+    }
+
+    match /abandoned_carts/{userId} {
+      allow read, write: if isOwner(userId) || isStaffOrAdmin();
+    }
+
+    match /carts/{userId} {
+      allow read, write: if isOwner(userId) || isStaffOrAdmin();
+    }
+
+    match /saved_builds/{buildId} {
+      allow read, delete: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if isStaffOrAdmin() || (
+        isResourceOwner('userId') &&
+        request.resource.data.userId == resource.data.userId
+      );
+    }
+
+    match /wallet_transactions/{txId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.type == 'debit' &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    match /deposit_requests/{reqId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0
+      );
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    match /payout_requests/{reqId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount >= 1000
+      );
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    match /affiliate_commissions/{commId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('affiliateId');
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /returns/{returnId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'pending'
+      );
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create, delete: if isStaffOrAdmin();
+      allow update: if isStaffOrAdmin() || isValidClientOrderUpdate(request.resource.data, resource.data);
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow update: if isStaffOrAdmin() || (
+        isResourceOwner('userId') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'isRead', 'updatedAt'])
+      );
+      allow create, delete: if isStaffOrAdmin();
+    }
+
+    // ===============================================================
+    // 7. Customer Inquiries, Offers, Pre-Bookings & Price Alerts
+    // ===============================================================
+
+    match /domain_offers/{offerId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId') || isEmailOwner('email');
+      allow create: if request.resource.data.get('status', 'pending') == 'pending' &&
+        request.resource.data.keys().size() <= 20;
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    match /pre_bookings/{bookingId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId') || isEmailOwner('email');
+      allow create: if request.resource.data.get('status', 'pending') == 'pending' &&
+        request.resource.data.keys().size() <= 25;
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    match /price_alerts/{alertId} {
+      allow read, delete: if isStaffOrAdmin() || isResourceOwner('userId') || isEmailOwner('email');
+      allow create: if request.resource.data.keys().size() <= 20 &&
+        request.resource.data.get('status', 'active') == 'active';
+      allow update: if isStaffOrAdmin();
+    }
+
+    match /priceAlerts/{alertId} {
+      allow read, delete: if isStaffOrAdmin() || isResourceOwner('userId') || isEmailOwner('email');
+      allow create: if request.resource.data.keys().size() <= 20 &&
+        request.resource.data.get('status', 'active') == 'active';
+      allow update: if isStaffOrAdmin();
+    }
+
+    match /quote_requests/{quoteId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId') || isEmailOwner('email');
+      allow create: if request.resource.data.keys().size() <= 25;
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    match /quotes/{quoteId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId') || isEmailOwner('email');
+      allow create: if request.resource.data.keys().size() <= 25;
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    match /buildRequests/{reqId} {
+      allow read: if isStaffOrAdmin() || isResourceOwner('userId');
+      allow create: if request.resource.data.keys().size() <= 25;
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    match /inquiries/{inquiryId} {
+      allow read, update, delete: if isStaffOrAdmin();
+      allow create: if request.resource.data.keys().size() <= 20;
+    }
+
+    match /subscribers/{subscriberId} {
+      allow read, update, delete: if isStaffOrAdmin();
+      allow create: if request.resource.data.keys().hasAll(['email']) &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() <= 320 &&
+        request.resource.data.keys().size() <= 10;
+    }
+
+    match /leads/{leadId} {
+      allow read, update, delete: if isStaffOrAdmin();
+      allow create: if isStaffOrAdmin() || request.resource.data.keys().size() <= 40;
+    }
+
+    // Document Numbering Counters (used in atomic transactions on order creation)
+    match /counters/{counterId} {
+      allow read: if isAuthenticated();
+      allow create: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.keys().hasOnly(['lastNumber']) &&
+        request.resource.data.lastNumber == 1
+      );
+      allow update: if isStaffOrAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.keys().hasOnly(['lastNumber']) &&
+        request.resource.data.lastNumber is number &&
+        request.resource.data.lastNumber == resource.data.lastNumber + 1
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 8. Internal ERP, Accounting, HR & Admin-Only Collections
+    // ===============================================================
+
+    match /transactions/{txId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /transaction_categories/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /payment_accounts/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /customers/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /vendors/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /employees/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /employee_leaves/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /employee_salaries/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /sold_serials/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /service_records/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /campaigns/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /audiences/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /tasks/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /internal_notes/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /cash_register/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /conveyances/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /purchases/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /purchase_returns/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /sale_returns/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /emailTemplates/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /servers/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /hosting_config/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    // ===============================================================
+    // 9. Audit & System Logs (Append-Only for Staff, Immutable)
+    // ===============================================================
+
+    match /audit_logs/{logId} {
+      allow read, create: if isStaffOrAdmin();
+      allow update, delete: if false;
+    }
+
+    match /auditLogs/{logId} {
+      allow read, create: if isStaffOrAdmin();
+      allow update, delete: if false;
+    }
+
+    match /paymentAuditLog/{logId} {
+      allow read: if isStaffOrAdmin();
+      allow write: if false;
+    }
+
+    match /domainAuditLog/{logId} {
+      allow read: if isStaffOrAdmin();
+      allow write: if false;
+    }
+
+    match /fulfillmentAuditLog/{logId} {
+      allow read: if isStaffOrAdmin();
+      allow write: if false;
+    }
+
+    match /provisioningLogs/{logId} {
+      allow read: if isStaffOrAdmin();
+      allow create: if isStaffOrAdmin();
+      allow update, delete: if false;
+    }
+
+    match /apiLogs/{logId} {
+      allow read: if isStaffOrAdmin();
+      allow create: if isStaffOrAdmin();
+      allow update, delete: if false;
+    }
+
+    match /emailLogs/{logId} {
+      allow read, create: if isStaffOrAdmin();
+      allow update, delete: if false;
+    }
+
+    // ===============================================================
+    // 10. Default Deny Catch-All
+    // ===============================================================
+
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

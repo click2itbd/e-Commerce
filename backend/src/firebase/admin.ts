@@ -247,7 +247,27 @@ export function getAdminDb(): any {
 
 export function getAdminAuth() {
   if (!adminAuth) {
-    const app = getAdminApps()[0];
+    let app = getAdminApps()[0];
+    if (!app) {
+      // Attempt to initialize Admin SDK via getAdminDb() first
+      try {
+        getAdminDb();
+      } catch {
+        // Ignore DB init error here, check if app was created
+      }
+      app = getAdminApps()[0];
+    }
+    if (!app) {
+      // Initialize with projectId so verifyIdToken can verify Google public keys even without a service account file
+      const config = getFirebaseClientConfig();
+      try {
+        app = initAdminApp({
+          projectId: process.env.GOOGLE_CLOUD_PROJECT || config.projectId,
+        });
+      } catch {
+        app = getAdminApps()[0];
+      }
+    }
     if (app) {
       try {
         adminAuth = getAdminAuthSdk(app);
@@ -316,16 +336,10 @@ export async function isUserAdmin(uid: string, email?: string): Promise<boolean>
         }
       }
     }
-    // In development mode, if user is authenticated with a valid token, allow admin access
-    if (process.env.NODE_ENV !== 'production') {
-      return true;
-    }
     return false;
   } catch (error) {
     console.error('[Firebase Admin] Failed to check admin status:', error);
-    if (process.env.NODE_ENV !== 'production') {
-      return true;
-    }
     return false;
   }
 }
+
