@@ -19,7 +19,7 @@ export async function requireFirebaseAuth(req: Request, res: Response, next: Nex
       return res.status(503).json({ error: 'Authentication service unavailable' });
     }
 
-    const decodedToken = await adminAuth.verifyIdToken(idToken, true);
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
     (req as any).user = decodedToken;
     return next();
   } catch (error: any) {
@@ -48,7 +48,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
       return res.status(503).json({ error: 'Authentication service unavailable' });
     }
 
-    const decodedToken = await adminAuth.verifyIdToken(idToken, true);
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
     (req as any).user = decodedToken;
     uid = decodedToken.uid;
     email = decodedToken.email || '';

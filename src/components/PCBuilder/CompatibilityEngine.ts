@@ -33,31 +33,66 @@ export class CompatibilityEngine {
 
     // CPU vs Mobo Heuristics
     if (cpu && mobo) {
-      const isIntelCPU = nCpu.includes('intel') || nCpu.includes('core i');
-      const isAMDCPU = nCpu.includes('amd') || nCpu.includes('ryzen');
+      const isIntelCPU = nCpu.includes('intel') || nCpu.includes('core i') || nCpu.includes('pentium') || nCpu.includes('celeron');
+      const isAMDCPU = nCpu.includes('amd') || nCpu.includes('ryzen') || nCpu.includes('athlon');
       
-      const isIntelMobo = nMobo.includes('h610') || nMobo.includes('b660') || nMobo.includes('b760') || nMobo.includes('z690') || nMobo.includes('z790') || nMobo.includes('intel') || nMobo.includes('lga');
-      const isAMDMobo = nMobo.includes('a320') || nMobo.includes('b450') || nMobo.includes('b550') || nMobo.includes('x570') || nMobo.includes('a620') || nMobo.includes('b650') || nMobo.includes('x670') || nMobo.includes('amd') || nMobo.includes('am4') || nMobo.includes('am5');
+      const isIntelMobo = nMobo.includes('h610') || nMobo.includes('b660') || nMobo.includes('b760') || nMobo.includes('z690') || nMobo.includes('z790') || nMobo.includes('h510') || nMobo.includes('b560') || nMobo.includes('h410') || nMobo.includes('b460') || nMobo.includes('intel') || nMobo.includes('lga');
+      const isAMDMobo = nMobo.includes('a320') || nMobo.includes('b450') || nMobo.includes('b550') || nMobo.includes('x570') || nMobo.includes('a520') || nMobo.includes('a620') || nMobo.includes('b650') || nMobo.includes('x670') || nMobo.includes('x870') || nMobo.includes('amd') || nMobo.includes('am4') || nMobo.includes('am5');
 
       if (isIntelCPU && isAMDMobo) {
         report.errors.push(`Incompatible: Intel Processor (${cpu.name}) cannot be used with an AMD Motherboard.`);
       } else if (isAMDCPU && isIntelMobo) {
         report.errors.push(`Incompatible: AMD Processor (${cpu.name}) cannot be used with an Intel Motherboard.`);
       }
+
+      // Specific AMD AM4 vs AM5 check
+      const isAM5Cpu = nCpu.includes('am5') || /ryzen\s+[3579]\s+[789]\d{3}/i.test(nCpu);
+      const isAM4Cpu = nCpu.includes('am4') || /ryzen\s+[3579]\s+[12345]\d{3}/i.test(nCpu);
+      const isAM5Mobo = nMobo.includes('am5') || nMobo.includes('a620') || nMobo.includes('b650') || nMobo.includes('x670') || nMobo.includes('x870');
+      const isAM4Mobo = nMobo.includes('am4') || nMobo.includes('a320') || nMobo.includes('a520') || nMobo.includes('b450') || nMobo.includes('b550') || nMobo.includes('x570');
+
+      if (isAM5Cpu && isAM4Mobo) {
+        report.errors.push(`Socket mismatch: ${cpu.name} requires an AM5 motherboard, but ${mobo.name} is AM4.`);
+      } else if (isAM4Cpu && isAM5Mobo) {
+        report.errors.push(`Socket mismatch: ${cpu.name} requires an AM4 motherboard, but ${mobo.name} is AM5.`);
+      }
+
+      // Specific Intel LGA1700 (12th/13th/14th gen) vs LGA1200 (10th/11th gen)
+      const isLGA1700Cpu = nCpu.includes('1700') || /i[3579]-1[234]\d{3}/i.test(nCpu);
+      const isLGA1200Cpu = nCpu.includes('1200') || /i[3579]-1[01]\d{3}/i.test(nCpu);
+      const isLGA1700Mobo = nMobo.includes('1700') || nMobo.includes('h610') || nMobo.includes('b660') || nMobo.includes('b760') || nMobo.includes('z690') || nMobo.includes('z790');
+      const isLGA1200Mobo = nMobo.includes('1200') || nMobo.includes('h410') || nMobo.includes('b460') || nMobo.includes('h510') || nMobo.includes('b560') || nMobo.includes('z490') || nMobo.includes('z590');
+
+      if (isLGA1700Cpu && isLGA1200Mobo) {
+        report.errors.push(`Socket mismatch: ${cpu.name} requires LGA1700, but ${mobo.name} is LGA1200.`);
+      } else if (isLGA1200Cpu && isLGA1700Mobo) {
+        report.errors.push(`Socket mismatch: ${cpu.name} requires LGA1200, but ${mobo.name} is LGA1700.`);
+      }
     }
 
-    // RAM vs Mobo Heuristics
-    if (ram && mobo) {
-      const isMoboDDR5 = nMobo.includes('d5') || nMobo.includes('ddr5') || nMobo.includes('z790') || nMobo.includes('x670') || nMobo.includes('b650');
-      const isMoboDDR4 = nMobo.includes('d4') || nMobo.includes('ddr4') || nMobo.includes('b450') || nMobo.includes('b550') || nMobo.includes('h610');
-      
-      const isRamDDR5 = nRam.includes('ddr5');
-      const isRamDDR4 = nRam.includes('ddr4');
+    // Check all RAM slots against Motherboard
+    const ramItems = Object.entries(selectedProducts)
+      .filter(([key, val]) => key.startsWith('ram') && val)
+      .map(([_, val]) => val);
 
-      if (isMoboDDR5 && isRamDDR4) {
-        report.errors.push(`Incompatible RAM: ${mobo.name} requires DDR5 RAM, but you selected DDR4.`);
-      } else if (isMoboDDR4 && isRamDDR5) {
-        report.errors.push(`Incompatible RAM: ${mobo.name} supports only DDR4 RAM, but you selected DDR5.`);
+    for (const ramItem of ramItems) {
+      const nRamItem = ramItem.name.toLowerCase();
+      if (mobo) {
+        const isMoboDDR5 = nMobo.includes('d5') || nMobo.includes('ddr5') || nMobo.includes('x670') || nMobo.includes('b650') || nMobo.includes('a620') || nMobo.includes('x870');
+        const isMoboDDR4 = nMobo.includes('d4') || nMobo.includes('ddr4') || nMobo.includes('b450') || nMobo.includes('b550') || nMobo.includes('a320') || nMobo.includes('a520');
+        
+        const isRamDDR5 = nRamItem.includes('ddr5');
+        const isRamDDR4 = nRamItem.includes('ddr4');
+
+        if (isMoboDDR5 && isRamDDR4) {
+          report.errors.push(`Incompatible RAM: ${mobo.name} requires DDR5 RAM, but you selected DDR4 (${ramItem.name}).`);
+        } else if (isMoboDDR4 && isRamDDR5) {
+          report.errors.push(`Incompatible RAM: ${mobo.name} supports only DDR4 RAM, but you selected DDR5 (${ramItem.name}).`);
+        }
+
+        if (ramItem.ramType && mobo.ramType && ramItem.ramType !== mobo.ramType) {
+          report.errors.push(`RAM mismatch: ${ramItem.name} is ${ramItem.ramType}, but motherboard requires ${mobo.ramType}.`);
+        }
       }
     }
     
@@ -65,13 +100,6 @@ export class CompatibilityEngine {
     if (cpu && mobo) {
       if (cpu.socketType && mobo.socketType && cpu.socketType !== mobo.socketType) {
         report.errors.push(`Socket mismatch: ${cpu.name} uses ${cpu.socketType} but motherboard supports ${mobo.socketType}.`);
-      }
-    }
-
-    // 2. RAM & Motherboard Check
-    if (ram && mobo) {
-      if (ram.ramType && mobo.ramType && ram.ramType !== mobo.ramType) {
-        report.errors.push(`RAM mismatch: ${ram.name} is ${ram.ramType}, but motherboard requires ${mobo.ramType}.`);
       }
     }
 
@@ -157,8 +185,10 @@ export class CompatibilityEngine {
 
     Object.entries(selectedProducts).forEach(([catId, product]) => {
       if (!product) return;
+      const qty = (product as any).builderQuantity || 1;
+      let itemTdp = 0;
       if (product.tdp) {
-        total += product.tdp;
+        itemTdp = product.tdp;
       } else {
         // Fallbacks based on the builder category ID
         const cat = catId.toLowerCase();
@@ -166,23 +196,24 @@ export class CompatibilityEngine {
         // Smarter heuristic based on product name if TDP is missing
         const name = product.name.toLowerCase();
         
-        if (cat.includes('cpu')) {
-          if (name.includes('i9') || name.includes('ryzen 9')) total += 125;
-          else if (name.includes('i7') || name.includes('ryzen 7')) total += 105;
-          else total += 65;
+        if (cat.includes('cpu') && !cat.includes('cooler')) {
+          if (name.includes('i9') || name.includes('ryzen 9')) itemTdp = 125;
+          else if (name.includes('i7') || name.includes('ryzen 7')) itemTdp = 105;
+          else itemTdp = 65;
         } 
         else if (cat.includes('graphic') || cat.includes('gpu')) {
-          if (name.includes('4090') || name.includes('7900 xtx')) total += 450;
-          else if (name.includes('4080') || name.includes('7900')) total += 320;
-          else if (name.includes('4070') || name.includes('7800')) total += 200;
-          else if (name.includes('3060') || name.includes('4060') || name.includes('7600')) total += 130;
-          else total += 150;
+          if (name.includes('4090') || name.includes('7900 xtx')) itemTdp = 450;
+          else if (name.includes('4080') || name.includes('7900')) itemTdp = 320;
+          else if (name.includes('4070') || name.includes('7800')) itemTdp = 200;
+          else if (name.includes('3060') || name.includes('4060') || name.includes('7600')) itemTdp = 130;
+          else itemTdp = 150;
         }
-        else if (cat.includes('motherboard') || cat.includes('mobo')) total += 35;
-        else if (cat.includes('ram') || cat.includes('memory')) total += 15;
-        else if (cat.includes('storage') || cat.includes('ssd') || cat.includes('hdd')) total += 10;
-        else if (cat.includes('cooler') || cat.includes('fan')) total += 10;
+        else if (cat.includes('motherboard') || cat.includes('mobo')) itemTdp = 35;
+        else if (cat.includes('ram') || cat.includes('memory')) itemTdp = 15;
+        else if (cat.includes('storage') || cat.includes('ssd') || cat.includes('hdd')) itemTdp = 10;
+        else if (cat.includes('cooler') || cat.includes('fan')) itemTdp = 10;
       }
+      total += itemTdp * qty;
     });
 
     return total;

@@ -23,8 +23,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../../../../firebase";
 import { useSettings } from "../../../../context/SettingsContext";
 import { SiteSettings } from "../../../../types";
-import { useAuth } from "../../../../context/AuthContext";
-import { getApiUrl, apiPost } from "../../../../services/apiClient";
+import { getApiUrl, apiPost, apiGet } from "../../../../services/apiClient";
 import { logAudit } from "../../../../lib/audit";
 import EmailTemplatesManager from "./EmailTemplatesManager";
 import { PagesManager } from "./PagesManager";
@@ -68,7 +67,16 @@ export const Settings = () => {
     const toastId = toast.loading('Testing SMTP connection...');
     try {
       await updateSettings(settingsFormData);
-      const res = await apiPost<{ success: boolean; code?: string; message?: string }>('/api/verify-smtp', {});
+      let res: { success: boolean; code?: string; message?: string } | null = null;
+      try {
+        res = await apiPost<{ success: boolean; code?: string; message?: string }>('/api/admin/email/test-connection', {});
+      } catch (err: any) {
+        if (err?.message?.includes('404')) {
+          res = await apiPost<{ success: boolean; code?: string; message?: string }>('/api/verify-smtp', {});
+        } else {
+          throw err;
+        }
+      }
       if (res?.success) {
         toast.success(res.message || 'SMTP Connection Successful! Emails are ready to send.', { id: toastId });
       } else {
@@ -85,14 +93,7 @@ export const Settings = () => {
     const loadKeys = async () => {
       try {
         if (!user) return;
-        const token = await user.getIdToken();
-        const res = await fetch(getApiUrl('/api/admin/api-config'), {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        const json = await res.json();
+        const json = await apiGet<{ success: boolean; data?: any }>('/api/admin/api-config');
         if (json.success && json.data) {
           setApiKeys(json.data as any);
         }
@@ -173,27 +174,12 @@ export const Settings = () => {
     try {
       if (settingsTab === "domain_reseller") {
         const payload = buildApiKeysPayload();
-        const token = await user?.getIdToken();
-        const res = await fetch(getApiUrl('/api/admin/api-config'), {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-        const json = await res.json();
+        const json = await apiPost<{ success: boolean; data?: any; error?: string }>('/api/admin/api-config', payload);
         if (!json.success) {
           throw new Error(json.error || 'Failed to save API configuration');
         }
 
-        const freshRes = await fetch(getApiUrl('/api/admin/api-config'), {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        const freshJson = await freshRes.json();
+        const freshJson = await apiGet<{ success: boolean; data?: any }>('/api/admin/api-config');
         if (freshJson.success && freshJson.data) {
           setApiKeys(freshJson.data as any);
         }

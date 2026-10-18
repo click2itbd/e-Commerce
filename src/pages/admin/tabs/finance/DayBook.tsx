@@ -64,7 +64,7 @@ export default function DayBook() {
           // Actual cash inflows and outflows
           if (['income', 'payment_received', 'money_receipt'].includes(type)) {
             income += Number(tx.amount || 0);
-          } else if (['expense', 'payment_made', 'salary', 'conveyance'].includes(type)) {
+          } else if (['expense', 'payment_made', 'salary', 'conveyance', 'sale_return'].includes(type)) {
             expense += Number(tx.amount || 0);
           }
         }

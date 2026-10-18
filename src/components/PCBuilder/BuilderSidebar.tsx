@@ -1,15 +1,18 @@
 import React from 'react';
 import { Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
-import { ShoppingCart, Save, Share2, Printer, Zap, AlertTriangle, ShieldCheck, Mail, FileDown, Gamepad2, BrainCircuit, Star } from 'lucide-react';
+import { ShoppingCart, Save, Share2, Printer, Zap, AlertTriangle, ShieldCheck, Mail, FileDown, BrainCircuit, Star, ImageDown } from 'lucide-react';
 import { calculateEstimatedWattage, getOverallCompatibility } from './utils';
 import { CompatibilityEngine } from './CompatibilityEngine';
 import { FPSPredictor } from './FPSPredictor';
 import { BottleneckCalculator } from './BottleneckCalculator';
+import { exportBuildAsPNG } from './exportBuildImage';
+import { toast } from 'react-hot-toast';
 
 interface BuilderSidebarProps {
   selectedComponents: Record<string, Product>;
   includeAssembly?: boolean;
+  targetBudget?: number;
   onToggleAssembly?: () => void;
   onAddToCart: () => void;
   onSaveBuild: () => void;
@@ -22,16 +25,17 @@ interface BuilderSidebarProps {
 export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({ 
   selectedComponents,
   includeAssembly = false,
+  targetBudget = 0,
   onToggleAssembly,
   onAddToCart,
   onSaveBuild,
   onPrintBuild,
-    onDownloadPDF,
+  onDownloadPDF,
   onEmailBuild,
   onPublishBuild
 }) => {
   const selectedList = Object.values(selectedComponents).filter(Boolean) as Product[];
-  const basePrice = selectedList.reduce((sum, p) => sum + p.price, 0);
+  const basePrice = selectedList.reduce((sum, p) => sum + p.price * ((p as any).builderQuantity || 1), 0);
   const assemblyFee = includeAssembly ? 1500 : 0;
   const totalPrice = basePrice + assemblyFee;
   const estimatedWattage = calculateEstimatedWattage(selectedComponents);
@@ -123,8 +127,8 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
           </div>
         </div>
       
-      <FPSPredictor cpu={selectedComponents['Processor']} gpu={selectedComponents['Graphics Card']} />
-      <BottleneckCalculator cpu={selectedComponents['Processor']} gpu={selectedComponents['Graphics Card']} />
+      <FPSPredictor cpu={selectedComponents['cpu']} gpu={selectedComponents['graphics-card']} />
+      <BottleneckCalculator cpu={selectedComponents['cpu']} gpu={selectedComponents['graphics-card']} />
 
       </div>
 
@@ -169,6 +173,22 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
           </button>
         </div>
         
+        <button
+          type="button"
+          onClick={() => {
+            if (selectedList.length === 0) {
+              toast.error('Please select at least one component first');
+              return;
+            }
+            exportBuildAsPNG(selectedComponents, includeAssembly, targetBudget);
+            toast.success('Build summary image (PNG) downloaded!');
+          }}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-2xl hover:from-indigo-500 hover:to-violet-500 transition-all font-bold text-sm shadow-sm"
+        >
+          <ImageDown size={16} />
+          Download Build Image (PNG)
+        </button>
+
         <button 
           onClick={onPublishBuild}
           className="w-full flex items-center justify-center gap-2 py-2.5 bg-violet-50 text-violet-700 rounded-2xl hover:bg-violet-100 transition-colors font-bold text-sm"
@@ -183,11 +203,14 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
             onClick={() => {
               const ids = Object.entries(selectedComponents)
                 .filter(([_, product]) => product)
-                .map(([cat, product]) => `${cat}:${product?.id}`)
+                .map(([cat, product]) => {
+                  const qty = (product as any)?.builderQuantity || 1;
+                  return `${cat}:${product?.id}${qty > 1 ? `*${qty}` : ''}`;
+                })
                 .join(',');
               const shareUrl = `${window.location.origin}/pc-build?build=${btoa(ids)}`;
               navigator.clipboard.writeText(shareUrl);
-              alert('Build link copied to clipboard!');
+              toast.success('Build link copied to clipboard!');
             }}
           >
             <Share2 size={16} />
@@ -198,14 +221,26 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
             className="flex items-center justify-center gap-2 py-2.5 bg-[#25D366]/10 text-[#128C7E] rounded-2xl hover:bg-[#25D366]/20 transition-colors font-bold text-sm border border-[#25D366]/30"
             onClick={() => {
               const selectedList = Object.values(selectedComponents).filter(Boolean);
-              if (selectedList.length === 0) return alert('Add components first!');
-              const totalPrice = selectedList.reduce((sum, p) => sum + (p.discountPrice || p.price), 0);
+              if (selectedList.length === 0) return toast.error('Add components first!');
+              const totalEst = selectedList.reduce(
+                (sum, p) => sum + (p.discountPrice || p.price) * ((p as any).builderQuantity || 1),
+                0
+              );
               let msg = '*My Dream PC Build*\n\n';
               Object.entries(selectedComponents).forEach(([cat, p]) => {
-                if (p) msg += `*${cat}*: ${p.name}\n`;
+                if (p) {
+                  const qty = (p as any).builderQuantity || 1;
+                  msg += `*${cat}*: ${p.name}${qty > 1 ? ` (x${qty})` : ''}\n`;
+                }
               });
-              msg += `\n*Total Est.*: ৳${totalPrice}\n\n`;
-              const ids = Object.entries(selectedComponents).filter(([_, product]) => product).map(([cat, product]) => `${cat}:${product?.id}`).join(',');
+              msg += `\n*Total Est.*: ৳${totalEst}\n\n`;
+              const ids = Object.entries(selectedComponents)
+                .filter(([_, product]) => product)
+                .map(([cat, product]) => {
+                  const qty = (product as any)?.builderQuantity || 1;
+                  return `${cat}:${product?.id}${qty > 1 ? `*${qty}` : ''}`;
+                })
+                .join(',');
               const shareUrl = `${window.location.origin}/pc-build?build=${btoa(ids)}`;
               msg += `Link: ${shareUrl}`;
               window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
@@ -223,23 +258,19 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
           {selectedList.length === 0 ? (
             <p className="text-sm text-slate-500 italic">No parts selected yet.</p>
           ) : (
-            selectedList.map((product, idx) => (
-              <div key={idx} className="flex justify-between items-start gap-3">
-                <p className="text-sm font-medium text-slate-700 line-clamp-2 flex-grow">{product.name}</p>
-                <p className="text-sm font-bold text-slate-900 shrink-0">{formatCurrency(product.price)}</p>
-              </div>
-            ))
+            selectedList.map((product, idx) => {
+              const qty = (product as any).builderQuantity || 1;
+              return (
+                <div key={idx} className="flex justify-between items-start gap-3">
+                  <p className="text-sm font-medium text-slate-700 line-clamp-2 flex-grow">
+                    {qty > 1 && <span className="inline-block bg-violet-100 text-violet-700 text-[11px] font-black px-1.5 py-0.5 rounded mr-1.5">{qty}x</span>}
+                    {product.name}
+                  </p>
+                  <p className="text-sm font-bold text-slate-900 shrink-0">{formatCurrency(product.price * qty)}</p>
+                </div>
+              );
+            })
           )}
-        </div>
-      </div>
-
-      <div className="mt-6 relative group">
-        
-        <div className="relative bg-slate-50 rounded-2xl border border-slate-100">
-          <FPSPredictor 
-            cpu={selectedComponents['cpu']} 
-            gpu={selectedComponents['graphics-card']} 
-          />
         </div>
       </div>
     </div>

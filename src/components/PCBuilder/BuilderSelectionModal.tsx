@@ -3,7 +3,7 @@ import { Product } from '../../types';
 import { BuilderCategory } from './constants';
 import { getCompatibility } from './utils';
 import { formatCurrency, cn } from '../../lib/utils';
-import { X, Search, AlertTriangle, CheckCircle2, Filter, ArrowDownAZ, ArrowUpAZ } from 'lucide-react';
+import { X, Search, AlertTriangle, CheckCircle2, Filter, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface BuilderSelectionModalProps {
@@ -30,14 +30,16 @@ export const BuilderSelectionModal: React.FC<BuilderSelectionModalProps> = ({
   const [selectedBrand, setSelectedBrand] = useState<string>('all');
   const [selectedSocket, setSelectedSocket] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<SortOption>('default');
+  const [hideIncompatible, setHideIncompatible] = useState<boolean>(true);
 
-  const { filteredProducts, availableBrands, availableSockets } = useMemo(() => {
-    if (!category) return { filteredProducts: [], availableBrands: [], availableSockets: [] };
+  const { filteredProducts, availableBrands, availableSockets, hiddenIncompatibleCount } = useMemo(() => {
+    if (!category) return { filteredProducts: [], availableBrands: [], availableSockets: [], hiddenIncompatibleCount: 0 };
     
-    // Normalize string by removing spaces and dashes for lenient matching
+    // Normalize string by removing spaces, dashes, and trailing slot numbers (e.g. ram-2 -> ram)
     const normalize = (str: string) => str.toLowerCase().replace(/[- ]/g, '');
-    const catIdNorm = normalize(category.id);
-    const catNameNorm = normalize(category.name || '');
+    const baseCategoryId = category.id.replace(/-\d+$/, '');
+    const catIdNorm = normalize(baseCategoryId);
+    const catNameNorm = normalize((category.name || '').replace(/#\d+$/, ''));
 
     let baseList = products.filter(p => {
       const pCatNorm = normalize(p.category);
@@ -48,7 +50,8 @@ export const BuilderSelectionModal: React.FC<BuilderSelectionModalProps> = ({
                          // Special case: 'gpu' for 'graphics-card', 'psu' for 'power-supply'
                          (catIdNorm === 'graphicscard' && (pCatNorm.includes('gpu') || pNameNorm.includes('gpu'))) ||
                          (catIdNorm === 'powersupply' && (pCatNorm.includes('psu') || pNameNorm.includes('psu'))) ||
-                         (catIdNorm === 'cpu' && (pCatNorm.includes('processor') || pNameNorm.includes('processor')));
+                         (catIdNorm === 'cpu' && (pCatNorm.includes('processor') || pNameNorm.includes('processor'))) ||
+                         (catIdNorm === 'storage' && (pCatNorm.includes('ssd') || pCatNorm.includes('hdd') || pNameNorm.includes('ssd') || pNameNorm.includes('nvme')));
                          
       return matchesCat;
     });
@@ -72,17 +75,36 @@ export const BuilderSelectionModal: React.FC<BuilderSelectionModalProps> = ({
       baseList = baseList.filter(p => p.socketType === selectedSocket || p.ramType === selectedSocket);
     }
 
-    // 4. Sort
+    // 4. Auto-Filter Incompatible Parts
+    let incompatibleCount = 0;
+    const compatFiltered = baseList.filter(p => {
+      const compat = getCompatibility(baseCategoryId, p, selectedComponents);
+      if (!compat.isCompatible) {
+        incompatibleCount++;
+        return !hideIncompatible;
+      }
+      return true;
+    });
+
+    baseList = compatFiltered;
+
+    // 5. Sort
     if (sortOrder === 'price_asc') {
       baseList.sort((a, b) => a.price - b.price);
     } else if (sortOrder === 'price_desc') {
       baseList.sort((a, b) => b.price - a.price);
     }
 
-    return { filteredProducts: baseList, availableBrands: brands, availableSockets: sockets };
-  }, [products, category, searchQuery, selectedBrand, selectedSocket, sortOrder]);
+    return {
+      filteredProducts: baseList,
+      availableBrands: brands,
+      availableSockets: sockets,
+      hiddenIncompatibleCount: incompatibleCount,
+    };
+  }, [products, category, searchQuery, selectedBrand, selectedSocket, sortOrder, hideIncompatible, selectedComponents]);
 
   if (!isOpen || !category) return null;
+  const baseCategoryId = category.id.replace(/-\d+$/, '');
 
   return (
     <motion.div 
@@ -114,8 +136,8 @@ export const BuilderSelectionModal: React.FC<BuilderSelectionModalProps> = ({
           </button>
         </div>
 
-        {/* Toolbar (Search + Filter Toggle) */}
-        <div className="p-4 sm:px-8 border-b border-slate-100 bg-slate-50/50 shrink-0 flex flex-col sm:flex-row gap-3">
+        {/* Toolbar (Search + Auto-Compatibility Filter + Filter Toggle) */}
+        <div className="p-4 sm:px-8 border-b border-slate-100 bg-slate-50/50 shrink-0 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
           <div className="relative flex-grow max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
@@ -126,7 +148,26 @@ export const BuilderSelectionModal: React.FC<BuilderSelectionModalProps> = ({
               className="w-full bg-white border border-slate-200/80 rounded-2xl pl-11 pr-4 py-3 text-sm focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10 transition-all shadow-sm"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setHideIncompatible(prev => !prev)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold border transition-colors shadow-sm",
+                hideIncompatible
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50"
+              )}
+              title="Automatically hide parts that are incompatible with your selected CPU/Motherboard/RAM"
+            >
+              <ShieldCheck size={16} className={hideIncompatible ? "text-emerald-600" : "text-slate-400"} />
+              Compatible Only
+              {hiddenIncompatibleCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-emerald-600 text-white font-black">
+                  {hiddenIncompatibleCount} hidden
+                </span>
+              )}
+            </button>
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={cn(
@@ -218,12 +259,12 @@ export const BuilderSelectionModal: React.FC<BuilderSelectionModalProps> = ({
                 <Search size={32} className="text-slate-300" />
               </div>
               <p className="font-medium">No components found matching your filters.</p>
-              {(selectedBrand !== 'all' || selectedSocket !== 'all' || searchQuery) && (
+              {(selectedBrand !== 'all' || selectedSocket !== 'all' || searchQuery || (hideIncompatible && hiddenIncompatibleCount > 0)) && (
                 <button 
-                  onClick={() => { setSearchQuery(''); setSelectedBrand('all'); setSelectedSocket('all'); }}
+                  onClick={() => { setSearchQuery(''); setSelectedBrand('all'); setSelectedSocket('all'); setHideIncompatible(false); }}
                   className="text-violet-600 font-bold hover:underline"
                 >
-                  Clear all filters
+                  Clear all filters {hideIncompatible && hiddenIncompatibleCount > 0 ? `(Show ${hiddenIncompatibleCount} incompatible)` : ''}
                 </button>
               )}
             </div>
@@ -238,7 +279,7 @@ export const BuilderSelectionModal: React.FC<BuilderSelectionModalProps> = ({
               className="grid grid-cols-1 lg:grid-cols-2 gap-5"
             >
               {filteredProducts.map(product => {
-                const { isCompatible, reason } = getCompatibility(category.id, product, selectedComponents);
+                const { isCompatible, reason } = getCompatibility(baseCategoryId, product, selectedComponents);
                 const isSelected = selectedComponents[category.id]?.id === product.id;
 
                 return (

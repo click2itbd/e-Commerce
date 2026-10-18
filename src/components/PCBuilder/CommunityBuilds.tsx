@@ -162,8 +162,8 @@ export const CommunityBuilds: React.FC = () => {
                 {filteredBuilds.map((build, idx) => {
                   const tier = getBuildTier(build.totalPrice || 0);
                   // Extract key parts for highlights
-                  const processor = build.components?.processor?.name;
-                  const gpu = build.components?.graphicsCard?.name;
+                  const processor = build.components?.cpu?.name || build.components?.processor?.name;
+                  const gpu = build.components?.['graphics-card']?.name || build.components?.graphicsCard?.name;
 
                   return (
                     <motion.div 

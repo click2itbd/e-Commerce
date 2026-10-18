@@ -53,15 +53,20 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, token?: st
     headers,
   });
 
-  if (!response.ok && response.status === 401 && typeof window !== 'undefined' && auth.currentUser) {
+  if (!response.ok && response.status === 401 && typeof window !== 'undefined') {
     try {
-      const freshToken = await auth.currentUser.getIdToken(true);
-      if (freshToken) {
-        headers['Authorization'] = `Bearer ${freshToken}`;
-        response = await fetch(url, {
-          ...options,
-          headers,
-        });
+      if (typeof (auth as any).authStateReady === 'function') {
+        await (auth as any).authStateReady().catch(() => {});
+      }
+      if (auth.currentUser) {
+        const freshToken = await auth.currentUser.getIdToken(true);
+        if (freshToken) {
+          headers['Authorization'] = `Bearer ${freshToken}`;
+          response = await fetch(url, {
+            ...options,
+            headers,
+          });
+        }
       }
     } catch {
       // ignore
@@ -75,6 +80,9 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, token?: st
       errorMessage = errorData.error || errorData.message || errorMessage;
     } catch {
       errorMessage = response.statusText || errorMessage;
+    }
+    if (response.status === 401 && (errorMessage.includes('token') || errorMessage.includes('Unauthorized'))) {
+      errorMessage = 'Session expired or unauthorized. Please refresh the page or log in again.';
     }
     throw new Error(errorMessage);
   }

@@ -14,7 +14,7 @@ import EditOrderModal from '../../modals/EditOrderModal';
 import { Edit2 } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
-export type OrderCategory = 'all' | 'ecommerce' | 'pc_build' | 'domain' | 'hosting';
+export type OrderCategory = 'all' | 'ecommerce' | 'pc_build';
 
 interface OrdersTabProps { orders: any[]; customers: any[]; orderSearchQuery: string; setOrderSearchQuery: (v: string) => void; orderStatusFilter: string; setOrderStatusFilter: (v: AppOrderStatus | 'all') => void; orderStartDate: string; setOrderStartDate: (v: string) => void; orderEndDate: string; setOrderEndDate: (v: string) => void; orderSort: any; setOrderSort: (v: any) => void; selectedOrderIds: string[]; setSelectedOrderIds: (v: string[]) => void; handleExportFilteredOrders: () => void; handleBulkUpdateOrderStatus: (s: string) => void; handleBulkExportOrders: () => void; handleBulkDeleteOrders: () => void; setSelectedLedgerEntity: (v: any) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; updateOrderDiscount?: (id: string, v: number) => void; updateOrderStatus?: (id: string, status: OrderStatus) => void; generatePDF?: (order: any, type: 'invoice' | 'challan' | 'quotation') => void; handleDeleteOrder?: (order: any) => void; handleReturnOrder?: (order: any) => void; handleEditInSales?: (order: any) => void; }
 
@@ -64,14 +64,17 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
   const { settings } = useSettings();
   const activeStatuses = (settings as any)?.customOrderStatuses || DEFAULT_ORDER_STATUSES;
 
-  const actualOrders = orders.filter(o => o.type !== 'quotation');
+  const actualOrders = orders.filter(o => {
+    if (o.type === 'quotation') return false;
+    const cat = getOrderCategory(o);
+    if (cat === 'domain' || cat === 'hosting') return false;
+    return true;
+  });
   
   const categoryCounts = {
     all: actualOrders.length,
     ecommerce: actualOrders.filter(o => getOrderCategory(o) === 'ecommerce').length,
     pc_build: actualOrders.filter(o => getOrderCategory(o) === 'pc_build').length,
-    domain: actualOrders.filter(o => getOrderCategory(o) === 'domain').length,
-    hosting: actualOrders.filter(o => getOrderCategory(o) === 'hosting').length,
   };
 
   const processedOrders = actualOrders.filter(order => {
@@ -164,36 +167,6 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
             <Cpu size={14} /> PC Build
             <span className={cn("px-1.5 py-0.5 rounded-full text-[10px]", orderCategoryFilter === 'pc_build' ? "bg-white/20 text-white" : "bg-purple-200 text-purple-800")}>
               {categoryCounts.pc_build}
-            </span>
-          </button>
-
-          <button
-            onClick={() => { setOrderCategoryFilter('domain'); setCurrentPage(1); }}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0",
-              orderCategoryFilter === 'domain'
-                ? "bg-cyan-600 text-white shadow-md"
-                : "bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
-            )}
-          >
-            <Globe size={14} /> Domain
-            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px]", orderCategoryFilter === 'domain' ? "bg-white/20 text-white" : "bg-cyan-200 text-cyan-800")}>
-              {categoryCounts.domain}
-            </span>
-          </button>
-
-          <button
-            onClick={() => { setOrderCategoryFilter('hosting'); setCurrentPage(1); }}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0",
-              orderCategoryFilter === 'hosting'
-                ? "bg-blue-600 text-white shadow-md"
-                : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-            )}
-          >
-            <Server size={14} /> Hosting
-            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px]", orderCategoryFilter === 'hosting' ? "bg-white/20 text-white" : "bg-blue-200 text-blue-800")}>
-              {categoryCounts.hosting}
             </span>
           </button>
         </div>

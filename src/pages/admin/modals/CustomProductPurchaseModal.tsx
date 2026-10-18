@@ -87,6 +87,31 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
       toast.error('Please fill required fields (Name, Vendor, Quantity > 0)');
       return;
     }
+
+    if (Number(formData.costPrice) <= 0) {
+      toast.error('ক্রয়মূল্য (Cost Price) অবশ্যই ০ এর বেশি হতে হবে!');
+      return;
+    }
+
+    if (Number(formData.salesPrice) > 0 && Number(formData.costPrice) > Number(formData.salesPrice)) {
+      toast.error(`কেনা মূল্য (৳${formData.costPrice}) বিক্রয় মূল্যের (৳${formData.salesPrice}) চেয়ে বেশি হতে পারে না!`);
+      return;
+    }
+
+    const calculatedTotal = (Number(formData.costPrice) || 0) * (Number(formData.quantity) || 1);
+    const enteredPaid = Number(formData.paidAmount) || 0;
+    if (enteredPaid < 0) {
+      toast.error('পরিশোধিত টাকা (Paid Amount) নেগেটিভ হতে পারে না!');
+      return;
+    }
+    if (enteredPaid > calculatedTotal) {
+      toast.error(`পরিশোধিত টাকা (৳${enteredPaid}) মোট বিলের (৳${calculatedTotal}) চেয়ে বেশি হতে পারে না!`);
+      return;
+    }
+    if (enteredPaid > 0 && !formData.paymentAccountId) {
+      toast.error('টাকা পরিশোধের জন্য একটি পেমেন্ট অ্যাকাউন্ট সিলেক্ট করুন!');
+      return;
+    }
     
     setSubmitting(true);
     try {

@@ -50,8 +50,7 @@ export const logAudit = async (
   // 1. Primary: Record via backend API so the server captures the true client IP address and verified Admin UID
   if (currentUser) {
     try {
-      const token = await currentUser.getIdToken();
-      const res = await apiPost(
+      const res = await apiPost<{ success: boolean; logId?: string }>(
         '/api/admin/audit-log',
         {
           action,
@@ -61,8 +60,7 @@ export const logAudit = async (
           entityId: extraMetadata?.entityId,
           previousState: extraMetadata?.previousState,
           newState: extraMetadata?.newState,
-        },
-        token
+        }
       );
       if (res?.success) {
         return;

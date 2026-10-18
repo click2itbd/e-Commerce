@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc, setDoc, where, increment } from 'firebase/firestore';
-import { db, auth } from '../../../../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, auth, storage } from '../../../../firebase';
 import { Product, Vendor, Transaction, SiteSettings, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, type WarrantyUnit } from '../../../../lib/utils';
 
@@ -24,6 +25,12 @@ import {
   Eye,
   X,
   AlertCircle,
+  History,
+  Paperclip,
+  Upload,
+  Image as ImageIcon,
+  Truck,
+  ExternalLink,
 } from 'lucide-react';
 import { generateDocumentNumber } from '../../../../lib/numbering';
 import { Pagination } from '../../../../components/common/Pagination';
@@ -66,6 +73,7 @@ interface PurchaseRecord {
   paymentAccountId?: string;
   paymentMethod?: string;
   reference?: string;
+  attachmentUrl?: string;
   notes?: string;
   createdAt: string;
 }
@@ -162,10 +170,12 @@ const Purchases: React.FC<PurchasesProps> = ({
       paymentMethod: 'cash',
       paidAmount: 0,
       shippingCost: 0,
+      attachmentUrl: '',
       notes: '',
       createdBy: ''
     };
   });
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   useEffect(() => {
     if (purchaseForm.vendorId || purchaseForm.items.length > 0) {
@@ -646,6 +656,61 @@ const Purchases: React.FC<PurchasesProps> = ({
     }));
   };
 
+  const getLastPurchaseInfo = (productId?: string, productName?: string) => {
+    if (!productId && !productName) return null;
+    for (const pur of purchaseHistory) {
+      const foundItem = pur.items?.find(i => 
+        (productId && i.id === productId) || 
+        (productName && i.name?.toLowerCase().trim() === productName.toLowerCase().trim())
+      );
+      if (foundItem) {
+        return {
+          price: Number(foundItem.purchasePrice) || 0,
+          date: pur.date || pur.createdAt,
+          vendorName: pur.vendorName,
+          documentNumber: pur.documentNumber
+        };
+      }
+    }
+    const prod = products.find(p => 
+      (productId && p.id === productId) || 
+      (productName && p.name?.toLowerCase().trim() === productName.toLowerCase().trim())
+    );
+    if (prod && Number(prod.costPrice) > 0) {
+      return {
+        price: Number(prod.costPrice),
+        date: prod.createdAt || '',
+        vendorName: '',
+        documentNumber: ''
+      };
+    }
+    return null;
+  };
+
+  const handleBillFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('ফাইলের সাইজ ১০MB এর কম হতে হবে!');
+      return;
+    }
+    try {
+      setUploadingAttachment(true);
+      const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const storageRef = ref(storage, `purchases/bills/${Date.now()}_${safeName}`);
+      await uploadBytes(storageRef, file);
+      const downloadUrl = await getDownloadURL(storageRef);
+      setPurchaseForm(prev => ({ ...prev, attachmentUrl: downloadUrl }));
+      toast.success('ভেন্ডরের চালান/মেমো কপি সফলভাবে আপলোড হয়েছে!');
+    } catch (err) {
+      console.error('Bill upload failed:', err);
+      toast.error('মেমো আপলোড ব্যর্থ হয়েছে! অনুগ্রহ করে আবার চেষ্টা করুন।');
+    } finally {
+      setUploadingAttachment(false);
+      e.target.value = '';
+    }
+  };
+
   const handleSavePurchase = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -656,6 +721,113 @@ const Purchases: React.FC<PurchasesProps> = ({
 
     if (purchaseForm.items.length === 0) {
       toast.error('Please add at least one product to the purchase');
+      return;
+    }
+
+    // 1. Zero and Negative Value Blocking (জিরো ও নেগেটিভ ভ্যালু ব্লকিং)
+    for (const item of purchaseForm.items) {
+      const qty = Number(item.quantity);
+      if (isNaN(qty) || qty <= 0) {
+        toast.error(`"${item.name}": পণ্যের পরিমাণ (Quantity) অবশ্যই ০ এর বেশি হতে হবে!`);
+        return;
+      }
+      const cost = Number(item.purchasePrice);
+      if (isNaN(cost) || cost <= 0) {
+        toast.error(`"${item.name}": ক্রয়মূল্য (Cost Price) অবশ্যই ০ এর বেশি হতে হবে!`);
+        return;
+      }
+      if (item.salesPrice !== undefined && Number(item.salesPrice) < 0) {
+        toast.error(`"${item.name}": বিক্রয়মূল্য (Sales Price) নেগেটিভ হতে পারে না!`);
+        return;
+      }
+    }
+    if (Number(purchaseForm.shippingCost) < 0) {
+      toast.error('পরিবহন খরচ (Shipping Cost) নেগেটিভ হতে পারে না!');
+      return;
+    }
+
+    // 2. Cost Price vs Sales Price (মার্জিন ভ্যালিডেশন)
+    for (const item of purchaseForm.items) {
+      const cost = Number(item.purchasePrice) || 0;
+      const sale = Number(item.salesPrice) || 0;
+      if (sale > 0 && cost > sale) {
+        toast.error(`"${item.name}": কেনা মূল্য (৳${cost}) বিক্রয় মূল্যের (৳${sale}) চেয়ে বেশি হতে পারে না!`);
+        return;
+      }
+    }
+
+    // 3. Serial Number & Quantity Match (সিরিয়াল নম্বর ও পরিমাণের মিল)
+    for (const item of purchaseForm.items) {
+      if (item.hasSerialTracking) {
+        const serials = Array.isArray(item.newSerials)
+          ? item.newSerials.filter((s: string) => s && s.trim())
+          : String(item.newSerials || '').split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+        const qty = Number(item.quantity) || 0;
+        if (serials.length !== qty) {
+          toast.error(`"${item.name}": কোয়ান্টিটি (${qty} টি) এবং স্ক্যান করা সিরিয়াল সংখ্যার (${serials.length} টি) মিল নেই!`);
+          return;
+        }
+      }
+    }
+
+    // 4. Duplicate Serial Number Check (ডুপ্লিকেট সিরিয়াল নম্বর রোধ)
+    const seenSerials = new Set<string>();
+    for (const item of purchaseForm.items) {
+      if (item.hasSerialTracking) {
+        const serials = Array.isArray(item.newSerials)
+          ? item.newSerials.filter((s: string) => s && s.trim())
+          : String(item.newSerials || '').split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+        
+        for (const s of serials) {
+          const lowerS = s.toLowerCase();
+          // Check duplicate within the same purchase
+          if (seenSerials.has(lowerS)) {
+            toast.error(`ডুপ্লিকেট সিরিয়াল নম্বর পাওয়া গেছে: "${s}"! একই পারচেজে একই সিরিয়াল একাধিকবার ব্যবহার করা যাবে না।`);
+            return;
+          }
+          seenSerials.add(lowerS);
+
+          // Check duplicate across existing products in database
+          const existingProd = products.find(p => 
+            p.id !== item.id && 
+            Array.isArray(p.availableSerials) && 
+            p.availableSerials.some((existingS: string) => existingS.trim().toLowerCase() === lowerS)
+          );
+          if (existingProd) {
+            toast.error(`সিরিয়াল নম্বর "${s}" ইতিমধ্যে "${existingProd.name}" প্রোডাক্টে বিদ্যমান!`);
+            return;
+          }
+        }
+      }
+    }
+
+    // 5. Vendor Memo / Challan Duplication Check (ভেন্ডর মেমো/চালান ডুপ্লিকেশন চেক)
+    if (purchaseForm.reference && purchaseForm.reference.trim()) {
+      const trimmedRef = purchaseForm.reference.trim().toLowerCase();
+      const duplicateChallan = purchaseHistory.find(p => 
+        p.id !== purchaseForm.id && 
+        p.vendorId === purchaseForm.vendorId && 
+        p.reference && 
+        p.reference.trim().toLowerCase() === trimmedRef
+      );
+      if (duplicateChallan) {
+        toast.error(`এই ভেন্ডরের চালান/মেমো নম্বর "${purchaseForm.reference}" ইতিমধ্যে এন্ট্রি করা আছে (তারিখ: ${new Date(duplicateChallan.date).toLocaleDateString()})!`);
+        return;
+      }
+    }
+
+    // 6. Paid Amount Limit (পেইড অ্যামাউন্ট লিমিট)
+    const paid = Number(purchaseForm.paidAmount) || 0;
+    if (paid < 0) {
+      toast.error('পরিশোধিত টাকা (Paid Amount) নেগেটিভ হতে পারে না!');
+      return;
+    }
+    if (paid > billTotal) {
+      toast.error(`পরিশোধিত টাকা (৳${paid}) মোট বিলের (৳${billTotal}) চেয়ে বেশি হতে পারে না!`);
+      return;
+    }
+    if (paid > 0 && !purchaseForm.paymentAccountId) {
+      toast.error('টাকা পরিশোধের জন্য একটি পেমেন্ট অ্যাকাউন্ট (Paid From Account) সিলেক্ট করুন!');
       return;
     }
 
@@ -852,11 +1024,13 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
         items: updatedItems,
         subtotal: billTotal,
         total: billTotal,
+        shippingCost: totalShippingCost,
         paidAmount: paid,
         paymentStatus,
         paymentAccountId: selectedAcc?.id || '',
         paymentMethod: selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash',
         reference: purchaseForm.reference || '',
+        attachmentUrl: purchaseForm.attachmentUrl || '',
         notes: purchaseForm.notes || '',
         createdAt,
         createdBy: purchaseForm.createdBy || 'Admin',
@@ -935,6 +1109,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
         paymentMethod: paymentAccounts[0]?.type || 'cash',
         paidAmount: 0,
         shippingCost: 0,
+        attachmentUrl: '',
         notes: '',
         createdBy: '',
       });
@@ -1095,6 +1270,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                     paymentMethod: paymentAccounts[0]?.type || 'cash',
                     paidAmount: 0,
                     shippingCost: 0,
+                    attachmentUrl: '',
                     notes: '',
                     createdBy: ''
                   });
@@ -1111,6 +1287,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                     paymentMethod: paymentAccounts[0]?.type || 'cash',
                     paidAmount: 0,
                     shippingCost: 0,
+                    attachmentUrl: '',
                     notes: '',
                     createdBy: ''
                   });
@@ -1147,7 +1324,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                     onClick={() => {
                       if(window.confirm('Clear all drafted data?')) {
                         localStorage.removeItem('draft_purchase_form');
-                        setPurchaseForm({ id: undefined, documentNumber: undefined, vendorId: '', vendorName: '', date: new Date().toISOString().split('T')[0], reference: '', items: [], paymentAccountId: '', paymentMethod: 'cash', paidAmount: 0, shippingCost: 0, notes: '', createdBy: '' });
+                        setPurchaseForm({ id: undefined, documentNumber: undefined, vendorId: '', vendorName: '', date: new Date().toISOString().split('T')[0], reference: '', items: [], paymentAccountId: '', paymentMethod: 'cash', paidAmount: 0, shippingCost: 0, attachmentUrl: '', notes: '', createdBy: '' });
                       }
                     }}
                     className="text-xs text-red-500 hover:text-red-700 font-bold"
@@ -1221,8 +1398,70 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                       placeholder="e.g. CH-9941"
                       value={purchaseForm.reference}
                       onChange={e => setPurchaseForm({ ...purchaseForm, reference: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg p-2.5 font-medium"
+                      className={cn(
+                        "w-full border rounded-lg p-2.5 font-medium",
+                        purchaseForm.vendorId && purchaseForm.reference && purchaseHistory.some(p => p.id !== purchaseForm.id && p.vendorId === purchaseForm.vendorId && p.reference?.trim().toLowerCase() === purchaseForm.reference.trim().toLowerCase())
+                          ? "border-amber-400 bg-amber-50/50"
+                          : "border-gray-200"
+                      )}
                     />
+                    {purchaseForm.vendorId && purchaseForm.reference && purchaseHistory.some(p => p.id !== purchaseForm.id && p.vendorId === purchaseForm.vendorId && p.reference?.trim().toLowerCase() === purchaseForm.reference.trim().toLowerCase()) && (
+                      <p className="text-[11px] text-amber-700 font-bold mt-1 flex items-center gap-1">
+                        <AlertCircle size={12} className="shrink-0" /> এই ভেন্ডরের এই চালান নম্বর পূর্বে এন্ট্রি করা হয়েছে!
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Vendor Bill Attachment (ভেন্ডরের কাগজের মেমো/চালান ছবি আপলোড) */}
+                  <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block font-bold text-gray-700 uppercase flex items-center gap-1.5 text-[11px]">
+                        <Paperclip size={13} className="text-blue-600" /> ভেন্ডরের কাগজের মেমো / বিল রসিদ (Bill Attachment)
+                      </label>
+                      {uploadingAttachment && (
+                        <span className="text-blue-600 font-bold flex items-center gap-1 text-[11px] animate-pulse">
+                          <Upload size={12} className="animate-bounce" /> ফাইল আপলোড হচ্ছে...
+                        </span>
+                      )}
+                    </div>
+
+                    {purchaseForm.attachmentUrl ? (
+                      <div className="flex items-center justify-between bg-white border border-emerald-200 rounded-lg p-2.5 shadow-sm">
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          <ImageIcon size={20} className="text-emerald-600 shrink-0" />
+                          <div className="truncate">
+                            <span className="text-xs font-bold text-slate-800 block">কাগজের মেমো / চালান সংযুক্ত আছে ✓</span>
+                            <a 
+                              href={purchaseForm.attachmentUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-[11px] text-blue-600 hover:underline inline-flex items-center gap-1 font-semibold"
+                            >
+                              ব্রাউজারে বড় করে দেখুন <ExternalLink size={10} />
+                            </a>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPurchaseForm(prev => ({ ...prev, attachmentUrl: '' }))}
+                          className="text-xs text-rose-600 hover:bg-rose-50 px-2.5 py-1 rounded-md font-bold border border-rose-200 transition-colors"
+                        >
+                          মুছে ফেলুন
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center justify-center gap-2 border border-dashed border-slate-300 hover:border-blue-400 bg-white hover:bg-blue-50/50 p-2.5 rounded-lg cursor-pointer transition-colors text-slate-600 hover:text-blue-700 font-bold text-xs">
+                        <Upload size={14} className="text-blue-600" />
+                        <span>{uploadingAttachment ? 'ফাইল আপলোড হচ্ছে...' : 'কাগজের মেমো বা চালানের ছবি / PDF আপলোড করুন (১০MB পর্যন্ত)'}</span>
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          disabled={uploadingAttachment}
+                          onChange={handleBillFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
                   </div>
                 </div>
 
@@ -1270,6 +1509,20 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                 onChange={e => updateItem(item.id, 'purchasePrice', Number(e.target.value))}
                                 className="w-20 text-right border border-gray-200 rounded p-1 font-black text-gray-900"
                               />
+                              {(() => {
+                                const lastPur = getLastPurchaseInfo(item.id, item.name);
+                                if (!lastPur) return null;
+                                const formattedDate = lastPur.date ? new Date(lastPur.date).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short' }) : '';
+                                return (
+                                  <div 
+                                    className="mt-1 text-[9px] text-blue-800 bg-blue-50/80 border border-blue-200/60 rounded px-1 py-0.5 flex items-center gap-0.5 whitespace-nowrap cursor-help"
+                                    title={`সর্বশেষ কেনা হয়েছিল: ৳${lastPur.price}${lastPur.vendorName ? ` (ভেন্ডর: ${lastPur.vendorName})` : ''}${lastPur.documentNumber ? ` [ভাউচার #${lastPur.documentNumber}]` : ''}`}
+                                  >
+                                    <History size={10} className="text-blue-600 shrink-0" />
+                                    <span>লাস্ট: <strong>৳{lastPur.price}</strong>{formattedDate ? ` (${formattedDate})` : ''}</span>
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             {/* Sales Price */}
@@ -1280,7 +1533,12 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                 min={1}
                                 value={item.salesPrice || 0}
                                 onChange={e => updateItem(item.id, 'salesPrice', Number(e.target.value))}
-                                className="w-20 text-right border border-blue-200 bg-blue-50/50 rounded p-1 font-black text-blue-900 focus:ring-blue-500"
+                                className={cn(
+                                  "w-20 text-right border rounded p-1 font-black outline-none focus:ring-1",
+                                  item.salesPrice && Number(item.purchasePrice) > Number(item.salesPrice)
+                                    ? "border-red-400 bg-red-50 text-red-900 focus:ring-red-500"
+                                    : "border-blue-200 bg-blue-50/50 text-blue-900 focus:ring-blue-500"
+                                )}
                               />
                             </div>
 
@@ -1364,12 +1622,51 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
 </div>
                           </div>
 
+                          {/* Margin warning if cost > sales price */}
+                          {item.salesPrice !== undefined && Number(item.salesPrice) > 0 && Number(item.purchasePrice) > Number(item.salesPrice) && (
+                            <div className="w-full text-[11px] text-red-600 font-bold bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 mt-1">
+                              <AlertCircle size={13} className="shrink-0 text-red-500" />
+                              <span>সতর্কতা: কেনা মূল্য (৳{item.purchasePrice}) বিক্রয় মূল্যের (৳{item.salesPrice}) চেয়ে বেশি!</span>
+                            </div>
+                          )}
+
+                          {/* Landed Cost breakdown when shipping/other expenses added */}
+                          {(() => {
+                            const totalQty = purchaseForm.items.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
+                            const shipCost = Number(purchaseForm.shippingCost) || 0;
+                            if (shipCost <= 0 || totalQty <= 0) return null;
+                            const perUnitShip = shipCost / totalQty;
+                            const effectiveCost = Number(item.purchasePrice) + perUnitShip;
+                            return (
+                              <div className="w-full text-[11px] text-indigo-700 font-medium bg-indigo-50 border border-indigo-100 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-1.5 mt-1">
+                                <span className="flex items-center gap-1.5">
+                                  <Truck size={13} className="shrink-0 text-indigo-600" />
+                                  <span>অতিরিক্ত খরচসহ ল্যান্ডেড কস্ট: <strong className="font-bold text-indigo-900">৳{effectiveCost.toFixed(2)}</strong> / ইউনিট</span>
+                                </span>
+                                <span className="text-[10px] text-indigo-600 font-bold bg-white px-2 py-0.5 rounded border border-indigo-200">
+                                  +৳{perUnitShip.toFixed(2)} / ইউনিট পরিবহন/লেবার খরচ
+                                </span>
+                              </div>
+                            );
+                          })()}
+
                           {/* Serial Numbers Input if serial tracking enabled */}
-                          {item.hasSerialTracking && (
+                          {item.hasSerialTracking && (() => {
+                            const serialCount = Array.isArray(item.newSerials) ? item.newSerials.length : 0;
+                            const isMatch = serialCount === Number(item.quantity);
+                            const isOver = serialCount > Number(item.quantity);
+                            return (
                             <div className="border-t border-gray-200 pt-3 mt-3">
                               <label className="block text-xs font-bold text-gray-700 uppercase mb-2 flex justify-between items-center">
-                                <span>Barcode / Serial Scanning</span>
-                                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Scanned: {Array.isArray(item.newSerials) ? item.newSerials.length : 0}</span>
+                                <span className="flex items-center gap-1.5">
+                                  <Barcode size={14} className="text-blue-600" /> Barcode / Serial Scanning
+                                </span>
+                                <span className={cn(
+                                  "px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1",
+                                  isMatch ? "bg-emerald-100 text-emerald-800" : isOver ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"
+                                )}>
+                                  {isMatch ? "✓ সিরিয়াল মিল রয়েছে:" : isOver ? "⚠️ অতিরিক্ত সিরিয়াল:" : "⚠️ সিরিয়াল বাকি:"} {serialCount} / {item.quantity}
+                                </span>
                               </label>
                               
                               <div className="flex gap-2 mb-2">
@@ -1386,21 +1683,46 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                       
                                       const newSers = pasteData.split(/[\s,]+/).filter(s => s.trim() !== '');
                                       const currentSerials = Array.isArray(item.newSerials) ? item.newSerials : [];
-                                      const uniqueNew = newSers.filter(s => !currentSerials.includes(s));
+                                      const otherItemSerials = purchaseForm.items
+                                        .filter(i => i.id !== item.id && Array.isArray(i.newSerials))
+                                        .flatMap(i => i.newSerials as string[]);
+
+                                      const validNew: string[] = [];
+                                      for (const s of newSers) {
+                                        const cleanS = s.trim();
+                                        if (!cleanS) continue;
+                                        if (currentSerials.some(cs => cs.toLowerCase() === cleanS.toLowerCase()) || validNew.some(vn => vn.toLowerCase() === cleanS.toLowerCase())) {
+                                          continue; // already in this item
+                                        }
+                                        if (otherItemSerials.some(os => os.toLowerCase() === cleanS.toLowerCase())) {
+                                          toast.error(`সিরিয়াল "${cleanS}" এই পারচেজের অন্য আইটেমে স্ক্যান করা হয়েছে!`);
+                                          continue;
+                                        }
+                                        const existingInDb = products.find(p => 
+                                          p.id !== item.id && 
+                                          Array.isArray(p.availableSerials) && 
+                                          p.availableSerials.some((existingS: string) => existingS.trim().toLowerCase() === cleanS.toLowerCase())
+                                        );
+                                        if (existingInDb) {
+                                          toast.error(`সিরিয়াল "${cleanS}" ইতিমধ্যে "${existingInDb.name}" প্রোডাক্টে বিদ্যমান!`);
+                                          continue;
+                                        }
+                                        validNew.push(cleanS);
+                                      }
                                       
-                                      if (uniqueNew.length > 0) {
-                                        const updatedSerials = [...currentSerials, ...uniqueNew];
+                                      if (validNew.length > 0) {
+                                        const updatedSerials = [...currentSerials, ...validNew];
                                         setPurchaseForm(prev => ({
                                           ...prev,
                                           items: prev.items.map(i => 
                                             i.id === item.id 
-                                              ? { ...i, newSerials: updatedSerials, quantity: updatedSerials.length } 
+                                              ? { ...i, newSerials: updatedSerials, quantity: Math.max(i.quantity, updatedSerials.length) } 
                                               : i
                                           )
                                         }));
-                                        toast.success(`Successfully added ${uniqueNew.length} serial number(s)!`);
+                                        toast.success(`${validNew.length} টি সিরিয়াল সফলভাবে যোগ করা হয়েছে!`);
                                       } else if (newSers.length > 0) {
-                                        toast.error('All pasted serials are already scanned!');
+                                        toast.error('স্ক্যান করা সিরিয়াল ইতিমধ্যে যুক্ত বা ডেটাবেজে বিদ্যমান!');
                                       }
                                     }}
                                     onKeyDown={(e) => {
@@ -1410,22 +1732,47 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                         if (val) {
                                           const newSers = val.split(/[\s,]+/).filter(s => s.trim() !== '');
                                           const currentSerials = Array.isArray(item.newSerials) ? item.newSerials : [];
-                                          const uniqueNew = newSers.filter(s => !currentSerials.includes(s));
+                                          const otherItemSerials = purchaseForm.items
+                                            .filter(i => i.id !== item.id && Array.isArray(i.newSerials))
+                                            .flatMap(i => i.newSerials as string[]);
+
+                                          const validNew: string[] = [];
+                                          for (const s of newSers) {
+                                            const cleanS = s.trim();
+                                            if (!cleanS) continue;
+                                            if (currentSerials.some(cs => cs.toLowerCase() === cleanS.toLowerCase()) || validNew.some(vn => vn.toLowerCase() === cleanS.toLowerCase())) {
+                                              continue;
+                                            }
+                                            if (otherItemSerials.some(os => os.toLowerCase() === cleanS.toLowerCase())) {
+                                              toast.error(`সিরিয়াল "${cleanS}" এই পারচেজের অন্য আইটেমে স্ক্যান করা হয়েছে!`);
+                                              continue;
+                                            }
+                                            const existingInDb = products.find(p => 
+                                              p.id !== item.id && 
+                                              Array.isArray(p.availableSerials) && 
+                                              p.availableSerials.some((existingS: string) => existingS.trim().toLowerCase() === cleanS.toLowerCase())
+                                            );
+                                            if (existingInDb) {
+                                              toast.error(`সিরিয়াল "${cleanS}" ইতিমধ্যে "${existingInDb.name}" প্রোডাক্টে বিদ্যমান!`);
+                                              continue;
+                                            }
+                                            validNew.push(cleanS);
+                                          }
                                           
-                                          if (uniqueNew.length > 0) {
-                                            const updatedSerials = [...currentSerials, ...uniqueNew];
+                                          if (validNew.length > 0) {
+                                            const updatedSerials = [...currentSerials, ...validNew];
                                             setPurchaseForm(prev => ({
                                               ...prev,
                                               items: prev.items.map(i => 
                                                 i.id === item.id 
-                                                  ? { ...i, newSerials: updatedSerials, quantity: updatedSerials.length } 
+                                                  ? { ...i, newSerials: updatedSerials, quantity: Math.max(i.quantity, updatedSerials.length) } 
                                                   : i
                                               )
                                             }));
-                                            if (uniqueNew.length > 1) toast.success(`Added ${uniqueNew.length} serials!`);
+                                            if (validNew.length > 1) toast.success(`${validNew.length} টি সিরিয়াল যোগ হয়েছে!`);
                                             e.currentTarget.value = ''; // clear input
                                           } else {
-                                            toast.error('Barcode(s) already scanned!');
+                                            toast.error('সিরিয়াল ইতিমধ্যে স্ক্যান করা হয়েছে বা বিদ্যমান!');
                                             e.currentTarget.value = '';
                                           }
                                         }
@@ -1485,10 +1832,11 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                               )}
                               
                               <p className="text-[10px] text-gray-500 mt-1">
-                                Scanning a barcode will automatically increase the quantity.
+                                স্ক্যান করা বারকোড সংখ্যা এবং পণ্যের পরিমাণ (Quantity) সমান হতে হবে।
                               </p>
                             </div>
-                          )}
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>
@@ -1545,8 +1893,16 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                         min={0}
                         value={purchaseForm.paidAmount || ''}
                         onChange={e => setPurchaseForm({ ...purchaseForm, paidAmount: Number(e.target.value) || 0 })}
-                        className="w-full border border-gray-200 rounded-lg p-2 font-black text-gray-900 text-sm"
+                        className={cn(
+                          "w-full border rounded-lg p-2 font-black text-gray-900 text-sm",
+                          purchaseForm.paidAmount > billTotal ? "border-red-400 bg-red-50 text-red-900" : "border-gray-200"
+                        )}
                       />
+                      {purchaseForm.paidAmount > billTotal && (
+                        <p className="text-[11px] text-red-600 font-bold mt-1 flex items-center gap-1">
+                          <AlertCircle size={12} className="shrink-0" /> পরিশোধিত টাকা মোট বিলের (৳{billTotal}) চেয়ে বেশি হতে পারে না!
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
@@ -1908,9 +2264,23 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
                         {pur.vendorName}
-                        {pur.reference && (
-                          <span className="text-[10px] text-slate-400 font-mono font-medium block mt-1">Challan: #{pur.reference}</span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          {pur.reference && (
+                            <span className="text-[10px] text-slate-400 font-mono font-medium">Challan: #{pur.reference}</span>
+                          )}
+                          {pur.attachmentUrl && (
+                            <a
+                              href={pur.attachmentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded transition-colors"
+                              title="ভেন্ডরের কাগজের মেমো / চালান কপি দেখুন"
+                            >
+                              <Paperclip size={10} /> মেমো কপি
+                            </a>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-center text-xs font-bold text-slate-600">
                         <span className="bg-slate-100 px-2 py-0.5 rounded-full">{totalQty} Units</span>
@@ -1967,6 +2337,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                  paymentMethod: pur.paymentMethod || 'cash',
                                  paidAmount: pur.paidAmount || 0,
                                  shippingCost: pur.shippingCost || 0,
+                                 attachmentUrl: pur.attachmentUrl || '',
                                  notes: pur.notes || '',
                              });
                              setIsCreatingPurchase(true);
@@ -2075,6 +2446,12 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                   <span>Total Purchase Bill:</span>
                   <span className="text-[#EF4444]">{formatCurrency(viewingPurchase.total, settings)}</span>
                 </div>
+                {Number(viewingPurchase.shippingCost || 0) > 0 && (
+                  <div className="flex justify-between text-indigo-700 font-bold">
+                    <span className="flex items-center gap-1.5"><Truck size={13} className="text-indigo-600" /> অতিরিক্ত খরচ / পরিবহন:</span>
+                    <span>{formatCurrency(viewingPurchase.shippingCost || 0, settings)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-green-700 font-bold">
                   <span>Paid Amount:</span>
                   <span>{formatCurrency(viewingPurchase.paidAmount, settings)}</span>
@@ -2084,6 +2461,35 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                   <span>{formatCurrency(Math.max(0, viewingPurchase.total - viewingPurchase.paidAmount), settings)}</span>
                 </div>
               </div>
+
+              {/* Original Bill / Memo Attachment Preview */}
+              {viewingPurchase.attachmentUrl && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-gray-800 flex items-center gap-1.5 text-xs">
+                      <Paperclip size={14} className="text-blue-600" /> ভেন্ডরের আসল মেমো / চালান কপি:
+                    </span>
+                    <a
+                      href={viewingPurchase.attachmentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 bg-white border border-blue-200 px-2.5 py-1 rounded-lg shadow-xs hover:bg-blue-50 transition-colors"
+                    >
+                      আসল সাইজে দেখুন <ExternalLink size={12} />
+                    </a>
+                  </div>
+                  <div className="max-h-56 overflow-hidden rounded-lg border border-gray-200 bg-white flex items-center justify-center p-2">
+                    <img
+                      src={viewingPurchase.attachmentUrl}
+                      alt="Supplier Bill Attachment"
+                      className="max-h-52 w-auto object-contain rounded transition-transform"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end pt-2">
                 <button

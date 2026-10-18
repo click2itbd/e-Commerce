@@ -11,44 +11,7 @@ export interface EmailLog {
   status: 'sent' | 'failed';
 }
 
-import { auth } from '../firebase';
-import { resolveApiBaseUrl } from './apiClient';
-
-async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const cleanBase = resolveApiBaseUrl();
-  let cleanPath = path.startsWith('/') ? path : `/${path}`;
-
-  if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {
-    cleanPath = cleanPath.slice(4);
-  }
-
-  const url = `${cleanBase}${cleanPath}`;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {}),
-  };
-
-  if (!headers['Authorization'] && typeof window !== 'undefined' && auth.currentUser) {
-    try {
-      const token = await auth.currentUser.getIdToken();
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-    } catch {
-      // ignore
-    }
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Network error' }));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
-
-  return response.json();
-}
+import { apiPost } from './apiClient';
 
 export interface ServiceActivationDetails {
   domain?: string;
@@ -141,13 +104,10 @@ Thank you for choosing us!
   }
 
   try {
-    const response = await apiRequest<{ success: boolean }>('/api/send-email', {
-      method: 'POST',
-      body: JSON.stringify({
-        to: customerEmail,
-        subject,
-        html: content.replace(/\n/g, '<br>'),
-      }),
+    const response = await apiPost<{ success: boolean }>('/api/send-email', {
+      to: customerEmail,
+      subject,
+      html: content.replace(/\n/g, '<br>'),
     });
 
     await addDoc(collection(db, 'emailLogs'), {
@@ -211,16 +171,13 @@ export const sendEmail = async ({
   orderId?: string;
 }): Promise<SendEmailResponse> => {
   try {
-    const response = await apiRequest<{ success: boolean; error?: string; message?: string }>('/api/send-email', {
-      method: 'POST',
-      body: JSON.stringify({
-        to,
-        subject,
-        html,
-        attachments,
-        category,
-        orderId,
-      }),
+    const response = await apiPost<{ success: boolean; error?: string; message?: string }>('/api/send-email', {
+      to,
+      subject,
+      html,
+      attachments,
+      category,
+      orderId,
     });
     return { 
       success: response?.success ?? true,

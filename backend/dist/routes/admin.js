@@ -5,8 +5,39 @@ import { OpenproviderDomainProvider } from '../providers/domain/OpenproviderDoma
 import { getCloudLinuxProvider } from '../providers/cloudlinux/CloudLinuxProvider.js';
 import { verifySmtpConnection } from '../services/email.js';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
+import { recordAdminActivityLog } from '../services/auditLogger.js';
 const adminRouter = Router();
 adminRouter.use(requireFirebaseAuth);
+adminRouter.post('/audit-log', async (req, res) => {
+    try {
+        const uid = req.user?.uid;
+        const email = req.user?.email || '';
+        const isAdmin = await isUserAdmin(uid, email);
+        if (!isAdmin) {
+            return res.status(403).json({ error: 'Admin or staff access required' });
+        }
+        const { action, entityType, details, performedBy, entityId, previousState, newState } = req.body || {};
+        if (!action || !entityType || !details) {
+            return res.status(400).json({ error: 'action, entityType, and details are required' });
+        }
+        const logId = await recordAdminActivityLog(req, {
+            action: String(action),
+            entityType: String(entityType),
+            details: String(details),
+            performedBy: String(performedBy || email || uid || 'Admin'),
+            adminUid: uid,
+            adminEmail: email,
+            entityId: entityId ? String(entityId) : undefined,
+            previousState,
+            newState,
+        });
+        return res.status(201).json({ success: true, logId });
+    }
+    catch (error) {
+        console.error('Failed to record admin activity log:', error);
+        return res.status(500).json({ error: 'Failed to record admin activity log' });
+    }
+});
 const FORBIDDEN_SECRET_FIELDS = new Set([
     'bkashAppKey',
     'bkashAppSecret',
@@ -35,7 +66,7 @@ const FORBIDDEN_SECRET_FIELDS = new Set([
 ]);
 adminRouter.get('/api-config', async (req, res) => {
     try {
-        const isAdmin = await isUserAdmin(req.user.uid);
+        const isAdmin = await isUserAdmin(req.user.uid, req.user.email);
         if (!isAdmin) {
             return res.status(403).json({ error: 'Admin access required' });
         }
@@ -59,7 +90,7 @@ adminRouter.get('/api-config', async (req, res) => {
 });
 adminRouter.get('/hosting-config', async (req, res) => {
     try {
-        const isAdmin = await isUserAdmin(req.user.uid);
+        const isAdmin = await isUserAdmin(req.user.uid, req.user.email);
         if (!isAdmin) {
             return res.status(403).json({ error: 'Admin access required' });
         }
@@ -81,7 +112,7 @@ adminRouter.get('/hosting-config', async (req, res) => {
 });
 adminRouter.post('/hosting-config', async (req, res) => {
     try {
-        const isAdmin = await isUserAdmin(req.user.uid);
+        const isAdmin = await isUserAdmin(req.user.uid, req.user.email);
         if (!isAdmin) {
             return res.status(403).json({ error: 'Admin access required' });
         }
@@ -97,6 +128,13 @@ adminRouter.post('/hosting-config', async (req, res) => {
             }
         }
         await setAdminDocument('settings', 'hostingApiConfig', payload);
+        await recordAdminActivityLog(req, {
+            action: 'SETTINGS',
+            entityType: 'HostingConfig',
+            details: 'Updated hosting API configuration settings',
+            performedBy: req.user.email || req.user.uid,
+            entityId: 'hostingApiConfig',
+        });
         return res.json({ success: true, message: 'Hosting configuration saved successfully' });
     }
     catch (error) {
@@ -106,7 +144,7 @@ adminRouter.post('/hosting-config', async (req, res) => {
 });
 adminRouter.post('/api-config', async (req, res) => {
     try {
-        const isAdmin = await isUserAdmin(req.user.uid);
+        const isAdmin = await isUserAdmin(req.user.uid, req.user.email);
         if (!isAdmin) {
             return res.status(403).json({ error: 'Admin access required' });
         }
@@ -122,6 +160,13 @@ adminRouter.post('/api-config', async (req, res) => {
             }
         }
         await setAdminDocument('settings', 'api_keys', payload);
+        await recordAdminActivityLog(req, {
+            action: 'SETTINGS',
+            entityType: 'ApiConfig',
+            details: 'Updated API configuration settings',
+            performedBy: req.user.email || req.user.uid,
+            entityId: 'api_keys',
+        });
         return res.json({ success: true, message: 'API configuration saved successfully' });
     }
     catch (error) {

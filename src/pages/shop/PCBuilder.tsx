@@ -11,6 +11,7 @@ import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as Icons from 'lucide-react';
 
 import { coreCategories, peripheralCategories, BuilderCategory } from '../../components/PCBuilder/constants';
 import { getCompatibility } from '../../components/PCBuilder/utils';
@@ -78,6 +79,15 @@ export const PCBuilder: React.FC = () => {
   const [selectedComponents, setSelectedComponents] = useState<Record<string, Product>>({});
   const [loading, setLoading] = useState(true);
   const [includeAssembly, setIncludeAssembly] = useState(false);
+  const [targetBudget, setTargetBudget] = useState<number>(() => {
+    const saved = localStorage.getItem('pcb-target-budget');
+    return saved ? Number(saved) || 0 : 0;
+  });
+
+  const handleTargetBudgetChange = (budget: number) => {
+    setTargetBudget(budget);
+    localStorage.setItem('pcb-target-budget', String(budget));
+  };
   
   const navigate = useNavigate();
   const location = useLocation();
@@ -102,7 +112,36 @@ export const PCBuilder: React.FC = () => {
     return () => window.removeEventListener('pcb-theme-toggle', handler);
   }, []);
   const { addToCart } = useCart();
+  const { user } = useAuth();
   // searchParams removed
+
+  const ensureExtraSlotsInCategories = (selection: Record<string, Product>) => {
+    const extraKeys = Object.keys(selection).filter(k => /^(ram|storage)-\d+$/.test(k));
+    if (extraKeys.length === 0) return;
+
+    setDynamicCoreCategories(prev => {
+      let next = [...prev];
+      extraKeys.forEach(extraId => {
+        if (next.some(c => c.id === extraId)) return;
+        const [baseType, slotNum] = extraId.split('-');
+        const baseCat = next.find(c => c.id === baseType);
+        if (!baseCat) return;
+        const newCat: BuilderCategory = {
+          ...baseCat,
+          id: extraId,
+          name: `${baseType === 'ram' ? 'Memory (RAM)' : 'Storage (SSD/HDD)'} #${slotNum}`,
+          required: false,
+        };
+        const lastIdx = next.reduce((acc, c, idx) => (c.id === baseType || c.id.startsWith(`${baseType}-`) ? idx : acc), -1);
+        if (lastIdx !== -1) {
+          next.splice(lastIdx + 1, 0, newCat);
+        } else {
+          next.push(newCat);
+        }
+      });
+      return next;
+    });
+  };
 
   useEffect(() => {
     const handleOpenAI = () => setShowAIModal(true);
@@ -145,7 +184,9 @@ export const PCBuilder: React.FC = () => {
         const savedLocal = localStorage.getItem('savedPcBuild');
         if (savedLocal) {
           try {
-            setSelectedComponents(JSON.parse(savedLocal));
+            const parsed = JSON.parse(savedLocal);
+            ensureExtraSlotsInCategories(parsed);
+            setSelectedComponents(parsed);
             toast.success('Restored your saved build');
           } catch(e) {}
         }
@@ -161,16 +202,17 @@ export const PCBuilder: React.FC = () => {
             const buildData = docSnap.data();
             if (buildData.components) {
               const newSelection = {};
-              Object.entries(buildData.components).forEach(([cat, item]) => {
+              Object.entries(buildData.components).forEach(([cat, item]: [string, any]) => {
                 if (item && item.id) {
                   const foundProduct = products.find(p => p.id === item.id);
                   if (foundProduct) {
-                    newSelection[cat] = foundProduct;
+                    newSelection[cat] = { ...foundProduct, builderQuantity: item.builderQuantity || 1 };
                   } else {
                     newSelection[cat] = item;
                   }
                 }
               });
+              ensureExtraSlotsInCategories(newSelection);
               setSelectedComponents(newSelection);
             }
           }
@@ -188,12 +230,16 @@ export const PCBuilder: React.FC = () => {
           const pairs = decoded.split(',');
           const newSelection = {};
           pairs.forEach(pair => {
-            const [cat, id] = pair.split(':');
+            const [cat, idWithQty] = pair.split(':');
+            if (!cat || !idWithQty) return;
+            const [id, qtyStr] = idWithQty.split('*');
+            const qty = qtyStr ? Math.max(1, parseInt(qtyStr, 10) || 1) : 1;
             const foundProduct = products.find(p => p.id === id);
             if (foundProduct) {
-              newSelection[cat] = foundProduct;
+              newSelection[cat] = { ...foundProduct, builderQuantity: qty } as any;
             }
           });
+          ensureExtraSlotsInCategories(newSelection);
           setSelectedComponents(newSelection);
         } catch (e) {
           console.error('Failed to parse shared build', e);
@@ -203,11 +249,64 @@ export const PCBuilder: React.FC = () => {
 
   const handleSelect = (product: Product) => {
     if (!activeCategoryModal) return;
+    const existingQty = (selectedComponents[activeCategoryModal.id] as any)?.builderQuantity || 1;
     setSelectedComponents(prev => ({
       ...prev,
-      [activeCategoryModal.id]: product
+      [activeCategoryModal.id]: { ...product, builderQuantity: existingQty } as any
     }));
     toast.success(`${product.name} selected!`, { icon: '✅' });
+  };
+
+  const handleQuantityChange = (catId: string, qty: number) => {
+    setSelectedComponents(prev => {
+      const existing = prev[catId];
+      if (!existing) return prev;
+      return {
+        ...prev,
+        [catId]: { ...existing, builderQuantity: qty } as any,
+      };
+    });
+  };
+
+  const handleAddExtraSlot = (baseType: 'ram' | 'storage') => {
+    const existingSlots = dynamicCoreCategories.filter(
+      c => c.id === baseType || c.id.startsWith(`${baseType}-`)
+    );
+    if (existingSlots.length >= 4) {
+      toast.error(`Maximum 4 ${baseType.toUpperCase()} slots allowed`);
+      return;
+    }
+
+    let nextNum = 2;
+    while (dynamicCoreCategories.some(c => c.id === `${baseType}-${nextNum}`)) {
+      nextNum++;
+    }
+    const newSlotId = `${baseType}-${nextNum}`;
+    const baseCat = dynamicCoreCategories.find(c => c.id === baseType);
+    if (!baseCat) return;
+
+    const newCat: BuilderCategory = {
+      ...baseCat,
+      id: newSlotId,
+      name: `${baseType === 'ram' ? 'Memory (RAM)' : 'Storage (SSD/HDD)'} #${nextNum}`,
+      required: false,
+    };
+
+    setDynamicCoreCategories(prev => {
+      const next = [...prev];
+      const lastIdx = next.reduce(
+        (acc, c, idx) => (c.id === baseType || c.id.startsWith(`${baseType}-`) ? idx : acc),
+        -1
+      );
+      if (lastIdx !== -1) {
+        next.splice(lastIdx + 1, 0, newCat);
+      } else {
+        next.push(newCat);
+      }
+      return next;
+    });
+
+    navigate(`/pc-build/choose/${newSlotId}`);
   };
 
   const handleRemove = (categoryId: string) => {
@@ -216,6 +315,9 @@ export const PCBuilder: React.FC = () => {
       delete next[categoryId];
       return next;
     });
+    if (/^(ram|storage)-\d+$/.test(categoryId)) {
+      setDynamicCoreCategories(prev => prev.filter(c => c.id !== categoryId));
+    }
   };
 
   const handleAddToCart = () => {
@@ -225,8 +327,13 @@ export const PCBuilder: React.FC = () => {
       return;
     }
     
-    // Add components
-    selectedList.forEach(product => addToCart(product));
+    // Add components with their quantities
+    selectedList.forEach(product => {
+      const qty = (product as any).builderQuantity || 1;
+      for (let i = 0; i < qty; i++) {
+        addToCart(product);
+      }
+    });
     
     // Add assembly service if checked
     if (includeAssembly) {
@@ -263,7 +370,7 @@ export const PCBuilder: React.FC = () => {
 
     try {
       const selectedList = Object.values(selectedComponents).filter(Boolean) as Product[];
-      const totalPrice = selectedList.reduce((sum, p) => sum + p.price, 0);
+      const totalPrice = selectedList.reduce((sum, p) => sum + p.price * ((p as any).builderQuantity || 1), 0);
 
       await addDoc(collection(db, 'saved_builds'), {
         userId: user.uid,
@@ -285,14 +392,17 @@ export const PCBuilder: React.FC = () => {
       toast.error('Add components to your build first');
       return;
     }
-    const totalPrice = selectedList.reduce((sum, p) => sum + (p.discountPrice || p.price), 0);
+    const totalPrice = selectedList.reduce(
+      (sum, p) => sum + (p.discountPrice || p.price) * ((p as any).builderQuantity || 1),
+      0
+    );
     const mockOrder: any = {
       id: `PCB-${Date.now().toString().slice(-6)}`,
       customerName: "PC Build Quotation",
       items: selectedList.map(p => ({
         name: p.name,
         price: p.discountPrice || p.price,
-        quantity: 1,
+        quantity: (p as any).builderQuantity || 1,
         productId: p.id
       })),
       total: totalPrice,
@@ -310,14 +420,17 @@ export const PCBuilder: React.FC = () => {
       toast.error('Add components to your build first');
       return;
     }
-    const totalPrice = selectedList.reduce((sum, p) => sum + (p.discountPrice || p.price), 0);
+    const totalPrice = selectedList.reduce(
+      (sum, p) => sum + (p.discountPrice || p.price) * ((p as any).builderQuantity || 1),
+      0
+    );
     const mockOrder: any = {
       id: `PCB-${Date.now().toString().slice(-6)}`,
       customerName: "PC Build Quotation",
       items: selectedList.map(p => ({
         name: p.name,
         price: p.discountPrice || p.price,
-        quantity: 1,
+        quantity: (p as any).builderQuantity || 1,
         productId: p.id
       })),
       total: totalPrice,
@@ -348,7 +461,7 @@ export const PCBuilder: React.FC = () => {
     const toastId = toast.loading('Generating quote and sending email...');
     
     try {
-      const totalPrice = selectedList.reduce((sum, p) => sum + p.price, 0);
+      const totalPrice = selectedList.reduce((sum, p) => sum + p.price * ((p as any).builderQuantity || 1), 0);
       
       const mockOrder: any = {
         id: 'QUO-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
@@ -358,7 +471,7 @@ export const PCBuilder: React.FC = () => {
         customerAddress: '',
         items: selectedList.map(p => ({
           ...p,
-          quantity: 1
+          quantity: (p as any).builderQuantity || 1
         })),
         total: totalPrice,
         discountAmount: 0,
@@ -404,8 +517,8 @@ export const PCBuilder: React.FC = () => {
       await addDoc(collection(db, 'community_builds'), {
         name: buildName,
         components: selectedComponents,
-        totalPrice: selectedList.reduce((sum, p) => sum + p.price, 0),
-        author: "Anonymous Builder", // In a real app, use auth context
+        totalPrice: selectedList.reduce((sum, p) => sum + p.price * ((p as any).builderQuantity || 1), 0),
+        author: user?.displayName || user?.email || "Anonymous Builder",
         upvotes: 0,
         createdAt: serverTimestamp()
       });
@@ -419,6 +532,8 @@ export const PCBuilder: React.FC = () => {
   const handleReset = () => {
     if (window.confirm('Are you sure you want to clear your current build?')) {
       setSelectedComponents({});
+      setDynamicCoreCategories(prev => prev.filter(c => !/^(ram|storage)-\d+$/.test(c.id)));
+      localStorage.removeItem('savedPcBuild');
       toast.success('Build cleared');
     }
   };
@@ -432,9 +547,16 @@ export const PCBuilder: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         {groupCategories.map((cat, idx) => {
           const selected = selectedComponents[cat.id];
+          const baseCatId = cat.id.replace(/-\d+$/, '');
           const compatibility = selected 
-            ? getCompatibility(cat.id, selected, selectedComponents) 
+            ? getCompatibility(baseCatId, selected, selectedComponents) 
             : { isCompatible: true, reason: '' };
+          const isRamOrStorage = baseCatId === 'ram' || baseCatId === 'storage';
+          const sameTypeSlots = groupCategories.filter(
+            c => c.id === baseCatId || c.id.startsWith(`${baseCatId}-`)
+          );
+          const isLastOfSameType =
+            isRamOrStorage && sameTypeSlots[sameTypeSlots.length - 1]?.id === cat.id && sameTypeSlots.length < 4;
 
           return (
             <BuilderCategoryRow
@@ -445,6 +567,9 @@ export const PCBuilder: React.FC = () => {
               compatibility={compatibility}
               onRemove={() => handleRemove(cat.id)}
               onChoose={() => navigate(`/pc-build/choose/${cat.id}`)}
+              onQuantityChange={qty => handleQuantityChange(cat.id, qty)}
+              canAddExtraSlot={isLastOfSameType}
+              onAddExtraSlot={() => handleAddExtraSlot(baseCatId as 'ram' | 'storage')}
             />
           );
         })}
@@ -493,7 +618,13 @@ export const PCBuilder: React.FC = () => {
                   initial="hidden"
                   animate="show"
                 >
-                  <BuilderProgress categories={dynamicCoreCategories} selectedComponents={selectedComponents} />
+                  <BuilderProgress
+                    categories={dynamicCoreCategories}
+                    selectedComponents={selectedComponents}
+                    targetBudget={targetBudget}
+                    onTargetBudgetChange={handleTargetBudgetChange}
+                    includeAssembly={includeAssembly}
+                  />
                   {renderCategoryGroup("Core Components", dynamicCoreCategories, 0)}
                   {renderCategoryGroup("Peripherals & Accessories", dynamicPeripheralCategories, dynamicCoreCategories.length)}
                 </motion.div>
@@ -510,10 +641,13 @@ export const PCBuilder: React.FC = () => {
                 <BuildVisualizer selectedComponents={selectedComponents} />
                 <BuilderSidebar 
                   selectedComponents={selectedComponents}
+                  includeAssembly={includeAssembly}
+                  targetBudget={targetBudget}
+                  onToggleAssembly={() => setIncludeAssembly(prev => !prev)}
                   onAddToCart={handleAddToCart}
                   onSaveBuild={handleSaveBuild}
                   onPrintBuild={handlePrintBuild}
-                    onDownloadPDF={handleDownloadPDF}
+                  onDownloadPDF={handleDownloadPDF}
                   onEmailBuild={handleEmailBuild}
                   onPublishBuild={handlePublishBuild}
                 />
