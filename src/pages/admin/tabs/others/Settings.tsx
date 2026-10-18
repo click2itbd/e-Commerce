@@ -23,6 +23,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../../../../firebase";
 import { useSettings } from "../../../../context/SettingsContext";
 import { SiteSettings } from "../../../../types";
+import { useAuth } from "../../../../context/AuthContext";
 import { getApiUrl, apiPost, apiGet } from "../../../../services/apiClient";
 import { logAudit } from "../../../../lib/audit";
 import EmailTemplatesManager from "./EmailTemplatesManager";
