@@ -30,7 +30,7 @@ async function deploy() {
       body: JSON.stringify({
         release: {
           name: releaseName,
-          rulesetName: ruleset.name
+          rulesetName: ruleset.name.startsWith('projects/') ? ruleset.name : `projects/gen-lang-client-0990631330/rulesets/${ruleset.name}`
         },
         updateMask: "rulesetName"
       })

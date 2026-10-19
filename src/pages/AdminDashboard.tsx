@@ -708,7 +708,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ticketFormData: {},
   });
 
-  const { profile, isAdmin, isManager, isStaff, hasPermission } = useAuth();
+  const { user, profile, isAdmin, isManager, isStaff, hasPermission } = useAuth();
   const OFFLINE_SHOP_TABS = [
     "dashboard",
     "analytics",
@@ -1268,6 +1268,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, []);
 
   useEffect(() => {
+    if (user) {
+      debouncedFetchData();
+    }
+  }, [user, debouncedFetchData]);
+
+  useEffect(() => {
     setSelectedProductIds([]);
     setSelectedOrderIds([]);
   }, [activeTab]);
@@ -1342,6 +1348,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const fetchData = async () => {
     setLoading(true);
     try {
+      const safeGetDocs = async (q: any) => {
+        try {
+          return await getDocs(q);
+        } catch (err) {
+          console.warn("safeGetDocs warning:", err);
+          return { docs: [] } as any;
+        }
+      };
+
       const [
         productsSnap,
         ordersSnap,
@@ -1356,80 +1371,80 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         paymentAccountsSnap,
         transactionCategoriesSnap,
       ] = await Promise.all([
-        getDocs(
+        safeGetDocs(
           query(
             collection(db, "products"),
             orderBy("createdAt", "desc"),
             limit(500),
           ),
         ),
-        getDocs(
+        safeGetDocs(
           query(
             collection(db, "orders"),
             orderBy("createdAt", "desc"),
             limit(500),
           ),
         ),
-        getDocs(
+        safeGetDocs(
           query(
             collection(db, "customers"),
             orderBy("createdAt", "desc"),
             limit(500),
           ),
         ),
-        getDocs(
+        safeGetDocs(
           query(
             collection(db, "transactions"),
             orderBy("createdAt", "desc"),
             limit(500),
           ),
         ),
-        getDocs(
+        safeGetDocs(
           query(collection(db, "menus"), orderBy("order", "asc"), limit(100)),
         ),
-        getDocs(
+        safeGetDocs(
           query(
             collection(db, "couponCodes"),
             orderBy("createdAt", "desc"),
             limit(200),
           ),
         ),
-        getDocs(
+        safeGetDocs(
           query(
             collection(db, "hostingPlans"),
             orderBy("order", "asc"),
             limit(100),
           ),
         ),
-        getDocs(
+        safeGetDocs(
           query(
             collection(db, "hostingServices"),
             orderBy("order", "asc"),
             limit(100),
           ),
         ),
-        getDocs(
+        safeGetDocs(
           query(
             collection(db, "sold_serials"),
             orderBy("soldAt", "desc"),
             limit(500),
           ),
         ),
-        getDocs(
+        safeGetDocs(
           query(
             collection(db, "service_records"),
             orderBy("receivedAt", "desc"),
             limit(500),
           ),
         ),
-        getDocs(
+        safeGetDocs(
           query(
             collection(db, "payment_accounts"),
             orderBy("createdAt", "desc"),
             limit(100),
           ),
         ),
-        getDocs(
+        safeGetDocs(
           query(
             collection(db, "transaction_categories"),
             orderBy("createdAt", "desc"),
