@@ -140,7 +140,7 @@ export default function CustomerDueList() {
         
         if (t.type === 'sale' || t.type === 'opening_balance') {
           balances[t.entityId] += Number(t.amount);
-        } else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return' || t.type === 'money_receipt') {
+        } else if (t.type === 'payment_received' || t.type === 'money_receipt' || ((t.type === 'return' || t.type === 'sale_return') && (t.paymentMethod === 'store_credit' || !t.paymentMethod || t.paymentMethod === 'credit'))) {
           balances[t.entityId] -= Number(t.amount);
         }
       }
@@ -534,7 +534,7 @@ export default function CustomerDueList() {
           .reverse()
           .map(t => {
             const isDebit = t.type === 'sale' || t.type === 'opening_balance';
-            const isCredit = t.type === 'payment_received' || t.type === 'deposit' || t.type === 'return' || t.type === 'sale_return' || t.type === 'money_receipt';
+            const isCredit = t.type === 'payment_received' || t.type === 'deposit' || t.type === 'money_receipt' || ((t.type === 'return' || t.type === 'sale_return') && (t.paymentMethod === 'store_credit' || !t.paymentMethod || t.paymentMethod === 'credit'));
             const amt = Number(t.amount) || 0;
             return { ...t, isDebit, isCredit, amt };
           });

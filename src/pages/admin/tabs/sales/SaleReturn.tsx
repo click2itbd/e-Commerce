@@ -316,6 +316,32 @@ export const SaleReturnTab: React.FC = () => {
     setRefundAmount(0);
   };
 
+  const handleSelectAllReturn = () => {
+    const updated = returnItems.map(item => {
+      const maxAvailable = Math.max(0, item.soldQty - item.alreadyReturnedQty);
+      const selectedSerials = (item.hasSerialTracking && Array.isArray(item.availableSerials))
+        ? item.availableSerials.slice(0, maxAvailable)
+        : [];
+      return {
+        ...item,
+        returnQty: maxAvailable,
+        selectedReturnSerials: selectedSerials,
+      };
+    });
+    setReturnItems(updated);
+    recalculateRefund(updated);
+  };
+
+  const handleClearAllReturn = () => {
+    const updated = returnItems.map(item => ({
+      ...item,
+      returnQty: 0,
+      selectedReturnSerials: [],
+    }));
+    setReturnItems(updated);
+    recalculateRefund(updated);
+  };
+
   const handleReturnQtyChange = (index: number, qty: number) => {
     const updated = [...returnItems];
     const item = updated[index];
@@ -367,14 +393,14 @@ export const SaleReturnTab: React.FC = () => {
   const totalReturnUnits = returnItems.reduce((sum, i) => sum + i.returnQty, 0);
 
   // Submit Sale Return
-  const handleSubmitReturn = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmitReturn = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!selectedOrder) {
-      toast.error('Please select an original sale invoice');
+      toast.error('দয়া করে প্রথমে বিক্রয় ইনভয়েসটি সিলেক্ট করুন!');
       return;
     }
     if (totalReturnUnits === 0) {
-      toast.error('Please select at least 1 item quantity to return');
+      toast.error('দয়া করে ফেরত নেওয়ার জন্য অন্তত ১টি পণ্যের সংখ্যা (Return Qty) দিন!');
       return;
     }
 
@@ -388,20 +414,29 @@ export const SaleReturnTab: React.FC = () => {
       }
     }
 
-    // Check payment account requirement
-    if (refundAmount > 0 && paymentMethod !== 'store_credit' && !selectedPaymentAccountId) {
-      toast.error('Please select a Payment Account to disburse the refund from!');
-      return;
+    // Resolve payment account
+    let chosenAccountId = selectedPaymentAccountId;
+    if (refundAmount > 0 && paymentMethod !== 'store_credit') {
+      if (!chosenAccountId && paymentAccounts.length > 0) {
+        chosenAccountId = paymentAccounts[0].id;
+        setSelectedPaymentAccountId(chosenAccountId);
+      }
+      if (!chosenAccountId) {
+        toast.error('Please select a Payment Account to disburse the refund from!');
+        return;
+      }
     }
+    const selectedAcc = paymentAccounts.find(a => a.id === chosenAccountId);
 
     setIsSubmitting(true);
     try {
       const activeReturnItems = returnItems.filter(i => i.returnQty > 0);
-      const selectedAcc = paymentAccounts.find(a => a.id === selectedPaymentAccountId);
+      const safeRefundAmount = Math.max(0, Number(refundAmount) || 0);
+      const safeRefNo = referenceNo || `SR-${Date.now().toString().slice(-6)}`;
 
       // 1. Write sale_returns record
       const returnRecord = {
-        referenceNumber: referenceNo,
+        referenceNumber: safeRefNo,
         orderId: selectedOrder.id,
         orderDocumentNumber: selectedOrder.documentNumber || selectedOrder.id,
         customerId: selectedCustomerId || selectedOrder.customerId || '',
@@ -409,24 +444,24 @@ export const SaleReturnTab: React.FC = () => {
         customerPhone: selectedOrder.customerPhone || '',
         customerEmail: selectedOrder.customerEmail || '',
         items: activeReturnItems.map(i => ({
-          productId: i.productId,
-          name: i.name,
-          soldPrice: i.soldPrice,
-          returnQty: i.returnQty,
-          returnPrice: i.returnPrice,
-          total: i.returnQty * i.returnPrice,
-          returnedSerials: i.selectedReturnSerials,
+          productId: i.productId || '',
+          name: i.name || 'Product',
+          soldPrice: Number(i.soldPrice) || 0,
+          returnQty: Number(i.returnQty) || 0,
+          returnPrice: Number(i.returnPrice) || 0,
+          total: (Number(i.returnQty) || 0) * (Number(i.returnPrice) || 0),
+          returnedSerials: Array.isArray(i.selectedReturnSerials) ? i.selectedReturnSerials : [],
           variantName: i.variantName || '',
           variantId: i.variantId || '',
         })),
         totalUnits: totalReturnUnits,
         grandTotal: grandTotalReturn,
-        refundAmount,
-        paymentMethod,
+        refundAmount: safeRefundAmount,
+        paymentMethod: paymentMethod || 'cash',
         paymentAccountId: paymentMethod !== 'store_credit' ? (selectedAcc?.id || '') : '',
         paymentAccountName: paymentMethod !== 'store_credit' ? (selectedAcc?.name || '') : '',
-        note,
-        returnDate,
+        note: note || '',
+        returnDate: returnDate || new Date().toISOString().split('T')[0],
         createdBy: user?.displayName || user?.email || 'admin',
         createdAt: new Date().toISOString(),
       };
@@ -465,18 +500,22 @@ export const SaleReturnTab: React.FC = () => {
 
         // 3. Mark sold_serials as returned
         for (const serial of item.selectedReturnSerials) {
-          const q = query(
-            collection(db, 'sold_serials'),
-            where('serial', '==', serial),
-            where('orderId', '==', selectedOrder.id)
-          );
-          const snap = await getDocs(q);
-          for (const docSnap of snap.docs) {
-            await updateDoc(doc(db, 'sold_serials', docSnap.id), {
-              status: 'returned',
-              returnedAt: new Date().toISOString(),
-              returnReference: referenceNo,
-            });
+          try {
+            const q = query(
+              collection(db, 'sold_serials'),
+              where('serial', '==', serial),
+              where('orderId', '==', selectedOrder.id)
+            );
+            const snap = await getDocs(q);
+            for (const docSnap of snap.docs) {
+              await updateDoc(doc(db, 'sold_serials', docSnap.id), {
+                status: 'returned',
+                returnedAt: new Date().toISOString(),
+                returnReference: safeRefNo,
+              });
+            }
+          } catch (serialErr) {
+            console.error('Error updating sold_serials:', serialErr);
           }
         }
       }
@@ -490,24 +529,36 @@ export const SaleReturnTab: React.FC = () => {
 
       await updateDoc(orderRef, {
         hasReturn: true,
-        returnedAmount: increment(refundAmount),
+        returnedAmount: increment(safeRefundAmount),
         status: isFullReturn ? 'returned' : 'partially_returned',
-        lastReturnReference: referenceNo,
+        lastReturnReference: safeRefNo,
         lastReturnedAt: new Date().toISOString(),
       });
 
-      // 5. Log Accounting Transaction
-      if (refundAmount > 0) {
+      // 5. Deduct payment account balance if cash/bank refund
+      if (safeRefundAmount > 0 && paymentMethod !== 'store_credit' && selectedAcc?.id) {
+        try {
+          await updateDoc(doc(db, 'payment_accounts', selectedAcc.id), {
+            balance: increment(-safeRefundAmount),
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (accErr) {
+          console.error('Error updating payment account balance:', accErr);
+        }
+      }
+
+      // 6. Log Accounting Transaction
+      if (safeRefundAmount > 0) {
         await addDoc(collection(db, 'transactions'), {
           type: 'sale_return',
-          amount: refundAmount,
-          date: returnDate,
-          description: `Sale Return ${referenceNo} for Invoice #${selectedOrder.documentNumber || selectedOrder.id} (${paymentMethod === 'store_credit' ? 'Due Credit Adjusted' : 'Cash/Bank Refund'})`,
+          amount: safeRefundAmount,
+          date: returnRecord.returnDate,
+          description: `Sale Return ${safeRefNo} for Invoice #${selectedOrder.documentNumber || selectedOrder.id} (${paymentMethod === 'store_credit' ? 'Due Credit Adjusted' : 'Cash/Bank Refund'})`,
           entityId: selectedCustomerId || selectedOrder.customerId || 'walk-in',
           entityName: selectedOrder.customerName || 'Customer',
           entityType: 'customer',
           referenceId: returnDocRef.id,
-          documentNumber: referenceNo,
+          documentNumber: safeRefNo,
           paymentAccountId: paymentMethod !== 'store_credit' ? (selectedAcc?.id || '') : '',
           paymentMethod: paymentMethod === 'store_credit' ? 'store_credit' : (selectedAcc?.type || selectedAcc?.name || paymentMethod),
           createdAt: new Date().toISOString(),
@@ -515,28 +566,36 @@ export const SaleReturnTab: React.FC = () => {
         });
       }
 
-      // 6. Log Audit Trail
-      await logAudit(
-        'CREATE',
-        'SaleReturn',
-        `Recorded Sale Return #${referenceNo} (Order #${selectedOrder.documentNumber || selectedOrder.id}, Customer: ${selectedOrder.customerName || 'Walk-in'}, Refund: ৳${refundAmount}, Items: ${totalReturnUnits})`,
-        user?.displayName || user?.email || 'Admin',
-        {
-          entityId: returnDocRef.id,
-          newState: {
-            referenceNumber: referenceNo,
-            orderId: selectedOrder.id,
-            totalUnits: totalReturnUnits,
-            refundAmount,
-            paymentMethod,
-          },
-        }
-      );
+      // 7. Log Audit Trail
+      try {
+        await logAudit(
+          'CREATE',
+          'SaleReturn',
+          `Recorded Sale Return #${safeRefNo} (Order #${selectedOrder.documentNumber || selectedOrder.id}, Customer: ${selectedOrder.customerName || 'Walk-in'}, Refund: ৳${safeRefundAmount}, Items: ${totalReturnUnits})`,
+          user?.displayName || user?.email || 'Admin',
+          {
+            entityId: returnDocRef.id,
+            newState: {
+              referenceNumber: safeRefNo,
+              orderId: selectedOrder.id,
+              totalUnits: totalReturnUnits,
+              refundAmount: safeRefundAmount,
+              paymentMethod,
+            },
+          }
+        );
+      } catch (auditErr) {
+        console.error('Audit log error:', auditErr);
+      }
 
-      toast.success(`Sale Return ${referenceNo} recorded successfully! Stock restocked.`);
+      toast.success(`Sale Return ${safeRefNo} recorded successfully! Stock restocked.`);
 
       // Open print prompt
-      generateReturnPDF({ id: returnDocRef.id, ...returnRecord }, false);
+      try {
+        generateReturnPDF({ id: returnDocRef.id, ...returnRecord }, false);
+      } catch (pdfErr) {
+        console.error('PDF generation error:', pdfErr);
+      }
 
       // Reset form
       setSelectedOrderId('');
@@ -551,7 +610,7 @@ export const SaleReturnTab: React.FC = () => {
       setActiveView('history');
     } catch (err: any) {
       console.error('Error processing sale return:', err);
-      toast.error('Failed to submit sale return: ' + err.message);
+      toast.error('Failed to submit sale return: ' + (err?.message || 'Unknown error'));
     } finally {
       setIsSubmitting(false);
     }
@@ -604,34 +663,54 @@ export const SaleReturnTab: React.FC = () => {
           }
         }
 
-        // Revert sold_serials status back to 'sold'
+        // Revert sold_serials back to 'active' / sold
         if (Array.isArray(item.returnedSerials)) {
           for (const serial of item.returnedSerials) {
-            const q = query(
-              collection(db, 'sold_serials'),
-              where('serial', '==', serial),
-              where('orderId', '==', returnRecord.orderId)
-            );
-            const snap = await getDocs(q);
-            for (const d of snap.docs) {
-              await updateDoc(doc(db, 'sold_serials', d.id), {
-                status: 'sold',
-                returnedAt: null,
-                returnReference: null,
-              });
+            try {
+              const q = query(
+                collection(db, 'sold_serials'),
+                where('serial', '==', serial),
+                where('orderId', '==', returnRecord.orderId)
+              );
+              const snap = await getDocs(q);
+              for (const docSnap of snap.docs) {
+                await updateDoc(doc(db, 'sold_serials', docSnap.id), {
+                  status: 'sold',
+                  returnedAt: null,
+                  returnReference: null,
+                });
+              }
+            } catch (err) {
+              console.error('Error reverting sold_serials:', err);
             }
           }
         }
       }
 
-      // 2. Delete linked transactions
+      // 2. Revert payment account balance if cash was disbursed
+      if (
+        returnRecord.paymentMethod !== 'store_credit' &&
+        returnRecord.paymentAccountId &&
+        Number(returnRecord.refundAmount) > 0
+      ) {
+        try {
+          await updateDoc(doc(db, 'payment_accounts', returnRecord.paymentAccountId), {
+            balance: increment(Number(returnRecord.refundAmount)),
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (accErr) {
+          console.error('Error reverting payment account balance:', accErr);
+        }
+      }
+
+      // 3. Delete linked transactions
       const txQ = query(collection(db, 'transactions'), where('referenceId', '==', returnRecord.id));
       const txSnap = await getDocs(txQ);
       for (const d of txSnap.docs) {
         await deleteDoc(doc(db, 'transactions', d.id));
       }
 
-      // 3. Revert order status & returnedAmount
+      // 4. Revert order status & returnedAmount
       if (returnRecord.orderId) {
         const orderRef = doc(db, 'orders', returnRecord.orderId);
         const oSnap = await getDoc(orderRef);
@@ -649,10 +728,10 @@ export const SaleReturnTab: React.FC = () => {
         }
       }
 
-      // 4. Delete sale_returns record
+      // 5. Delete sale_returns record
       await deleteDoc(doc(db, 'sale_returns', returnRecord.id));
 
-      // 5. Log audit
+      // 6. Log audit
       await logAudit(
         'DELETE',
         'SaleReturn',
@@ -937,59 +1016,98 @@ export const SaleReturnTab: React.FC = () => {
           </div>
 
           {/* Selected Order Summary Card */}
-          {selectedOrder && (
-            <div className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm shadow-sm">
-              <div>
-                <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest block mb-1">
-                  Customer Information
-                </span>
-                <span className="font-bold text-slate-800 block text-base">
-                  {selectedOrder.customerName || 'Walk-in Customer'}
-                </span>
-                <span className="text-slate-500 font-medium mt-0.5 block text-xs">
-                  Phone: {selectedOrder.customerPhone || 'N/A'} | Email: {selectedOrder.customerEmail || 'N/A'}
-                </span>
-              </div>
+          {selectedOrder && (() => {
+            const orderTotal = Number(selectedOrder.total) || 0;
+            const orderPaid = Number(
+              selectedOrder.amountPaid ?? selectedOrder.paidAmount ?? (selectedOrder.paymentStatus === 'paid' ? orderTotal : 0)
+            ) || 0;
+            const orderDue = Math.max(0, orderTotal - orderPaid);
 
-              {orderPreviousReturns.length > 0 && (
-                <div className="bg-amber-100/70 border border-amber-300 rounded-xl p-3 text-xs text-amber-900">
-                  <span className="font-bold block flex items-center gap-1.5 text-amber-800">
-                    <AlertCircle size={14} className="text-amber-600" /> পূর্বে এই ইনভয়েসের কিছু পণ্য রিটার্ন হয়েছে:
-                  </span>
-                  <div className="mt-1 font-medium">
-                    মোট {orderPreviousReturns.length} টি পূর্ববর্তী রিটার্ন স্লিপে {orderPreviousReturns.reduce((s, r) => s + (Number(r.totalUnits) || 0), 0)} টি পণ্য ফেরত দেওয়া হয়েছে।
+            return (
+              <div className="space-y-3">
+                <div className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm shadow-sm">
+                  <div>
+                    <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest block mb-1">
+                      Customer Information
+                    </span>
+                    <span className="font-bold text-slate-800 block text-base">
+                      {selectedOrder.customerName || 'Walk-in Customer'}
+                    </span>
+                    <span className="text-slate-500 font-medium mt-0.5 block text-xs">
+                      Phone: {selectedOrder.customerPhone || 'N/A'} | Email: {selectedOrder.customerEmail || 'N/A'}
+                    </span>
+                  </div>
+
+                  {orderPreviousReturns.length > 0 && (
+                    <div className="bg-amber-100/70 border border-amber-300 rounded-xl p-3 text-xs text-amber-900">
+                      <span className="font-bold block flex items-center gap-1.5 text-amber-800">
+                        <AlertCircle size={14} className="text-amber-600" /> পূর্বে এই ইনভয়েসের কিছু পণ্য রিটার্ন হয়েছে:
+                      </span>
+                      <div className="mt-1 font-medium">
+                        মোট {orderPreviousReturns.length} টি পূর্ববর্তী রিটার্ন স্লিপে {orderPreviousReturns.reduce((s, r) => s + (Number(r.totalUnits) || 0), 0)} টি পণ্য ফেরত দেওয়া হয়েছে।
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="sm:text-right bg-white/80 p-3 rounded-xl border border-blue-100 shrink-0">
+                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest block mb-1">
+                      Invoice Financials
+                    </span>
+                    <div className="font-black text-blue-900 text-lg">
+                      {formatCurrency(orderTotal, settings)}
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-500 mt-0.5 flex items-center gap-2 justify-end">
+                      <span>Paid: <strong className="text-emerald-700">{formatCurrency(orderPaid, settings)}</strong></span>
+                      {orderDue > 0 && (
+                        <span>Due: <strong className="text-rose-600">{formatCurrency(orderDue, settings)}</strong></span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              )}
 
-              <div className="sm:text-right bg-white/80 p-3 rounded-xl border border-blue-100 shrink-0">
-                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest block mb-1">
-                  Invoice Status
-                </span>
-                <span className="font-black text-blue-900 block text-lg">
-                  {formatCurrency(selectedOrder.total || 0, settings)}
-                </span>
-                <span className="text-slate-500 text-xs font-bold block mt-0.5">
-                  Status:{' '}
-                  <span
-                    className={cn(
-                      'uppercase px-2 py-0.5 rounded-md ml-1 font-black text-[10px]',
-                      selectedOrder.status === 'returned'
-                        ? 'bg-rose-100 text-rose-700'
-                        : selectedOrder.status === 'partially_returned'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-emerald-100 text-emerald-700'
-                    )}
-                  >
-                    {selectedOrder.status}
-                  </span>
-                </span>
+                {orderDue > 0 && (
+                  <div className="p-4 bg-amber-50/90 border border-amber-200 rounded-2xl flex items-start gap-3 text-amber-900 text-xs">
+                    <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-bold block text-sm text-amber-950">
+                        ইনভয়েসে বকেয়া (Due) রয়েছে: {formatCurrency(orderDue, settings)}
+                      </strong>
+                      <p className="mt-0.5 text-amber-800">
+                        কাস্টমারকে সরাসরি ক্যাশ ফেরত না দিয়ে <strong>"Customer Due / Credit Note (বকেয়া সমন্বয়)"</strong> সিলেক্ট করুন যাতে কাস্টমারের বকেয়া খাতা থেকে এই রিটার্ন টাকা স্বয়ংক্রিয়ভাবে সমন্বয় হয়ে বকেয়া কমে যায়।
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Items Return Table */}
-          <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+          <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-white">
+            {returnItems.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 bg-slate-50 border-b border-slate-200">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                  <ShoppingBag size={15} className="text-slate-500" />
+                  <span>ফেরতযোগ্য পণ্যের তালিকা ({returnItems.length} টি আইটেম)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllReturn}
+                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  >
+                    <CheckSquare size={14} /> সমস্ত পণ্য ফেরত (Full Return)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearAllReturn}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  >
+                    <RotateCcw size={14} /> রিসেট
+                  </button>
+                </div>
+              </div>
+            )}
             <table className="w-full text-left">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
@@ -1090,7 +1208,15 @@ export const SaleReturnTab: React.FC = () => {
                           {item.alreadyReturnedQty > 0 ? `${item.alreadyReturnedQty} টি` : '-'}
                         </td>
                         <td className="py-4 px-6 text-center">
-                          <div className="inline-flex items-center justify-center">
+                          <div className="inline-flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              disabled={isFullyReturned || item.returnQty <= 0}
+                              onClick={() => handleReturnQtyChange(idx, item.returnQty - 1)}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed font-black text-sm transition-all"
+                            >
+                              -
+                            </button>
                             <input
                               type="number"
                               min={0}
@@ -1099,14 +1225,22 @@ export const SaleReturnTab: React.FC = () => {
                               value={item.returnQty}
                               onChange={e => handleReturnQtyChange(idx, parseInt(e.target.value) || 0)}
                               className={cn(
-                                'w-20 text-center border rounded-xl text-sm font-black focus:ring-2 focus:ring-blue-500 outline-none px-2 py-1.5 transition-all',
+                                'w-16 text-center border rounded-xl text-sm font-black focus:ring-2 focus:ring-blue-500 outline-none px-1 py-1 transition-all',
                                 isFullyReturned
                                   ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                                   : item.returnQty > 0
-                                  ? 'border-red-300 bg-white text-red-600'
+                                  ? 'border-red-400 bg-red-50/30 text-red-600'
                                   : 'border-slate-200 bg-slate-50 text-slate-700'
                               )}
                             />
+                            <button
+                              type="button"
+                              disabled={isFullyReturned || item.returnQty >= maxAvailable}
+                              onClick={() => handleReturnQtyChange(idx, item.returnQty + 1)}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed font-black text-sm transition-all"
+                            >
+                              +
+                            </button>
                           </div>
                         </td>
                         <td className="py-4 px-6 text-right font-bold text-slate-500 text-sm">
@@ -1216,10 +1350,18 @@ export const SaleReturnTab: React.FC = () => {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || totalReturnUnits === 0}
-                  className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 disabled:opacity-50 mt-2"
+                  disabled={isSubmitting}
+                  className="w-full py-3.5 bg-red-600 hover:bg-red-700 active:scale-[0.99] text-white rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-600/25 disabled:opacity-60 mt-2 cursor-pointer"
                 >
-                  <CheckSquare size={18} /> {isSubmitting ? 'Processing Return...' : 'Confirm Sale Return'}
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw size={18} className="animate-spin" /> Processing Return...
+                    </>
+                  ) : (
+                    <>
+                      <CheckSquare size={18} /> Confirm Sale Return (ফেরত সম্পন্ন করুন)
+                    </>
+                  )}
                 </button>
               </div>
             </div>
