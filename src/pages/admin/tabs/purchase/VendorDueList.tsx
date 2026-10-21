@@ -186,7 +186,7 @@ export default function VendorDueList() {
         
         if (t.type === 'purchase' || t.type === 'opening_balance') {
           balances[t.entityId] += Number(t.amount);
-        } else if (t.type === 'payment_made' || t.type === 'purchase_return') {
+        } else if (t.type === 'payment_made' || ((t.type === 'purchase_return' || t.type === 'return') && (t.paymentMethod === 'supplier_credit' || !t.paymentMethod || t.paymentMethod === 'credit'))) {
           balances[t.entityId] -= Number(t.amount);
         }
       }
@@ -569,7 +569,7 @@ export default function VendorDueList() {
           .reverse()
           .map(t => {
             const isDebit = t.type === 'purchase' || t.type === 'opening_balance';
-            const isCredit = t.type === 'payment_made' || t.type === 'deposit' || t.type === 'purchase_return' || t.type === 'return';
+            const isCredit = t.type === 'payment_made' || t.type === 'deposit' || ((t.type === 'purchase_return' || t.type === 'return') && (t.paymentMethod === 'supplier_credit' || !t.paymentMethod || t.paymentMethod === 'credit'));
             const amt = Number(t.amount) || 0;
             return { ...t, isDebit, isCredit, amt };
           });
