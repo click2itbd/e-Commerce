@@ -20,6 +20,7 @@ import {
   Globe,
   LifeBuoy,
   RefreshCw,
+  RotateCcw,
   AlertCircle,
   CheckCircle2
 } from 'lucide-react';
@@ -67,18 +68,41 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
   const totalCustomers = customers.length;
   const totalOrders = retailOrders.filter(o => o.type !== 'quotation').length;
 
+  // Total Sales Returns (পণ্য ফেরত বাবদ কর্তন)
+  const totalSalesReturns = useMemo(() => {
+    return retailOrders.reduce((sum, order) => {
+      if (order.status === 'cancelled' || order.type === 'quotation') return sum;
+      if (order.status === 'returned') return sum + (order.total || 0);
+      return sum + (Number(order.returnedAmount) || 0);
+    }, 0);
+  }, [retailOrders]);
+
+  // Total Purchase Returns (ভেন্ডরকে পণ্য ফেরত থেকে রিফান্ড)
+  const totalPurchaseReturns = useMemo(() => {
+    return transactions
+      .filter(t => t.type === 'purchase_return')
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  }, [transactions]);
+
+  // Total Net Revenue (Gross Sales - Sales Returns)
   const totalRevenue = useMemo(() => {
     return retailOrders
       .filter(o => o.status !== 'cancelled' && o.type !== 'quotation')
-      .reduce((sum, order) => sum + (order.total || 0), 0);
+      .reduce((sum, order) => {
+        if (order.status === 'returned') return sum;
+        const netOrderTotal = Math.max(0, (order.total || 0) - (Number(order.returnedAmount) || 0));
+        return sum + netOrderTotal;
+      }, 0);
   }, [retailOrders]);
 
   const totalRevenueTransactions = useMemo(() => {
-     return transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+     return transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
   }, [transactions]);
 
   const totalExpenseTransactions = useMemo(() => {
-     return transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+     return transactions
+       .filter(t => ['expense', 'salary', 'conveyance'].includes(t.type))
+       .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
   }, [transactions]);
 
   const netProfit = useMemo(() => {
@@ -94,8 +118,8 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
     const standaloneService = serviceRecords
       .filter(s => !billedServiceIds.has(String(s.id)) && s.serviceCharge > 0 && (s.status === 'delivered' || s.status === 'ready' || s.status === 'repaired'))
       .reduce((sum, s) => sum + (Number(s.serviceCharge) || 0), 0);
-    return totalRevenue + standaloneService + totalRevenueTransactions - totalExpenseTransactions;
-  }, [totalRevenue, totalRevenueTransactions, totalExpenseTransactions, serviceRecords, retailOrders]);
+    return totalRevenue + standaloneService + totalRevenueTransactions + totalPurchaseReturns - totalExpenseTransactions;
+  }, [totalRevenue, totalRevenueTransactions, totalPurchaseReturns, totalExpenseTransactions, serviceRecords, retailOrders]);
 
   const { serviceRevenue, ordersServiceRevenue } = useMemo(() => {
     const billedServiceIds = new Set();
@@ -151,7 +175,10 @@ export const AdminOverviewDashboard: React.FC<AdminOverviewDashboardProps> = ({
         return orderDate >= dayStart && orderDate <= dayEnd && o.type !== 'quotation' && o.status !== 'cancelled';
       });
 
-      const dayTotal = dayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const dayTotal = dayOrders.reduce((sum, o) => {
+        if (o.status === 'returned') return sum;
+        return sum + Math.max(0, (o.total || 0) - (Number(o.returnedAmount) || 0));
+      }, 0);
 
       data.push({
         date: dateStr,

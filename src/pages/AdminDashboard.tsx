@@ -1276,7 +1276,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   useEffect(() => {
     setSelectedProductIds([]);
     setSelectedOrderIds([]);
-  }, [activeTab]);
+    if (activeTab === 'dashboard') {
+      debouncedFetchData();
+    }
+  }, [activeTab, debouncedFetchData]);
 
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -5911,9 +5914,9 @@ handleReturnOrder={handleReturnOrder}
                     }}
                 />
               ) : activeTab === "purchase_return" ? (
-                <PurchaseReturnTab />
+                <PurchaseReturnTab fetchData={fetchData} />
               ) : activeTab === "sale_return" ? (
-                <SaleReturnTab />
+                <SaleReturnTab fetchData={fetchData} />
               ) : activeTab === "purchases" ? (
                 <PurchasesTab
                   users={users}

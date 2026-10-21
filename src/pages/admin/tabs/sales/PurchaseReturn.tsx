@@ -52,7 +52,11 @@ interface PurchaseReturnItem {
   selectedReturnSerials: string[];
 }
 
-export const PurchaseReturnTab: React.FC = () => {
+interface PurchaseReturnTabProps {
+  fetchData?: () => void;
+}
+
+export const PurchaseReturnTab: React.FC<PurchaseReturnTabProps> = ({ fetchData }) => {
   const { user } = useAuth();
   const { settings } = useSettings();
 
@@ -581,6 +585,7 @@ export const PurchaseReturnTab: React.FC = () => {
       setNote('');
       generateRefNo();
       fetchInitialData();
+      if (fetchData) fetchData();
       setActiveView('history');
     } catch (err: any) {
       console.error('Error processing purchase return:', err);
@@ -684,6 +689,7 @@ export const PurchaseReturnTab: React.FC = () => {
       toast.success(`Purchase return ${returnRecord.referenceNumber} reverted and deleted successfully!`);
       fetchReturnsHistory();
       fetchInitialData();
+      if (fetchData) fetchData();
     } catch (err: any) {
       console.error('Error deleting purchase return:', err);
       toast.error('Failed to delete purchase return: ' + err.message);

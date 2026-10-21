@@ -72,7 +72,7 @@ export default function ProfitLoss() {
       const orderDate = new Date(order.createdAt);
       if (orderDate >= start && orderDate <= end) {
         if (order.status !== 'cancelled' && order.status !== 'returned') {
-          totalRevenue += (order.total || 0);
+          totalRevenue += Math.max(0, (order.total || 0) - (Number(order.returnedAmount) || 0));
           
           order.items?.forEach(item => {
             const itemType = (item as any).itemType || '';

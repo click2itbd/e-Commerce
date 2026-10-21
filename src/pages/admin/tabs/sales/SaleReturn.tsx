@@ -67,7 +67,11 @@ interface ReturnItemState {
   variantId?: string;
 }
 
-export const SaleReturnTab: React.FC = () => {
+interface SaleReturnTabProps {
+  fetchData?: () => void;
+}
+
+export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
   const { user } = useAuth();
   const { settings } = useSettings();
 
@@ -607,6 +611,7 @@ export const SaleReturnTab: React.FC = () => {
       setOrderPreviousReturns([]);
       generateRefNo();
       fetchReturnsHistory();
+      if (fetchData) fetchData();
       setActiveView('history');
     } catch (err: any) {
       console.error('Error processing sale return:', err);
@@ -741,6 +746,7 @@ export const SaleReturnTab: React.FC = () => {
 
       toast.success(`Sale return ${returnRecord.referenceNumber} reverted and deleted successfully!`);
       fetchReturnsHistory();
+      if (fetchData) fetchData();
     } catch (err: any) {
       console.error('Error deleting sale return:', err);
       toast.error('Failed to delete sale return: ' + err.message);
