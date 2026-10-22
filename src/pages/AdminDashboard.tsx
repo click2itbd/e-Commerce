@@ -5929,11 +5929,15 @@ handleReturnOrder={handleReturnOrder}
                 />
               ) : activeTab === "customers" ? (
                 <CustomersTab
+                  customers={customers}
+                  fetchData={fetchData}
                   setSelectedLedgerEntity={setSelectedLedgerEntity}
                   setActiveTab={setActiveTab}
                 />
               ) : activeTab === "vendors" ? (
                 <VendorsTab
+                  vendors={vendors}
+                  fetchData={fetchData}
                   setSelectedLedgerEntity={setSelectedLedgerEntity}
                   setActiveTab={setActiveTab}
                 />

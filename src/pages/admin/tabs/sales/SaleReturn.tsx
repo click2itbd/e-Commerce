@@ -13,6 +13,7 @@ import {
   limit,
   increment,
   deleteDoc,
+  onSnapshot,
 } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { formatCurrency, cn } from '../../../../lib/utils';
@@ -109,9 +110,34 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
   const [viewingReturnModal, setViewingReturnModal] = useState<any | null>(null);
 
   useEffect(() => {
-    fetchInitialData();
-    generateRefNo();
-  }, []);
+    if (user) {
+      fetchInitialData();
+      generateRefNo();
+    }
+  }, [user]);
+
+  // Real-time listener for returns history
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'sale_returns'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        setReturnsHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      },
+      (err) => {
+        console.warn('sale_returns onSnapshot orderBy failed, falling back:', err);
+        getDocs(collection(db, 'sale_returns'))
+          .then((snap) => {
+            const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            list.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+            setReturnsHistory(list);
+          })
+          .catch(e => console.error('Fallback sale_returns fetch failed:', e));
+      }
+    );
+    return () => unsubscribe();
+  }, [user]);
 
   // Close search dropdown when clicking outside
   useEffect(() => {
@@ -135,23 +161,48 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
 
   const fetchInitialData = async () => {
     try {
-      const [custSnap, accSnap, ordersSnap] = await Promise.all([
+      const results = await Promise.allSettled([
         getDocs(query(collection(db, 'customers'), orderBy('name'))),
         getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
         getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(100))),
       ]);
 
-      const custs = custSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
-      const ords = ordersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-      setCustomers(custs);
-      setPaymentAccounts(accs);
-      if (accs.length > 0 && !selectedPaymentAccountId) {
-        setSelectedPaymentAccountId(accs[0].id);
+      if (results[0].status === 'fulfilled') {
+        const custs = results[0].value.docs.map(d => ({ id: d.id, ...d.data() }));
+        setCustomers(custs);
+      } else {
+        getDocs(collection(db, 'customers')).then(snap => {
+          setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }).catch(e => console.warn(e));
       }
-      setOrders(ords);
-      setSearchResults(ords.slice(0, 10));
+
+      if (results[1].status === 'fulfilled') {
+        const accs = results[1].value.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
+        setPaymentAccounts(accs);
+        if (accs.length > 0 && !selectedPaymentAccountId) {
+          setSelectedPaymentAccountId(accs[0].id);
+        }
+      } else {
+        getDocs(collection(db, 'payment_accounts')).then(snap => {
+          const accs = snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
+          setPaymentAccounts(accs);
+          if (accs.length > 0 && !selectedPaymentAccountId) {
+            setSelectedPaymentAccountId(accs[0].id);
+          }
+        }).catch(e => console.warn(e));
+      }
+
+      if (results[2].status === 'fulfilled') {
+        const ords = results[2].value.docs.map(d => ({ id: d.id, ...d.data() }));
+        setOrders(ords);
+        setSearchResults(ords.slice(0, 10));
+      } else {
+        getDocs(collection(db, 'orders')).then(snap => {
+          const ords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setOrders(ords);
+          setSearchResults(ords.slice(0, 10));
+        }).catch(e => console.warn(e));
+      }
 
       fetchReturnsHistory();
     } catch (err) {
@@ -165,7 +216,15 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
       const snap = await getDocs(query(collection(db, 'sale_returns'), orderBy('createdAt', 'desc')));
       setReturnsHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err) {
-      console.error('Error loading returns history:', err);
+      console.warn('Error loading returns history with orderBy, trying unordered:', err);
+      try {
+        const snap = await getDocs(collection(db, 'sale_returns'));
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        list.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setReturnsHistory(list);
+      } catch (fallbackErr) {
+        console.error('Fallback returns history failed:', fallbackErr);
+      }
     }
   };
 

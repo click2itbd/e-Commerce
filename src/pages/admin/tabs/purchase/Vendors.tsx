@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, query, getDocs, orderBy } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, query, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { Vendor } from '../../../../types';
 import { toast } from 'react-hot-toast';
@@ -14,16 +14,20 @@ import {
 } from 'lucide-react';
 
 interface VendorsProps {
+  vendors?: Vendor[];
+  fetchData?: () => void;
   setSelectedLedgerEntity?: (entity: { id: string; name: string; type: 'customer' | 'vendor' }) => void;
   setActiveTab?: (tab: string) => void;
 }
 
 const Vendors: React.FC<VendorsProps> = ({
+  vendors: initialVendors,
+  fetchData,
   setSelectedLedgerEntity,
   setActiveTab,
 }) => {
-  const { isAdmin, hasPermission } = useAuth();
-  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const { user, isAdmin, hasPermission } = useAuth();
+  const [vendors, setVendors] = useState<Vendor[]>(initialVendors || []);
   const [isAddingVendor, setIsAddingVendor] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -36,20 +40,50 @@ const Vendors: React.FC<VendorsProps> = ({
     category: 'General',
   });
 
+  useEffect(() => {
+    if (initialVendors && initialVendors.length > 0) {
+      setVendors(initialVendors);
+    }
+  }, [initialVendors]);
+
   const fetchVendors = async () => {
     try {
       const q = query(collection(db, 'vendors'), orderBy('name'));
       const snap = await getDocs(q);
       setVendors(snap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor)));
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to load vendors');
+      console.warn('Error fetching vendors with orderBy, trying unordered:', err);
+      try {
+        const snap = await getDocs(collection(db, 'vendors'));
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor));
+        list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setVendors(list);
+      } catch (fallbackErr) {
+        console.error(fallbackErr);
+        toast.error('Failed to load vendors');
+      }
     }
   };
 
   useEffect(() => {
-    fetchVendors();
-  }, []);
+    if (!user) return;
+    const q = query(collection(db, 'vendors'), orderBy('name'));
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        setVendors(snap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor)));
+      },
+      (err) => {
+        console.warn('Vendors onSnapshot failed, falling back:', err);
+        getDocs(collection(db, 'vendors')).then(snap => {
+          const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor));
+          list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          setVendors(list);
+        }).catch(e => console.error(e));
+      }
+    );
+    return () => unsubscribe();
+  }, [user]);
 
   const handleSaveVendor = async (e: React.FormEvent) => {
     e.preventDefault();

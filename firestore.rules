@@ -100,9 +100,16 @@ service cloud.firestore {
         request.auth.token.admin == true ||
         request.auth.token.role == 'admin' ||
         (request.auth.token.email != null &&
-         request.auth.token.email_verified == true &&
-         (request.auth.token.email == 'click2itbd@gmail.com' ||
-          request.auth.token.email == 'clcik2itbd@gmail.com'))
+         request.auth.token.email in [
+           'click2itbd@gmail.com',
+           'clcik2itbd@gmail.com',
+           'admin@click2itbd.com',
+           'muntasiralamresti@gmail.com',
+           'muntasiralamresti04@gmail.com',
+           'uhsfahad321@gmail.com',
+           'whoismuntasir04@gmail.com',
+           'atikulislamatik144@gmail.com'
+         ])
       );
     }
 

@@ -13,6 +13,7 @@ import {
   limit,
   increment,
   deleteDoc,
+  onSnapshot,
 } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { formatCurrency, cn } from '../../../../lib/utils';
@@ -87,9 +88,34 @@ export const PurchaseReturnTab: React.FC<PurchaseReturnTabProps> = ({ fetchData 
   const [viewingReturnModal, setViewingReturnModal] = useState<any | null>(null);
 
   useEffect(() => {
-    fetchInitialData();
-    generateRefNo();
-  }, []);
+    if (user) {
+      fetchInitialData();
+      generateRefNo();
+    }
+  }, [user]);
+
+  // Real-time listener for purchase returns history
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'purchase_returns'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        setReturnsHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      },
+      (err) => {
+        console.warn('purchase_returns onSnapshot orderBy failed, falling back:', err);
+        getDocs(collection(db, 'purchase_returns'))
+          .then((snap) => {
+            const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            list.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+            setReturnsHistory(list);
+          })
+          .catch(e => console.error('Fallback purchase_returns fetch failed:', e));
+      }
+    );
+    return () => unsubscribe();
+  }, [user]);
 
   const generateRefNo = async () => {
     try {
@@ -102,21 +128,51 @@ export const PurchaseReturnTab: React.FC<PurchaseReturnTabProps> = ({ fetchData 
 
   const fetchInitialData = async () => {
     try {
-      const [vendorsSnap, productsSnap, purchasesSnap, accsSnap] = await Promise.all([
+      const results = await Promise.allSettled([
         getDocs(query(collection(db, 'vendors'), orderBy('name'))),
         getDocs(query(collection(db, 'products'), orderBy('name'))),
         getDocs(query(collection(db, 'purchases'), orderBy('createdAt', 'desc'), limit(100))),
         getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
       ]);
 
-      setVendors(vendorsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setProducts(productsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setPurchases(purchasesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      if (results[0].status === 'fulfilled') {
+        setVendors(results[0].value.docs.map(d => ({ id: d.id, ...d.data() })));
+      } else {
+        getDocs(collection(db, 'vendors')).then(snap => {
+          setVendors(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }).catch(e => console.warn(e));
+      }
 
-      const accs = accsSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
-      setPaymentAccounts(accs);
-      if (accs.length > 0 && !selectedPaymentAccountId) {
-        setSelectedPaymentAccountId(accs[0].id);
+      if (results[1].status === 'fulfilled') {
+        setProducts(results[1].value.docs.map(d => ({ id: d.id, ...d.data() })));
+      } else {
+        getDocs(collection(db, 'products')).then(snap => {
+          setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }).catch(e => console.warn(e));
+      }
+
+      if (results[2].status === 'fulfilled') {
+        setPurchases(results[2].value.docs.map(d => ({ id: d.id, ...d.data() })));
+      } else {
+        getDocs(collection(db, 'purchases')).then(snap => {
+          setPurchases(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }).catch(e => console.warn(e));
+      }
+
+      if (results[3].status === 'fulfilled') {
+        const accs = results[3].value.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
+        setPaymentAccounts(accs);
+        if (accs.length > 0 && !selectedPaymentAccountId) {
+          setSelectedPaymentAccountId(accs[0].id);
+        }
+      } else {
+        getDocs(collection(db, 'payment_accounts')).then(snap => {
+          const accs = snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
+          setPaymentAccounts(accs);
+          if (accs.length > 0 && !selectedPaymentAccountId) {
+            setSelectedPaymentAccountId(accs[0].id);
+          }
+        }).catch(e => console.warn(e));
       }
 
       fetchReturnsHistory();
@@ -131,7 +187,15 @@ export const PurchaseReturnTab: React.FC<PurchaseReturnTabProps> = ({ fetchData 
       const snap = await getDocs(query(collection(db, 'purchase_returns'), orderBy('createdAt', 'desc')));
       setReturnsHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err) {
-      console.error('Error loading purchase returns:', err);
+      console.warn('Error loading purchase returns with orderBy, trying unordered:', err);
+      try {
+        const snap = await getDocs(collection(db, 'purchase_returns'));
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        list.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setReturnsHistory(list);
+      } catch (fallbackErr) {
+        console.error('Fallback purchase_returns fetch failed:', fallbackErr);
+      }
     }
   };
 

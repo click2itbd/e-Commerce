@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, query, getDocs, orderBy } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, query, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { Customer } from '../../../../types';
 import { toast } from 'react-hot-toast';
@@ -21,18 +21,22 @@ import { useAuth } from '../../../../context/AuthContext';
 import { Pagination } from '../../../../components/common/Pagination';
 
 interface CustomersProps {
+  customers?: Customer[];
+  fetchData?: () => void;
   setSelectedLedgerEntity?: (entity: { id: string; name: string; type: 'customer' | 'vendor' }) => void;
   setActiveTab?: (tab: string) => void;
 }
 
 const Customers: React.FC<CustomersProps> = ({
+  customers: initialCustomers,
+  fetchData,
   setSelectedLedgerEntity,
   setActiveTab,
 }) => {
-  const { isAdmin, hasPermission } = useAuth();
+  const { user, isAdmin, hasPermission } = useAuth();
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
+  const [loading, setLoading] = useState(!initialCustomers || initialCustomers.length === 0);
 
   // Form State
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
@@ -50,6 +54,14 @@ const Customers: React.FC<CustomersProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
 
+  // Sync if parent updates customers prop
+  useEffect(() => {
+    if (initialCustomers && initialCustomers.length > 0) {
+      setCustomers(initialCustomers);
+      setLoading(false);
+    }
+  }, [initialCustomers]);
+
   const fetchCustomers = async () => {
     try {
       setLoading(true);
@@ -60,16 +72,59 @@ const Customers: React.FC<CustomersProps> = ({
       })) as Customer[];
       setCustomers(data);
     } catch (error) {
-      console.error('Error fetching customers:', error);
-      toast.error('Failed to load customers');
+      console.warn('Error fetching customers with orderBy name, trying unordered:', error);
+      try {
+        const snapshot = await getDocs(collection(db, 'customers'));
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Customer[];
+        data.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setCustomers(data);
+      } catch (fallbackErr) {
+        console.error('Fallback customer fetch failed:', fallbackErr);
+        toast.error('Failed to load customers');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCustomers();
-  }, []);
+    if (!user) return;
+
+    // Use real-time listener for reliable live updates
+    setLoading(true);
+    const q = query(collection(db, 'customers'), orderBy('name'));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Customer[];
+        setCustomers(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.warn('Customers onSnapshot with orderBy failed, falling back:', error);
+        // Fallback without ordering in case index or field is missing
+        getDocs(collection(db, 'customers'))
+          .then((snapshot) => {
+            const data = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            })) as Customer[];
+            data.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            setCustomers(data);
+          })
+          .catch((err) => console.error('Fallback getDocs customers error:', err))
+          .finally(() => setLoading(false));
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user]);
 
   const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +159,7 @@ const Customers: React.FC<CustomersProps> = ({
       setEditingCustomer(null);
       setCustomerFormData({ name: '', phone: '', email: '', address: '' });
       fetchCustomers();
+      if (fetchData) fetchData();
     } catch (error) {
       console.error('Error saving customer:', error);
       toast.error('Failed to save customer');
@@ -118,6 +174,7 @@ const Customers: React.FC<CustomersProps> = ({
       await deleteDoc(doc(db, 'customers', id));
       toast.success('Customer deleted');
       fetchCustomers();
+      if (fetchData) fetchData();
     } catch (error) {
       toast.error('Failed to delete customer');
     }
