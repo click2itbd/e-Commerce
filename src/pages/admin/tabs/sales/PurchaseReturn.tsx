@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../../../../firebase';
+import { auth, db } from '../../../../firebase';
 import {
   collection,
   addDoc,
@@ -88,7 +88,8 @@ export const PurchaseReturnTab: React.FC<PurchaseReturnTabProps> = ({ fetchData 
   const [viewingReturnModal, setViewingReturnModal] = useState<any | null>(null);
 
   useEffect(() => {
-    if (user) {
+    const activeUser = user || auth.currentUser;
+    if (activeUser) {
       fetchInitialData();
       generateRefNo();
     }
@@ -96,7 +97,8 @@ export const PurchaseReturnTab: React.FC<PurchaseReturnTabProps> = ({ fetchData 
 
   // Real-time listener for purchase returns history
   useEffect(() => {
-    if (!user) return;
+    const activeUser = user || auth.currentUser;
+    if (!activeUser) return;
     const q = query(collection(db, 'purchase_returns'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(
       q,

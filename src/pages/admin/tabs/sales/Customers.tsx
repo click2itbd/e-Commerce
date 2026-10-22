@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, deleteDoc, doc, query, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../../../../firebase';
+import { auth, db } from '../../../../firebase';
 import { Customer } from '../../../../types';
 import { toast } from 'react-hot-toast';
 import {
@@ -91,7 +91,8 @@ const Customers: React.FC<CustomersProps> = ({
   };
 
   useEffect(() => {
-    if (!user) return;
+    const activeUser = user || auth.currentUser;
+    if (!activeUser) return;
 
     // Use real-time listener for reliable live updates
     setLoading(true);

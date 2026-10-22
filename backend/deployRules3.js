@@ -19,27 +19,33 @@ async function deploy() {
     const client = await app.options.credential.getAccessToken();
     const token = client.access_token;
     
-    const releaseName = `projects/gen-lang-client-0990631330/releases/cloud.firestore/ai-studio-422fbad2-d827-4e69-8599-aed85390d277`;
+    const releasesToUpdate = [
+      `projects/gen-lang-client-0990631330/releases/cloud.firestore/ai-studio-422fbad2-d827-4e69-8599-aed85390d277`,
+      `projects/gen-lang-client-0990631330/releases/cloud.firestore`
+    ];
     
-    const res = await fetch(`https://firebaserules.googleapis.com/v1/${releaseName}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        release: {
-          name: releaseName,
-          rulesetName: ruleset.name.startsWith('projects/') ? ruleset.name : `projects/gen-lang-client-0990631330/rulesets/${ruleset.name}`
+    for (const releaseName of releasesToUpdate) {
+      console.log("Updating release:", releaseName);
+      const res = await fetch(`https://firebaserules.googleapis.com/v1/${releaseName}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        updateMask: "rulesetName"
-      })
-    });
-    
-    if (!res.ok) {
-      console.error("Failed:", await res.text());
-    } else {
-      console.log("SUCCESS!", await res.json());
+        body: JSON.stringify({
+          release: {
+            name: releaseName,
+            rulesetName: ruleset.name.startsWith('projects/') ? ruleset.name : `projects/gen-lang-client-0990631330/rulesets/${ruleset.name}`
+          },
+          updateMask: "rulesetName"
+        })
+      });
+      
+      if (!res.ok) {
+        console.error(`Failed ${releaseName}:`, await res.text());
+      } else {
+        console.log(`SUCCESS for ${releaseName}!`, await res.json());
+      }
     }
   } catch (err) {
     console.error(err);
