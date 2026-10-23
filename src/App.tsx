@@ -13,6 +13,9 @@ import { TrackingScripts } from './components/TrackingScripts';
 import { ReferralTracker } from './components/ReferralTracker';
 import { CompareProvider } from './context/CompareContext';
 import { WishlistProvider } from './context/WishlistContext';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/queryClient';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 const Home = lazy(() => import('./pages/shop/Home').then(m => ({ default: m.Home })));
 const ProductDetails = lazy(() => import('./pages/shop/ProductDetails').then(m => ({ default: m.ProductDetails })));
@@ -56,7 +59,11 @@ const PaymentReturn = lazy(() => import('./pages/PaymentReturn').then(m => ({ de
 import { PageLoader } from './components/Loading';
 
 function LazyWrapper({ children }: { children: React.ReactNode }) {
-  return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>{children}</Suspense>
+    </ErrorBoundary>
+  );
 }
 
 function SharePhpRedirect() {
@@ -70,14 +77,16 @@ function SharePhpRedirect() {
 
 export default function App() {
   return (
-    <HelmetProvider>
-      <ConfirmProvider>
-      <SettingsProvider>
-        <AuthProvider>
-          <WishlistProvider>
-          <CompareProvider>
-            <CartProvider>
-              <Router>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <HelmetProvider>
+          <ConfirmProvider>
+          <SettingsProvider>
+            <AuthProvider>
+              <WishlistProvider>
+              <CompareProvider>
+                <CartProvider>
+                  <Router>
                 <TrackingScripts />
             <ReferralTracker />
                 <WebsitePopup />
@@ -155,5 +164,7 @@ export default function App() {
       </SettingsProvider>
       </ConfirmProvider>
     </HelmetProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
