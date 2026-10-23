@@ -129,7 +129,7 @@ export const PCBuildNavbar: React.FC = () => {
               <div className="absolute -bottom-7 left-0 right-0 h-[2px] bg-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.8)] rounded-t-full"></div>
             </Link>
             <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-900 font-semibold transition-colors flex items-center gap-1.5 group">
-              <Server size={16} className="text-slate-500 group-hover:text-amber-400 transition-colors"/> Hosting
+              <Server size={16} className="text-slate-500 group-hover:text-amber-400 transition-colors"/> Domain & Hosting
             </a>
           </nav>
 
@@ -247,7 +247,7 @@ export const PCBuildNavbar: React.FC = () => {
             <nav className="flex flex-col space-y-1">
               <Link to="/shop" className="text-slate-600 py-3 px-2 border-b border-slate-200 flex items-center justify-between hover:bg-slate-50 rounded-lg">Shop <ChevronRight size={16}/></Link>
               <Link to="/pc-build" className="text-violet-400 py-3 px-2 border-b border-slate-200 flex items-center justify-between font-bold bg-violet-500/10 rounded-lg">PC Builder <ChevronRight size={16}/></Link>
-              <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="text-slate-600 py-3 px-2 border-b border-slate-200 flex items-center justify-between hover:bg-slate-50 rounded-lg">Hosting <ChevronRight size={16}/></a>
+              <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="text-slate-600 py-3 px-2 border-b border-slate-200 flex items-center justify-between hover:bg-slate-50 rounded-lg">Domain & Hosting <ChevronRight size={16}/></a>
               {user ? (
                 <>
                   <Link to="/profile" className="text-slate-600 py-3 px-2 border-b border-slate-200 flex items-center justify-between hover:bg-slate-50 rounded-lg">My Profile <User size={16}/></Link>

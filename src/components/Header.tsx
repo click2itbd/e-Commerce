@@ -180,6 +180,11 @@ export const Header: React.FC = () => {
                 <Cpu size={16} /> PC Builder
               </Link>
             </li>
+            <li className="h-full">
+              <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 h-full text-sm font-bold hover:underline" style={{ color: settings.accentColor }}>
+                <Server size={16} /> Domain & Hosting
+              </a>
+            </li>
           </ul>
         </div>
       </nav>
@@ -202,6 +207,9 @@ export const Header: React.FC = () => {
                 <LayoutDashboard size={20} /> Admin Dashboard
               </Link>
             )}
+            <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 py-2 text-blue-400 font-semibold" onClick={() => setIsMenuOpen(false)}>
+              <Server size={20} /> Domain & Hosting
+            </a>
             
             {/* Dynamic Menus in Mobile */}
             <div className="border-t border-gray-700 pt-4">

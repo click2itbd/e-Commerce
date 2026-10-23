@@ -464,9 +464,9 @@ export const EcommerceNavbar: React.FC = () => {
                   <Link to="/projects" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
                     <Camera size={18} /> Our Projects
                   </Link>
-                <Link to="/pricing" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
+                <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
                   <Server size={18} /> Domain & Hosting
-                </Link>
+                </a>
               </div>
             </div>
           </div>
@@ -492,9 +492,9 @@ export const EcommerceNavbar: React.FC = () => {
               <Link to="/pc-build" className="flex items-center gap-2 py-2 text-gray-100" onClick={() => setIsMenuOpen(false)}>
                 <Cpu size={20} /> PC Builder
               </Link>
-              <Link to="/pricing" className="flex items-center gap-2 py-2 text-blue-400 font-semibold" onClick={() => setIsMenuOpen(false)}>
+              <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 py-2 text-blue-400 font-semibold" onClick={() => setIsMenuOpen(false)}>
                 <Server size={20} /> Domain & Hosting
-              </Link>
+              </a>
             
             {/* Dynamic Menus in Mobile */}
             <div className="border-t border-gray-700 pt-4">
