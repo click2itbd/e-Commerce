@@ -1,5 +1,4 @@
 import { getAdminDb, getAdminDocument } from '../firebase/admin.js';
-import { getEffectiveDomainPricingList } from '../routes/domain.js';
 const CANONICAL_HOSTING_PLANS = {
     student: { name: 'Student', monthly: 75, annually: 720 },
     plan_student: { name: 'Student', monthly: 75, annually: 720 },
@@ -89,7 +88,7 @@ export async function calculateAndCreateServerOrder(userId, payload) {
     // Pre-load domain pricing list if any domain items exist
     const hasAnyDomainItem = rawItems.some(i => ['domain', 'domain_transfer', 'domain_renewal'].includes(i.itemType || '') ||
         String(i.id || '').startsWith('domain_'));
-    const domainPricingList = hasAnyDomainItem ? await getEffectiveDomainPricingList(false) : [];
+    const domainPricingList = [];
     // Pre-load hostingPlans if any hosting items exist
     const hasAnyHostingItem = rawItems.some(i => ['hosting', 'vps'].includes(i.itemType || '') ||
         String(i.id || '').startsWith('hosting') ||
@@ -173,12 +172,12 @@ export async function calculateAndCreateServerOrder(userId, payload) {
                     unitYearPrice = 920; // 1840 total for 2 years
                 }
                 else {
-                    const bdMatch = domainPricingList.find(d => d.tld.toLowerCase() === `.${rawTld}` || d.tld.toLowerCase() === '.bd');
+                    const bdMatch = domainPricingList.find((d) => d.tld.toLowerCase() === `.${rawTld}` || d.tld.toLowerCase() === '.bd');
                     unitYearPrice = bdMatch ? bdMatch.registerPrice : 1800;
                 }
             }
             else {
-                const matchedTld = domainPricingList.find(d => d.tld.toLowerCase() === formattedTld);
+                const matchedTld = domainPricingList.find((d) => d.tld.toLowerCase() === formattedTld);
                 if (matchedTld) {
                     if (itemType === 'domain_transfer')
                         unitYearPrice = matchedTld.transferPrice || matchedTld.registerPrice;

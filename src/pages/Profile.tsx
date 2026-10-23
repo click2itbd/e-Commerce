@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
-import { MyServicesTab } from '../components/MyServicesTab';
 import { CustomerTicketsTab } from '../components/CustomerTicketsTab';
 import { SavedBuildsTab } from '../components/SavedBuildsTab';
 import { useAuth } from '../context/AuthContext';
@@ -20,7 +19,6 @@ import { generatePDF } from '../lib/pdf';
 import { useSettings } from '../context/SettingsContext';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
-import { getSiteContext } from '../hooks/useSiteContext';
 import { useWishlist } from '../context/WishlistContext';
 import { ProductCard } from '../components/ProductCard';
 
@@ -47,16 +45,12 @@ export const Profile: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
-  const [offers, setOffers] = useState<any[]>([]);
-  const [offersLoading, setOffersLoading] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [preBooks, setPreBooks] = useState<any[]>([]);
   const [preBooksLoading, setPreBooksLoading] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [returnModalOrderId, setReturnModalOrderId] = useState<string | null>(null);
   const [returnReason, setReturnReason] = useState('');
-  const siteContext = getSiteContext();
-  const isHosting = siteContext === 'hosting';
 
   const [formData, setFormData] = useState<UserProfileData>({
     name: '',
@@ -115,33 +109,6 @@ export const Profile: React.FC = () => {
 
     fetchProfile();
   }, [user]);
-
-  useEffect(() => {
-    if (activeTab !== 'offers' || !user) return;
-    const fetchOffers = async () => {
-      setOffersLoading(true);
-      try {
-        const q = query(
-          collection(db, 'domain_offers'),
-          where('email', '==', user.email)
-        );
-        const snap = await getDocs(q);
-        let data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        data.sort((a: any, b: any) => {
-          const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
-          const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
-          return dateB.getTime() - dateA.getTime();
-        });
-        setOffers(data);
-      } catch (err) {
-        console.error('Error fetching offers:', err);
-      } finally {
-        setOffersLoading(false);
-      }
-    };
-    fetchOffers();
-  }, [activeTab, user]);
-
   
   useEffect(() => {
     if (!user) return;
@@ -195,24 +162,6 @@ export const Profile: React.FC = () => {
     };
     fetchOrders();
   }, [activeTab, user]);
-
-  const handlePayOffer = (offer: any) => {
-    const product = {
-      id: `domain_${offer.domain}`,
-      name: `Domain Registration - ${offer.domain}`,
-      description: '1 Year Registration (Accepted Offer)',
-      price: offer.amount,
-      category: 'Hosting & Domains',
-      stock: 9999,
-      images: [],
-      createdAt: new Date().toISOString(),
-      itemType: 'domain' as const,
-      domainTld: offer.domain.split('.').pop() || '',
-      termYears: 1,
-    };
-    addToCart(product as any);
-    navigate('/hosting/checkout');
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -326,14 +275,14 @@ export const Profile: React.FC = () => {
                 {/* Avatar */}
                 <div className="flex flex-col items-center mb-6">
                    <div className="relative group mb-4">
-                     <div className={`w-24 h-24 rounded-full border-4 overflow-hidden flex items-center justify-center ${isHosting ? 'border-blue-100 bg-blue-50' : 'border-orange-100 bg-orange-50'}`}>
+                     <div className="w-24 h-24 rounded-full border-4 overflow-hidden flex items-center justify-center border-orange-100 bg-orange-50">
                        {formData.photoURL && !imgLoadError ? (
                          <img src={formData.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={() => setImgLoadError(true)} />
                        ) : (
-                         <User size={40} className={isHosting ? "text-blue-300" : "text-orange-300"} />
+                         <User size={40} className="text-orange-300" />
                        )}
                      </div>
-                     <label className={`absolute bottom-0 right-0 text-white p-2 rounded-full cursor-pointer transition-all hover:scale-110 active:scale-95 shadow-md ${isHosting ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
+                     <label className="absolute bottom-0 right-0 text-white p-2 rounded-full cursor-pointer transition-all hover:scale-110 active:scale-95 shadow-md bg-orange-500 hover:bg-orange-600">
                        {uploadingImage ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
                        <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploadingImage} />
                      </label>
@@ -347,34 +296,15 @@ export const Profile: React.FC = () => {
                 {/* Nav Links */}
                 <div className="space-y-1">
                    {(() => {
-                     const ctx = getSiteContext();
-                     const isHostingContext = ctx === 'hosting';
-                     
-                     const baseTabs = [
-    { id: 'saved-builds', label: 'Saved PC Builds', icon: Save },
+                     const tabs = [
                        { id: 'profile', label: 'My Profile', icon: User },
                        { id: 'orders', label: 'My Orders', icon: ShoppingBag },
-                     ];
-                     if (!isHostingContext) {
-                        baseTabs.push({ id: 'pre-orders', label: 'My Pre-Orders', icon: CalendarPlus });
-    // 'saved-builds' is in baseTabs already
-                        baseTabs.push({ id: 'wishlist', label: 'My Wishlist', icon: Heart });
-                        baseTabs.push({ id: 'price-alerts', label: 'Price Alerts', icon: Bell });
-                     }
-                     const hostingTabs = [
+                       { id: 'saved-builds', label: 'Saved PC Builds', icon: Save },
+                       { id: 'pre-orders', label: 'My Pre-Orders', icon: CalendarPlus },
+                       { id: 'wishlist', label: 'My Wishlist', icon: Heart },
+                       { id: 'price-alerts', label: 'Price Alerts', icon: Bell },
                        { id: 'wallet', label: 'My Wallet', icon: Wallet },
-                       { id: 'my_domains', label: 'My Services', icon: Globe },
                        { id: 'tickets', label: 'Support Tickets', icon: MessageSquare },
-                       { id: 'offers', label: 'My Offers', icon: Tag },
-                     ];
-                     const tabs = isHostingContext ? [
-                       { id: 'profile', label: 'My Profile', icon: User },
-                       { id: 'wallet', label: 'My Wallet', icon: Wallet },
-                       { id: 'orders', label: 'My Orders', icon: ShoppingBag },
-                       ...hostingTabs.filter(t => t.id !== 'wallet')
-                     ] : [
-                       ...baseTabs,
-                       { id: 'wallet', label: 'My Wallet', icon: Wallet }
                      ];
 
                      return tabs.map(({ id, label, icon: Icon }) => (
@@ -383,11 +313,11 @@ export const Profile: React.FC = () => {
                          onClick={() => setActiveTab(id)}
                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
                            activeTab === id
-                             ? (isHostingContext ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-600')
+                             ? 'bg-orange-50 text-orange-600'
                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                          }`}
                        >
-                         <Icon size={18} className={activeTab === id ? (isHostingContext ? 'text-blue-600' : 'text-orange-500') : 'text-gray-400'} /> 
+                         <Icon size={18} className={activeTab === id ? 'text-orange-500' : 'text-gray-400'} /> 
                          {label}
                        </button>
                      ));
@@ -800,36 +730,8 @@ export const Profile: React.FC = () => {
              {/* WALLET TAB */}
              {activeTab === 'wallet' && <CustomerWalletTab />}
 
-             {/* HOSTING TABS */}
-             {activeTab === 'my_domains' && <MyServicesTab />}
+             {/* SUPPORT TICKETS TAB */}
              {activeTab === 'tickets' && <CustomerTicketsTab currentUser={user} />}
-             {activeTab === 'offers' && (
-                <div>
-                  {offersLoading ? (
-                    <div className="flex items-center justify-center py-20">
-                      <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                    </div>
-                  ) : offers.length === 0 ? (
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-16 text-center">
-                      <Tag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-xl font-bold text-gray-700 mb-2">No Offers Yet</h3>
-                      <p className="text-gray-400 mb-6">You haven't submitted any domain offers.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {offers.map(offer => (
-                        <div key={offer.id} className="bg-white p-6 rounded-xl border border-gray-100 flex justify-between items-center">
-                           <div>
-                              <div className="font-bold text-lg text-gray-900">{offer.domain}</div>
-                              <div className="text-sm text-gray-500">Offered: {formatCurrency(offer.amount)}</div>
-                           </div>
-                           <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold uppercase">{offer.status}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-             )}
 
              {/* Price Alerts Tab */}
              {activeTab === 'price-alerts' && (

@@ -6,10 +6,6 @@ import rateLimit from "express-rate-limit";
 import { config } from "./config/index.js";
 import { requestId } from "./middleware/requestId.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-import domainRouter from "./routes/domain.js";
-import sslRouter from "./routes/ssl.js";
-import dnsRouter from "./routes/dns.js";
-import hostingRouter from "./routes/hosting.js";
 import ordersRouter from "./routes/orders.js";
 import publicRouter from "./routes/public.js";
 import adminRouter from "./routes/admin.js";
@@ -193,11 +189,6 @@ export function createApp(): Express {
   apiRouter.use(generalLimiter);
 
   apiRouter.use("/public", publicRouter);
-  apiRouter.use("/domains", domainRouter);
-  apiRouter.use("/domain", domainRouter);
-  apiRouter.use("/ssl", sslRouter);
-  apiRouter.use("/dns", dnsRouter);
-  apiRouter.use("/hosting", hostingRouter);
   apiRouter.use("/orders", ordersRouter);
   apiRouter.use("/admin", adminRouter);
   apiRouter.use("/ai", aiRouter);

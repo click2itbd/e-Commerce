@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Wallet, PlusCircle, History, Clock, ArrowDownLeft, ArrowUpRight, AlertCircle, X, Copy, Check, RefreshCw } from 'lucide-react';
 import { apiClient } from '../services/apiClient';
 import { toast } from 'react-hot-toast';
-import { Spinner } from '../pages/hosting-dashboard/components/SharedUI';
+const Spinner = () => <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin inline-block" />;
 import { auth, db } from '../firebase';
 import { collection, doc, getDoc, getDocs, setDoc, query, where, orderBy, limit } from 'firebase/firestore';
 

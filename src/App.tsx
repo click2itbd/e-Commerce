@@ -14,8 +14,6 @@ import { ReferralTracker } from './components/ReferralTracker';
 import { CompareProvider } from './context/CompareContext';
 import { WishlistProvider } from './context/WishlistContext';
 
-import Hosting from './pages/Hosting';
-
 const Home = lazy(() => import('./pages/shop/Home').then(m => ({ default: m.Home })));
 const ProductDetails = lazy(() => import('./pages/shop/ProductDetails').then(m => ({ default: m.ProductDetails })));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
@@ -28,10 +26,7 @@ const CategoryPage = lazy(() => import('./pages/shop/CategoryPage').then(m => ({
 const WishlistPage = lazy(() => import('./pages/shop/WishlistPage').then(m => ({ default: m.WishlistPage })));
 const SearchPage = lazy(() => import('./pages/shop/SearchPage').then(m => ({ default: m.SearchPage })));
 const PreBook = lazy(() => import('./pages/shop/PreBook').then(m => ({ default: m.PreBook })));
-const HostingDetails = lazy(() => import('./pages/HostingDetails').then(m => ({ default: m.HostingDetails })));
-const HostingBillingDashboard = lazy(() => import('./pages/hosting-dashboard/HostingBillingDashboard').then(m => ({ default: m.HostingBillingDashboard })));
 const AccountingDashboard = lazy(() => import('./pages/AccountingDashboard').then(m => ({ default: m.AccountingDashboard })));
-const MyServices = lazy(() => import('./pages/MyServices').then(m => ({ default: m.MyServices })));
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const Checkout = lazy(() => import('./pages/shop/Checkout').then(m => ({ default: m.Checkout })));
 const OrderSuccess = lazy(() => import('./pages/shop/OrderSuccess').then(m => ({ default: m.OrderSuccess })));
@@ -39,16 +34,6 @@ const RetailPOS = lazy(() => import('./pages/RetailPOS').then(m => ({ default: m
 const Cart = lazy(() => import('./pages/shop/Cart').then(m => ({ default: m.Cart })));
 const CampaignLanding = lazy(() => import('./pages/shop/CampaignLanding').then(m => ({ default: m.CampaignLanding })));
 
-const ServicesPage = lazy(() => import('./pages/hosting/ServicesPage'));
-const PricingPage = lazy(() => import('./pages/hosting/PricingPage'));
-const VpsPage = lazy(() => import('./pages/hosting/VpsPage'));
-const DomainPage = lazy(() => import('./pages/hosting/DomainPage'));
-const DomainSecurityPage = lazy(() => import('./pages/domain/DomainSecurityPage'));
-const DomainSearchResults = lazy(() => import('./pages/hosting/DomainSearchResults'));
-const BulkDomainSearch = lazy(() => import('./pages/hosting/BulkDomainSearch'));
-const SslPage = lazy(() => import('./pages/hosting/SslPage'));
-const BdDomainPage = lazy(() => import('./pages/hosting/BdDomainPage'));
-const SupportPage = lazy(() => import('./pages/hosting/SupportPage'));
 const TermsOfService = lazy(() => import('./pages/policies/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/policies/PrivacyPolicy'));
 const NotFound = lazy(() => import('./pages/NotFound'));
@@ -64,14 +49,9 @@ const TrackOrder = lazy(() => import('./pages/shop/TrackOrder'));
 const BlogPost = lazy(() => import('./pages/shop/BlogPost'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
 const ContactUs = lazy(() => import('./pages/ContactUs'));
-const DomainTransferPage = lazy(() => import('./pages/hosting/DomainTransferPage'));
 const PaymentSimulation = lazy(() => import('./pages/PaymentSimulation'));
 const PaymentCallback = lazy(() => import('./pages/PaymentCallback'));
 const PaymentReturn = lazy(() => import('./pages/PaymentReturn').then(m => ({ default: m.default || m.PaymentReturn })));
-
-const HostingCart = lazy(() => import('./pages/hosting/HostingCart').then(m => ({ default: m.HostingCart })));
-const HostingCheckout = lazy(() => import('./pages/hosting/HostingCheckout').then(m => ({ default: m.HostingCheckout })));
-const DomainRenewal = lazy(() => import('./pages/hosting/DomainRenewal'));
 
 import { PageLoader } from './components/Loading';
 
@@ -89,10 +69,6 @@ function SharePhpRedirect() {
 }
 
 export default function App() {
-  const currentDomain = window.location.hostname;
-  const isHostingDomain = currentDomain === 'click2it.bd' || currentDomain === 'www.click2it.bd' || currentDomain === '127.0.0.1';
-  const isEcommerceDomain = currentDomain === 'click2itbd.com' || currentDomain === 'www.click2itbd.com' || currentDomain === 'localhost';
-
   return (
     <HelmetProvider>
       <ConfirmProvider>
@@ -113,9 +89,7 @@ export default function App() {
                   <Route path="/pos" element={<ProtectedRoute adminOnly><LazyWrapper><RetailPOS /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/admin" element={<ProtectedRoute adminOnly><LazyWrapper><AdminDashboard mode="all" /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/admin/e-commerce" element={<ProtectedRoute adminOnly><LazyWrapper><EcommerceDashboard /></LazyWrapper></ProtectedRoute>} />
-                  <Route path="/admin/billing" element={<ProtectedRoute adminOnly><LazyWrapper><HostingBillingDashboard /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/admin/accounting" element={<ProtectedRoute adminOnly><LazyWrapper><AccountingDashboard /></LazyWrapper></ProtectedRoute>} />
-                  <Route path="/account/services" element={<ProtectedRoute><LazyWrapper><MyServices /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/profile" element={<ProtectedRoute><LazyWrapper><Profile /></LazyWrapper></ProtectedRoute>} />
                   <Route path="/terms" element={<LazyWrapper><TermsOfService /></LazyWrapper>} />
                   <Route path="/privacy" element={<LazyWrapper><PrivacyPolicy /></LazyWrapper>} />
@@ -130,28 +104,15 @@ export default function App() {
                   <Route path="/blog" element={<LazyWrapper><Blog /></LazyWrapper>} />
                   <Route path="/blog/:slug" element={<LazyWrapper><BlogPost /></LazyWrapper>} />
 
-                  {/* --- ROOT ROUTE (Domain dependent) --- */}
-                  <Route path="/" element={isHostingDomain ? <Hosting /> : <LazyWrapper><Home /></LazyWrapper>} />
-                  <Route path="/hosting" element={<Hosting />} />
+                  {/* --- ROOT ROUTE --- */}
+                  <Route path="/" element={<LazyWrapper><Home /></LazyWrapper>} />
 
-                  {/* --- HOSTING & DOMAIN ROUTES --- */}
-                  <Route path="/hosting/:serviceId" element={<HostingDetails />} />
-                  <Route path="/services" element={<LazyWrapper><ServicesPage /></LazyWrapper>} />
-                  <Route path="/pricing" element={<LazyWrapper><PricingPage /></LazyWrapper>} />
-                  <Route path="/vps" element={<LazyWrapper><VpsPage /></LazyWrapper>} />
-                  <Route path="/cloud-vps" element={<Navigate to="/vps" replace />} />
-                  <Route path="/domain" element={<LazyWrapper><DomainPage /></LazyWrapper>} />
-                  <Route path="/domain/search" element={<LazyWrapper><DomainSearchResults /></LazyWrapper>} />
-                  <Route path="/domain/bulk" element={<LazyWrapper><BulkDomainSearch /></LazyWrapper>} />
-                  <Route path="/ssl" element={<LazyWrapper><SslPage /></LazyWrapper>} />
-                  <Route path="/domain/bd" element={<LazyWrapper><BdDomainPage /></LazyWrapper>} />
-                  <Route path="/domain/transfer" element={<LazyWrapper><DomainTransferPage /></LazyWrapper>} />
-                  <Route path="/domain/security" element={<ProtectedRoute><LazyWrapper><DomainSecurityPage /></LazyWrapper></ProtectedRoute>} />
-                  <Route path="/domain/lock" element={<Navigate to="/domain/security" replace />} />
-                  <Route path="/domain-renewal" element={<LazyWrapper><DomainRenewal /></LazyWrapper>} />
-                  <Route path="/support" element={<LazyWrapper><SupportPage /></LazyWrapper>} />
-                  <Route path="/hosting/cart" element={<LazyWrapper><HostingCart /></LazyWrapper>} />
-                  <Route path="/hosting/checkout" element={<LazyWrapper><HostingCheckout /></LazyWrapper>} />
+                  {/* --- REDIRECT OLD HOSTING ROUTES TO HOME --- */}
+                  <Route path="/hosting/*" element={<Navigate to="/" replace />} />
+                  <Route path="/domain/*" element={<Navigate to="/" replace />} />
+                  <Route path="/vps" element={<Navigate to="/" replace />} />
+                  <Route path="/cloud-vps" element={<Navigate to="/" replace />} />
+                  <Route path="/ssl" element={<Navigate to="/" replace />} />
 
                   {/* --- E-COMMERCE ROUTES --- */}
                   <Route path="/shop" element={<Navigate to="/" replace />} />

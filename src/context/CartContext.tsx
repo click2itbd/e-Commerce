@@ -46,27 +46,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const { settings } = useSettings();
 
-  const [promoSettings, setPromoSettings] = useState<any>({
-    isFreeDomainEnabled: false,
-    eligibleTlds: [],
-    excludeBdDomains: true
-  });
-
-  useEffect(() => {
-    const unsub = onSnapshot(
-      doc(db, 'settings', 'hostingPromos'), 
-      (snap) => {
-        if (snap.exists()) {
-          setPromoSettings(snap.data() as any);
-        }
-      },
-      (error) => {
-        console.warn('Could not load promo settings:', error.message);
-      }
-    );
-    return () => unsub();
-  }, []);
-
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(items));
   }, [items]);
@@ -122,37 +101,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     });
 
-  if (promoSettings.isFreeDomainEnabled) {
-    let isValid = true;
-    const now = new Date();
-    if (promoSettings.startDate && new Date(promoSettings.startDate) > now) isValid = false;
-    if (promoSettings.endDate && new Date(promoSettings.endDate) < now) isValid = false;
-
-    if (isValid) {
-      const eligibleCycles = promoSettings.eligibleBillingCycles || ['yearly'];
-      const hasEligibleHosting = processedItems.some(item => item.itemType === 'hosting' && eligibleCycles.includes(item.billingCycle!));
-      
-      if (hasEligibleHosting) {
-        const eligibleDomain = processedItems.find(item => item.itemType === 'domain' && (promoSettings.eligibleTlds || ['.com']).includes('.' + (item.domainTld || '').replace('.', '')));
-        if (eligibleDomain && eligibleDomain.price > 0) {
-          promoMessage = `100% discount applied on ${eligibleDomain.name} (Promo!)`;
-          (eligibleDomain as any).originalPrice = eligibleDomain.price;
-          eligibleDomain.price = 0;
-        }
-      }
-    }
-  }
-
   const subtotal = processedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  
-  // Exclude .BD domains from promotional discounts based on admin setting
-  const discountableSubtotal = processedItems
-    .filter(item => {
-      const isBdDomain = item.itemType === 'domain' && item.domainTld && item.domainTld.endsWith('.bd');
-      if (isBdDomain && promoSettings.excludeBdDomains !== false) return false;
-      return true;
-    })
-    .reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const discountableSubtotal = subtotal;
 
   let promoDiscount = 0;
   

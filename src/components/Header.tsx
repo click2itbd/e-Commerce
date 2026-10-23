@@ -180,11 +180,6 @@ export const Header: React.FC = () => {
                 <Cpu size={16} /> PC Builder
               </Link>
             </li>
-            <li className="h-full">
-              <Link to="/hosting" className="flex items-center gap-2 h-full text-sm font-bold hover:underline" style={{ color: settings.accentColor }}>
-                 Domain & Hosting
-              </Link>
-            </li>
           </ul>
         </div>
       </nav>
@@ -265,9 +260,6 @@ export const Header: React.FC = () => {
 
             {user ? (
               <div className="flex flex-col gap-2">
-                <Link to="/account/services" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
-                  <Server size={20} /> My Services
-                </Link>
                 {canAccessAdmin && (
                   <Link to="/admin" className="flex items-center gap-2 py-2" onClick={() => setIsMenuOpen(false)}>
                     <LayoutDashboard size={20} /> Admin Dashboard

@@ -45,8 +45,6 @@ import {
   Campaign,
   ProductVariant,
   DiscountCode,
-  HostingPlan,
-  HostingService,
   SoldSerial,
   ServiceRecord,
   DocumentDesignSettings,
@@ -100,11 +98,6 @@ const QuotationManager = lazy(() =>
     default: m.QuotationManager,
   })),
 );
-const HostingApiSettings = lazy(() =>
-  import("../components/admin/hosting/HostingApiSettings").then((m) => ({
-    default: m.HostingApiSettings,
-  })),
-);
 import { apiPost } from "../services/apiClient";
 
 const InventoryTab = lazy(() =>
@@ -148,31 +141,6 @@ const ReviewsTab = lazy(() =>
 const UsersTab = lazy(() =>
   import("./admin/tabs/hr/Users").then((m) => ({ default: m.default })),
 );
-const HostingServicesTab = lazy(() =>
-  import("./admin/tabs/hosting/HostingServices").then((m) => ({
-    default: m.default,
-  })),
-);
-const DomainOffersTab = lazy(() =>
-  import("./admin/tabs/hosting/DomainOffers").then((m) => ({
-    default: m.default,
-  })),
-);
-const DomainRenewalsTab = lazy(() =>
-  import("./admin/tabs/hosting/DomainRenewals").then((m) => ({
-    default: m.default,
-  })),
-);
-const DomainPricingManagerTab = lazy(() =>
-  import("../components/admin/hosting/DomainPricingManager").then((m) => ({
-    default: m.DomainPricingManager,
-  })),
-);
-const HostingPlansTab = lazy(() =>
-  import("./admin/tabs/hosting/HostingPlans").then((m) => ({
-    default: m.default,
-  })),
-);
 const SalesForm = lazy(() =>
   import("./admin/tabs/sales/SalesForm").then((m) => ({
     default: m.SalesForm,
@@ -180,21 +148,6 @@ const SalesForm = lazy(() =>
 );
 const ServicesTab = lazy(() =>
   import("./admin/tabs/services/Services").then((m) => ({
-    default: m.default,
-  })),
-);
-const HostingOrdersTab = lazy(() =>
-  import("./admin/tabs/hosting/HostingOrders").then((m) => ({
-    default: m.default,
-  })),
-);
-const ActiveHostingAccountsTab = lazy(() =>
-  import("./admin/tabs/hosting/ActiveHostingAccounts").then((m) => ({
-    default: m.default,
-  })),
-);
-const SupportTicketsTab = lazy(() =>
-  import("./admin/tabs/hosting/SupportTickets").then((m) => ({
     default: m.default,
   })),
 );
@@ -580,8 +533,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
-  const [hostingPlans, setHostingPlans] = useState<HostingPlan[]>([]);
-  const [hostingServices, setHostingServices] = useState<HostingService[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [employeeLeaves, setEmployeeLeaves] = useState<any[]>([]);
   const [employeeSalaries, setEmployeeSalaries] = useState<any[]>([]);
@@ -782,8 +733,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isAddingMenu, setIsAddingMenu] = useState(false);
   const [isAddingCampaign, setIsAddingCampaign] = useState(false);
   const [isAddingDiscountCode, setIsAddingDiscountCode] = useState(false);
-  const [isAddingHostingPlan, setIsAddingHostingPlan] = useState(false);
-  const [isAddingHostingService, setIsAddingHostingService] = useState(false);
   const [isAddingSubCategory, setIsAddingSubCategory] = useState(false);
   const [isCreatingSale, setIsCreatingSale] = useState(false);
   const [isCreatingPurchase, setIsCreatingPurchase] = useState(false);
@@ -794,10 +743,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [editingDiscountCode, setEditingDiscountCode] =
     useState<DiscountCode | null>(null);
-  const [editingHostingPlan, setEditingHostingPlan] =
-    useState<HostingPlan | null>(null);
-  const [editingHostingService, setEditingHostingService] =
-    useState<HostingService | null>(null);
   const [selectedLedgerEntity, setSelectedLedgerEntity] = useState<{
     id: string;
     name: string;
@@ -1172,27 +1117,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     isActive: true,
   });
 
-  const [hostingPlanFormData, setHostingPlanFormData] = useState({
-    serviceId: "",
-    name: "",
-    price: 0,
-    billingCycle: "/mo",
-    features: [] as string[],
-    popular: false,
-    order: 0,
-  });
-
-  const [hostingServiceFormData, setHostingServiceFormData] = useState({
-    title: "",
-    description: "",
-    iconPath: "",
-    startingPrice: 0,
-    billingCycle: "/mo",
-    currency: "BDT",
-    order: 0,
-    isActive: true,
-  });
-
   const [menuFormData, setMenuFormData] = useState({
     name: "",
     slug: "",
@@ -1367,8 +1291,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         transactionsSnap,
         menusSnap,
         discountCodesSnap,
-        hostingPlansSnap,
-        hostingServicesSnap,
         soldSerialsSnap,
         serviceRecordsSnap,
         paymentAccountsSnap,
@@ -1410,20 +1332,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             collection(db, "couponCodes"),
             orderBy("createdAt", "desc"),
             limit(200),
-          ),
-        ),
-        safeGetDocs(
-          query(
-            collection(db, "hostingPlans"),
-            orderBy("order", "asc"),
-            limit(100),
-          ),
-        ),
-        safeGetDocs(
-          query(
-            collection(db, "hostingServices"),
-            orderBy("order", "asc"),
-            limit(100),
           ),
         ),
         safeGetDocs(
@@ -1582,18 +1490,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           id: doc.id,
           ...doc.data(),
         })) as DiscountCode[],
-      );
-      setHostingPlans(
-        hostingPlansSnap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as HostingPlan[],
-      );
-      setHostingServices(
-        hostingServicesSnap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as HostingService[],
       );
       setSoldSerials(
         soldSerialsSnap.docs.map((doc) => ({
@@ -3087,116 +2983,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
     console.error("Firestore Error: ", JSON.stringify(errInfo));
     throw new Error(JSON.stringify(errInfo));
-  };
-
-  const handleDeleteHostingService = async (id: string) => {
-    setConfirmModal({
-      isOpen: true,
-      title: "Delete Hosting Service",
-      message: "Are you sure you want to delete this service category?",
-      onConfirm: async () => {
-        try {
-          await deleteDoc(doc(db, "hostingServices", id));
-          toast.success("Service deleted");
-          debouncedFetchData();
-        } catch (error) {
-          console.error("Error deleting service:", error);
-          toast.error("Failed to delete service");
-        }
-      },
-    });
-  };
-
-  const handleSaveHostingService = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const serviceData = {
-        ...hostingServiceFormData,
-      };
-
-      if (editingHostingService) {
-        await updateDoc(
-          doc(db, "hostingServices", editingHostingService.id),
-          serviceData,
-        );
-        toast.success("Service updated successfully");
-      } else {
-        await addDoc(collection(db, "hostingServices"), serviceData);
-        toast.success("Service added successfully");
-      }
-
-      setIsAddingHostingService(false);
-      setEditingHostingService(null);
-      setHostingServiceFormData({
-        title: "",
-        description: "",
-        iconPath: "",
-        startingPrice: 0,
-        billingCycle: "/mo",
-        currency: "BDT",
-        order: 0,
-        isActive: true,
-      });
-      debouncedFetchData();
-    } catch (error) {
-      console.error("Error saving service:", error);
-      toast.error("Failed to save service");
-    }
-  };
-
-  const handleDeleteHostingPlan = async (id: string) => {
-    setConfirmModal({
-      isOpen: true,
-      title: "Delete Hosting Plan",
-      message: "Are you sure you want to delete this plan?",
-      onConfirm: async () => {
-        try {
-          await deleteDoc(doc(db, "hostingPlans", id));
-          toast.success("Plan deleted");
-          debouncedFetchData();
-        } catch (error) {
-          console.error("Error deleting plan:", error);
-          toast.error("Failed to delete plan");
-        }
-      },
-    });
-  };
-
-  const handleSaveHostingPlan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const planData = {
-        ...hostingPlanFormData,
-        createdAt: new Date().toISOString(),
-      };
-
-      if (editingHostingPlan) {
-        await updateDoc(
-          doc(db, "hostingPlans", editingHostingPlan.id),
-          planData,
-        );
-        toast.success("Plan updated successfully");
-      } else {
-        await addDoc(collection(db, "hostingPlans"), planData);
-        toast.success("Plan added successfully");
-      }
-
-      setIsAddingHostingPlan(false);
-      setEditingHostingPlan(null);
-      setHostingPlanFormData({
-        serviceId: "",
-        name: "",
-        price: 0,
-        billingCycle: "/mo",
-        features: [],
-        popular: false,
-        order: 0,
-      });
-      debouncedFetchData();
-    } catch (error) {
-      console.error("Error saving plan:", error);
-      toast.error("Failed to save plan");
-    }
   };
 
   const handleSaveMenu = async (e: React.FormEvent) => {
@@ -5583,19 +5369,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {(!isStaff || isAdmin || isManager) && (
             <>
               <button
-                onClick={() => navigate("/admin/billing")}
-                className={cn(
-                  "w-full flex items-center justify-center rounded-lg text-sm font-bold transition-all",
-                  isSidebarCollapsed ? "py-2.5" : "gap-2 px-4 py-2.5",
-                  "text-purple-700 bg-purple-100 hover:bg-purple-200 border border-purple-200 transition-all shadow-sm",
-                )}
-              >
-                <ArrowLeftRight size={18} />{" "}
-                {!isSidebarCollapsed && (
-                  <span className="truncate">Hosting Dashboard</span>
-                )}
-              </button>
-              <button
                 onClick={() => navigate("/admin/e-commerce")}
                 className={cn(
                   "w-full flex items-center justify-center rounded-lg text-sm font-bold transition-all",
@@ -6016,25 +5789,10 @@ handleReturnOrder={handleReturnOrder}
                   handleSaveSubCategory={handleSaveSubCategory}
                   fetchData={fetchData}
                 />
-              ) : activeTab === "activeHostingAccounts" &&
-                (hasPermission("manage_services") || isAdmin) ? (
-                <ActiveHostingAccountsTab />
-              ) : activeTab === "domainPricing" &&
-                (hasPermission("manage_settings") || isAdmin) ? (
-                <DomainPricingManagerTab setActiveTab={setActiveTab} />
               ) : activeTab === "banners" ? (
                 <BannersManagerTab />
-              ) : activeTab === "domainOffers" ? (
-                <DomainOffersTab />
-              ) : activeTab === "domainRenewals" ? (
-                <DomainRenewalsTab />
-              ) : activeTab === "hostingServices" && isAdmin ? (
-                <HostingServicesTab />
               ) : activeTab === "settings" && hasPermission("settings") ? (
                 <SettingsTab />
-              ) : activeTab === "hosting_api_settings" &&
-                hasPermission("manage_settings") ? (
-                <HostingApiSettings />
               ) : activeTab === "services" ? (
                 <ServicesTab setActiveTab={setActiveTab} />
               ) : activeTab === "employees" ? (
@@ -6073,10 +5831,6 @@ handleReturnOrder={handleReturnOrder}
                 <TxCategoriesTab />
               ) : activeTab === "reports" && hasPermission("reports") ? (
                 <SalesReportTab />
-              ) : activeTab === "hostingOrders" && isAdmin ? (
-                <HostingOrdersTab />
-              ) : activeTab === "hostingPlans" && isAdmin ? (
-                <HostingPlansTab />
               ) : activeTab === "campaigns" && hasPermission("campaigns") ? (
                 <CampaignsTab />
               ) : activeTab === "discountCodes" &&
@@ -6173,31 +5927,6 @@ handleReturnOrder={handleReturnOrder}
                         icon: Package,
                       },
                       { label: "CLICK POS", tab: "pos", icon: ShoppingCart },
-                      {
-                        label: "Hosting Orders",
-                        tab: "hostingOrders",
-                        icon: Server,
-                      },
-                      {
-                        label: "Active Hosting Accounts",
-                        tab: "activeHostingAccounts",
-                        icon: Users,
-                      },
-                      {
-                        label: "Domain Pricing",
-                        tab: "domainPricing",
-                        icon: DollarSign,
-                      },
-                      {
-                        label: "Hosting Packages",
-                        tab: "hostingPlans",
-                        icon: HardDrive,
-                      },
-                      {
-                        label: "Domain Offers",
-                        tab: "domainOffers",
-                        icon: Tag,
-                      },
                       {
                         label: "Support Tickets",
                         tab: "support_tickets",

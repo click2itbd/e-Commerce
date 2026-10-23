@@ -44,7 +44,7 @@ export const AdminDataProvider: React.FC<{ children: ReactNode }> = ({ children 
   const refreshAll = async () => {
     setSharedState(prev => ({ ...prev, loading: true }));
     try {
-      const [productsSnap, ordersSnap, customersSnap, vendorsSnap, transactionsSnap, menusSnap, usersSnap, campaignsSnap, discountCodesSnap, hostingPlansSnap, hostingServicesSnap, soldSerialsSnap, serviceRecordsSnap, paymentAccountsSnap, transactionCategoriesSnap] = await Promise.all([
+      const [productsSnap, ordersSnap, customersSnap, vendorsSnap, transactionsSnap, menusSnap, usersSnap, campaignsSnap, discountCodesSnap, soldSerialsSnap, serviceRecordsSnap, paymentAccountsSnap, transactionCategoriesSnap] = await Promise.all([
         getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(500))),
@@ -54,8 +54,6 @@ export const AdminDataProvider: React.FC<{ children: ReactNode }> = ({ children 
         getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'campaigns'), orderBy('createdAt', 'desc'), limit(200))),
         getDocs(query(collection(db, 'couponCodes'), orderBy('createdAt', 'desc'), limit(200))),
-        getDocs(query(collection(db, 'hostingPlans'), orderBy('order', 'asc'), limit(100))),
-        getDocs(query(collection(db, 'hostingServices'), orderBy('order', 'asc'), limit(100))),
         getDocs(query(collection(db, 'sold_serials'), orderBy('soldAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'service_records'), orderBy('receivedAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'payment_accounts'), orderBy('createdAt', 'desc'), limit(100))),
@@ -80,8 +78,8 @@ export const AdminDataProvider: React.FC<{ children: ReactNode }> = ({ children 
           users: usersSnap.docs.map(d => ({ ...d.data(), uid: d.id }) as AdminSharedState['users'][number]),
           campaigns: mapDocuments<AdminSharedState['campaigns'][number]>(campaignsSnap.docs),
           discountCodes: mapDocuments<AdminSharedState['discountCodes'][number]>(discountCodesSnap.docs),
-          hostingPlans: mapDocuments<AdminSharedState['hostingPlans'][number]>(hostingPlansSnap.docs),
-          hostingServices: mapDocuments<AdminSharedState['hostingServices'][number]>(hostingServicesSnap.docs),
+          hostingPlans: [],
+          hostingServices: [],
           soldSerials: mapDocuments<AdminSharedState['soldSerials'][number]>(soldSerialsSnap.docs),
           serviceRecords: mapDocuments<AdminSharedState['serviceRecords'][number]>(serviceRecordsSnap.docs),
           paymentAccounts: mapDocuments<AdminSharedState['paymentAccounts'][number]>(paymentAccountsSnap.docs),
@@ -104,8 +102,8 @@ export const AdminDataProvider: React.FC<{ children: ReactNode }> = ({ children 
           users: usersSnap.docs.map(d => ({ ...d.data(), uid: d.id }) as AdminSharedState['users'][number]),
           campaigns: mapDocuments<AdminSharedState['campaigns'][number]>(campaignsSnap.docs),
           discountCodes: mapDocuments<AdminSharedState['discountCodes'][number]>(discountCodesSnap.docs),
-          hostingPlans: mapDocuments<AdminSharedState['hostingPlans'][number]>(hostingPlansSnap.docs),
-          hostingServices: mapDocuments<AdminSharedState['hostingServices'][number]>(hostingServicesSnap.docs),
+          hostingPlans: [],
+          hostingServices: [],
           soldSerials: mapDocuments<AdminSharedState['soldSerials'][number]>(soldSerialsSnap.docs),
           serviceRecords: mapDocuments<AdminSharedState['serviceRecords'][number]>(serviceRecordsSnap.docs),
           paymentAccounts: mapDocuments<AdminSharedState['paymentAccounts'][number]>(paymentAccountsSnap.docs),

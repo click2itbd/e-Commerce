@@ -1,11 +1,11 @@
-export type SiteContext = 'ecommerce' | 'pc-build' | 'hosting';
+export type SiteContext = 'ecommerce' | 'pc-build';
 
 const STORAGE_KEY = 'lastSiteContext';
 let memoryContext: SiteContext | null = null;
 
 export function getSiteContext(): SiteContext {
   if (memoryContext) return memoryContext;
-  return (localStorage.getItem(STORAGE_KEY) as SiteContext) || 'hosting';
+  return (localStorage.getItem(STORAGE_KEY) as SiteContext) || 'ecommerce';
 }
 
 export function setSiteContext(ctx: SiteContext): void {
