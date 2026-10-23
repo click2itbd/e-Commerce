@@ -189,6 +189,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   // Customer Profitability Ranking
   const customerProfitability = useMemo(() => {
     const map = new Map<string, {
+      id: string;
       customerId: string;
       customerName: string;
       customerPhone: string;
@@ -207,6 +208,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
       if (!map.has(id)) {
         map.set(id, {
+          id,
           customerId: id,
           customerName: name,
           customerPhone: phone,

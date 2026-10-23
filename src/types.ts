@@ -124,7 +124,7 @@ export interface PaymentAccount {
   createdAt: string;
 }
 
-export type TransactionType = 'sale' | 'purchase' | 'expense' | 'income' | 'payment_received' | 'payment_made' | 'money_receipt' | 'return' | 'opening_balance' | 'purchase_return' | 'deposit' | 'withdrawal' | 'transfer_in' | 'transfer_out' | 'salary' | 'sale_return';
+export type TransactionType = 'sale' | 'purchase' | 'expense' | 'income' | 'payment_received' | 'payment_made' | 'money_receipt' | 'return' | 'opening_balance' | 'purchase_return' | 'deposit' | 'withdrawal' | 'transfer_in' | 'transfer_out' | 'salary' | 'conveyance' | 'sale_return';
 
 export interface Transaction {
   id: string;
@@ -209,6 +209,8 @@ export interface Order {
   paymentReference?: string;
   paymentStatus?: string;
   paidAmount?: number;
+  returnedAmount?: number;
+  advancePaidAmount?: number;
   previousDue?: number;
   shippingInfo?: Record<string, unknown>;
   domain?: string;

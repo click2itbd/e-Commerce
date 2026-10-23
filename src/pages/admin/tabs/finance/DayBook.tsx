@@ -77,7 +77,8 @@ export default function DayBook() {
         if (!coveredOrderIds.has(d.id)) {
           const order = d.data() as Order;
           if (order.paymentMethod?.toLowerCase().includes('cash')) {
-            income += Number(order.amountPaid ?? order.total ?? 0);
+            const paid = Number((order as any).paidAmount ?? (order as any).amountPaid ?? order.total ?? 0);
+            income += paid;
           }
         }
       });
