@@ -172,34 +172,18 @@ export const Settings = () => {
     setLoading(true);
     const currentOperator = user?.displayName || user?.email || 'Admin';
     try {
-      if (settingsTab === "domain_reseller") {
-        const payload = buildApiKeysPayload();
-        const json = await apiPost<{ success: boolean; data?: any; error?: string }>('/api/admin/api-config', payload);
-        if (!json.success) {
-          throw new Error(json.error || 'Failed to save API configuration');
+      await updateSettings(settingsFormData);
+      await logAudit(
+        'SETTINGS',
+        'Settings',
+        `Updated site settings under tab "${settingsTab}"`,
+        currentOperator,
+        {
+          previousState: settings,
+          newState: settingsFormData,
         }
-
-        const freshJson = await apiGet<{ success: boolean; data?: any }>('/api/admin/api-config');
-        if (freshJson.success && freshJson.data) {
-          setApiKeys(freshJson.data as any);
-        }
-
-        await logAudit('SETTINGS', 'ApiConfig', 'Updated domain reseller and API configurations', currentOperator);
-        toast.success("API configuration saved successfully");
-      } else {
-        await updateSettings(settingsFormData);
-        await logAudit(
-          'SETTINGS',
-          'Settings',
-          `Updated site settings under tab "${settingsTab}"`,
-          currentOperator,
-          {
-            previousState: settings,
-            newState: settingsFormData,
-          }
-        );
+      );
         toast.success("Site settings updated successfully");
-      }
     } catch (error: any) {
       console.error("Error saving settings:", error);
       toast.error(error?.message || "Failed to save site settings");

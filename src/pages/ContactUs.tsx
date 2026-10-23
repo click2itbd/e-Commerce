@@ -15,7 +15,7 @@ export const ContactUs = () => {
 export default function ContactUsDefault() {
   const { settings } = useSettings();
   const siteContext = useSiteContext();
-  const isHosting = siteContext === 'hosting';
+  const isHosting = false;
   
   const [formData, setFormData] = useState({
     name: '',

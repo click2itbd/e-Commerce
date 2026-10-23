@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, doc, updateDoc, getDoc, query, orderBy, limit, deleteDoc, where, increment } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, getDoc, query, orderBy, limit, deleteDoc, where, increment, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Product, Order, Customer, Transaction, Vendor, NavigationMenu } from '../../types';

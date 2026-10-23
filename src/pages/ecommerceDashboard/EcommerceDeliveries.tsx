@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Truck, Search, RefreshCw, CheckCircle, XCircle, AlertCircle, Calendar, RefreshCcw, Package, ShieldAlert, AlertTriangle, CheckCircle2, Key, X, ExternalLink } from 'lucide-react';
 import { fetchCourierRisk, CourierRiskReport } from '../../utils/courierRisk';
-import { collection, query, where, getDocs, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Order } from '../../types';
 import toast from 'react-hot-toast';
