@@ -1013,7 +1013,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 <p style="font-size: 1.2em;"><strong>Net Total:</strong> ${formatCurrency(netTotal, settings)}</p>
                 ${saleData.type === 'invoice' ? `
                 <p><strong>Paid:</strong> ${formatCurrency(paid, settings)}</p>
-                <p><strong>Due:</strong> ${formatCurrency(Math.max(0, netTotal - paid), settings)}</p>
+                ${settings?.showInvoiceDue ? `<p><strong>Due:</strong> ${formatCurrency(Math.max(0, netTotal - paid), settings)}</p>` : ''}
                 ` : ''}
               </div>
               

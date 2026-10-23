@@ -790,6 +790,24 @@ export const Settings = () => {
                     className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">
+                    Show Due on Invoice
+                  </label>
+                  <select
+                    value={settingsFormData.showInvoiceDue ? "Yes" : "No"}
+                    onChange={(e) =>
+                      setSettingsFormData({
+                        ...settingsFormData,
+                        showInvoiceDue: e.target.value === "Yes",
+                      })
+                    }
+                    className="w-full text-sm border-gray-200 rounded-md focus:ring-[#7B61FF]"
+                  >
+                    <option value="No">No (Hide Due - বন্ধ)</option>
+                    <option value="Yes">Yes (Show Due)</option>
+                  </select>
+                </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-gray-500 mb-1">
                     Invoice Terms & Conditions

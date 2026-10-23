@@ -701,6 +701,14 @@ export const generatePDF = async (
           doc.text(paidVal.toFixed(2), alignRightX, finalY, { align: "right" });
           finalY += 7;
         }
+        if (settings?.showInvoiceDue && billRemainingDue > 0) {
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(220, 38, 38);
+          doc.text("Due Amount:", labelX, finalY);
+          doc.text(billRemainingDue.toFixed(2), alignRightX, finalY, { align: "right" });
+          doc.setTextColor(15, 23, 42);
+          finalY += 7;
+        }
       }
 
       finalY += 8;

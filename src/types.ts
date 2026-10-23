@@ -417,6 +417,7 @@ export interface SiteSettings {
   // Invoice Setting
   invoicePrefix?: string;
   invoiceTerms?: string;
+  showInvoiceDue?: boolean;
 
   // Zatca Setting
   zatcaEnable?: string;

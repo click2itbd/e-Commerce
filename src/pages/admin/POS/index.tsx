@@ -959,10 +959,12 @@ export const RetailPOS = () => {
                 <span>Paid</span>
                 <span>${formatCurrency(orderData.paidAmount, settings)}</span>
               </div>
+              ${settings?.showInvoiceDue ? `
               <div class="totals-row" style="color: #dc2626;">
                 <span>Due Balance</span>
                 <span>${formatCurrency(Math.max(0, orderData.total - orderData.paidAmount), settings)}</span>
               </div>
+              ` : ''}
             </div>
           </div>
           
