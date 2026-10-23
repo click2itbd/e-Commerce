@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import { useBarcodeScanner } from "../../../hooks/useBarcodeScanner";
 import {
   collection,
   query,
@@ -160,133 +161,110 @@ export const RetailPOS = () => {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    let barcode = "";
-    let timeout: NodeJS.Timeout;
+  const playBeep = useCallback((type: "success" | "error") => {
+    try {
+      const ctx = new (
+        window.AudioContext || (window as any).webkitAudioContext
+      )();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      if (type === "success") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+      } else {
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(220, ctx.currentTime);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.25);
+      }
+    } catch (e) {}
+  }, []);
 
-    const playBeep = (type: "success" | "error") => {
-      try {
-        const ctx = new (
-          window.AudioContext || (window as any).webkitAudioContext
-        )();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        if (type === "success") {
-          osc.type = "sine";
-          osc.frequency.setValueAtTime(800, ctx.currentTime);
-          gain.gain.setValueAtTime(0.1, ctx.currentTime);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.15);
-        } else {
-          osc.type = "sawtooth";
-          osc.frequency.setValueAtTime(250, ctx.currentTime);
-          gain.gain.setValueAtTime(0.2, ctx.currentTime);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.3);
-        }
-      } catch (e) {}
-    };
+  const handleBarcodeScan = useCallback((scanValue: string) => {
+    if (!scanValue.trim()) return;
+    const searchLower = scanValue.trim().toLowerCase();
 
-    const handleKeyDown = (e: KeyboardEvent) => {
+    let matchedSerial: string | undefined = undefined;
+    let matchedVariant: ProductVariant | undefined;
+
+    const exactMatches = products.filter((p) => {
+      const foundVariant = p.variants?.find(variant =>
+        (variant.barcode && variant.barcode.toLowerCase() === searchLower) ||
+        variant.id.toLowerCase() === searchLower ||
+        variant.sku.toLowerCase() === searchLower ||
+        variant.name.toLowerCase() === searchLower
+      );
+      if (foundVariant) {
+        matchedVariant = foundVariant;
+        return true;
+      }
       if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
+        p.id.toLowerCase() === searchLower ||
+        (p.barcode && p.barcode.toLowerCase() === searchLower) ||
+        (p.sku || "").toLowerCase() === searchLower ||
+        (p.model || "").toLowerCase() === searchLower ||
+        p.name.toLowerCase() === searchLower
       ) {
-        return;
+        return true;
       }
+      const foundSerial = (p.availableSerials || []).find(
+        (s: string) => s.toLowerCase() === searchLower,
+      );
+      if (foundSerial) {
+        matchedSerial = foundSerial;
+        return true;
+      }
+      return false;
+    });
 
-      if (e.key === "Enter") {
-        if (barcode.trim().length > 0) {
-          const scanValue = barcode.trim();
-          const searchLower = scanValue.toLowerCase();
+    const partialMatches = products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(searchLower) ||
+        (p.sku || "").toLowerCase().includes(searchLower) ||
+        (p.barcode || "").toLowerCase().includes(searchLower),
+    );
+    const bestMatch =
+      exactMatches.length === 1
+        ? exactMatches[0]
+        : partialMatches.length === 1
+          ? partialMatches[0]
+          : null;
 
-          let matchedSerial: string | undefined = undefined;
-          let matchedVariant: ProductVariant | undefined;
-
-          const exactMatches = products.filter((p) => {
-            const foundVariant = p.variants?.find(variant =>
-              (variant.barcode && variant.barcode.toLowerCase() === searchLower) ||
-              variant.id.toLowerCase() === searchLower ||
-              variant.sku.toLowerCase() === searchLower ||
-              variant.name.toLowerCase() === searchLower
-            );
-            if (foundVariant) {
-              matchedVariant = foundVariant;
-              return true;
-            }
-            if (
-              p.id.toLowerCase() === searchLower ||
-              (p.barcode && p.barcode.toLowerCase() === searchLower) ||
-              (p.sku || "").toLowerCase() === searchLower ||
-              (p.model || "").toLowerCase() === searchLower ||
-              p.name.toLowerCase() === searchLower
-            ) {
-              return true;
-            }
-            const foundSerial = (p.availableSerials || []).find(
-              (s: string) => s.toLowerCase() === searchLower,
-            );
-            if (foundSerial) {
-              matchedSerial = foundSerial;
-              return true;
-            }
-            return false;
-          });
-
-          const partialMatches = products.filter(
-            (p) =>
-              p.name.toLowerCase().includes(searchLower) ||
-              (p.sku || "").toLowerCase().includes(searchLower) ||
-              (p.barcode || "").toLowerCase().includes(searchLower),
-          );
-          const bestMatch =
-            exactMatches.length === 1
-              ? exactMatches[0]
-              : partialMatches.length === 1
-                ? partialMatches[0]
-                : null;
-
-          if (bestMatch) {
-            let serialToUse = matchedSerial;
-            if (bestMatch.hasSerialTracking && !serialToUse) {
-              const existingItem = cart.find(ci => ci.product.id === bestMatch.id);
-              const alreadySelected = existingItem?.selectedSerials || [];
-              const available = (bestMatch.availableSerials || []).find(s => !alreadySelected.includes(s));
-              if (available) {
-                serialToUse = available;
-              }
-            }
-
-            addToCart(bestMatch, serialToUse, matchedVariant);
-            setSearchQuery("");
-            playBeep("success");
-            toast.success(`Scanned: ${bestMatch.name}${serialToUse ? ` [S/N: ${serialToUse}]` : ''}`);
-          } else if (exactMatches.length > 1 || partialMatches.length > 1) {
-            playBeep("error");
-            toast.success(`Found multiple items. Please select manually.`);
-          } else {
-            playBeep("error");
-            toast.error("No matching product found for scan");
-          }
+    if (bestMatch) {
+      let serialToUse = matchedSerial;
+      if (bestMatch.hasSerialTracking && !serialToUse) {
+        const existingItem = cart.find(ci => ci.product.id === bestMatch.id);
+        const alreadySelected = existingItem?.selectedSerials || [];
+        const available = (bestMatch.availableSerials || []).find(s => !alreadySelected.includes(s));
+        if (available) {
+          serialToUse = available;
         }
-        barcode = "";
-      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        barcode += e.key;
-        clearTimeout(timeout);
-        timeout = setTimeout(() => {
-          barcode = "";
-        }, 350);
       }
-    };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      clearTimeout(timeout);
-    };
-  }, [products]);
+      addToCart(bestMatch, serialToUse, matchedVariant);
+      setSearchQuery("");
+      playBeep("success");
+      toast.success(`Scanned: ${bestMatch.name}${serialToUse ? ` [S/N: ${serialToUse}]` : ''}`);
+    } else if (exactMatches.length > 1 || partialMatches.length > 1) {
+      playBeep("error");
+      toast.success("Found multiple items. Please select manually.");
+    } else {
+      playBeep("error");
+      toast.error(`No matching product for barcode: ${scanValue}`);
+    }
+  }, [products, cart, addToCart, playBeep]);
+
+  // High-precision hardware barcode scanner hook with zero dropped characters
+  useBarcodeScanner({
+    onScan: handleBarcodeScan,
+    enabled: true,
+  });
 
   const handleQuickAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -3,6 +3,7 @@ import './services/networkDns.js';
 import { createApp } from './app.js';
 import { config, validateEnvironment } from './config/index.js';
 import { setupExpiryReminders } from './jobs/expiryReminders.js';
+import { setupDatabaseBackupCron } from './jobs/databaseBackup.js';
 
 validateEnvironment();
 
@@ -18,6 +19,12 @@ const server = app.listen(PORT, () => {
     setupExpiryReminders();
   } catch (cronErr) {
     console.error('Failed to setup expiry reminders cron:', cronErr);
+  }
+
+  try {
+    setupDatabaseBackupCron();
+  } catch (backupErr) {
+    console.error('Failed to setup database backup cron:', backupErr);
   }
 });
 

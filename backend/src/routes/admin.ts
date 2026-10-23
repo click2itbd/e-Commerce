@@ -6,6 +6,7 @@ import { getCloudLinuxProvider } from '../providers/cloudlinux/CloudLinuxProvide
 import { verifySmtpConnection } from '../services/email.js';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
 import { recordAdminActivityLog } from '../services/auditLogger.js';
+import { runDatabaseBackupNow, getBackupHistory } from '../jobs/databaseBackup.js';
 
 const adminRouter = Router();
 adminRouter.use(requireFirebaseAuth);
@@ -279,6 +280,34 @@ adminRouter.post('/email/test-connection', async (req: any, res: Response) => {
     return res.json(result);
   } catch (error: any) {
     return res.status(500).json({ success: false, code: 'UNKNOWN_ERROR', message: 'SMTP connection test failed' });
+  }
+});
+
+adminRouter.get('/backups', async (req: any, res: Response) => {
+  try {
+    const isAdmin = await isUserAdmin(req.user.uid, req.user.email);
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const history = getBackupHistory();
+    return res.json({ success: true, backups: history });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message || 'Failed to fetch backup history' });
+  }
+});
+
+adminRouter.post('/backups/run-now', async (req: any, res: Response) => {
+  try {
+    const isAdmin = await isUserAdmin(req.user.uid, req.user.email);
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const result = await runDatabaseBackupNow();
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message || 'Manual backup execution failed' });
   }
 });
 
