@@ -1182,29 +1182,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     fetchDataRef.current = fetchData;
     debouncedFetchData();
 
-    const intervalId = setInterval(() => {
-      fetchDataRef.current?.();
-    }, 15000);
+    // Refresh data only if window regains focus after being away for more than 5 minutes
+    let lastFetchTime = Date.now();
+    const handleFocus = () => {
+      if (Date.now() - lastFetchTime > 300000) {
+        lastFetchTime = Date.now();
+        debouncedFetchData();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
     };
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      debouncedFetchData();
-    }
-  }, [user, debouncedFetchData]);
+  }, [debouncedFetchData]);
 
   useEffect(() => {
     setSelectedProductIds([]);
     setSelectedOrderIds([]);
-    if (activeTab === 'dashboard') {
-      debouncedFetchData();
-    }
-  }, [activeTab, debouncedFetchData]);
+  }, [activeTab]);
 
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;

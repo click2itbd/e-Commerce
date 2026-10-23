@@ -17,7 +17,7 @@ import {
   VolumeX,
   X
 } from 'lucide-react';
-import { collection, onSnapshot, query, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
@@ -130,7 +130,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     const itemsMap = new Map<string, any>();
 
     // 1. Pending Store Orders
-    const unsubOrders = onSnapshot(query(collection(db, 'orders'), limit(25)), (snap) => {
+    const unsubOrders = onSnapshot(query(collection(db, 'orders'), where('status', '==', 'pending'), limit(25)), (snap) => {
       snap.docs.forEach((d) => {
         const data = d.data();
         if (data.status === 'pending') {
@@ -155,7 +155,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     }, () => {});
 
     // 2. Domain Offers
-    const unsubOffers = onSnapshot(query(collection(db, 'domain_offers'), limit(25)), (snap) => {
+    const unsubOffers = onSnapshot(query(collection(db, 'domain_offers'), where('status', '==', 'pending'), limit(10)), (snap) => {
       snap.docs.forEach((d) => {
         const data = d.data();
         if (data.status === 'pending' || !data.status) {
@@ -180,7 +180,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     }, () => {});
 
     // 3. Hosting Orders
-    const unsubHosting = onSnapshot(query(collection(db, 'hostingOrders'), limit(25)), (snap) => {
+    const unsubHosting = onSnapshot(query(collection(db, 'hostingOrders'), where('status', '==', 'pending'), limit(10)), (snap) => {
       snap.docs.forEach((d) => {
         const data = d.data();
         if (data.status === 'pending' || data.paymentStatus === 'pending') {
@@ -205,7 +205,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     }, () => {});
 
     // 4. Support Tickets
-    const unsubTickets = onSnapshot(query(collection(db, 'support_tickets'), limit(25)), (snap) => {
+    const unsubTickets = onSnapshot(query(collection(db, 'support_tickets'), where('status', 'in', ['open', 'pending']), limit(25)), (snap) => {
       snap.docs.forEach((d) => {
         const data = d.data();
         if (data.status === 'open' || data.status === 'pending') {
@@ -230,7 +230,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     }, () => {});
 
     // 5. Low Stock / Out of Stock
-    const unsubProducts = onSnapshot(query(collection(db, 'products'), limit(30)), (snap) => {
+    const unsubProducts = onSnapshot(query(collection(db, 'products'), where('stock', '<=', 3), limit(30)), (snap) => {
       snap.docs.forEach((d) => {
         const data = d.data();
         const stock = Number(data.stock || 0);
@@ -271,7 +271,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     }, () => {});
 
     // 6. Project Quote Requests
-    const unsubQuotes = onSnapshot(query(collection(db, 'quote_requests'), limit(25)), (snap) => {
+    const unsubQuotes = onSnapshot(query(collection(db, 'quote_requests'), where('status', '==', 'pending'), limit(25)), (snap) => {
       snap.docs.forEach((d) => {
         const data = d.data();
         if ((data.status || 'pending') === 'pending') {
@@ -296,7 +296,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     }, () => {});
 
     // 7. Pre-Bookings
-    const unsubPreBooks = onSnapshot(query(collection(db, 'pre_bookings'), limit(25)), (snap) => {
+    const unsubPreBooks = onSnapshot(query(collection(db, 'pre_bookings'), where('status', '==', 'pending'), limit(25)), (snap) => {
       snap.docs.forEach((d) => {
         const data = d.data();
         if ((data.status || 'pending') === 'pending') {
