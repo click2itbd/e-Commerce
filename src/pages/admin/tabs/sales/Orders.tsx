@@ -378,11 +378,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                                 })()}
                               </div>
                               <span className="text-[11px] text-slate-500 font-semibold mt-0.5">{order.customerPhone}</span>
-                              {order.projectName && (
-                                <span className="text-[10px] text-indigo-600 font-bold mt-0.5 flex items-center gap-1">
-                                  📁 {order.projectName}
-                                </span>
-                              )}
+
                             </div>
                           </td>
 

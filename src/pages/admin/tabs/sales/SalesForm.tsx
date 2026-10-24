@@ -39,8 +39,7 @@ import {
   Receipt,
   PauseCircle,
   RotateCcw,
-  Building2,
-  FolderGit2
+  Building2
 } from 'lucide-react';
 import { generateDocumentNumber } from '../../../../lib/numbering';
 import { CustomProductPurchaseModal } from '../../modals/CustomProductPurchaseModal';
@@ -181,7 +180,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         customerEmail: editingOrder.customerEmail || '',
         shippingAddress: editingOrder.shippingAddress || editingOrder.customerAddress || '',
         company: editingOrder.company || 'main',
-        projectName: editingOrder.projectName || '',
         workOrderNumber: editingOrder.workOrderNumber || '',
         items: editingOrder.items || [],
         discountType: 'flat',
@@ -825,7 +823,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         type: saleData.type,
         saleSource: saleData.saleSource,
         company: saleData.company || 'main',
-        projectName: saleData.projectName || '',
           createdBy: saleData.createdBy || profile?.displayName || profile?.email || 'Admin',
         customerId: saleData.customerId,
         customerName: saleData.customerName,
@@ -1195,12 +1192,12 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
           <form onSubmit={handleCreateSale} className="space-y-6 text-xs">
             {/* Metadata Controls Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
               {/* Date */}
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <Calendar size={12} className="text-slate-400" />
-                  Sale Date
+              <div className="min-w-0">
+                <label className="block text-[11px] font-extrabold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5 whitespace-nowrap">
+                  <Calendar size={13} className="text-slate-400 shrink-0" />
+                  <span>Sale Date</span>
                 </label>
                 <input
                   type="date"
@@ -1211,10 +1208,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               </div>
 
               {/* Prepared By */}
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <UserCheck size={12} className="text-slate-400" />
-                  Prepared By
+              <div className="min-w-0">
+                <label className="block text-[11px] font-extrabold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5 whitespace-nowrap">
+                  <UserCheck size={13} className="text-slate-400 shrink-0" />
+                  <span>Prepared By</span>
                 </label>
                 <select
                   value={saleData.createdBy || ''}
@@ -1230,11 +1227,11 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 </select>
               </div>
 
-                            {/* Business Unit / Sister Concern */}
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <Building2 size={12} className="text-slate-400" />
-                  Sister Concern / Unit
+              {/* Business Unit / Sister Concern */}
+              <div className="min-w-0">
+                <label className="block text-[11px] font-extrabold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5 whitespace-nowrap">
+                  <Building2 size={13} className="text-slate-400 shrink-0" />
+                  <span>Company / Unit</span>
                 </label>
                 <select
                   value={saleData.company || 'main'}
@@ -1248,30 +1245,15 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 </select>
               </div>
 
-              {/* Project Name */}
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <FolderGit2 size={12} className="text-slate-400" />
-                  Project Name
+              {/* Work Order # */}
+              <div className="min-w-0">
+                <label className="block text-[11px] font-extrabold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5 whitespace-nowrap">
+                  <FileText size={13} className="text-slate-400 shrink-0" />
+                  <span>Work Order / Ref</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="Optional project name"
-                  value={saleData.projectName || ''}
-                  onChange={e => setSaleData({ ...saleData, projectName: e.target.value })}
-                  className="w-full h-10 border border-slate-200 bg-white rounded-xl px-3 font-semibold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all shadow-2xs"
-                />
-              </div>
-
-{/* Work Order # */}
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <FileText size={12} className="text-slate-400" />
-                  Work Order / Ref
-                </label>
-                <input
-                  type="text"
-                  placeholder="Optional reference #"
+                  placeholder="Optional ref #"
                   value={saleData.workOrderNumber || ''}
                   onChange={e => setSaleData({ ...saleData, workOrderNumber: e.target.value })}
                   className="w-full h-10 border border-slate-200 bg-white rounded-xl px-3 font-semibold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all shadow-2xs"
@@ -1279,10 +1261,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               </div>
 
               {/* Document Type */}
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <Receipt size={12} className="text-slate-400" />
-                  Document Type
+              <div className="min-w-0">
+                <label className="block text-[11px] font-extrabold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5 whitespace-nowrap">
+                  <Receipt size={13} className="text-slate-400 shrink-0" />
+                  <span>Document Type</span>
                 </label>
                 <select
                   value={saleData.type}

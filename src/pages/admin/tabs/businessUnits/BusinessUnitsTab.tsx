@@ -12,8 +12,7 @@ import {
   ChevronRight, 
   Receipt, 
   Phone, 
-  Mail, 
-  FolderGit2,
+  Mail,
   Sparkles,
   Box,
   Trees,
@@ -131,8 +130,6 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
 
   // Order Details Modal
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
-  const [editingProjectName, setEditingProjectName] = useState<string>('');
-  const [isSavingProject, setIsSavingProject] = useState(false);
 
   // Time boundaries
   const now = new Date();
@@ -156,7 +153,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
     
     localOrders.forEach(order => {
       const currentComp = getOrderCompany(order);
-      const text = `${order.customerName || ''} ${order.projectName || ''} ${order.notes || ''} ${order.workOrderNumber || ''}`.toLowerCase();
+      const text = `${order.customerName || ''} ${order.notes || ''} ${order.workOrderNumber || ''}`.toLowerCase();
       
       if (text.includes('simpletree') && currentComp !== 'simpletree') {
         list.push({ order, suggestedCompany: 'simpletree', reason: `Customer / Ref mentions "Simpletree"` });
@@ -263,10 +260,9 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
         const matchesId = (o.documentNumber || o.id || '').toLowerCase().includes(q);
         const matchesName = (o.customerName || '').toLowerCase().includes(q);
         const matchesPhone = (o.customerPhone || '').toLowerCase().includes(q);
-        const matchesProject = (o.projectName || '').toLowerCase().includes(q);
         const matchesWorkOrder = (o.workOrderNumber || '').toLowerCase().includes(q);
         const matchesItems = o.items?.some(it => (it.name || '').toLowerCase().includes(q));
-        if (!matchesId && !matchesName && !matchesPhone && !matchesProject && !matchesWorkOrder && !matchesItems) return false;
+        if (!matchesId && !matchesName && !matchesPhone  && !matchesWorkOrder && !matchesItems) return false;
       }
 
       return true;
@@ -403,22 +399,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
     }
   };
 
-  // Save Project Name
-  const handleSaveProjectName = async () => {
-    if (!viewingOrder) return;
-    setIsSavingProject(true);
-    try {
-      await updateDoc(doc(db, 'orders', viewingOrder.id), { projectName: editingProjectName.trim() });
-      setLocalOrders(prev => prev.map(o => o.id === viewingOrder.id ? { ...o, projectName: editingProjectName.trim() } : o));
-      setViewingOrder(prev => prev ? { ...prev, projectName: editingProjectName.trim() } : null);
-      toast.success('Project name updated');
-      if (fetchData) fetchData();
-    } catch (err) {
-      toast.error('Failed to update project name');
-    } finally {
-      setIsSavingProject(false);
-    }
-  };
+
 
   // Quick navigate to sales form with company preselected
   const handleCreateNewOrderForCompany = (companyId: string) => {
@@ -657,7 +638,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
                   : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
               )}
             >
-              <ShoppingBag size={14} /> Orders & Projects ({filteredOrders.length})
+              <ShoppingBag size={14} /> Orders ({filteredOrders.length})
             </button>
             <button
               onClick={() => setActiveSubTab('customers')}
@@ -677,7 +658,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
               <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder={activeSubTab === 'orders' ? "Search order, client, ref, project..." : "Search client name, phone..."}
+                placeholder={activeSubTab === 'orders' ? "Search order, client, ref, items..." : "Search client name, phone..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all shadow-2xs"
@@ -766,7 +747,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
                   <th className="py-3.5 px-4">Invoice / Ref</th>
                   <th className="py-3.5 px-4">Company (Click to change)</th>
                   <th className="py-3.5 px-4">Customer</th>
-                  <th className="py-3.5 px-4">Items / Project Name</th>
+                  <th className="py-3.5 px-4">Items</th>
                   <th className="py-3.5 px-4 text-right">Total Amount</th>
                   <th className="py-3.5 px-4 text-right">Paid Amount</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
@@ -880,18 +861,9 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
                           )}
                         </td>
 
-                        {/* Items / Project */}
-                        <td className="py-3 px-4 max-w-xs truncate text-slate-600">
-                          {order.projectName ? (
-                            <span className="font-bold text-indigo-700 flex items-center gap-1">
-                              <FolderGit2 size={13} className="text-indigo-500 shrink-0" />
-                              <span className="truncate">{order.projectName}</span>
-                            </span>
-                          ) : (
-                            <span className="truncate block text-slate-700">
-                              {order.items?.map((it: any) => it.name).join(', ') || 'General Order'}
-                            </span>
-                          )}
+                        {/* Items */}
+                        <td className="py-3 px-4 max-w-xs truncate text-slate-700 font-medium">
+                          {order.items?.map((it: any) => it.name).join(', ') || 'General Order'}
                         </td>
 
                         {/* Total Amount */}
@@ -931,7 +903,6 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
                               type="button"
                               onClick={() => {
                                 setViewingOrder(order);
-                                setEditingProjectName(order.projectName || '');
                               }}
                               className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-colors"
                               title="View Order Details"
@@ -1183,7 +1154,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
             {/* Modal Header */}
             <div className="p-5 px-6 bg-[#081621] text-white flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400">Order & Project Details</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400">Order Details</span>
                 <h3 className="text-lg font-black text-white flex items-center gap-2">
                   <Receipt size={17} className="text-indigo-400" />
                   {viewingOrder.documentNumber || viewingOrder.id}
@@ -1199,48 +1170,21 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
 
             {/* Modal Body */}
             <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
-              {/* Company & Project Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
-                {/* Company Selector */}
-                <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                    Assigned Business Unit
-                  </label>
-                  <select
-                    value={getOrderCompany(viewingOrder)}
-                    onChange={(e) => handleUpdateOrderCompany(viewingOrder.id, e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-black text-xs text-slate-800 outline-none focus:ring-2 focus:ring-indigo-100"
-                  >
-                    <option value="main">Click2IT (Main)</option>
-                    <option value="spacezero">Spacezero</option>
-                    <option value="volumezero">Volumezero</option>
-                    <option value="simpletree">Simpletree</option>
-                  </select>
-                </div>
-
-                {/* Project Name Editor */}
-                <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                    Project Reference Name
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="e.g. Commercial Fitout Phase 1"
-                      value={editingProjectName}
-                      onChange={(e) => setEditingProjectName(e.target.value)}
-                      className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 font-bold text-xs text-slate-800 outline-none focus:ring-2 focus:ring-indigo-100"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveProjectName}
-                      disabled={isSavingProject}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-2 rounded-xl transition-all"
-                    >
-                      {isSavingProject ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
-                </div>
+              {/* Company Selector */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                  Assigned Sister Concern / Business Unit
+                </label>
+                <select
+                  value={getOrderCompany(viewingOrder)}
+                  onChange={(e) => handleUpdateOrderCompany(viewingOrder.id, e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 font-black text-xs text-slate-800 outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer"
+                >
+                  <option value="main">Click2IT (Main)</option>
+                  <option value="spacezero">Spacezero</option>
+                  <option value="volumezero">Volumezero</option>
+                  <option value="simpletree">Simpletree</option>
+                </select>
               </div>
 
               {/* Customer Info */}
