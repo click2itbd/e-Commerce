@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useBusinessUnits, getCompanyTheme } from '../../../../hooks/useBusinessUnits';
 import { useConfirm } from '../../../../context/ConfirmContext';
 import { db } from '../../../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
@@ -47,10 +48,11 @@ export const getOrderCategory = (order: any): 'ecommerce' | 'pc_build' | 'domain
 
 const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQuery, setOrderSearchQuery, orderStatusFilter, setOrderStatusFilter, orderStartDate, setOrderStartDate, orderEndDate, setOrderEndDate, orderSort, setOrderSort, selectedOrderIds, setSelectedOrderIds, handleExportFilteredOrders, handleBulkUpdateOrderStatus, handleBulkExportOrders, handleBulkDeleteOrders, setSelectedLedgerEntity, setActiveTab, fetchData, updateOrderDiscount, updateOrderStatus, generatePDF, handleDeleteOrder, handleReturnOrder, handleEditInSales }) => {
   const { isAdmin, hasPermission } = useAuth();
+  const { companies } = useBusinessUnits();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [orderCategoryFilter, setOrderCategoryFilter] = useState<OrderCategory>('all');
-  const [orderCompanyFilter, setOrderCompanyFilter] = useState<'all' | 'main' | 'spacezero' | 'volumezero' | 'simpletree'>('all');
+  const [orderCompanyFilter, setOrderCompanyFilter] = useState<string>('all');
   const [shippingModalOrder, setShippingModalOrder] = useState<any | null>(null);
   const [editingOrder, setEditingOrder] = useState<any | null>(null);
   const [viewingOrder, setViewingOrder] = useState<any | null>(null);

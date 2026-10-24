@@ -6,6 +6,7 @@ import { formatCurrency, cn, addWarranty, formatWarranty } from '../../../../lib
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { generatePDF } from '../../../../lib/pdf';
+import { useBusinessUnits } from '../../../../hooks/useBusinessUnits';
 import {
   Plus,
   Minus,
@@ -76,9 +77,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   fetchData,
   checkLowStock,
   setActiveTab,
-    transactions = [],
-  }) => {
+  transactions = [],
+}) => {
   const { profile } = useAuth();
+  const { companies } = useBusinessUnits();
 
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
@@ -1238,10 +1240,9 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   onChange={e => setSaleData({ ...saleData, company: e.target.value })}
                   className="w-full h-10 border border-slate-200 bg-white rounded-xl px-3 font-bold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all cursor-pointer shadow-2xs"
                 >
-                  <option value="main">Click2IT (Main)</option>
-                  <option value="spacezero">Spacezero</option>
-                  <option value="volumezero">Volumezero</option>
-                  <option value="simpletree">Simpletree</option>
+                  {companies.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -2111,10 +2112,9 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   onChange={e => setNewCustomerForm({ ...newCustomerForm, company: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg p-2.5 font-bold"
                 >
-                  <option value="main">Click2IT (Main)</option>
-                  <option value="spacezero">Spacezero</option>
-                  <option value="volumezero">Volumezero</option>
-                  <option value="simpletree">Simpletree</option>
+                  {companies.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
                 </select>
               </div>
 

@@ -181,7 +181,20 @@ export interface CartItem extends Product {
 export type OrderStatus = 'pending' | 'processing' | 'accepted' | 'completed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'active';
 export type OrderType = 'invoice' | 'quotation' | 'challan' | 'sale' | 'pos_sale' | 'domain' | 'hosting' | 'pc_build' | 'pc_builder';
 
-export type BusinessUnitCompany = 'main' | 'spacezero' | 'volumezero' | 'simpletree';
+export type BusinessUnitCompany = 'main' | 'spacezero' | 'volumezero' | 'simpletree' | (string & {});
+
+export interface BusinessCompany {
+  id: string;
+  name: string;
+  code?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  color?: string;
+  iconName?: string;
+  isDefault?: boolean;
+  createdAt?: string;
+}
 
 export interface Customer {
   id: string;
