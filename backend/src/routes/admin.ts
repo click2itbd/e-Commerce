@@ -7,6 +7,7 @@ import { verifySmtpConnection } from '../services/email.js';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
 import { recordAdminActivityLog } from '../services/auditLogger.js';
 import { runDatabaseBackupNow, getBackupHistory } from '../jobs/databaseBackup.js';
+import { EPS_ALL_FIELDS, loadEpsConfig, saveEpsConfig, toPublicEpsConfig, epsGetToken } from '../services/epsGateway.js';
 
 const adminRouter = Router();
 adminRouter.use(requireFirebaseAuth);
@@ -69,6 +70,8 @@ const FORBIDDEN_SECRET_FIELDS = new Set([
   'whmApiKey',
   'whmUsername',
   'clnSecretKey',
+  // EPS gateway: managed exclusively via /payment/eps endpoints below.
+  ...EPS_ALL_FIELDS,
 ]);
 
 adminRouter.get('/api-config', async (req: any, res: Response) => {
@@ -189,6 +192,57 @@ adminRouter.post('/api-config', async (req: any, res: Response) => {
   } catch (error: any) {
     console.error('Failed to save API config:', error);
     return res.status(500).json({ error: 'Failed to save API configuration' });
+  }
+});
+
+adminRouter.get('/payment/eps', async (req: any, res: Response) => {
+  try {
+    const isAdmin = await isUserAdmin(req.user.uid, req.user.email);
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const cfg = await loadEpsConfig();
+    return res.json({ success: true, data: toPublicEpsConfig(cfg) });
+  } catch (error: any) {
+    console.error('Failed to load EPS config:', error);
+    return res.status(500).json({ error: 'Failed to load EPS configuration' });
+  }
+});
+
+adminRouter.post('/payment/eps', async (req: any, res: Response) => {
+  try {
+    const isAdmin = await isUserAdmin(req.user.uid, req.user.email);
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    await saveEpsConfig(req.body || {});
+    await recordAdminActivityLog(req, {
+      action: 'SETTINGS',
+      entityType: 'PaymentGateway',
+      details: 'Updated EPS payment gateway configuration (secrets not logged)',
+      performedBy: req.user.email || req.user.uid,
+      entityId: 'eps',
+    });
+    const cfg = await loadEpsConfig();
+    return res.json({ success: true, message: 'EPS configuration saved', data: toPublicEpsConfig(cfg) });
+  } catch (error: any) {
+    // Validation errors thrown by saveEpsConfig are safe to show to admins.
+    console.error('Failed to save EPS config:', error?.message || error);
+    return res.status(400).json({ error: error?.message || 'Failed to save EPS configuration' });
+  }
+});
+
+adminRouter.post('/payment/eps/test-connection', async (req: any, res: Response) => {
+  try {
+    const isAdmin = await isUserAdmin(req.user.uid, req.user.email);
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const cfg = await loadEpsConfig();
+    await epsGetToken(cfg);
+    return res.json({ success: true, message: `EPS ${cfg.epsMode} authentication succeeded.` });
+  } catch (error: any) {
+    return res.status(200).json({ success: false, message: error?.message || 'EPS connection failed' });
   }
 });
 

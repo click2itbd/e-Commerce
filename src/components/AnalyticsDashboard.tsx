@@ -880,7 +880,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     </tr>
                   ) : (
                     filteredCustomerProfitability.map((c, idx) => (
-                      <tr key={c.id} className="hover:bg-gray-50/60 transition-colors">
+                      <tr key={c.id ?? c.customerId ?? idx} className="hover:bg-gray-50/60 transition-colors">
                         <td className="py-3 px-4 text-center">
                           <span className={cn(
                             "inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold",

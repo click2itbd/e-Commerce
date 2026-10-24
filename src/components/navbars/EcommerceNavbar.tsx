@@ -477,11 +477,6 @@ export const EcommerceNavbar: React.FC = () => {
                 <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
                   <Server size={18} /> Domain & Hosting
                 </a>
-                {canAccessAdmin && (
-                  <Link to="/admin" className="flex items-center gap-1.5 h-full text-[14px] text-[#F97316] font-bold hover:text-[#ea580c] transition-colors bg-[#F97316]/10 px-3 py-1 rounded-md">
-                    <LayoutDashboard size={18} /> Admin Dashboard
-                  </Link>
-                )}
               </div>
             </div>
           </div>

@@ -186,6 +186,65 @@ export const RetailPOS = () => {
     } catch (e) {}
   }, []);
 
+  const addToCart = useCallback(
+    (product: Product, scannedSerial?: string, scannedVariant?: ProductVariant) => {
+      const availableStock = scannedVariant?.stock ?? product.stock;
+      if (availableStock <= 0) {
+        toast.error("Item is out of stock");
+        return;
+      }
+
+      setCart((prev) => {
+        const hasVariants = product.variants && product.variants.length > 0;
+        const existingIdx = prev.findIndex(
+          (item) =>
+            item.product.id === product.id &&
+            (!hasVariants
+              ? !item.selectedVariant
+              : item.selectedVariant?.id === scannedVariant?.id),
+        );
+
+        if (existingIdx >= 0 && (!hasVariants || scannedVariant)) {
+          const newCart = [...prev];
+          // Prevent duplicate serial scan
+          if (scannedSerial && newCart[existingIdx].selectedSerials?.includes(scannedSerial)) {
+            toast.error(`Serial '${scannedSerial}' is already in the cart!`);
+            return prev;
+          }
+
+          if (newCart[existingIdx].quantity < availableStock) {
+            newCart[existingIdx].quantity += 1;
+            if (
+              scannedSerial &&
+              !newCart[existingIdx].selectedSerials?.includes(scannedSerial)
+            ) {
+              newCart[existingIdx].selectedSerials = [
+                ...(newCart[existingIdx].selectedSerials || []),
+                scannedSerial,
+              ];
+            }
+          } else {
+            toast.error("Cannot exceed available stock");
+          }
+          return newCart;
+        }
+
+        return [
+          ...prev,
+          {
+            cartItemId: Date.now().toString() + Math.random().toString(),
+            product: scannedVariant ? { ...product, price: scannedVariant.price } : product,
+            quantity: 1,
+            selectedSerials: scannedSerial ? [scannedSerial] : [],
+            selectedVariant: scannedVariant || null,
+          },
+        ];
+      });
+    },
+    [],
+  );
+
+
   const handleBarcodeScan = useCallback((scanValue: string) => {
     if (!scanValue.trim()) return;
     const searchLower = scanValue.trim().toLowerCase();
@@ -322,61 +381,6 @@ export const RetailPOS = () => {
     const updated = heldCarts.filter((h) => h.id !== id);
     setHeldCarts(updated);
     localStorage.setItem("pos_held_carts", JSON.stringify(updated));
-  };
-
-  const addToCart = (product: Product, scannedSerial?: string, scannedVariant?: ProductVariant) => {
-    const availableStock = scannedVariant?.stock ?? product.stock;
-    if (availableStock <= 0) {
-      toast.error("Item is out of stock");
-      return;
-    }
-
-    setCart((prev) => {
-      const hasVariants = product.variants && product.variants.length > 0;
-      const existingIdx = prev.findIndex(
-        (item) =>
-          item.product.id === product.id &&
-          (!hasVariants
-            ? !item.selectedVariant
-            : item.selectedVariant?.id === scannedVariant?.id),
-      );
-
-      if (existingIdx >= 0 && (!hasVariants || scannedVariant)) {
-        const newCart = [...prev];
-        // Prevent duplicate serial scan
-        if (scannedSerial && newCart[existingIdx].selectedSerials?.includes(scannedSerial)) {
-          toast.error(`Serial '${scannedSerial}' is already in the cart!`);
-          return prev;
-        }
-
-        if (newCart[existingIdx].quantity < availableStock) {
-          newCart[existingIdx].quantity += 1;
-          if (
-            scannedSerial &&
-            !newCart[existingIdx].selectedSerials?.includes(scannedSerial)
-          ) {
-            newCart[existingIdx].selectedSerials = [
-              ...(newCart[existingIdx].selectedSerials || []),
-              scannedSerial,
-            ];
-          }
-        } else {
-          toast.error("Cannot exceed available stock");
-        }
-        return newCart;
-      }
-
-      return [
-        ...prev,
-        {
-          cartItemId: Date.now().toString() + Math.random().toString(),
-          product: scannedVariant ? { ...product, price: scannedVariant.price } : product,
-          quantity: 1,
-          selectedSerials: scannedSerial ? [scannedSerial] : [],
-          selectedVariant: scannedVariant || null,
-        },
-      ];
-    });
   };
 
   const changeVariant = (cartItemId: string, variantId: string) => {

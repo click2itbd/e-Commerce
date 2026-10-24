@@ -15,7 +15,7 @@ import {
   BarChart2,
   Activity,
   CheckCircle,
-  AlertCircle, Cpu, Truck, ExternalLink,
+  AlertCircle, Cpu, Truck, ExternalLink, CreditCard,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn, formatCurrency } from "../../../../lib/utils";
@@ -27,6 +27,7 @@ import { useAuth } from "../../../../context/AuthContext";
 import { getApiUrl, apiPost, apiGet } from "../../../../services/apiClient";
 import { logAudit } from "../../../../lib/audit";
 import EmailTemplatesManager from "./EmailTemplatesManager";
+import { EpsPaymentSettings } from "./EpsPaymentSettings";
 import { PagesManager } from "./PagesManager";
 import { PCBuilderCategoriesManager } from "../inventory/PCBuilderCategoriesManager";
 
@@ -50,6 +51,7 @@ export const Settings = () => {
     | "review_integrations"
     | "external_ecommerce"
     | "courier"
+    | "payment_eps"
     | "analytics"
       | "pages"
       | "pc_builder"
@@ -242,6 +244,11 @@ export const Settings = () => {
                 id: "courier",
                 icon: Truck,
                 label: "Courier (Steadfast)",
+              },
+              {
+                id: "payment_eps",
+                icon: CreditCard,
+                label: "Payment Gateway (EPS)",
               },
             ].map((tab) => (
               <button
@@ -1932,6 +1939,8 @@ export const Settings = () => {
                 </div>
               </div>
             </div>
+          ) : settingsTab === "payment_eps" ? (
+            <EpsPaymentSettings />
           ) : (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div className="p-4 border-b border-gray-100">
@@ -1951,7 +1960,7 @@ export const Settings = () => {
             </div>
           )}
 
-          <div className="flex justify-end gap-2 mt-4 pb-12">
+          <div className={`flex justify-end gap-2 mt-4 pb-12 ${settingsTab === "payment_eps" ? "hidden" : ""}`}>
             <button
               type="submit"
               disabled={loading}
