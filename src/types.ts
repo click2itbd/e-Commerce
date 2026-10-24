@@ -195,6 +195,8 @@ export interface Customer {
 }
 
 export interface Order {
+  customerId?: string;
+  subtotal?: number;
   createdBy?: string;
   preparedBy?: string;
   saleSource?: 'in_store' | 'online';

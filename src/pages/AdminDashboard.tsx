@@ -5734,6 +5734,9 @@ handleReturnOrder={handleReturnOrder}
                     customers={customers}
                     setActiveTab={setActiveTab}
                     setSelectedLedgerEntity={setSelectedLedgerEntity}
+                    fetchData={fetchData}
+                    generatePDF={generatePDF}
+                    settings={settings}
                   />
                 </Suspense>
               ) : activeTab === "customers" ? (
