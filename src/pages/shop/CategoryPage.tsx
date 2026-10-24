@@ -14,6 +14,33 @@ import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 import { coreCategories, peripheralCategories } from '../../components/PCBuilder/constants';
 import { SEO } from '../../components/SEO';
 
+
+// Curated list of high-value filter attributes (case-insensitive)
+const CURATED_FILTERABLE_SPECS = new Set([
+  'processor', 'cpu', 'cores', 'threads', 'socket',
+  'ram', 'memory', 'capacity', 'ram type', 'type (ddr4/ddr5)',
+  'storage', 'storage type', 'interface',
+  'graphics', 'gpu', 'graphics card', 'memory size',
+  'display', 'screen size', 'resolution', 'refresh rate', 'panel type', 'aspect ratio',
+  'connectivity', 'ports', 'wireless', 'bluetooth',
+  'lens', 'night vision distance', 'night vision', 'sensor', 'channels',
+  'wattage', 'power supply', 'modular', 'efficiency rating',
+  'form factor', 'chipset', 'motherboard support',
+  'switch type', 'dpi', 'color', 'polar pattern',
+  'speed', 'wi-fi speed', 'bands', 'antenna', 'coverage',
+  'voltage', 'backup time', 'battery', 'battery life',
+  'print speed', 'functions', 'weatherproof rating'
+]);
+
+// Ignored low-value / noisy descriptive spec keys
+const IGNORED_SPEC_KEYS = new Set([
+  'warranty', 'description', 'model', 'brand', 'weight', 'dimensions',
+  'package contents', 'package content', 'in the box', 'accessories',
+  'features', 'special features', 'overview', 'origin', 'made in',
+  'operating temperature', 'storage temperature', 'humidity', 'power consumption',
+  'notes', 'note', 'certification', 'certifications', 'safety', 'body material'
+]);
+
 const containerVariants: any = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.05 } }
@@ -166,14 +193,34 @@ export const CategoryPage: React.FC = () => {
     products.forEach(p => {
       if (p.specs) {
         Object.entries(p.specs).forEach(([key, val]) => {
-          if (!specs[key]) specs[key] = new Set();
-          if (val) specs[key].add(val.toString());
+          if (!val) return;
+          const cleanKey = key.trim();
+          const lowerKey = cleanKey.toLowerCase();
+          
+          // Exclude noisy/blacklisted keys
+          if (IGNORED_SPEC_KEYS.has(lowerKey)) return;
+
+          // Only keep curated high-value filter attributes
+          const isAllowed = CURATED_FILTERABLE_SPECS.has(lowerKey) || 
+            Array.from(CURATED_FILTERABLE_SPECS).some(allowed => lowerKey.includes(allowed));
+          
+          if (!isAllowed) return;
+
+          const strVal = val.toString().trim();
+          // Skip extremely long text descriptions that shouldn't be checkbox values
+          if (!strVal || strVal.length > 50) return;
+
+          if (!specs[cleanKey]) specs[cleanKey] = new Set();
+          specs[cleanKey].add(strVal);
         });
       }
     });
     const formatted: Record<string, string[]> = {};
     Object.keys(specs).forEach(k => {
-      formatted[k] = Array.from(specs[k]).sort();
+      // Only include filters that have at least 1 selectable value
+      if (specs[k].size > 0) {
+        formatted[k] = Array.from(specs[k]).sort();
+      }
     });
     return formatted;
   }, [products]);
