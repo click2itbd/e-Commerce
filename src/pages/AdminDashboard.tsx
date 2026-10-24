@@ -672,6 +672,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     "sale_return",
     "orders",
     "customers",
+    "business_units",
     "deliveries",
     "customer_due_list",
     "quotations",
