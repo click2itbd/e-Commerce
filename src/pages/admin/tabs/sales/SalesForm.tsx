@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { generatePDF } from '../../../../lib/pdf';
 import { useBusinessUnits } from '../../../../hooks/useBusinessUnits';
+import { PreparedBySelect } from '../../../../components/common/PreparedBySelect';
 import {
   Plus,
   Minus,
@@ -1215,18 +1216,11 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   <UserCheck size={13} className="text-slate-400 shrink-0" />
                   <span>Prepared By</span>
                 </label>
-                <select
+                <PreparedBySelect
                   value={saleData.createdBy || ''}
-                  onChange={e => setSaleData({ ...saleData, createdBy: e.target.value })}
-                  className="w-full h-10 border border-slate-200 bg-white rounded-xl px-3 font-semibold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all cursor-pointer shadow-2xs"
-                >
-                  <option value="">-- Select Staff --</option>
-                  {users
-                    .filter(u => u.role === 'admin' || u.role === 'staff' || u.role === 'manager' || u.permissions?.length > 0)
-                    .map(u => (
-                    <option key={u.uid} value={u.displayName || u.email}>{u.displayName || u.email}</option>
-                  ))}
-                </select>
+                  onChange={val => setSaleData(prev => ({ ...prev, createdBy: val, preparedBy: val }))}
+                  users={users}
+                />
               </div>
 
               {/* Business Unit / Sister Concern */}

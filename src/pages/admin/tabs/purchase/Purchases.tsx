@@ -12,6 +12,7 @@ const itemWarrantyMonths = (i: any): number =>
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { logAudit } from '../../../../lib/audit';
+import { PreparedBySelect } from '../../../../components/common/PreparedBySelect';
 import {
   Edit2,
   ShoppingBag, Barcode, ScanLine,
@@ -1342,18 +1343,11 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                     <label className="block font-bold text-gray-700 uppercase mb-1">
                       Prepared By (Staff)
                     </label>
-                    <select
+                    <PreparedBySelect
                       value={purchaseForm.createdBy || ''}
-                      onChange={e => setPurchaseForm({ ...purchaseForm, createdBy: e.target.value })}
-                      className="w-full h-[42px] border border-gray-200 rounded-lg px-3 font-bold text-gray-900 focus:ring-[#EF4444] bg-white cursor-pointer"
-                    >
-                      <option value="">-- Select --</option>
-                      {users
-                        .filter(u => u.role === 'admin' || u.role === 'staff' || u.role === 'manager' || u.permissions?.length > 0)
-                        .map(u => (
-                        <option key={u.uid} value={u.displayName || u.email}>{u.displayName || u.email}</option>
-                      ))}
-                    </select>
+                      onChange={val => setPurchaseForm(prev => ({ ...prev, createdBy: val }))}
+                      users={users}
+                    />
                   </div>
                   <div>
                     <label className="block font-bold text-gray-700 uppercase mb-1">

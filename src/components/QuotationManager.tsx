@@ -13,6 +13,7 @@ import { generatePDF } from '../lib/pdf';
 
 import { sendEmail } from '../services/emailService';
 import { Pagination } from './common/Pagination';
+import { PreparedBySelect } from './common/PreparedBySelect';
 
 export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) => {
   const { profile } = useAuth();
@@ -590,18 +591,11 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Prepared By</label>
-                <select
-                  className="w-full border p-2 rounded focus:ring-1 focus:ring-indigo-500 outline-none bg-white cursor-pointer" 
+                <PreparedBySelect
                   value={(formData as any).preparedBy || ''}
-                  onChange={e => setFormData({ ...formData, preparedBy: e.target.value } as any)}
-                >
-                  <option value="">-- Select --</option>
-                  {users
-                    .filter(u => u.role === 'admin' || u.role === 'staff' || u.role === 'manager' || u.permissions?.length > 0)
-                    .map(u => (
-                    <option key={u.uid} value={u.displayName || u.email}>{u.displayName || u.email}</option>
-                  ))}
-                </select>
+                  onChange={val => setFormData(prev => ({ ...prev, preparedBy: val } as any))}
+                  users={users}
+                />
               </div>
               <div className="lg:col-span-4">
                 <label className="block text-sm font-bold text-gray-700 mb-1">Delivery Address</label>
