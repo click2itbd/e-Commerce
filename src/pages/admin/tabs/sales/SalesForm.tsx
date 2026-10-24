@@ -47,6 +47,7 @@ import { generateDocumentNumber } from '../../../../lib/numbering';
 import { CustomProductPurchaseModal } from '../../modals/CustomProductPurchaseModal';
 import { sendEmail } from '../../../../services/emailService';
 import { logAudit } from '../../../../lib/audit';
+import { recordSensitiveAlert } from '../../../../lib/alerts';
 
 interface SalesFormProps {
   users?: any[];
@@ -1063,6 +1064,22 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           newState: { documentNumber: docNumber, type: saleData.type, netTotal, paid, customerName: saleData.customerName, itemsCount: saleData.items.length }
         }
       );
+
+      // Trigger sensitive action alert if high discount applied
+      if (effectiveDiscount >= 500 || (subtotal > 0 && effectiveDiscount / subtotal >= 0.08)) {
+        const discountPct = subtotal > 0 ? Math.round((effectiveDiscount / subtotal) * 100) : 0;
+        recordSensitiveAlert({
+          type: 'HIGH_DISCOUNT',
+          severity: effectiveDiscount >= 2000 ? 'critical' : 'warning',
+          title: 'High Discount Applied',
+          message: `${saleData.preparedBy || profile?.displayName || 'Staff'} gave ৳${effectiveDiscount.toLocaleString()} (${discountPct}%) discount on ${typeStr} #${docNumber}`,
+          amount: effectiveDiscount,
+          documentNumber: docNumber,
+          entityId: orderRefId,
+          performedBy: saleData.preparedBy || profile?.displayName || profile?.email || 'Staff',
+          metadata: { subtotal, netTotal, customerName: saleData.customerName, discountPercentage: discountPct }
+        }).catch(() => {});
+      }
 
       // Auto-print invoice/challan/quotation
       try {

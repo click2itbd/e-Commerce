@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db, storage } from '../../../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -7,10 +7,10 @@ import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, formatWarr
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { BulkEditForm } from '../../../../components/BulkEditForm';
-import {  Package, Plus, Upload, Download, Search, Edit, Trash2, X, AlertTriangle, Play, Loader2, Image as ImageIcon, FileText, XCircle, Edit2, ArrowRight, Eye, DollarSign, AlertCircle, Filter, ArrowUpDown, Tag , ChevronRight } from 'lucide-react';
+import {  Package, Plus, Upload, Download, Search, Edit, Trash2, X, AlertTriangle, Play, Loader2, Image as ImageIcon, FileText, XCircle, Edit2, ArrowRight, Eye, DollarSign, AlertCircle, Filter, ArrowUpDown, Tag , ChevronRight, Flame, Clock, TrendingDown } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
-interface InventoryTabProps { products: any[]; vendors: any[]; menus: any[]; isAddingProduct: boolean; setIsAddingProduct: (v: boolean) => void; editingProduct: any; setEditingProduct: (v: any) => void; formData: any; setFormData: (v: any) => void; inventoryCategoryFilter: string; setInventoryCategoryFilter: (v: string) => void; selectedProductIds: string[]; setSelectedProductIds: (v: string[]) => void; isBulkEditing: boolean; setIsBulkEditing: (v: boolean) => void; bulkEditData: any; setBulkEditData: (v: any) => void; isUploading: boolean; dragOver: boolean; setDragOver: (v: boolean) => void; loading: boolean; handleSaveProduct: (e: any) => void; handleDeleteProduct: (id: string) => void; handleImportProductsCSV: (e: any) => void; handleDownloadCSVTemplate: () => void; handleExportAllProducts: () => void; handleBulkExportProducts: () => void; handleBulkDeleteProducts: () => void; handleBulkUpdate: (e: any) => void; handleImageUpload: (f: any) => void; removeImage: (i: number) => void; addVariant: () => void; updateVariant: (id: string, f: string, v: any) => void; removeVariant: (id: string) => void; addSpec: () => void; updateSpec: (key: string, value: string) => void; removeSpec: (key: string) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; fileInputRef?: any; setIsAddingMenu?: (v: boolean) => void; }
+interface InventoryTabProps { products: any[]; orders?: any[]; vendors: any[]; menus: any[]; isAddingProduct: boolean; setIsAddingProduct: (v: boolean) => void; editingProduct: any; setEditingProduct: (v: any) => void; formData: any; setFormData: (v: any) => void; inventoryCategoryFilter: string; setInventoryCategoryFilter: (v: string) => void; selectedProductIds: string[]; setSelectedProductIds: (v: string[]) => void; isBulkEditing: boolean; setIsBulkEditing: (v: boolean) => void; bulkEditData: any; setBulkEditData: (v: any) => void; isUploading: boolean; dragOver: boolean; setDragOver: (v: boolean) => void; loading: boolean; handleSaveProduct: (e: any) => void; handleDeleteProduct: (id: string) => void; handleImportProductsCSV: (e: any) => void; handleDownloadCSVTemplate: () => void; handleExportAllProducts: () => void; handleBulkExportProducts: () => void; handleBulkDeleteProducts: () => void; handleBulkUpdate: (e: any) => void; handleImageUpload: (f: any) => void; removeImage: (i: number) => void; addVariant: () => void; updateVariant: (id: string, f: string, v: any) => void; removeVariant: (id: string) => void; addSpec: () => void; updateSpec: (key: string, value: string) => void; removeSpec: (key: string) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; fileInputRef?: any; setIsAddingMenu?: (v: boolean) => void; }
 
 import { useRef } from 'react';
 
@@ -120,7 +120,7 @@ const SPEC_TEMPLATES: Record<string, Record<string, string>> = {
   }
 };
 
-const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, isAddingProduct, setIsAddingProduct, editingProduct, setEditingProduct, formData, setFormData, inventoryCategoryFilter, setInventoryCategoryFilter, selectedProductIds, setSelectedProductIds, isBulkEditing, setIsBulkEditing, bulkEditData, setBulkEditData, isUploading, dragOver, setDragOver, loading, handleSaveProduct, handleDeleteProduct, handleImportProductsCSV, handleDownloadCSVTemplate, handleExportAllProducts, handleBulkExportProducts, handleBulkDeleteProducts, handleBulkUpdate, handleImageUpload, removeImage, addVariant, updateVariant, removeVariant, addSpec, updateSpec, removeSpec, setActiveTab, fetchData, setIsAddingMenu }) => {
+const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vendors, menus, isAddingProduct, setIsAddingProduct, editingProduct, setEditingProduct, formData, setFormData, inventoryCategoryFilter, setInventoryCategoryFilter, selectedProductIds, setSelectedProductIds, isBulkEditing, setIsBulkEditing, bulkEditData, setBulkEditData, isUploading, dragOver, setDragOver, loading, handleSaveProduct, handleDeleteProduct, handleImportProductsCSV, handleDownloadCSVTemplate, handleExportAllProducts, handleBulkExportProducts, handleBulkDeleteProducts, handleBulkUpdate, handleImageUpload, removeImage, addVariant, updateVariant, removeVariant, addSpec, updateSpec, removeSpec, setActiveTab, fetchData, setIsAddingMenu }) => {
   const { isAdmin, hasPermission } = useAuth();
   const { settings } = useSettings();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,6 +131,64 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
   const [brandFilter, setBrandFilter] = useState('all');
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
   const brandDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Calculate product sales & last sold date map across orders
+  const productSalesMap = useMemo(() => {
+    const map: Record<string, { lastSoldDate: string | null; totalSoldQty: number; daysSinceSale: number }> = {};
+    const now = Date.now();
+
+    (orders || []).forEach(o => {
+      if (o.status === 'cancelled') return;
+      const oDate = o.createdAt || o.date;
+      (o.items || []).forEach((it: any) => {
+        const pid = it.productId || it.id;
+        if (!pid) return;
+        if (!map[pid]) {
+          map[pid] = { lastSoldDate: null, totalSoldQty: 0, daysSinceSale: 9999 };
+        }
+        map[pid].totalSoldQty += Number(it.quantity || 1);
+        if (oDate) {
+          if (!map[pid].lastSoldDate || new Date(oDate).getTime() > new Date(map[pid].lastSoldDate!).getTime()) {
+            map[pid].lastSoldDate = oDate;
+            map[pid].daysSinceSale = Math.max(0, Math.floor((now - new Date(oDate).getTime()) / (1000 * 60 * 60 * 24)));
+          }
+        }
+      });
+    });
+
+    return map;
+  }, [orders]);
+
+  // Dead stock and movement metrics
+  const deadStockStats = useMemo(() => {
+    let deadStockCount = 0;
+    let deadStockCapital = 0;
+    let slowMovingCount = 0;
+    let stagnantCount = 0;
+
+    products.forEach(p => {
+      const stock = Number(p.stock || 0);
+      if (stock <= 0) return;
+
+      const saleInfo = productSalesMap[p.id];
+      const daysSinceSale = saleInfo?.lastSoldDate
+        ? saleInfo.daysSinceSale
+        : (p.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60 * 24))) : 999);
+
+      const unitCost = Number(p.costPrice || p.price || 0);
+
+      if (daysSinceSale >= 90) {
+        deadStockCount += 1;
+        deadStockCapital += stock * unitCost;
+      } else if (daysSinceSale >= 60) {
+        stagnantCount += 1;
+      } else if (daysSinceSale >= 30) {
+        slowMovingCount += 1;
+      }
+    });
+
+    return { deadStockCount, deadStockCapital, slowMovingCount, stagnantCount };
+  }, [products, productSalesMap]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -227,41 +285,78 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
             </div>
 
             {/* Top Summary Dashboard */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 bg-slate-50 border-b border-slate-200">
-              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                  <Package size={24} />
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 p-6 bg-slate-50 border-b border-slate-200">
+              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                  <Package size={22} />
                 </div>
-                <div>
-                  <p className="text-sm text-slate-500 font-medium">Total Products</p>
-                  <p className="text-2xl font-black text-slate-900">{products.length}</p>
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                  <DollarSign size={24} />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 font-medium">Inventory Value</p>
-                  <p className="text-2xl font-black text-slate-900">{formatCurrency(products.reduce((acc, p) => acc + ((p.stock || 0) * (p.costPrice ?? p.price ?? 0)), 0), settings)}</p>
+                <div className="min-w-0">
+                  <p className="text-xs text-slate-500 font-medium">Total Products</p>
+                  <p className="text-xl font-black text-slate-900 truncate">{products.length}</p>
                 </div>
               </div>
-              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
-                  <AlertTriangle size={24} />
+              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <DollarSign size={22} />
                 </div>
-                <div>
-                  <p className="text-sm text-slate-500 font-medium">Low Stock Items</p>
-                  <p className="text-2xl font-black text-slate-900">{products.filter(p => !p.isOutOfStock && p.stock > 0 && p.stock < (p.lowStockThreshold || 10)).length}</p>
+                <div className="min-w-0">
+                  <p className="text-xs text-slate-500 font-medium">Inventory Value</p>
+                  <p className="text-xl font-black text-slate-900 truncate">{formatCurrency(products.reduce((acc, p) => acc + ((p.stock || 0) * (p.costPrice ?? p.price ?? 0)), 0), settings)}</p>
                 </div>
               </div>
-              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
-                  <AlertCircle size={24} />
+              <div 
+                onClick={() => { setStockFilter(stockFilter === 'low_stock' ? 'all' : 'low_stock'); setCurrentPage(1); }}
+                className={cn(
+                  "p-4 rounded-xl border shadow-sm flex items-center gap-3.5 cursor-pointer transition-all",
+                  stockFilter === 'low_stock' ? "bg-amber-50 border-amber-300 ring-2 ring-amber-400" : "bg-white border-slate-100 hover:border-amber-200"
+                )}
+              >
+                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={22} />
                 </div>
-                <div>
-                  <p className="text-sm text-slate-500 font-medium">Out of Stock</p>
-                  <p className="text-2xl font-black text-slate-900">{products.filter(p => p.isOutOfStock || (p.stock || 0) === 0).length}</p>
+                <div className="min-w-0">
+                  <p className="text-xs text-slate-500 font-medium">Low Stock</p>
+                  <p className="text-xl font-black text-slate-900 truncate">{products.filter(p => !p.isOutOfStock && p.stock > 0 && p.stock < (p.lowStockThreshold || 10)).length}</p>
+                </div>
+              </div>
+              <div 
+                onClick={() => { setStockFilter(stockFilter === 'out_of_stock' ? 'all' : 'out_of_stock'); setCurrentPage(1); }}
+                className={cn(
+                  "p-4 rounded-xl border shadow-sm flex items-center gap-3.5 cursor-pointer transition-all",
+                  stockFilter === 'out_of_stock' ? "bg-red-50 border-red-300 ring-2 ring-red-400" : "bg-white border-slate-100 hover:border-red-200"
+                )}
+              >
+                <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                  <AlertCircle size={22} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-slate-500 font-medium">Out of Stock</p>
+                  <p className="text-xl font-black text-slate-900 truncate">{products.filter(p => p.isOutOfStock || (p.stock || 0) === 0).length}</p>
+                </div>
+              </div>
+              <div 
+                onClick={() => { setStockFilter(stockFilter === 'dead_stock_90' ? 'all' : 'dead_stock_90'); setCurrentPage(1); }}
+                className={cn(
+                  "p-4 rounded-xl border shadow-sm flex items-center gap-3.5 cursor-pointer transition-all col-span-2 lg:col-span-1",
+                  stockFilter === 'dead_stock_90'
+                    ? "bg-rose-50 border-rose-300 ring-2 ring-rose-400"
+                    : "bg-white border-slate-100 hover:border-rose-200 hover:bg-rose-50/20"
+                )}
+                title="Click to filter Dead Stock (90+ days without sale)"
+              >
+                <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <Flame size={22} className="text-rose-600 animate-pulse" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-rose-600 font-bold uppercase tracking-wider flex items-center gap-1">
+                    Dead Stock (90d+)
+                  </p>
+                  <p className="text-xl font-black text-rose-700 truncate">
+                    {deadStockStats.deadStockCount} <span className="text-xs font-bold text-slate-500">Items</span>
+                  </p>
+                  <p className="text-[10px] text-slate-400 truncate">
+                    Locked: {formatCurrency(deadStockStats.deadStockCapital, settings)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -287,10 +382,13 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                       onChange={(e) => { setStockFilter(e.target.value); setCurrentPage(1); }}
                       className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#EF4444] appearance-none bg-white font-medium text-slate-700 min-w-[140px]"
                     >
-                      <option value="all">All Stock</option>
-                      <option value="in_stock">In Stock</option>
-                      <option value="low_stock">Low Stock</option>
-                      <option value="out_of_stock">Out of Stock</option>
+                      <option value="all">All Stock Status</option>
+                      <option value="in_stock">In Stock Only</option>
+                      <option value="low_stock">Low Stock (&lt;10)</option>
+                      <option value="out_of_stock">Out of Stock (0)</option>
+                      <option value="slow_moving_30">🐢 Slow Moving (30-60 Days)</option>
+                      <option value="stagnant_60">⚠️ Stagnant (60-90 Days)</option>
+                      <option value="dead_stock_90">🔥 Dead Stock (90+ Days / Never Sold)</option>
                     </select>
                   </div>
                   
@@ -346,6 +444,69 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, vendors, menus, i
                 </div>
               </div>
               
+              {/* Movement & Dead Stock Filter Quick Tabs */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold pt-1">
+                <span className="text-slate-400 text-[11px] uppercase tracking-wider whitespace-nowrap">Movement:</span>
+                <button
+                  type="button"
+                  onClick={() => { setStockFilter('all'); setCurrentPage(1); }}
+                  className={cn(
+                    "px-3 py-1 rounded-lg border transition-all whitespace-nowrap",
+                    stockFilter === 'all' ? "bg-slate-900 text-white border-slate-900 shadow-2xs" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  )}
+                >
+                  All Items
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setStockFilter(stockFilter === 'slow_moving_30' ? 'all' : 'slow_moving_30'); setCurrentPage(1); }}
+                  className={cn(
+                    "px-3 py-1 rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap",
+                    stockFilter === 'slow_moving_30' ? "bg-amber-600 text-white border-amber-600 shadow-2xs" : "bg-amber-50/70 text-amber-800 border-amber-200 hover:bg-amber-100"
+                  )}
+                >
+                  🐢 Slow Moving (30–60d) ({deadStockStats.slowMovingCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setStockFilter(stockFilter === 'stagnant_60' ? 'all' : 'stagnant_60'); setCurrentPage(1); }}
+                  className={cn(
+                    "px-3 py-1 rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap",
+                    stockFilter === 'stagnant_60' ? "bg-orange-600 text-white border-orange-600 shadow-2xs" : "bg-orange-50/70 text-orange-800 border-orange-200 hover:bg-orange-100"
+                  )}
+                >
+                  ⚠️ Stagnant (60–90d) ({deadStockStats.stagnantCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setStockFilter(stockFilter === 'dead_stock_90' ? 'all' : 'dead_stock_90'); setCurrentPage(1); }}
+                  className={cn(
+                    "px-3 py-1 rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap",
+                    stockFilter === 'dead_stock_90' ? "bg-rose-600 text-white border-rose-600 shadow-sm" : "bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100"
+                  )}
+                >
+                  🔥 Dead Stock (90d+) ({deadStockStats.deadStockCount})
+                </button>
+              </div>
+
+              {/* Dead Stock Alert Banner when filtered */}
+              {stockFilter === 'dead_stock_90' && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-rose-900 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
+                      <Flame className="text-rose-600 animate-pulse" size={18} />
+                    </div>
+                    <div>
+                      <p className="font-black text-rose-950 text-sm">Dead Stock Items (0 Sales in Last 90+ Days)</p>
+                      <p className="text-rose-700">Total Capital Locked: <strong className="font-black text-rose-950">{formatCurrency(deadStockStats.deadStockCapital, settings)}</strong>. You can offer clearance discounts or return to vendors to free up cash.</p>
+                    </div>
+                  </div>
+                  <span className="bg-rose-600 text-white text-[11px] font-black px-3 py-1.5 rounded-lg uppercase tracking-wider shrink-0 w-fit">
+                    {deadStockStats.deadStockCount} Dead Items
+                  </span>
+                </div>
+              )}
+
               <div className="w-full h-px bg-gray-200 my-1"></div>
 
               <div className="flex items-center gap-3 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -1186,6 +1347,15 @@ Storage: 512GB SSD"
                         if (stockFilter === 'in_stock') return !p.isOutOfStock && p.stock > 0;
                         if (stockFilter === 'low_stock') return !p.isOutOfStock && p.stock > 0 && p.stock < (p.lowStockThreshold || 10);
                         if (stockFilter === 'out_of_stock') return p.isOutOfStock || (p.stock || 0) === 0;
+
+                        const saleInfo = productSalesMap[p.id];
+                        const days = saleInfo?.lastSoldDate
+                          ? saleInfo.daysSinceSale
+                          : (p.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60 * 24))) : 999);
+
+                        if (stockFilter === 'slow_moving_30') return (p.stock || 0) > 0 && days >= 30 && days < 60;
+                        if (stockFilter === 'stagnant_60') return (p.stock || 0) > 0 && days >= 60 && days < 90;
+                        if (stockFilter === 'dead_stock_90') return (p.stock || 0) > 0 && days >= 90;
                         return true;
                       })
                       .filter(p => brandFilter === 'all' || p.brand === brandFilter)
@@ -1251,20 +1421,45 @@ Storage: 512GB SSD"
                       <td className="px-6 py-4"><span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">{product.category}</span></td>
                       <td className="px-6 py-4 text-sm font-bold text-gray-900">{formatCurrency(product.price, settings)}</td>
                       <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1.5 items-start">
-                          <span className={cn(
-                            "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border",
-                            product.stock >= 10 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
-                            product.stock > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-red-50 text-red-700 border-red-200"
-                          )}>
-                            {product.stock > 0 ? `${product.stock} IN STOCK` : 'OUT OF STOCK'}
-                          </span>
-                          {product.stock > 0 && product.stock < 10 && (
-                            <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600">
-                              <AlertTriangle size={12} /> Low Stock
-                            </span>
-                          )}
-                        </div>
+                        {(() => {
+                          const saleInfo = productSalesMap[product.id];
+                          const days = saleInfo?.lastSoldDate
+                            ? saleInfo.daysSinceSale
+                            : (product.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(product.createdAt).getTime()) / (1000 * 60 * 60 * 24))) : 999);
+
+                          return (
+                            <div className="flex flex-col gap-1.5 items-start">
+                              <span className={cn(
+                                "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border",
+                                product.stock >= 10 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
+                                product.stock > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-red-50 text-red-700 border-red-200"
+                              )}>
+                                {product.stock > 0 ? `${product.stock} IN STOCK` : 'OUT OF STOCK'}
+                              </span>
+
+                              {product.stock > 0 && days >= 90 && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded shadow-2xs">
+                                  <Flame size={11} className="text-rose-600 animate-pulse" /> Dead Stock ({days}d)
+                                </span>
+                              )}
+                              {product.stock > 0 && days >= 60 && days < 90 && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-orange-700 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded">
+                                  <AlertTriangle size={11} className="text-orange-600" /> Stagnant ({days}d)
+                                </span>
+                              )}
+                              {product.stock > 0 && days >= 30 && days < 60 && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                                  <Clock size={11} className="text-amber-600" /> Slow ({days}d)
+                                </span>
+                              )}
+                              {product.stock > 0 && product.stock < 10 && days < 30 && (
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600">
+                                  <AlertTriangle size={12} /> Low Stock
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -1343,6 +1538,15 @@ Storage: 512GB SSD"
                   if (stockFilter === 'in_stock') return !p.isOutOfStock && p.stock > 0;
                   if (stockFilter === 'low_stock') return !p.isOutOfStock && p.stock > 0 && p.stock < (p.lowStockThreshold || 10);
                   if (stockFilter === 'out_of_stock') return p.isOutOfStock || (p.stock || 0) === 0;
+
+                  const saleInfo = productSalesMap[p.id];
+                  const days = saleInfo?.lastSoldDate
+                    ? saleInfo.daysSinceSale
+                    : (p.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60 * 24))) : 999);
+
+                  if (stockFilter === 'slow_moving_30') return (p.stock || 0) > 0 && days >= 30 && days < 60;
+                  if (stockFilter === 'stagnant_60') return (p.stock || 0) > 0 && days >= 60 && days < 90;
+                  if (stockFilter === 'dead_stock_90') return (p.stock || 0) > 0 && days >= 90;
                   return true;
                 })
                 .filter(p => brandFilter === 'all' || p.brand === brandFilter).length}

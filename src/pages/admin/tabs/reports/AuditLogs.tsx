@@ -8,7 +8,7 @@ import autoTable from 'jspdf-autotable';
 import { 
   Loader2, ShieldAlert, Trash2, Clock, User, Filter, Edit2, Plus, 
   Search, Download, Printer, RefreshCw, Eye, Calendar, ArrowRight, 
-  CheckCircle2, AlertOctagon, X, Shield, SlidersHorizontal, ChevronRight,
+  CheckCircle2, AlertOctagon, AlertTriangle, X, Shield, SlidersHorizontal, ChevronRight,
   Info, Laptop, FileText, Check, ChevronDown, Undo2, RotateCcw, BarChart3,
   Send, Share2, Copy, Sparkles, TrendingUp, Award, MessageSquare, Zap,
   Radio, Code, Flame, Sun, Sunrise, Moon
@@ -30,6 +30,7 @@ export const AuditLogs: React.FC = () => {
   const [selectedAction, setSelectedAction] = useState<string>('all');
   const [selectedEntity, setSelectedEntity] = useState<string>('all');
   const [selectedUser, setSelectedUser] = useState<string>('all');
+  const [sensitiveOnly, setSensitiveOnly] = useState<boolean>(false);
   const [datePreset, setDatePreset] = useState<'all' | 'today' | 'yesterday' | '7days' | 'month' | 'custom'>('all');
   const [filterMonth, setFilterMonth] = useState<string>('');
   const [filterDate, setFilterDate] = useState<string>('');
@@ -208,6 +209,16 @@ export const AuditLogs: React.FC = () => {
     return logs.filter(log => {
       if (!log.timestamp) return false;
       const logDate = new Date(log.timestamp);
+
+      // Sensitive Action Filter
+      if (sensitiveOnly) {
+        const isSens = (log.action || '').toUpperCase() === 'SECURITY' ||
+                       Boolean(log.newState && (log.newState as any).isSensitive) ||
+                       Boolean(log.details && log.details.includes('[SENSITIVE ALERT]')) ||
+                       (log.action || '').toUpperCase() === 'DELETE' ||
+                       Boolean(log.details && log.details.toLowerCase().includes('discount'));
+        if (!isSens) return false;
+      }
 
       // Search Query filter
       if (searchQuery.trim()) {
@@ -1100,6 +1111,25 @@ _Automated Digest from System Audit Trail_`;
             )}>
               {operatorStats.length} Operators
             </span>
+          </button>
+
+          <button
+            onClick={() => setSensitiveOnly(!sensitiveOnly)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all border",
+              sensitiveOnly
+                ? "bg-rose-600 text-white border-rose-600 shadow-md shadow-rose-900/20"
+                : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+            )}
+            title="Filter by high discounts, deletions, returns, and security actions"
+          >
+            <AlertTriangle size={15} className={sensitiveOnly ? "animate-bounce" : "text-rose-600"} />
+            <span>🚨 Sensitive Actions</span>
+            {sensitiveOnly && (
+              <span className="px-2 py-0.5 rounded-full text-xs bg-white text-rose-700 font-black">
+                ACTIVE
+              </span>
+            )}
           </button>
         </div>
 

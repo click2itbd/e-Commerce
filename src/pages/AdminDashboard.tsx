@@ -361,6 +361,7 @@ import { toast } from "react-hot-toast";
 import { generateDocumentNumber } from "../lib/numbering";
 import { getApiUrl } from "../services/apiClient";
 import { logAudit } from "../lib/audit";
+import { recordSensitiveAlert } from "../lib/alerts";
 import { useNavigate } from "react-router-dom";
 
 export interface AdminDashboardProps {
@@ -2320,6 +2321,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           });
           
           await logAudit('EDIT', 'Order', `Processed full return for invoice #${order.documentNumber || order.id}`, profile?.displayName || profile?.email || 'Unknown Admin');
+          
+          recordSensitiveAlert({
+            type: 'ORDER_RETURN',
+            severity: 'warning',
+            title: 'Order Return Processed',
+            message: `${profile?.displayName || profile?.email || 'Staff'} processed return for invoice #${order.documentNumber || order.id} (Refund: ৳${order.total || 0})`,
+            amount: Number(order.total || 0),
+            documentNumber: order.documentNumber,
+            entityId: order.id,
+            performedBy: profile?.displayName || profile?.email || 'Staff',
+          }).catch(() => {});
+
           toast.success('Sale returned and stock restored successfully');
           fetchData();
         } catch (error) {
@@ -2414,6 +2427,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           // 4. Finally delete the order itself
           await deleteDoc(doc(db, 'orders', order.id));
           await logAudit('DELETE', 'Order', `Deleted order #${order.documentNumber || order.id}`, profile?.displayName || profile?.email || 'Unknown Admin');
+          
+          // Sensitive Action Alert for deleting an order / bill
+          recordSensitiveAlert({
+            type: 'BILL_DELETED',
+            severity: 'critical',
+            title: 'Order / Bill Deleted',
+            message: `${profile?.displayName || profile?.email || 'Staff'} deleted order #${order.documentNumber || order.id} (Value: ৳${order.total || 0})`,
+            amount: Number(order.total || 0),
+            documentNumber: order.documentNumber,
+            entityId: order.id,
+            performedBy: profile?.displayName || profile?.email || 'Staff',
+            metadata: { customerName: order.customerName, itemsCount: order.items?.length }
+          }).catch(() => {});
+
           toast.success(`Order deleted and reverted successfully`);
           debouncedFetchData();
         } catch (error) {
@@ -5615,6 +5642,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               ) : activeTab === "inventory" ? (
                 <InventoryTab
                   products={products}
+                  orders={orders}
                   vendors={vendors}
                   menus={menus}
                   isAddingProduct={isAddingProduct}

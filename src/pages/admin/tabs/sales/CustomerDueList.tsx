@@ -3,14 +3,17 @@ import { collection, getDocs, getDoc, addDoc, doc, updateDoc, query, orderBy, de
 import { db } from '../../../../firebase';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../../../../context/SettingsContext';
-import { formatCurrency } from '../../../../lib/utils';
-import { Search, CreditCard, X, Check, Trash2 } from 'lucide-react';
+import { formatCurrency, cn } from '../../../../lib/utils';
+import { Search, CreditCard, X, Check, Trash2, Clock, AlertTriangle, MessageCircle, AlertCircle, Calendar } from 'lucide-react';
 import { generatePDF } from '../../../../lib/pdf';
 import { Customer, Transaction, PaymentAccount } from '../../../../types';
 
 import { where } from 'firebase/firestore';
 import { useAuth } from '../../../../context/AuthContext';
 import { logAudit } from '../../../../lib/audit';
+import { recordSensitiveAlert } from '../../../../lib/alerts';
+
+export type AgingBucket = 'all' | '0_30' | '31_60' | '61_90' | '90_plus';
 
 export default function CustomerDueList() {
   const { profile, user } = useAuth();
@@ -32,6 +35,7 @@ export default function CustomerDueList() {
   const [paymentNotes, setPaymentNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [agingFilter, setAgingFilter] = useState<AgingBucket>('all');
 
   // Opening Balance state
   const [showOpeningBalForm, setShowOpeningBalForm] = useState(false);
@@ -128,18 +132,51 @@ export default function CustomerDueList() {
     fetchData();
   }, []);
 
-  // Calculate dues
+  // WhatsApp Reminder handler
+  const handleSendWhatsAppReminder = (customer: any) => {
+    if (!customer.phone) {
+      toast.error('Customer phone number not available');
+      return;
+    }
+    const cleanPhone = customer.phone.replace(/[^0-9]/g, '');
+    const intlPhone = cleanPhone.startsWith('880') ? cleanPhone : cleanPhone.startsWith('0') ? `88${cleanPhone}` : `880${cleanPhone}`;
+    const daysText = customer.daysOld > 0 ? ` (যা প্রায় ${customer.daysOld} দিন ধরে বকেয়া আছে)` : '';
+    const message = `আসসালামু আলাইকুম ${customer.name} ভাই,\nClick2IT-তে আপনার বর্তমান বকেয়া (Due) টাকার পরিমাণ ৳${Number(customer.due).toLocaleString()}${daysText}।\n\nঅনুরোধপূর্বক বকেয়া পরিশোধ করার জন্য যোগাযোগ করুন।\nধন্যবাদ,\nClick2IT`;
+    window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
+  // Calculate dues and Due Aging
   // A positive balance indicates the customer owes us money (Due)
   const calculateDues = () => {
     const balances: Record<string, number> = {};
-    
-    transactions.forEach(t => {
+    const customerDebits: Record<string, { oldestDate: string; daysOld: number; bucket: '0_30' | '31_60' | '61_90' | '90_plus'; oldestDocNumber?: string }> = {};
+    const now = Date.now();
+
+    // Sort transactions by date asc so oldest debit comes first
+    const sortedTxs = [...transactions].sort((a, b) => new Date(a.date || a.createdAt || 0).getTime() - new Date(b.date || b.createdAt || 0).getTime());
+
+    sortedTxs.forEach(t => {
       const isCustomerTx = t.entityType === 'customer' || (!t.entityType && (t.type === 'sale_return' || t.type === 'return'));
       if (isCustomerTx && t.entityId) {
         if (!balances[t.entityId]) balances[t.entityId] = 0;
         
         if (t.type === 'sale' || t.type === 'opening_balance') {
           balances[t.entityId] += Number(t.amount);
+          const txDate = t.date || t.createdAt;
+          if (txDate && !customerDebits[t.entityId]) {
+            const days = Math.max(0, Math.floor((now - new Date(txDate).getTime()) / (1000 * 60 * 60 * 24)));
+            let b: '0_30' | '31_60' | '61_90' | '90_plus' = '0_30';
+            if (days > 90) b = '90_plus';
+            else if (days > 60) b = '61_90';
+            else if (days > 30) b = '31_60';
+
+            customerDebits[t.entityId] = {
+              oldestDate: txDate,
+              daysOld: days,
+              bucket: b,
+              oldestDocNumber: t.documentNumber || t.referenceId
+            };
+          }
         } else if (t.type === 'payment_received' || t.type === 'money_receipt' || ((t.type === 'return' || t.type === 'sale_return') && (t.paymentMethod === 'store_credit' || !t.paymentMethod || t.paymentMethod === 'credit'))) {
           balances[t.entityId] -= Number(t.amount);
         }
@@ -147,20 +184,52 @@ export default function CustomerDueList() {
     });
 
     const dueList = customers
-      .map(c => ({
-        ...c,
-        due: balances[c.id] || 0
-      }))
+      .map(c => {
+        const due = balances[c.id] || 0;
+        const aging = customerDebits[c.id] || {
+          oldestDate: new Date().toISOString(),
+          daysOld: 0,
+          bucket: '0_30' as const,
+        };
+        return {
+          ...c,
+          due,
+          daysOld: aging.daysOld,
+          agingBucket: aging.bucket,
+          oldestDocNumber: aging.oldestDocNumber,
+          oldestDate: aging.oldestDate,
+        };
+      })
       .filter(c => showAll ? true : c.due > 0)
       .sort((a, b) => b.due - a.due);
 
     return dueList;
   };
 
-  const dueCustomers = calculateDues().filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (c.phone && c.phone.includes(searchTerm))
-  );
+  const allDueCustomers = calculateDues();
+
+  // Aging summary statistics
+  const agingStats = {
+    all: { count: allDueCustomers.filter(c => c.due > 0).length, total: allDueCustomers.reduce((acc, c) => acc + (c.due > 0 ? c.due : 0), 0) },
+    '0_30': { count: 0, total: 0 },
+    '31_60': { count: 0, total: 0 },
+    '61_90': { count: 0, total: 0 },
+    '90_plus': { count: 0, total: 0 },
+  };
+
+  allDueCustomers.forEach(c => {
+    if (c.due > 0 && c.agingBucket) {
+      agingStats[c.agingBucket].count += 1;
+      agingStats[c.agingBucket].total += c.due;
+    }
+  });
+
+  const dueCustomers = allDueCustomers
+    .filter(c => agingFilter === 'all' || c.agingBucket === agingFilter)
+    .filter(c => 
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (c.phone && c.phone.includes(searchTerm))
+    );
 
   const totalOverallDue = dueCustomers.reduce((acc, curr) => acc + curr.due, 0);
 
@@ -176,6 +245,15 @@ export default function CustomerDueList() {
         profile?.displayName || user?.displayName || user?.email || 'Admin',
         { entityId: txId }
       );
+      // Sensitive alert for deleting a payment transaction
+      recordSensitiveAlert({
+        type: 'PAYMENT_DELETED',
+        severity: 'critical',
+        title: 'Payment Transaction Deleted',
+        message: `${profile?.displayName || user?.displayName || 'Staff'} deleted transaction #${txId.slice(0, 8)} from ledger of "${historyCustomer?.name || 'Customer'}"`,
+        entityId: txId,
+        performedBy: profile?.displayName || user?.displayName || user?.email || 'Staff',
+      }).catch(() => {});
       toast.success('Transaction deleted');
       fetchData();
     } catch (error) {
@@ -340,17 +418,108 @@ export default function CustomerDueList() {
 
   return (
     <div className="space-y-6">
+      {/* Due Aging Filter Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <button
+          type="button"
+          onClick={() => setAgingFilter('all')}
+          className={cn(
+            "p-3.5 rounded-xl border text-left transition-all relative overflow-hidden",
+            agingFilter === 'all'
+              ? "bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/20"
+              : "bg-white text-slate-800 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+          )}
+        >
+          <div className="text-[10px] font-black uppercase tracking-wider opacity-70 mb-1">All Outstandings</div>
+          <div className="text-base sm:text-lg font-black">{formatCurrency(agingStats.all.total, settings)}</div>
+          <div className="text-[11px] opacity-80 mt-0.5">{agingStats.all.count} Customers</div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAgingFilter('0_30')}
+          className={cn(
+            "p-3.5 rounded-xl border text-left transition-all relative overflow-hidden",
+            agingFilter === '0_30'
+              ? "bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-600/20"
+              : "bg-emerald-50/50 text-emerald-900 border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50"
+          )}
+        >
+          <div className="text-[10px] font-black uppercase tracking-wider opacity-80 mb-1 flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> 0 - 30 Days (Current)
+          </div>
+          <div className="text-base sm:text-lg font-black">{formatCurrency(agingStats['0_30'].total, settings)}</div>
+          <div className="text-[11px] opacity-80 mt-0.5">{agingStats['0_30'].count} Fresh Due</div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAgingFilter('31_60')}
+          className={cn(
+            "p-3.5 rounded-xl border text-left transition-all relative overflow-hidden",
+            agingFilter === '31_60'
+              ? "bg-amber-600 text-white border-amber-600 shadow-md ring-2 ring-amber-600/20"
+              : "bg-amber-50/50 text-amber-900 border-amber-200 hover:border-amber-300 hover:bg-amber-50"
+          )}
+        >
+          <div className="text-[10px] font-black uppercase tracking-wider opacity-80 mb-1 flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span> 31 - 60 Days (Attention)
+          </div>
+          <div className="text-base sm:text-lg font-black">{formatCurrency(agingStats['31_60'].total, settings)}</div>
+          <div className="text-[11px] opacity-80 mt-0.5">{agingStats['31_60'].count} Follow Up</div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAgingFilter('61_90')}
+          className={cn(
+            "p-3.5 rounded-xl border text-left transition-all relative overflow-hidden",
+            agingFilter === '61_90'
+              ? "bg-orange-600 text-white border-orange-600 shadow-md ring-2 ring-orange-600/20"
+              : "bg-orange-50/50 text-orange-900 border-orange-200 hover:border-orange-300 hover:bg-orange-50"
+          )}
+        >
+          <div className="text-[10px] font-black uppercase tracking-wider opacity-80 mb-1 flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-orange-500 inline-block"></span> 61 - 90 Days (Overdue)
+          </div>
+          <div className="text-base sm:text-lg font-black">{formatCurrency(agingStats['61_90'].total, settings)}</div>
+          <div className="text-[11px] opacity-80 mt-0.5">{agingStats['61_90'].count} Urgent Collection</div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAgingFilter('90_plus')}
+          className={cn(
+            "p-3.5 rounded-xl border text-left transition-all relative overflow-hidden",
+            agingFilter === '90_plus'
+              ? "bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-600/30"
+              : "bg-rose-50/70 text-rose-900 border-rose-200 hover:border-rose-300 hover:bg-rose-100"
+          )}
+        >
+          <div className="text-[10px] font-black uppercase tracking-wider opacity-90 mb-1 flex items-center gap-1 text-rose-700">
+            <AlertTriangle size={12} className="text-rose-600 animate-bounce" /> 90+ Days (Critical)
+          </div>
+          <div className="text-base sm:text-lg font-black text-rose-700">{formatCurrency(agingStats['90_plus'].total, settings)}</div>
+          <div className="text-[11px] font-bold text-rose-600 mt-0.5">{agingStats['90_plus'].count} High Risk Due</div>
+        </button>
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <CreditCard className="text-blue-600" /> Customer Due List
+              {agingFilter !== 'all' && (
+                <span className="text-xs font-black uppercase px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
+                  Filter: {agingFilter.replace('_', '-')} Days
+                </span>
+              )}
             </h2>
-            <p className="text-sm text-gray-500 mt-1">Manage and collect outstanding payments from customers</p>
+            <p className="text-sm text-gray-500 mt-1">Manage, age, and collect outstanding payments from customers</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 items-center">
             <div className="bg-red-50 text-red-700 px-4 py-2 rounded-lg border border-red-100 flex flex-col items-end">
-              <span className="text-xs font-bold uppercase">Total Due</span>
+              <span className="text-xs font-bold uppercase">Filtered Due</span>
               <span className="text-lg font-black">{formatCurrency(totalOverallDue, settings)}</span>
             </div>
             <label className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 cursor-pointer whitespace-nowrap">
@@ -381,6 +550,7 @@ export default function CustomerDueList() {
               <tr>
                 <th className="px-6 py-4">Customer Name</th>
                 <th className="px-6 py-4">Phone</th>
+                <th className="px-6 py-4">Aging Status</th>
                 <th className="px-6 py-4 text-right">Due Amount</th>
                 <th className="px-6 py-4 text-center">Action</th>
               </tr>
@@ -388,7 +558,7 @@ export default function CustomerDueList() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     <div className="animate-pulse flex flex-col items-center">
                       <div className="h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
                       Loading due list...
@@ -397,9 +567,9 @@ export default function CustomerDueList() {
                 </tr>
               ) : dueCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     <Check className="mx-auto text-green-500 mb-2" size={24} />
-                    No pending dues found.
+                    No pending dues found in this category.
                   </td>
                 </tr>
               ) : (
@@ -407,11 +577,43 @@ export default function CustomerDueList() {
                   <tr key={customer.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 font-medium text-gray-900">{customer.name}</td>
                     <td className="px-6 py-4">{customer.phone || 'N/A'}</td>
+                    <td className="px-6 py-4">
+                      {customer.daysOld > 0 ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className={cn(
+                            "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black w-fit",
+                            customer.agingBucket === '90_plus' ? "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse" :
+                            customer.agingBucket === '61_90' ? "bg-orange-100 text-orange-800 border border-orange-200" :
+                            customer.agingBucket === '31_60' ? "bg-amber-100 text-amber-800 border border-amber-200" :
+                            "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          )}>
+                            <Clock size={11} /> {customer.daysOld} Days Overdue
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            Since {customer.oldestDate ? new Date(customer.oldestDate).toLocaleDateString() : 'N/A'}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-gray-100 text-gray-600">
+                          Current (0d)
+                        </span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right font-black text-red-600">
                       {formatCurrency(customer.due, settings)}
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center gap-2">
+                      <div className="flex justify-center items-center gap-2">
+                        {customer.phone && (
+                          <button
+                            type="button"
+                            onClick={() => handleSendWhatsAppReminder(customer)}
+                            title="Send Due Reminder on WhatsApp"
+                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-2xs"
+                          >
+                            <MessageCircle size={13} className="text-emerald-600" /> WhatsApp
+                          </button>
+                        )}
                         <button
                           onClick={() => setHistoryCustomer({ id: customer.id, name: customer.name })}
                           className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm"

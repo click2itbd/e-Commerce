@@ -74,7 +74,7 @@ rules_version = '2';
 //      `campaigns`, `audiences`, `tasks`, `internal_notes`,
 //      `cash_register`, `conveyances`, `purchases`, `purchase_returns`,
 //      `sale_returns`, `emailTemplates`, `servers`, `hosting_config`,
-//      `audit_logs`, `auditLogs`, `paymentAuditLog`, `domainAuditLog`,
+//      `audit_logs`, `auditLogs`, `admin_alerts`, `paymentAuditLog`, `domainAuditLog`,
 //      `fulfillmentAuditLog`, `provisioningLogs`, `apiLogs`, `emailLogs`
 //    - Access: Restricted to Admin/Staff (with `private_config` and
 //      `transferAuthCodes` locked down completely).
@@ -871,6 +871,10 @@ service cloud.firestore {
     // ===============================================================
     // 9. Audit & System Logs (Append-Only for Staff, Immutable)
     // ===============================================================
+
+    match /admin_alerts/{alertId} {
+      allow read, write: if isStaffOrAdmin();
+    }
 
     match /audit_logs/{logId} {
       allow read, create: if isStaffOrAdmin();

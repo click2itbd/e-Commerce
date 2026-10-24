@@ -17,7 +17,7 @@ import {
   VolumeX,
   X
 } from 'lucide-react';
-import { collection, onSnapshot, query, limit, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
@@ -122,7 +122,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     }
   };
 
-  const [activeFilter, setActiveFilter] = useState<'all' | 'orders' | 'hosting' | 'support' | 'stock'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'alerts' | 'orders' | 'hosting' | 'support' | 'stock'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -320,6 +320,31 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
       rebuildList();
     }, () => {});
 
+    // 8. Sensitive Action Alerts (Staff high discount, bill delete, return, payment delete)
+    const unsubAlerts = onSnapshot(query(collection(db, 'admin_alerts'), orderBy('timestamp', 'desc'), limit(30)), (snap) => {
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (!data.isRead) {
+          itemsMap.set(`alert-${d.id}`, {
+            id: `alert-${d.id}`,
+            docId: d.id,
+            category: 'alerts',
+            targetTab: 'audit_logs',
+            title: `🚨 ${data.title || 'Sensitive Action Alert'}`,
+            badgeText: data.severity === 'critical' ? 'CRITICAL' : 'SENSITIVE',
+            badgeColor: data.severity === 'critical' ? 'bg-rose-100 text-rose-800 border-rose-300 font-black' : 'bg-amber-100 text-amber-800 border-amber-300 font-black',
+            message: `${data.message} (By ${data.performedBy})`,
+            time: data.timestamp || new Date().toISOString(),
+            icon: AlertTriangle,
+            iconBg: data.severity === 'critical' ? 'bg-red-600 text-white' : 'bg-amber-600 text-white',
+          });
+        } else {
+          itemsMap.delete(`alert-${d.id}`);
+        }
+      });
+      rebuildList();
+    }, () => {});
+
     const rebuildList = () => {
       const arr = Array.from(itemsMap.values()).sort((a, b) => {
         const parseTime = (t: any) => t?.toDate?.()?.getTime() || (t?.seconds ? t.seconds * 1000 : 0) || new Date(t).getTime() || 0;
@@ -357,6 +382,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
       unsubProducts();
       unsubQuotes();
       unsubPreBooks();
+      unsubAlerts();
     };
   }, []);
 
@@ -528,6 +554,18 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
               )}
             >
               All ({visibleNotifications.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter('alerts')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all shrink-0 flex items-center gap-1",
+                activeFilter === 'alerts' 
+                  ? "bg-rose-600 text-white shadow-sm font-black" 
+                  : "text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200"
+              )}
+            >
+              <AlertTriangle size={12} /> Alerts ({visibleNotifications.filter(n => n.category === 'alerts').length})
             </button>
             <button
               type="button"

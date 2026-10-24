@@ -92,7 +92,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
   }, [customers]);
 
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
-  const [activeSubTab, setActiveSubTab] = useState<'orders' | 'customers'>('orders');
+  const [activeSubTab, setActiveSubTab] = useState<'orders' | 'customers' | 'profit_report'>('orders');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<'this_month' | 'last_month' | 'today' | 'all'>('this_month');
 
@@ -224,6 +224,115 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
       }
     };
   }, [localOrders, localCustomers, currentMonthStart, todayStr, companies]);
+
+  // Sister Concern Profit & Due Financials
+  const companyFinancials = useMemo(() => {
+    const data: Record<string, {
+      id: string;
+      name: string;
+      color?: string;
+      iconName?: string;
+      orderCount: number;
+      revenue: number;
+      cost: number;
+      grossProfit: number;
+      paid: number;
+      due: number;
+      clientDues: { name: string; due: number; phone?: string }[];
+    }> = {};
+
+    companies.forEach(c => {
+      data[c.id] = {
+        id: c.id,
+        name: c.name,
+        color: c.color,
+        iconName: c.iconName,
+        orderCount: 0,
+        revenue: 0,
+        cost: 0,
+        grossProfit: 0,
+        paid: 0,
+        due: 0,
+        clientDues: []
+      };
+    });
+
+    const clientDuesMap: Record<string, Record<string, { name: string; due: number; phone?: string }>> = {};
+
+    localOrders.forEach(order => {
+      if (order.status === 'cancelled') return;
+
+      // Filter by date
+      if (dateFilter === 'today') {
+        if (!order.createdAt || order.createdAt.split('T')[0] !== todayStr) return;
+      } else if (dateFilter === 'this_month') {
+        if (!order.createdAt || order.createdAt < currentMonthStart) return;
+      } else if (dateFilter === 'last_month') {
+        if (!order.createdAt || order.createdAt < lastMonthStart || order.createdAt > lastMonthEnd) return;
+      }
+
+      const comp = getOrderCompany(order);
+      if (!data[comp]) {
+        data[comp] = {
+          id: comp,
+          name: comp,
+          orderCount: 0,
+          revenue: 0,
+          cost: 0,
+          grossProfit: 0,
+          paid: 0,
+          due: 0,
+          clientDues: []
+        };
+      }
+
+      const rev = Number(order.total || 0);
+      const paid = Number(order.paidAmount || (order as any).amountPaid || 0);
+      const due = Math.max(0, rev - paid);
+
+      let orderCost = 0;
+      if ((order as any).totalCost) {
+        orderCost = Number((order as any).totalCost);
+      } else if (order.items && Array.isArray(order.items)) {
+        orderCost = order.items.reduce((s: number, it: any) => s + (Number(it.costPrice || 0) * Number(it.quantity || 1)), 0);
+      }
+      const profit = rev - orderCost;
+
+      data[comp].orderCount += 1;
+      data[comp].revenue += rev;
+      data[comp].cost += orderCost;
+      data[comp].grossProfit += profit;
+      data[comp].paid += paid;
+      data[comp].due += due;
+
+      if (due > 0 && order.customerName) {
+        if (!clientDuesMap[comp]) clientDuesMap[comp] = {};
+        const cKey = order.customerId || order.customerName;
+        if (!clientDuesMap[comp][cKey]) {
+          clientDuesMap[comp][cKey] = { name: order.customerName, due: 0, phone: order.customerPhone };
+        }
+        clientDuesMap[comp][cKey].due += due;
+      }
+    });
+
+    Object.keys(clientDuesMap).forEach(comp => {
+      if (data[comp]) {
+        data[comp].clientDues = Object.values(clientDuesMap[comp]).sort((a, b) => b.due - a.due);
+      }
+    });
+
+    const list = Object.values(data);
+    const totals = {
+      orderCount: list.reduce((s, c) => s + c.orderCount, 0),
+      revenue: list.reduce((s, c) => s + c.revenue, 0),
+      cost: list.reduce((s, c) => s + c.cost, 0),
+      grossProfit: list.reduce((s, c) => s + c.grossProfit, 0),
+      paid: list.reduce((s, c) => s + c.paid, 0),
+      due: list.reduce((s, c) => s + c.due, 0),
+    };
+
+    return { list, totals };
+  }, [localOrders, companies, dateFilter, todayStr, currentMonthStart, lastMonthStart, lastMonthEnd]);
 
   // Filtered Orders
   const filteredOrders = useMemo(() => {
@@ -733,27 +842,88 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
             >
               <Users size={14} /> Associated Clients ({filteredCustomers.length})
             </button>
+            <button
+              onClick={() => setActiveSubTab('profit_report')}
+              className={cn(
+                "px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 whitespace-nowrap",
+                activeSubTab === 'profit_report'
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-900/20"
+                  : "bg-indigo-50/60 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+              )}
+            >
+              <TrendingUp size={14} /> Profit & Due Report 📊
+            </button>
           </div>
 
           <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="relative w-full md:w-80">
-              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder={activeSubTab === 'orders' ? "Search order, client, ref, items..." : "Search client name, phone..."}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all shadow-2xs"
-              />
-              {searchQuery && (
+            {activeSubTab !== 'profit_report' ? (
+              <div className="relative w-full md:w-80">
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder={activeSubTab === 'orders' ? "Search order, client, ref, items..." : "Search client name, phone..."}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all shadow-2xs"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                  type="button"
+                  onClick={() => {
+                    const headers = ['Sister Concern', 'Orders', 'Total Sales (BDT)', 'COGS / Cost (BDT)', 'Gross Profit (BDT)', 'Margin %', 'Collected (BDT)', 'Outstanding Due (BDT)', 'Collection Rate %', 'Top Client with Due'];
+                    const rows = companyFinancials.list.map(c => {
+                      const margin = c.revenue > 0 ? Math.round((c.grossProfit / c.revenue) * 100) : 0;
+                      const collRate = c.revenue > 0 ? Math.round((c.paid / c.revenue) * 100) : 100;
+                      const topDebtor = c.clientDues[0] ? `${c.clientDues[0].name} (BDT ${c.clientDues[0].due.toLocaleString()})` : 'None';
+                      return [
+                        `"${c.name}"`,
+                        c.orderCount,
+                        c.revenue,
+                        c.cost,
+                        c.grossProfit,
+                        `"${margin}%"`,
+                        c.paid,
+                        c.due,
+                        `"${collRate}%"`,
+                        `"${topDebtor.replace(/"/g, '""')}"`
+                      ];
+                    });
+
+                    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', `sister_concern_profit_due_${dateFilter}_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    toast.success('Sister concern financial report exported');
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all flex items-center gap-1.5 shadow-sm"
                 >
-                  <X size={12} />
+                  <Download size={13} /> Export CSV
                 </button>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all flex items-center gap-1.5 shadow-2xs"
+                >
+                  <Printer size={13} /> Print
+                </button>
+              </div>
+            )}
 
             {selectedCompany !== 'all' && (
               <button
@@ -1188,7 +1358,194 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
           </div>
         )}
 
+        {/* Tab 3: Profit & Due Report */}
+        {activeSubTab === 'profit_report' && (
+          <div className="p-6 space-y-6">
+            {/* Top KPI Summary */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                  Total Revenue / Sales
+                </span>
+                <span className="text-xl font-black text-slate-900">
+                  {formatCurrency(companyFinancials.totals.revenue, settings)}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Across {companyFinancials.totals.orderCount} orders
+                </span>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                  Cost of Goods (COGS)
+                </span>
+                <span className="text-xl font-black text-slate-700">
+                  {formatCurrency(companyFinancials.totals.cost, settings)}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Product purchase cost</span>
+              </div>
+
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 block mb-1">
+                  Gross Profit
+                </span>
+                <span className="text-xl font-black text-emerald-800">
+                  {formatCurrency(companyFinancials.totals.grossProfit, settings)}
+                </span>
+                <span className="text-[10px] font-bold text-emerald-600 block mt-0.5">
+                  Margin: {companyFinancials.totals.revenue > 0 ? Math.round((companyFinancials.totals.grossProfit / companyFinancials.totals.revenue) * 100) : 0}%
+                </span>
+              </div>
+
+              <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4">
+                <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 block mb-1">
+                  Collected / Paid
+                </span>
+                <span className="text-xl font-black text-blue-800">
+                  {formatCurrency(companyFinancials.totals.paid, settings)}
+                </span>
+                <span className="text-[10px] font-bold text-blue-600 block mt-0.5">
+                  Collection Rate: {companyFinancials.totals.revenue > 0 ? Math.round((companyFinancials.totals.paid / companyFinancials.totals.revenue) * 100) : 100}%
+                </span>
+              </div>
+
+              <div className="bg-rose-50/70 border border-rose-200 rounded-2xl p-4">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 block mb-1">
+                  Total Outstanding Due
+                </span>
+                <span className="text-xl font-black text-rose-800">
+                  {formatCurrency(companyFinancials.totals.due, settings)}
+                </span>
+                <span className="text-[10px] font-bold text-rose-600 block mt-0.5">
+                  Uncollected Balance
+                </span>
+              </div>
+            </div>
+
+            {/* Performance Breakdown Table */}
+            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+              <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
+                <div>
+                  <h4 className="font-black text-sm tracking-tight">Sister Concern Financial Performance Breakdown</h4>
+                  <p className="text-[11px] text-slate-400">Detailed sales, gross profit, and pending client dues by concern</p>
+                </div>
+                <span className="text-xs font-bold text-indigo-300 uppercase px-2.5 py-1 bg-white/10 rounded-lg">
+                  Period: {dateFilter === 'today' ? 'Today' : dateFilter === 'this_month' ? 'This Month' : dateFilter === 'last_month' ? 'Last Month' : 'All Time'}
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-slate-500 font-black uppercase tracking-wider text-[10px] border-b border-slate-200">
+                    <tr>
+                      <th className="py-3.5 px-4">Sister Concern</th>
+                      <th className="py-3.5 px-4 text-center">Orders</th>
+                      <th className="py-3.5 px-4 text-right">Revenue (Sales)</th>
+                      <th className="py-3.5 px-4 text-right">Cost (COGS)</th>
+                      <th className="py-3.5 px-4 text-right">Gross Profit</th>
+                      <th className="py-3.5 px-4 text-center">Margin %</th>
+                      <th className="py-3.5 px-4 text-right">Collected</th>
+                      <th className="py-3.5 px-4 text-right">Pending Due</th>
+                      <th className="py-3.5 px-4 text-center">Recovery %</th>
+                      <th className="py-3.5 px-4">Top Client Due</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white font-medium">
+                    {companyFinancials.list.map(c => {
+                      const theme = getCompanyTheme(c.color);
+                      const CompIcon = getCompanyIcon(c.iconName);
+                      const marginPct = c.revenue > 0 ? Math.round((c.grossProfit / c.revenue) * 100) : 0;
+                      const collPct = c.revenue > 0 ? Math.round((c.paid / c.revenue) * 100) : 100;
+                      const topDebtor = c.clientDues[0];
+
+                      return (
+                        <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black border shadow-2xs", theme.badgeBg)}>
+                              <CompIcon size={12} /> {c.name}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-bold text-slate-800">
+                            {c.orderCount}
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-black text-slate-900">
+                            {formatCurrency(c.revenue, settings)}
+                          </td>
+                          <td className="py-3.5 px-4 text-right text-slate-500">
+                            {formatCurrency(c.cost, settings)}
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-black text-emerald-700">
+                            {formatCurrency(c.grossProfit, settings)}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-full text-[10px] font-black",
+                              marginPct >= 20 ? "bg-emerald-100 text-emerald-800" :
+                              marginPct > 0 ? "bg-amber-100 text-amber-800" :
+                              "bg-slate-100 text-slate-600"
+                            )}>
+                              {marginPct}%
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right text-blue-700 font-bold">
+                            {formatCurrency(c.paid, settings)}
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-black text-rose-600">
+                            {c.due > 0 ? formatCurrency(c.due, settings) : '৳0'}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="text-[10px] font-bold text-slate-700">{collPct}%</span>
+                              <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                  className={cn("h-full rounded-full", collPct >= 80 ? "bg-emerald-500" : collPct >= 50 ? "bg-amber-500" : "bg-rose-500")}
+                                  style={{ width: `${Math.min(100, collPct)}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {topDebtor ? (
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-900 text-xs truncate max-w-[150px]">{topDebtor.name}</span>
+                                <span className="text-[10px] text-rose-600 font-black">
+                                  {formatCurrency(topDebtor.due, settings)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-slate-400">No pending due</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="bg-slate-100 text-slate-900 font-black text-xs border-t-2 border-slate-300">
+                    <tr>
+                      <td className="py-3.5 px-4">Total (All Concerns)</td>
+                      <td className="py-3.5 px-4 text-center">{companyFinancials.totals.orderCount}</td>
+                      <td className="py-3.5 px-4 text-right">{formatCurrency(companyFinancials.totals.revenue, settings)}</td>
+                      <td className="py-3.5 px-4 text-right">{formatCurrency(companyFinancials.totals.cost, settings)}</td>
+                      <td className="py-3.5 px-4 text-right text-emerald-800">{formatCurrency(companyFinancials.totals.grossProfit, settings)}</td>
+                      <td className="py-3.5 px-4 text-center">
+                        {companyFinancials.totals.revenue > 0 ? Math.round((companyFinancials.totals.grossProfit / companyFinancials.totals.revenue) * 100) : 0}%
+                      </td>
+                      <td className="py-3.5 px-4 text-right text-blue-800">{formatCurrency(companyFinancials.totals.paid, settings)}</td>
+                      <td className="py-3.5 px-4 text-right text-rose-700">{formatCurrency(companyFinancials.totals.due, settings)}</td>
+                      <td className="py-3.5 px-4 text-center">
+                        {companyFinancials.totals.revenue > 0 ? Math.round((companyFinancials.totals.paid / companyFinancials.totals.revenue) * 100) : 100}%
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400">—</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Pagination & Footer Controls */}
+        {activeSubTab !== 'profit_report' && (
         <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/40 text-xs text-slate-600">
           <div className="flex items-center gap-2">
             <span>Rows per page:</span>
@@ -1230,6 +1587,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
             </button>
           </div>
         </div>
+        )}
       </div>
 
       {/* Add / Edit Company Modal */}
