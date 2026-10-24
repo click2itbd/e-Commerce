@@ -486,10 +486,10 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
             {setActiveTab && (
               <button
                 onClick={() => handleCreateNewOrderForCompany(selectedCompany !== 'all' ? selectedCompany : 'main')}
-                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white px-4 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white px-4 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap cursor-pointer"
               >
                 <Plus size={15} />
-                <span>+ New Sale / Invoice</span>
+                <span>New Sale / Invoice</span>
               </button>
             )}
           </div>
@@ -523,7 +523,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
       )}
 
       {/* Dynamic Cards Grid: All Units + All Companies + Add Company Button */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
         {/* Card 0: All Business Units Overview */}
         <div
           onClick={() => setSelectedCompany('all')}
@@ -692,16 +692,16 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
             setEditingCompany(null);
             setIsCompanyModalOpen(true);
           }}
-          className="relative bg-slate-50/60 hover:bg-indigo-50/30 border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-2xl p-4 transition-all cursor-pointer shadow-2xs hover:shadow-sm group flex flex-col items-center justify-center text-center min-h-[170px]"
+          className="relative bg-gradient-to-b from-slate-50/80 to-indigo-50/20 hover:from-indigo-50/40 hover:to-indigo-100/30 border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-2xl p-4 transition-all cursor-pointer shadow-2xs hover:shadow-md group flex flex-col items-center justify-center text-center min-h-[170px]"
         >
-          <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 group-hover:border-indigo-300 text-slate-400 group-hover:text-indigo-600 flex items-center justify-center mb-2 shadow-2xs transition-colors">
-            <Plus size={20} />
+          <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 group-hover:border-indigo-300 text-slate-400 group-hover:text-indigo-600 flex items-center justify-center mb-2.5 shadow-2xs group-hover:scale-110 transition-all">
+            <Plus size={22} className="stroke-[2.5]" />
           </div>
-          <span className="text-xs font-black text-slate-700 group-hover:text-indigo-600 transition-colors">
+          <span className="text-xs font-black text-slate-800 group-hover:text-indigo-700 transition-colors">
             Add Company
           </span>
-          <span className="text-[10px] text-slate-400 mt-0.5">
-            New Sister Concern
+          <span className="text-[10px] text-slate-400 font-semibold mt-0.5">
+            + New Sister Concern
           </span>
         </div>
       </div>
@@ -1231,6 +1231,52 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Add / Edit Company Modal */}
+      <CompanyModal
+        isOpen={isCompanyModalOpen}
+        onClose={() => {
+          setIsCompanyModalOpen(false);
+          setEditingCompany(null);
+        }}
+        initialData={editingCompany}
+        onSave={handleSaveCompany}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {deletingCompany && (
+        <div className="fixed inset-0 z-[140] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mb-4">
+              <Trash2 size={24} />
+            </div>
+            <h3 className="text-base font-black text-slate-900">
+              Remove Sister Concern?
+            </h3>
+            <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+              Are you sure you want to remove <strong className="text-slate-900">"{deletingCompany.name}"</strong>? Existing orders and clients will remain safe in the database.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeletingCompany(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDeleteCompany}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md shadow-red-900/20 transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {isDeleting ? 'Removing...' : 'Confirm Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Order Details & Project Edit Modal */}
       {viewingOrder && (

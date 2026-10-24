@@ -135,13 +135,16 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
   const CurrentIcon = getCompanyIcon(iconName);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+    <div 
+      className="fixed inset-0 z-[140] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
       <div 
-        className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col my-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-[#081621] p-6 text-white relative">
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-[#081621] p-6 text-white relative shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-md bg-gradient-to-tr", currentTheme.gradient)}>
@@ -159,7 +162,7 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
             >
               <X size={16} />
             </button>
@@ -167,7 +170,7 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
           {/* Live Preview Bar */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
