@@ -59,7 +59,7 @@ export const CategoryPage: React.FC = () => {
   const [priceRange, setPriceRange] = useState({ min: 0, max: 200000 });
   const [sortBy, setSortBy] = useState('newest');
   const [showInStock, setShowInStock] = useState(true);
-  const [showOutOfStock, setShowOutOfStock] = useState(false);
+  const [showOutOfStock, setShowOutOfStock] = useState(true);
   const [showDiscountedOnly, setShowDiscountedOnly] = useState(false);
   const [minRating, setMinRating] = useState(0);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
@@ -72,7 +72,7 @@ export const CategoryPage: React.FC = () => {
     setSelectedBrands([]);
     setPriceRange({ min: 0, max: 200000 });
     setShowInStock(true);
-    setShowOutOfStock(false);
+    setShowOutOfStock(true);
     setShowDiscountedOnly(false);
     setMinRating(0);
     setSelectedSpecs({});
@@ -229,8 +229,13 @@ export const CategoryPage: React.FC = () => {
   const filteredProducts = products
     .filter(p => p.price >= priceRange.min && p.price <= priceRange.max)
     .filter(p => {
-      if (p.stock > 0) return showInStock;
-      return showOutOfStock;
+      const isOut = p.isOutOfStock === true || Number(p.stock || 0) <= 0;
+      const isIn = Number(p.stock || 0) > 0 && !p.isOutOfStock;
+      if (showInStock && showOutOfStock) return true;
+      if (!showInStock && !showOutOfStock) return true;
+      if (showInStock) return isIn;
+      if (showOutOfStock) return isOut;
+      return true;
     })
     .filter(p => {
       if (selectedBrands.length === 0) return true;

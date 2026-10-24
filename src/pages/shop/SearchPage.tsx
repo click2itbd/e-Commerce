@@ -108,8 +108,17 @@ export const SearchPage: React.FC = () => {
         const pPrice = p.discountPrice || p.price;
         if (pPrice < priceRange.min || pPrice > priceRange.max) return false;
         
-        if (!showInStock && p.stock > 0) return false;
-        if (!showOutOfStock && p.stock <= 0) return false;
+        const isOut = p.isOutOfStock === true || Number(p.stock || 0) <= 0;
+        const isIn = Number(p.stock || 0) > 0 && !p.isOutOfStock;
+        if (showInStock && showOutOfStock) {
+          // show all
+        } else if (!showInStock && !showOutOfStock) {
+          // both unchecked, show all
+        } else if (showInStock && !isIn) {
+          return false;
+        } else if (showOutOfStock && !isOut) {
+          return false;
+        }
         
         if (selectedBrands.length > 0 && p.brand) {
           if (!selectedBrands.includes(p.brand)) return false;
