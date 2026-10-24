@@ -50,6 +50,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [orderCategoryFilter, setOrderCategoryFilter] = useState<OrderCategory>('all');
+  const [orderCompanyFilter, setOrderCompanyFilter] = useState<'all' | 'main' | 'spacezero' | 'volumezero' | 'simpletree'>('all');
   const [shippingModalOrder, setShippingModalOrder] = useState<any | null>(null);
   const [editingOrder, setEditingOrder] = useState<any | null>(null);
   const [viewingOrder, setViewingOrder] = useState<any | null>(null);
@@ -87,7 +88,10 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
     const orderDate = order.createdAt ? order.createdAt.split('T')[0] : '';
     const matchesStartDate = !orderStartDate || orderDate >= orderStartDate;
     const matchesEndDate = !orderEndDate || orderDate <= orderEndDate;
-    return matchesCategory && matchesStatus && matchesSearch && matchesStartDate && matchesEndDate;
+    const matchesCompany = orderCompanyFilter === 'all'
+      ? true
+      : (orderCompanyFilter === 'main' ? (!order.company || order.company === 'main') : order.company === orderCompanyFilter);
+    return matchesCategory && matchesStatus && matchesSearch && matchesStartDate && matchesEndDate && matchesCompany;
   }).sort((a, b) => {
       const getNum = (obj) => {
         const str = obj.documentNumber || obj.id || '';
@@ -196,6 +200,20 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
               {activeStatuses.map((s: string) => (
                 <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
               ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-bold text-gray-400 uppercase">Unit:</label>
+            <select
+              value={orderCompanyFilter}
+              onChange={e => { setOrderCompanyFilter(e.target.value as any); setCurrentPage(1); }}
+              className="text-sm border-gray-200 rounded-lg focus:ring-[#EF4444] focus:border-[#EF4444]"
+            >
+              <option value="all">All Units</option>
+              <option value="main">Click2IT</option>
+              <option value="spacezero">Spacezero</option>
+              <option value="volumezero">Volumezero</option>
+              <option value="simpletree">Simpletree</option>
             </select>
           </div>
           <div className="flex items-center gap-2">
@@ -345,8 +363,26 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
 
                           <td className="px-5 py-4 whitespace-nowrap">
                             <div className="flex flex-col">
-                              <span className="font-bold text-slate-800 text-[13px]">{order.customerName}</span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-800 text-[13px]">{order.customerName}</span>
+                                {(() => {
+                                  const comp = order.company || 'main';
+                                  if (comp === 'spacezero') {
+                                    return <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-wider">Spacezero</span>;
+                                  } else if (comp === 'volumezero') {
+                                    return <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 border border-blue-200 rounded text-[9px] font-black uppercase tracking-wider">Volumezero</span>;
+                                  } else if (comp === 'simpletree') {
+                                    return <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[9px] font-black uppercase tracking-wider">Simpletree</span>;
+                                  }
+                                  return null;
+                                })()}
+                              </div>
                               <span className="text-[11px] text-slate-500 font-semibold mt-0.5">{order.customerPhone}</span>
+                              {order.projectName && (
+                                <span className="text-[10px] text-indigo-600 font-bold mt-0.5 flex items-center gap-1">
+                                  📁 {order.projectName}
+                                </span>
+                              )}
                             </div>
                           </td>
 

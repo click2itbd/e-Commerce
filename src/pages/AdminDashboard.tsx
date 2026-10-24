@@ -215,6 +215,9 @@ const PurchasesTab = lazy(() =>
 const SaleReturnTab = lazy(() =>
   import("./admin/tabs/sales/SaleReturn").then((m) => ({ default: m.default })),
 );
+const BusinessUnitsTab = lazy(() =>
+  import("./admin/tabs/businessUnits/BusinessUnitsTab").then((m) => ({ default: m.default })),
+);
 const CustomersTab = lazy(() =>
   import("./admin/tabs/sales/Customers").then((m) => ({ default: m.default })),
 );
@@ -349,7 +352,8 @@ import { Trophy,
   Terminal,
   RefreshCw,
   DollarSign,
-  ExternalLink, Loader2
+  ExternalLink, Loader2,
+  Building2
 } from "lucide-react";
 import { formatCurrency, cn, addWarranty, formatWarranty } from "../lib/utils";
 import { useSettings } from "../context/SettingsContext";
@@ -4304,6 +4308,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <button
               onClick={() => {
+                setActiveTab("business_units");
+                setIsMobileMenuOpen(false);
+              }}
+              className={cn(
+                "w-full flex items-center rounded-md text-[13px] transition-colors",
+                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
+                activeTab === "business_units"
+                  ? "text-blue-600 font-bold bg-blue-50"
+                  : "text-gray-600 hover:bg-gray-50",
+              )}
+            >
+              <Building2
+                size={16}
+                className={
+                  activeTab === "business_units" ? "text-blue-600" : "text-gray-400"
+                }
+              />{" "}
+              {!isSidebarCollapsed && (
+                <span className="truncate">Sister Concerns</span>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveTab("deliveries");
                 setIsMobileMenuOpen(false);
               }}
@@ -5699,6 +5727,15 @@ handleReturnOrder={handleReturnOrder}
                   setSelectedLedgerEntity={setSelectedLedgerEntity}
                   fetchData={fetchData}
                 />
+              ) : activeTab === "business_units" ? (
+                <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+                  <BusinessUnitsTab
+                    orders={orders}
+                    customers={customers}
+                    setActiveTab={setActiveTab}
+                    setSelectedLedgerEntity={setSelectedLedgerEntity}
+                  />
+                </Suspense>
               ) : activeTab === "customers" ? (
                 <CustomersTab
                   customers={customers}

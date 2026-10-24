@@ -181,6 +181,8 @@ export interface CartItem extends Product {
 export type OrderStatus = 'pending' | 'processing' | 'accepted' | 'completed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'active';
 export type OrderType = 'invoice' | 'quotation' | 'challan' | 'sale' | 'pos_sale' | 'domain' | 'hosting' | 'pc_build' | 'pc_builder';
 
+export type BusinessUnitCompany = 'main' | 'spacezero' | 'volumezero' | 'simpletree';
+
 export interface Customer {
   id: string;
   name: string;
@@ -188,6 +190,7 @@ export interface Customer {
   phone: string;
   address: string;
   loyaltyPoints?: number;
+  company?: BusinessUnitCompany | string;
   createdAt: string;
 }
 
@@ -195,6 +198,8 @@ export interface Order {
   createdBy?: string;
   preparedBy?: string;
   saleSource?: 'in_store' | 'online';
+  company?: BusinessUnitCompany | string;
+  projectName?: string;
   id: string;
   userId: string;
   items: CartItem[];

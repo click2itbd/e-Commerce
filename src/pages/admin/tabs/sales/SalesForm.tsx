@@ -38,7 +38,9 @@ import {
   DollarSign,
   Receipt,
   PauseCircle,
-  RotateCcw
+  RotateCcw,
+  Building2,
+  FolderGit2
 } from 'lucide-react';
 import { generateDocumentNumber } from '../../../../lib/numbering';
 import { CustomProductPurchaseModal } from '../../modals/CustomProductPurchaseModal';
@@ -103,6 +105,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     phone: '',
     email: '',
     address: '',
+    company: 'main',
   });
 
     const [saleData, setSaleData] = useState(() => {
@@ -177,6 +180,9 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         customerPhone: editingOrder.customerPhone || '',
         customerEmail: editingOrder.customerEmail || '',
         shippingAddress: editingOrder.shippingAddress || editingOrder.customerAddress || '',
+        company: editingOrder.company || 'main',
+        projectName: editingOrder.projectName || '',
+        workOrderNumber: editingOrder.workOrderNumber || '',
         items: editingOrder.items || [],
         discountType: 'flat',
         discountValue: editingOrder.discountAmount || 0,
@@ -579,6 +585,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         phone: newCustomerForm.phone.trim(),
         email: newCustomerForm.email.trim(),
         address: newCustomerForm.address.trim(),
+        company: newCustomerForm.company || 'main',
         createdAt: new Date().toISOString(),
       });
 
@@ -588,6 +595,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         phone: newCustomerForm.phone.trim(),
         email: newCustomerForm.email.trim(),
         address: newCustomerForm.address.trim(),
+        company: newCustomerForm.company || 'main',
         createdAt: new Date().toISOString(),
       };
 
@@ -603,7 +611,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       }));
 
       setIsAddingNewCustomer(false);
-      setNewCustomerForm({ name: '', phone: '', email: '', address: '' });
+      setNewCustomerForm({ name: '', phone: '', email: '', address: '', company: 'main' });
       toast.success(`Customer "${newlyAdded.name}" added and selected!`);
       fetchData();
     } catch (err) {
@@ -816,6 +824,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         documentNumber: docNumber,
         type: saleData.type,
         saleSource: saleData.saleSource,
+        company: saleData.company || 'main',
+        projectName: saleData.projectName || '',
           createdBy: saleData.createdBy || profile?.displayName || profile?.email || 'Admin',
         customerId: saleData.customerId,
         customerName: saleData.customerName,
@@ -1185,7 +1195,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
           <form onSubmit={handleCreateSale} className="space-y-6 text-xs">
             {/* Metadata Controls Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80">
               {/* Date */}
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
@@ -1220,7 +1230,40 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 </select>
               </div>
 
-              {/* Work Order # */}
+                            {/* Business Unit / Sister Concern */}
+              <div>
+                <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Building2 size={12} className="text-slate-400" />
+                  Sister Concern / Unit
+                </label>
+                <select
+                  value={saleData.company || 'main'}
+                  onChange={e => setSaleData({ ...saleData, company: e.target.value })}
+                  className="w-full h-10 border border-slate-200 bg-white rounded-xl px-3 font-bold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all cursor-pointer shadow-2xs"
+                >
+                  <option value="main">Click2IT (Main)</option>
+                  <option value="spacezero">Spacezero</option>
+                  <option value="volumezero">Volumezero</option>
+                  <option value="simpletree">Simpletree</option>
+                </select>
+              </div>
+
+              {/* Project Name */}
+              <div>
+                <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <FolderGit2 size={12} className="text-slate-400" />
+                  Project Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="Optional project name"
+                  value={saleData.projectName || ''}
+                  onChange={e => setSaleData({ ...saleData, projectName: e.target.value })}
+                  className="w-full h-10 border border-slate-200 bg-white rounded-xl px-3 font-semibold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all shadow-2xs"
+                />
+              </div>
+
+{/* Work Order # */}
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
                   <FileText size={12} className="text-slate-400" />
@@ -2078,6 +2121,21 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   className="w-full border border-gray-200 rounded-lg p-2.5 font-medium"
                 />
               </div>
+
+              <div>
+                <label className="block font-bold text-gray-700 uppercase mb-1">Sister Concern / Company</label>
+                <select
+                  value={newCustomerForm.company || 'main'}
+                  onChange={e => setNewCustomerForm({ ...newCustomerForm, company: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg p-2.5 font-bold"
+                >
+                  <option value="main">Click2IT (Main)</option>
+                  <option value="spacezero">Spacezero</option>
+                  <option value="volumezero">Volumezero</option>
+                  <option value="simpletree">Simpletree</option>
+                </select>
+              </div>
+
 
               <div className="flex gap-2 pt-2">
                 <button

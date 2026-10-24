@@ -5,6 +5,7 @@ import { Customer } from '../../../../types';
 import { toast } from 'react-hot-toast';
 import {
   Users,
+  Building2,
   Plus,
   Mail,
   Phone,
@@ -46,11 +47,13 @@ const Customers: React.FC<CustomersProps> = ({
     phone: '',
     email: '',
     address: '',
+    company: 'main',
   });
   const [submitting, setSubmitting] = useState(false);
 
   // Search & Pagination
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
 
@@ -142,6 +145,7 @@ const Customers: React.FC<CustomersProps> = ({
         phone: customerFormData.phone.trim(),
         email: customerFormData.email.trim(),
         address: customerFormData.address.trim(),
+        company: customerFormData.company || 'main',
         updatedAt: new Date().toISOString(),
       };
 
@@ -158,7 +162,7 @@ const Customers: React.FC<CustomersProps> = ({
 
       setIsAddingCustomer(false);
       setEditingCustomer(null);
-      setCustomerFormData({ name: '', phone: '', email: '', address: '' });
+      setCustomerFormData({ name: '', phone: '', email: '', address: '', company: 'main' });
       fetchCustomers();
       if (fetchData) fetchData();
     } catch (error) {
@@ -200,6 +204,10 @@ const Customers: React.FC<CustomersProps> = ({
       const matchesAddress = (customer.address || '').toLowerCase().includes(q);
       if (!matchesName && !matchesPhone && !matchesEmail && !matchesAddress) return false;
     }
+    if (selectedCompanyFilter !== 'all') {
+      const cComp = (customer as any).company || 'main';
+      if (cComp !== selectedCompanyFilter) return false;
+    }
     return true;
   });
 
@@ -228,7 +236,7 @@ const Customers: React.FC<CustomersProps> = ({
               <button
                 onClick={() => {
                   setEditingCustomer(null);
-                  setCustomerFormData({ name: '', phone: '', email: '', address: '' });
+                  setCustomerFormData({ name: '', phone: '', email: '', address: '', company: 'main' });
                   setIsAddingCustomer(true);
                 }}
                 className="w-full md:w-auto bg-emerald-500 text-white px-5 py-3 rounded-xl hover:bg-emerald-400 transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
@@ -240,8 +248,8 @@ const Customers: React.FC<CustomersProps> = ({
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Search Bar & Company Filter */}
+      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row items-center justify-between gap-4">
          <div className="relative w-full max-w-md">
             <input
               type="text"
@@ -256,6 +264,30 @@ const Customers: React.FC<CustomersProps> = ({
                 <X size={12} />
               </button>
             )}
+         </div>
+
+         {/* Company Filter Tabs */}
+         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+           {[
+             { id: 'all', label: 'All Companies' },
+             { id: 'main', label: 'Click2IT' },
+             { id: 'spacezero', label: 'Spacezero' },
+             { id: 'volumezero', label: 'Volumezero' },
+             { id: 'simpletree', label: 'Simpletree' },
+           ].map(comp => (
+             <button
+               key={comp.id}
+               type="button"
+               onClick={() => { setSelectedCompanyFilter(comp.id); setCurrentPage(1); }}
+               className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                 selectedCompanyFilter === comp.id
+                   ? 'bg-[#081621] text-white shadow-sm'
+                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+               }`}
+             >
+               {comp.label}
+             </button>
+           ))}
          </div>
       </div>
 
@@ -333,6 +365,24 @@ const Customers: React.FC<CustomersProps> = ({
                 </div>
               </div>
 
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                  Business Unit / Sister Concern
+                </label>
+                <div className="relative">
+                  <select
+                    value={customerFormData.company || 'main'}
+                    onChange={e => setCustomerFormData({ ...customerFormData, company: e.target.value })}
+                    className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none transition-all cursor-pointer"
+                  >
+                    <option value="main">Click2IT (Main)</option>
+                    <option value="spacezero">Spacezero</option>
+                    <option value="volumezero">Volumezero</option>
+                    <option value="simpletree">Simpletree</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
@@ -387,6 +437,20 @@ const Customers: React.FC<CustomersProps> = ({
                       </div>
                       <div>
                         <span className="font-bold text-sm text-slate-900 block group-hover:text-blue-600 transition-colors">{customer.name}</span>
+                        <div className="mt-1">
+                          {(() => {
+                            const comp = (customer as any).company || 'main';
+                            if (comp === 'spacezero') {
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">Spacezero</span>;
+                            } else if (comp === 'volumezero') {
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">Volumezero</span>;
+                            } else if (comp === 'simpletree') {
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">Simpletree</span>;
+                            } else {
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">Click2IT</span>;
+                            }
+                          })()}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -442,6 +506,7 @@ const Customers: React.FC<CustomersProps> = ({
                               phone: customer.phone || '',
                               email: customer.email || '',
                               address: customer.address || '',
+                              company: (customer as any).company || 'main',
                             });
                             setIsAddingCustomer(true);
                           }}
