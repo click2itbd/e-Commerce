@@ -66,7 +66,34 @@ export default function CustomerDueList() {
         return;
       }
 
-      toast.error('Invoice not found');
+      // Fallback: generate PDF from matching transaction so it never fails
+      const matchedTx = transactions.find(t => t.documentNumber === documentNumber || t.referenceId === documentNumber);
+      if (matchedTx) {
+        const pseudoOrder = {
+          id: matchedTx.referenceId || matchedTx.id,
+          documentNumber: matchedTx.documentNumber || documentNumber,
+          customerName: matchedTx.entityName || historyCustomer?.name || 'Customer',
+          customerPhone: (historyCustomer as any)?.phone || '',
+          shippingAddress: (historyCustomer as any)?.address || '',
+          total: Number(matchedTx.amount) || 0,
+          paidAmount: Number(matchedTx.amount) || 0,
+          subtotal: Number(matchedTx.amount) || 0,
+          paymentStatus: 'paid',
+          createdAt: matchedTx.date || matchedTx.createdAt || new Date().toISOString(),
+          status: 'delivered',
+          items: [{
+            productId: 'tx-item',
+            name: matchedTx.description || `Invoice #${documentNumber}`,
+            quantity: 1,
+            price: Number(matchedTx.amount) || 0,
+            hasWarranty: false,
+          }],
+        };
+        generatePDF(pseudoOrder as any, 'invoice', settings);
+        return;
+      }
+
+      toast.error('Invoice details not found');
     } catch (e) {
       console.error('Failed to view invoice:', e);
       toast.error('Failed to view invoice');
@@ -84,40 +111,9 @@ export default function CustomerDueList() {
 
       setCustomers(custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer)));
 
-      const existingOrderIds = new Set(ordSnap.docs.map(d => d.id));
-      const existingDocNumbers = new Set(ordSnap.docs.map(d => d.data().documentNumber).filter(Boolean));
-
-      // Auto-detect and prune orphan transactions from previously deleted orders
-      const orphanTxRefs: any[] = [];
-      const validTxList: Transaction[] = [];
-
-      txSnap.docs.forEach(d => {
-        const t = { id: d.id, ...d.data() } as Transaction;
-        
-        // Sale transaction without an active order
-        const isOrphanSale = t.type === 'sale' && (
-          (t.referenceId && !existingOrderIds.has(t.referenceId) && (!t.documentNumber || !existingDocNumbers.has(t.documentNumber))) ||
-          (!t.referenceId && t.documentNumber && !existingDocNumbers.has(t.documentNumber))
-        );
-
-        // Payment specifically linked to an order that no longer exists
-        const isOrphanOrderPayment = t.type === 'payment_received' && 
-          t.referenceId && !t.referenceId.startsWith('REC-') && 
-          !existingOrderIds.has(t.referenceId) && 
-          (!t.documentNumber || !existingDocNumbers.has(t.documentNumber));
-
-        if (isOrphanSale || isOrphanOrderPayment) {
-          orphanTxRefs.push(d.ref);
-        } else {
-          validTxList.push(t);
-        }
-      });
-
-      if (orphanTxRefs.length > 0) {
-        Promise.all(orphanTxRefs.map(ref => deleteDoc(ref))).catch(e => console.error('Error cleaning orphan transactions:', e));
-      }
-
-      setTransactions(validTxList);
+      // Set all transactions safely without deleting anything
+      const allTxList: Transaction[] = txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+      setTransactions(allTxList);
       
       const allAccs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(allAccs);

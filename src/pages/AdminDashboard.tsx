@@ -1207,9 +1207,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Real-time synchronization for orders collection so newly placed POS / Sales / Invoices appear immediately without manual page reload
   useEffect(() => {
-    const qOrders = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(1000));
+    const qOrders = query(collection(db, "orders"), limit(2000));
     const unsub = onSnapshot(qOrders, (snapshot) => {
-      const liveOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Order[];
+      const liveOrders = (snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Order[]).sort((a, b) => {
+        const timeA = new Date(a.createdAt || (a as any).date || 0).getTime();
+        const timeB = new Date(b.createdAt || (b as any).date || 0).getTime();
+        return timeB - timeA;
+      });
       setOrders(liveOrders);
     }, (error) => {
       console.warn("Real-time orders sync warning:", error);
@@ -1324,8 +1328,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         safeGetDocs(
           query(
             collection(db, "orders"),
-            orderBy("createdAt", "desc"),
-            limit(1000),
+            limit(2000),
           ),
         ),
         safeGetDocs(
@@ -1467,10 +1470,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         })) as Product[],
       );
       setOrders(
-        ordersSnap.docs.map((doc) => ({
+        (ordersSnap.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-        })) as Order[],
+        })) as Order[]).sort((a, b) => {
+          const timeA = new Date(a.createdAt || (a as any).date || 0).getTime();
+          const timeB = new Date(b.createdAt || (b as any).date || 0).getTime();
+          return timeB - timeA;
+        }),
       );
       setCustomers(
         customersSnap.docs.map((doc) => ({
@@ -2817,17 +2824,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const filteredOrders = orders.filter((order) => {
     const matchesStatus =
       orderStatusFilter === "all" || order.status === orderStatusFilter;
+    const q = (orderSearchQuery || "").toLowerCase();
     const matchesSearch =
-      order.id.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
-      order.customerName
-        .toLowerCase()
-        .includes(orderSearchQuery.toLowerCase()) ||
-      order.customerPhone
-        .toLowerCase()
-        .includes(orderSearchQuery.toLowerCase());
-    const orderDate = order.createdAt.split("T")[0];
-    const matchesStartDate = !orderStartDate || orderDate >= orderStartDate;
-    const matchesEndDate = !orderEndDate || orderDate <= orderEndDate;
+      (order.id || "").toLowerCase().includes(q) ||
+      (order.documentNumber || "").toLowerCase().includes(q) ||
+      (order.customerName || "").toLowerCase().includes(q) ||
+      (order.customerPhone || "").toLowerCase().includes(q);
+    const rawDate = order.createdAt || (order as any).date || "";
+    const orderDate = rawDate ? String(rawDate).split("T")[0] : "";
+    const matchesStartDate = !orderStartDate || (orderDate ? orderDate >= orderStartDate : true);
+    const matchesEndDate = !orderEndDate || (orderDate ? orderDate <= orderEndDate : true);
     return matchesStatus && matchesSearch && matchesStartDate && matchesEndDate;
   });
 
@@ -4261,7 +4267,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
             {hasPermission("sales") && (
               <button
-                onClick={() => setActiveTab("sales")}
+                onClick={() => {
+                  setEditingOrderForSales(null);
+                  setActiveTab("sales");
+                }}
                 className={cn(
                   "w-full flex items-center rounded-md text-[13px] transition-colors",
                   isSidebarCollapsed

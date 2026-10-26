@@ -99,23 +99,33 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
       (order.customerEmail || '').toLowerCase().includes(q) ||
       (order.createdBy || '').toLowerCase().includes(q) ||
       (order.preparedBy || '').toLowerCase().includes(q) ||
+      (order.company || '').toLowerCase().includes(q) ||
+      (order.branchName || '').toLowerCase().includes(q) ||
+      (order.projectName || '').toLowerCase().includes(q) ||
+      (order.workOrderNumber || '').toLowerCase().includes(q) ||
+      (order.shippingAddress || '').toLowerCase().includes(q) ||
+      (order.notes || '').toLowerCase().includes(q) ||
       (order.items && Array.isArray(order.items) && order.items.some((item: any) =>
         (item.name || '').toLowerCase().includes(q) ||
         (item.productName || '').toLowerCase().includes(q) ||
         (item.sku || '').toLowerCase().includes(q) ||
+        (item.brand || '').toLowerCase().includes(q) ||
         (item.selectedSerials && item.selectedSerials.some((s: string) => s.toLowerCase().includes(q)))
       ));
 
-    const orderDate = order.createdAt ? order.createdAt.split('T')[0] : '';
-    const matchesStartDate = !orderStartDate || orderDate >= orderStartDate;
-    const matchesEndDate = !orderEndDate || orderDate <= orderEndDate;
+    const rawDate = order.createdAt || order.date || order.updatedAt || '';
+    const orderDate = rawDate ? String(rawDate).split('T')[0] : '';
+    const matchesStartDate = !orderStartDate || (orderDate ? orderDate >= orderStartDate : true);
+    const matchesEndDate = !orderEndDate || (orderDate ? orderDate <= orderEndDate : true);
     const matchesCompany = orderCompanyFilter === 'all'
       ? true
-      : (orderCompanyFilter === 'main' ? (!order.company || order.company === 'main') : order.company === orderCompanyFilter);
+      : (orderCompanyFilter === 'main'
+          ? (!order.company || order.company === 'main' || String(order.company).toLowerCase().includes('click2it'))
+          : String(order.company || '').toLowerCase() === orderCompanyFilter.toLowerCase());
     return matchesCategory && matchesStatus && matchesSearch && matchesStartDate && matchesEndDate && matchesCompany;
   }).sort((a, b) => {
-      const timeA = new Date(a.createdAt || 0).getTime();
-      const timeB = new Date(b.createdAt || 0).getTime();
+      const timeA = new Date(a.createdAt || a.date || 0).getTime();
+      const timeB = new Date(b.createdAt || b.date || 0).getTime();
 
       if (orderSort === 'date_desc') {
         if (timeB !== timeA) return timeB - timeA;

@@ -1121,7 +1121,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         console.error('Failed to auto-print PDF', err);
       }
 
-      // Reset form
+      // Reset form & exit editing mode so subsequent sales never overwrite this order
       setSaleData({
         customerId: '',
         customerName: '',
@@ -1129,6 +1129,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         customerPhone: '',
         customerEmail: '',
         shippingAddress: '',
+        branchName: '',
+        projectName: '',
         items: [],
         type: 'invoice',
         paymentMethod: '',
@@ -1141,7 +1143,13 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         notes: '',
       });
       setSaleDiscountCodeInput('');
-      localStorage.removeItem('sales_form_draft');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('sales_form_draft');
+        sessionStorage.removeItem('adminEditingOrder');
+      }
+      if (editingOrder && onCancelEdit) {
+        onCancelEdit();
+      }
       await fetchData();
     } catch (error) {
       console.error('Error creating sale:', error);
@@ -1197,17 +1205,23 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   </span>
                 </h2>
                 {editingOrder ? (
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-                      Editing Mode
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                      Editing Existing Bill #{editingOrder.documentNumber || editingOrder.id} ({editingOrder.customerName || 'Customer'})
                     </span>
                     {onCancelEdit && (
                       <button
                         type="button"
-                        onClick={onCancelEdit}
-                        className="text-[11px] font-bold text-red-600 hover:text-red-700 underline"
+                        onClick={() => {
+                          if (typeof window !== 'undefined') {
+                            sessionStorage.removeItem('adminEditingOrder');
+                            localStorage.removeItem('sales_form_draft');
+                          }
+                          onCancelEdit();
+                        }}
+                        className="text-[11px] font-bold bg-red-100 text-red-700 hover:bg-red-200 px-2.5 py-0.5 rounded transition-all shadow-2xs active:scale-95"
                       >
-                        Cancel & Exit Edit
+                        Exit Edit & Create New Bill
                       </button>
                     )}
                   </div>

@@ -127,38 +127,9 @@ export default function VendorDueList() {
 
       setVendors(custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor)));
 
-      const existingPurchaseIds = new Set(purSnap.docs.map(d => d.id));
-      const existingPurchaseDocs = new Set(purSnap.docs.map(d => d.data().documentNumber).filter(Boolean));
-
-      // Auto-detect and prune orphan transactions from previously deleted purchases
-      const orphanTxRefs: any[] = [];
-      const validTxList: Transaction[] = [];
-
-      txSnap.docs.forEach(d => {
-        const t = { id: d.id, ...d.data() } as Transaction;
-        
-        const isOrphanPurchase = t.type === 'purchase' && (
-          (t.referenceId && !existingPurchaseIds.has(t.referenceId) && (!t.documentNumber || !existingPurchaseDocs.has(t.documentNumber))) ||
-          (!t.referenceId && t.documentNumber && !existingPurchaseDocs.has(t.documentNumber))
-        );
-
-        const isOrphanPurchasePayment = t.type === 'payment_made' && 
-          t.referenceId && !t.referenceId.startsWith('PAY-') && 
-          !existingPurchaseIds.has(t.referenceId) && 
-          (!t.documentNumber || !existingPurchaseDocs.has(t.documentNumber));
-
-        if (isOrphanPurchase || isOrphanPurchasePayment) {
-          orphanTxRefs.push(d.ref);
-        } else {
-          validTxList.push(t);
-        }
-      });
-
-      if (orphanTxRefs.length > 0) {
-        Promise.all(orphanTxRefs.map(ref => deleteDoc(ref))).catch(e => console.error('Error cleaning orphan purchase transactions:', e));
-      }
-
-      setTransactions(validTxList);
+      // Safely preserve all transactions without deleting anything
+      const allTxList: Transaction[] = txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+      setTransactions(allTxList);
       
       const allAccs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(allAccs);
