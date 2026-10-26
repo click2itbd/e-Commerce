@@ -522,7 +522,7 @@ export const RetailPOS = () => {
 
       setIsProcessing(true);
       const createdAt = new Date().toISOString();
-      const docNumber = await generateDocumentNumber("invoice");
+      const docNumber = await generateDocumentNumber("INV");
 
       const processedItems = cart.map((c) => {
         const itemName = c.selectedVariant
@@ -563,6 +563,7 @@ export const RetailPOS = () => {
         documentNumber: docNumber,
         type: "pos_sale",
         saleSource,
+        company: (selectedCustomer as any)?.company || 'main',
         customerId: selectedCustomer?.id || "general",
         customerName: selectedCustomer
           ? selectedCustomer.name
@@ -584,6 +585,7 @@ export const RetailPOS = () => {
         status: "delivered",
         userId: user?.uid || "admin",
         createdBy: user?.displayName || user?.email || "Admin",
+        preparedBy: user?.displayName || user?.email || "Admin",
         createdAt,
       };
 

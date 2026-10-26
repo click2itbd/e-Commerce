@@ -33,6 +33,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState<'online' | 'in_store' | 'all'>('online');
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [startDate, setStartDate] = useState('');
@@ -65,20 +66,31 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
     }
   };
 
-  
   const storeOrders = useMemo(() => {
     return orders.filter(o => {
-      const cat = getOrderCategory(o);
-      const isERP = o.saleSource === 'in_store' || o.type === 'quotation' || o.type === 'challan';
-      return (cat === 'ecommerce' || cat === 'pc_build') && !isERP;
+      const isERP = o.saleSource === 'in_store' || o.type === 'pos_sale' || o.type === 'invoice' || o.type === 'challan';
+      if (sourceFilter === 'online') {
+        const cat = getOrderCategory(o);
+        return (cat === 'ecommerce' || cat === 'pc_build') && !isERP;
+      }
+      if (sourceFilter === 'in_store') {
+        return isERP;
+      }
+      // 'all'
+      return o.type !== 'quotation';
     });
-  }, [orders]);
+  }, [orders, sourceFilter]);
 
   const filteredOrders = useMemo(() => {
-    return storeOrders.filter(order => {
-      const matchesSearch = (order.documentNumber || order.id).toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            (order.customerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            (order.customerPhone || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const list = storeOrders.filter(order => {
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = !q ||
+        (order.documentNumber || '').toLowerCase().includes(q) ||
+        (order.id || '').toLowerCase().includes(q) || 
+        (order.customerName || '').toLowerCase().includes(q) ||
+        (order.customerPhone || '').toLowerCase().includes(q) ||
+        (order.customerEmail || '').toLowerCase().includes(q) ||
+        (order.items && Array.isArray(order.items) && order.items.some((i: any) => (i.name || '').toLowerCase().includes(q)));
       const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
       const matchesCategory = categoryFilter === 'all' || getOrderCategory(order) === categoryFilter;
       
@@ -88,6 +100,8 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
 
       return matchesSearch && matchesStatus && matchesCategory && matchesFrom && matchesTo;
     });
+
+    return list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   }, [storeOrders, searchQuery, statusFilter, categoryFilter, startDate, endDate]);
 
   const allSelected = filteredOrders.length > 0 && filteredOrders.every(o => selectedIds.includes(o.id));
@@ -248,7 +262,40 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
         <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
           <Download size={16} /> Export CSV{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
         </button>
-        
+      </div>
+
+      {/* Source Selector Pills */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <button
+          onClick={() => setSourceFilter('online')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            sourceFilter === 'online'
+              ? 'bg-emerald-600 text-white shadow-md'
+              : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          Online Store Orders
+        </button>
+        <button
+          onClick={() => setSourceFilter('in_store')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            sourceFilter === 'in_store'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          In-Store & POS Sales
+        </button>
+        <button
+          onClick={() => setSourceFilter('all')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            sourceFilter === 'all'
+              ? 'bg-[#081621] text-white shadow-md'
+              : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          All Orders & Invoices
+        </button>
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 items-center">

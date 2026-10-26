@@ -13,6 +13,7 @@ import Papa from "papaparse";
 import {
   collection,
   getDoc, getDocs,
+  onSnapshot,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -1204,6 +1205,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
   }, [debouncedFetchData]);
 
+  // Real-time synchronization for orders collection so newly placed POS / Sales / Invoices appear immediately without manual page reload
+  useEffect(() => {
+    const qOrders = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(1000));
+    const unsub = onSnapshot(qOrders, (snapshot) => {
+      const liveOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Order[];
+      setOrders(liveOrders);
+    }, (error) => {
+      console.warn("Real-time orders sync warning:", error);
+    });
+
+    return () => unsub();
+  }, []);
+
   useEffect(() => {
     setSelectedProductIds([]);
     setSelectedOrderIds([]);
@@ -1311,7 +1325,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           query(
             collection(db, "orders"),
             orderBy("createdAt", "desc"),
-            limit(500),
+            limit(1000),
           ),
         ),
         safeGetDocs(

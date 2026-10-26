@@ -1109,8 +1109,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         notes: '',
       });
       setSaleDiscountCodeInput('');
-        localStorage.removeItem('sales_form_draft');
-      fetchData();
+      localStorage.removeItem('sales_form_draft');
+      await fetchData();
     } catch (error) {
       console.error('Error creating sale:', error);
       toast.error('Failed to record sale');

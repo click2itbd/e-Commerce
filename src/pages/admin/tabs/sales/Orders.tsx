@@ -9,23 +9,25 @@ import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import type { OrderStatus as AppOrderStatus } from '../../../../types';
 export type OrderStatus = string;
-export const DEFAULT_ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
-import { Phone, Mail, MapPin,  Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, RotateCcw, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X , ShieldCheck } from 'lucide-react';
+export const DEFAULT_ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'returned'];
+import { Phone, Mail, MapPin,  Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, RotateCcw, RotateCw, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X , ShieldCheck, Store } from 'lucide-react';
 import EditOrderModal from '../../modals/EditOrderModal';
 import { Edit2 } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
-export type OrderCategory = 'all' | 'ecommerce' | 'pc_build';
+export type OrderCategory = 'all' | 'in_store' | 'ecommerce' | 'pc_build' | 'domain_hosting';
 
 interface OrdersTabProps { orders: any[]; customers: any[]; orderSearchQuery: string; setOrderSearchQuery: (v: string) => void; orderStatusFilter: string; setOrderStatusFilter: (v: AppOrderStatus | 'all') => void; orderStartDate: string; setOrderStartDate: (v: string) => void; orderEndDate: string; setOrderEndDate: (v: string) => void; orderSort: any; setOrderSort: (v: any) => void; selectedOrderIds: string[]; setSelectedOrderIds: (v: string[]) => void; handleExportFilteredOrders: () => void; handleBulkUpdateOrderStatus: (s: string) => void; handleBulkExportOrders: () => void; handleBulkDeleteOrders: () => void; setSelectedLedgerEntity: (v: any) => void; setActiveTab: (v: string) => void; fetchData: () => Promise<void>; updateOrderDiscount?: (id: string, v: number) => void; updateOrderStatus?: (id: string, status: OrderStatus) => void; generatePDF?: (order: any, type: 'invoice' | 'challan' | 'quotation') => void; handleDeleteOrder?: (order: any) => void; handleReturnOrder?: (order: any) => void; handleEditInSales?: (order: any) => void; }
 
-export const getOrderCategory = (order: any): 'ecommerce' | 'pc_build' | 'domain' | 'hosting' => {
+export const getOrderCategory = (order: any): 'in_store' | 'ecommerce' | 'pc_build' | 'domain_hosting' => {
   if (
     order.type === 'domain' ||
+    order.platform === 'hosting' ||
+    order.isHostingOrder ||
     order.items?.some((i: any) => i.itemType === 'domain' || i.itemType === 'domain_renewal' || i.itemType === 'domain_transfer') ||
     order.domain
   ) {
-    return 'domain';
+    return 'domain_hosting';
   }
   if (
     order.type === 'hosting' ||
@@ -33,7 +35,7 @@ export const getOrderCategory = (order: any): 'ecommerce' | 'pc_build' | 'domain
     order.hostingServiceId ||
     order.packageId
   ) {
-    return 'hosting';
+    return 'domain_hosting';
   }
   if (
     order.type === 'pc_build' ||
@@ -42,6 +44,9 @@ export const getOrderCategory = (order: any): 'ecommerce' | 'pc_build' | 'domain
     order.items?.some((i: any) => i.isPCBuild || i.category === 'pc_builder' || i.category === 'pc_build')
   ) {
     return 'pc_build';
+  }
+  if (order.saleSource === 'in_store' || order.type === 'pos_sale' || order.type === 'invoice' || order.type === 'challan') {
+    return 'in_store';
   }
   return 'ecommerce';
 };
@@ -69,24 +74,38 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
 
   const actualOrders = orders.filter(o => {
     if (o.type === 'quotation') return false;
-    const cat = getOrderCategory(o);
-    if (cat === 'domain' || cat === 'hosting') return false;
     return true;
   });
   
   const categoryCounts = {
     all: actualOrders.length,
+    in_store: actualOrders.filter(o => getOrderCategory(o) === 'in_store').length,
     ecommerce: actualOrders.filter(o => getOrderCategory(o) === 'ecommerce').length,
     pc_build: actualOrders.filter(o => getOrderCategory(o) === 'pc_build').length,
+    domain_hosting: actualOrders.filter(o => getOrderCategory(o) === 'domain_hosting').length,
   };
 
   const processedOrders = actualOrders.filter(order => {
     const matchesCategory = orderCategoryFilter === 'all' || getOrderCategory(order) === orderCategoryFilter;
     const matchesStatus = orderStatusFilter === 'all' || order.status === orderStatusFilter;
-    const matchesSearch = (order.documentNumber || order.id || '').toLowerCase().includes(orderSearchQuery.toLowerCase()) || 
-                          (order.customerName || '').toLowerCase().includes(orderSearchQuery.toLowerCase()) || 
-                          (order.customerPhone || '').toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
-                          (order.customerEmail || '').toLowerCase().includes(orderSearchQuery.toLowerCase());
+    
+    const q = orderSearchQuery.toLowerCase().trim();
+    const matchesSearch = !q ||
+      (order.documentNumber || '').toLowerCase().includes(q) ||
+      (order.invoiceNumber || '').toLowerCase().includes(q) ||
+      (order.id || '').toLowerCase().includes(q) ||
+      (order.customerName || '').toLowerCase().includes(q) ||
+      (order.customerPhone || '').toLowerCase().includes(q) ||
+      (order.customerEmail || '').toLowerCase().includes(q) ||
+      (order.createdBy || '').toLowerCase().includes(q) ||
+      (order.preparedBy || '').toLowerCase().includes(q) ||
+      (order.items && Array.isArray(order.items) && order.items.some((item: any) =>
+        (item.name || '').toLowerCase().includes(q) ||
+        (item.productName || '').toLowerCase().includes(q) ||
+        (item.sku || '').toLowerCase().includes(q) ||
+        (item.selectedSerials && item.selectedSerials.some((s: string) => s.toLowerCase().includes(q)))
+      ));
+
     const orderDate = order.createdAt ? order.createdAt.split('T')[0] : '';
     const matchesStartDate = !orderStartDate || orderDate >= orderStartDate;
     const matchesEndDate = !orderEndDate || orderDate <= orderEndDate;
@@ -95,17 +114,20 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
       : (orderCompanyFilter === 'main' ? (!order.company || order.company === 'main') : order.company === orderCompanyFilter);
     return matchesCategory && matchesStatus && matchesSearch && matchesStartDate && matchesEndDate && matchesCompany;
   }).sort((a, b) => {
-      const getNum = (obj) => {
-        const str = obj.documentNumber || obj.id || '';
-        const match = str.match(/\d+/);
-        return match ? parseInt(match[0], 10) : 0;
-      };
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
 
       if (orderSort === 'date_desc') {
-        return getNum(b) - getNum(a);
+        if (timeB !== timeA) return timeB - timeA;
+        const numA = parseInt((a.documentNumber || a.id || '').match(/\d+/)?.[0] || '0', 10);
+        const numB = parseInt((b.documentNumber || b.id || '').match(/\d+/)?.[0] || '0', 10);
+        return numB - numA;
       }
       if (orderSort === 'date_asc') {
-        return getNum(a) - getNum(b);
+        if (timeA !== timeB) return timeA - timeB;
+        const numA = parseInt((a.documentNumber || a.id || '').match(/\d+/)?.[0] || '0', 10);
+        const numB = parseInt((b.documentNumber || b.id || '').match(/\d+/)?.[0] || '0', 10);
+        return numA - numB;
       }
       if (orderSort === 'total_desc') return (b.total || 0) - (a.total || 0);
       if (orderSort === 'total_asc') return (a.total || 0) - (b.total || 0);
@@ -140,9 +162,24 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             )}
           >
-            <Layers size={14} /> All Orders
+            <Layers size={14} /> All Orders & Docs
             <span className={cn("px-1.5 py-0.5 rounded-full text-[10px]", orderCategoryFilter === 'all' ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700")}>
               {categoryCounts.all}
+            </span>
+          </button>
+
+          <button
+            onClick={() => { setOrderCategoryFilter('in_store'); setCurrentPage(1); }}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0",
+              orderCategoryFilter === 'in_store'
+                ? "bg-blue-600 text-white shadow-md"
+                : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+            )}
+          >
+            <Store size={14} /> In-Store & POS
+            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px]", orderCategoryFilter === 'in_store' ? "bg-white/20 text-white" : "bg-blue-200 text-blue-800")}>
+              {categoryCounts.in_store}
             </span>
           </button>
 
@@ -175,6 +212,21 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
               {categoryCounts.pc_build}
             </span>
           </button>
+
+          <button
+            onClick={() => { setOrderCategoryFilter('domain_hosting'); setCurrentPage(1); }}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0",
+              orderCategoryFilter === 'domain_hosting'
+                ? "bg-sky-600 text-white shadow-md"
+                : "bg-sky-50 text-sky-700 hover:bg-sky-100"
+            )}
+          >
+            <Server size={14} /> Domain & Hosting
+            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px]", orderCategoryFilter === 'domain_hosting' ? "bg-white/20 text-white" : "bg-sky-200 text-sky-800")}>
+              {categoryCounts.domain_hosting}
+            </span>
+          </button>
         </div>
       </div>
 
@@ -184,7 +236,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
           <input
             type="text"
-            placeholder="Search by Order ID, Name, Phone or Email..."
+            placeholder="Search by Order ID, Invoice #, Name, Phone, Item, or Staff..."
             value={orderSearchQuery}
             onChange={(e) => { setOrderSearchQuery(e.target.value); setCurrentPage(1); }}
             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-[#EF4444] focus:border-[#EF4444]"
@@ -254,6 +306,17 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
             className="bg-[#081621] text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-[#EF4444] transition-all font-bold text-sm shadow-sm"
           >
             <Download size={16} /> Export
+          </button>
+          <button
+            onClick={async () => {
+              toast.loading('Refreshing orders...', { id: 'ref-orders' });
+              await fetchData();
+              toast.success('Orders refreshed', { id: 'ref-orders' });
+            }}
+            className="p-2 border border-gray-200 hover:bg-gray-100 text-gray-600 rounded-lg transition-all shadow-sm"
+            title="Refresh Orders"
+          >
+            <RotateCw size={16} />
           </button>
         </div>
       </div>
