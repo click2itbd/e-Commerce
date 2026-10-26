@@ -67,15 +67,17 @@ export const RetailPOS = () => {
   const [taxPercent, setTaxPercent] = useState<number>(0);
 
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [customerFormData, setCustomerFormData] = useState({
     name: "",
     phone: "",
     email: "",
     address: "",
+    branchName: "",
   });
 
   const [heldCarts, setHeldCarts] = useState<
-    { id: string; time: string; cart: any[]; customer: any }[]
+    { id: string; time: string; cart: any[]; customer: any; branch?: string }[]
   >([]);
   const [showHeldCarts, setShowHeldCarts] = useState(false);
 
@@ -328,19 +330,26 @@ export const RetailPOS = () => {
   const handleQuickAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const branchVal = customerFormData.branchName?.trim() || "";
+      const branchesArr = branchVal ? [branchVal] : [];
       const docRef = await addDoc(collection(db, "customers"), {
         ...customerFormData,
+        branchName: branchVal,
+        branches: branchesArr,
         createdAt: new Date().toISOString(),
       });
       const newC = {
         id: docRef.id,
         ...customerFormData,
+        branchName: branchVal,
+        branches: branchesArr,
         createdAt: new Date().toISOString(),
       } as Customer;
       setCustomers([newC, ...customers]);
       setSelectedCustomer(newC);
+      setSelectedBranch(branchVal);
       setIsAddingCustomer(false);
-      setCustomerFormData({ name: "", phone: "", email: "", address: "" });
+      setCustomerFormData({ name: "", phone: "", email: "", address: "", branchName: "" });
       toast.success("Customer added seamlessly!");
     } catch (err) {
       toast.error("Failed to add customer");
@@ -354,12 +363,14 @@ export const RetailPOS = () => {
       time: new Date().toLocaleTimeString(),
       cart,
       customer: selectedCustomer,
+      branch: selectedBranch,
     };
     const updated = [newHold, ...heldCarts];
     setHeldCarts(updated);
     localStorage.setItem("pos_held_carts", JSON.stringify(updated));
     setCart([]);
     setSelectedCustomer(null);
+    setSelectedBranch('');
     toast.success("Cart held!");
   };
 
@@ -369,6 +380,7 @@ export const RetailPOS = () => {
       if (cart.length > 0) holdCurrentCart();
       setCart(toRestore.cart);
       setSelectedCustomer(toRestore.customer);
+      setSelectedBranch(toRestore.branch || toRestore.customer?.branchName || '');
       const updated = heldCarts.filter((h) => h.id !== id);
       setHeldCarts(updated);
       localStorage.setItem("pos_held_carts", JSON.stringify(updated));
@@ -571,6 +583,8 @@ export const RetailPOS = () => {
         customerPhone: selectedCustomer?.phone || "",
         customerEmail: selectedCustomer?.email || "",
         customerAddress: selectedCustomer?.address || "",
+        branchName: selectedBranch || selectedCustomer?.branchName || '',
+        projectName: selectedBranch || selectedCustomer?.branchName || '',
         items: processedItems,
         subtotal,
         discountAmount: calculatedDiscount,
@@ -673,6 +687,10 @@ export const RetailPOS = () => {
           paymentMethod: "",
           paymentAccountId: "",
           referenceId: orderRefId,
+          documentNumber: docNumber,
+          branchName: selectedBranch || selectedCustomer?.branchName || '',
+          projectName: selectedBranch || selectedCustomer?.branchName || '',
+          company: (selectedCustomer as any)?.company || 'main',
           createdAt,
         });
       } catch (e) {
@@ -698,6 +716,10 @@ export const RetailPOS = () => {
             paymentAccountId: paymentAcc.id,
             paymentAccountName: paymentAcc.name,
             referenceId: orderRefId,
+            documentNumber: docNumber,
+            branchName: selectedBranch || selectedCustomer?.branchName || '',
+            projectName: selectedBranch || selectedCustomer?.branchName || '',
+            company: (selectedCustomer as any)?.company || 'main',
             createdAt,
           });
         } catch (e) {
@@ -745,6 +767,7 @@ export const RetailPOS = () => {
 
       setCart([]);
       setSelectedCustomer(null);
+      setSelectedBranch('');
       setIsPaymentView(false);
       setIsRedeemingPoints(false);
       setReceivedAmount("");
@@ -1062,6 +1085,8 @@ export const RetailPOS = () => {
           setSelectedCustomer={setSelectedCustomer}
           customers={customers}
           setIsAddingCustomer={setIsAddingCustomer}
+          selectedBranch={selectedBranch}
+          setSelectedBranch={setSelectedBranch}
         />
       </div>
 

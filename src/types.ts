@@ -204,6 +204,8 @@ export interface Customer {
   address: string;
   loyaltyPoints?: number;
   company?: BusinessUnitCompany | string;
+  branchName?: string;
+  branches?: string[];
   createdAt: string;
 }
 
@@ -215,6 +217,7 @@ export interface Order {
   saleSource?: 'in_store' | 'online';
   company?: BusinessUnitCompany | string;
   projectName?: string;
+  branchName?: string;
   id: string;
   userId: string;
   items: CartItem[];

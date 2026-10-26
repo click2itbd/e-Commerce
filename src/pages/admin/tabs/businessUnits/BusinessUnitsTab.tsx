@@ -541,13 +541,13 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-[11px] font-black uppercase tracking-wider mb-3">
-              <Building2 size={13} className="text-indigo-400" /> Multi-Company & Project Hub
+              <Building2 size={13} className="text-indigo-400" /> Corporate Clients & Projects Hub
             </div>
             <h1 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3">
-              Sister Concerns & Business Units
+              Corporate Clients & Projects
             </h1>
             <p className="text-xs md:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              Real-time monitoring and management of orders, revenues, and client directories across 
+              Real-time monitoring and management of orders, revenues, and project ledgers across corporate clients: 
               {companies.filter(c => c.id !== 'main').map((c, idx, arr) => {
                 const theme = getCompanyTheme(c.color);
                 return (

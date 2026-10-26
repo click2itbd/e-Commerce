@@ -4368,7 +4368,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 }
               />{" "}
               {!isSidebarCollapsed && (
-                <span className="truncate">Sister Concerns</span>
+                <span className="truncate">Corporate Clients</span>
               )}
             </button>
 

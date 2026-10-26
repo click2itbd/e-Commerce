@@ -15,6 +15,8 @@ interface POSCartAreaProps {
   setSelectedCustomer: (c: Customer | null) => void;
   customers: Customer[];
   setIsAddingCustomer: (v: boolean) => void;
+  selectedBranch?: string;
+  setSelectedBranch?: (b: string) => void;
 }
 
 export const POSCartArea: React.FC<POSCartAreaProps> = ({
@@ -28,10 +30,35 @@ export const POSCartArea: React.FC<POSCartAreaProps> = ({
   selectedCustomer,
   setSelectedCustomer,
   customers,
-  setIsAddingCustomer
+  setIsAddingCustomer,
+  selectedBranch,
+  setSelectedBranch
 }) => {
   const [customerSearch, setCustomerSearch] = React.useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = React.useState(false);
+
+  const availableBranches = React.useMemo(() => {
+    if (!selectedCustomer) return [];
+    const set = new Set<string>();
+    if (selectedCustomer.branchName) set.add(selectedCustomer.branchName);
+    (selectedCustomer.branches || []).forEach(b => b && set.add(b));
+    
+    // Also check other customers that share the same corporate company
+    const custComp = (selectedCustomer as any).company;
+    if (custComp && custComp !== 'main') {
+      customers.forEach(otherC => {
+        if ((otherC as any).company === custComp) {
+          if (otherC.branchName) set.add(otherC.branchName);
+          (otherC.branches || []).forEach(b => b && set.add(b));
+          if (otherC.name.toLowerCase().startsWith(custComp.toLowerCase())) {
+            const stripped = otherC.name.slice(custComp.length).trim();
+            if (stripped) set.add(stripped);
+          }
+        }
+      });
+    }
+    return Array.from(set).filter(Boolean);
+  }, [selectedCustomer, customers]);
 
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(customerSearch.toLowerCase()) || 
@@ -62,6 +89,7 @@ export const POSCartArea: React.FC<POSCartAreaProps> = ({
                 <div 
                   onClick={() => {
                     setSelectedCustomer(null);
+                    setSelectedBranch?.('');
                     setCustomerSearch('');
                     setIsCustomerDropdownOpen(false);
                   }}
@@ -74,6 +102,7 @@ export const POSCartArea: React.FC<POSCartAreaProps> = ({
                     key={c.id} 
                     onClick={() => {
                       setSelectedCustomer(c);
+                      setSelectedBranch?.(c.branchName || (c.branches && c.branches[0]) || '');
                       setCustomerSearch('');
                       setIsCustomerDropdownOpen(false);
                     }}
@@ -96,15 +125,39 @@ export const POSCartArea: React.FC<POSCartAreaProps> = ({
         )}
         
         {selectedCustomer ? (
-          <div className="flex-1 px-4 py-2.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-sm font-bold flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span>{selectedCustomer.name} <span className="text-slate-500 font-medium">({selectedCustomer.phone})</span></span>
-              <span className="bg-indigo-100 text-indigo-700 px-2.5 py-0.5 rounded-md text-[11px] uppercase tracking-wider ml-1 border border-indigo-200">
-                {selectedCustomer.loyaltyPoints || 0} PTS
-              </span>
+          <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-2 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-sm font-bold shadow-sm">
+            <div className="flex items-center gap-2 flex-wrap flex-1">
+              <span>{selectedCustomer.name} <span className="text-slate-500 font-medium">({selectedCustomer.phone || 'No phone'})</span></span>
+              {selectedCustomer.loyaltyPoints && selectedCustomer.loyaltyPoints > 0 ? (
+                <span className="bg-indigo-100 text-indigo-700 px-2.5 py-0.5 rounded-md text-[11px] uppercase tracking-wider ml-1 border border-indigo-200">
+                  {selectedCustomer.loyaltyPoints} PTS
+                </span>
+              ) : null}
             </div>
+
+            {/* Branch / Project Selector */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[11px] text-slate-500 font-semibold uppercase whitespace-nowrap">Branch/Project:</span>
+              <select
+                value={selectedBranch || ''}
+                onChange={e => setSelectedBranch?.(e.target.value)}
+                className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 shadow-2xs"
+              >
+                <option value="">-- Main / None --</option>
+                {availableBranches.map((br, i) => (
+                  <option key={i} value={br}>{br}</option>
+                ))}
+                {selectedBranch && !availableBranches.includes(selectedBranch) && (
+                  <option value={selectedBranch}>{selectedBranch}</option>
+                )}
+              </select>
+            </div>
+
             <button 
-              onClick={() => setSelectedCustomer(null)}
+              onClick={() => {
+                setSelectedCustomer(null);
+                setSelectedBranch?.('');
+              }}
               className="text-slate-400 hover:text-red-600 ml-2 hover:bg-red-50 p-1.5 rounded-md transition-colors"
               title="Remove Customer"
             >

@@ -43,6 +43,7 @@ export default function CustomerDueList() {
   const [obDate, setObDate] = useState('2026-01-01');
   const [obDescription, setObDescription] = useState('Previous outstanding balance');
   const [obSubmitting, setObSubmitting] = useState(false);
+  const [ledgerBranchFilter, setLedgerBranchFilter] = useState<string>('all');
 
   const { settings } = useSettings();
 
@@ -615,7 +616,10 @@ export default function CustomerDueList() {
                           </button>
                         )}
                         <button
-                          onClick={() => setHistoryCustomer({ id: customer.id, name: customer.name })}
+                          onClick={() => {
+                            setHistoryCustomer({ id: customer.id, name: customer.name });
+                            setLedgerBranchFilter('all');
+                          }}
                           className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm"
                         >
                           History
@@ -726,13 +730,66 @@ export default function CustomerDueList() {
       )}
 
       {historyCustomer && (() => {
+        const targetCustomer = customers.find(c => c.id === historyCustomer.id);
+        const targetCompany = (targetCustomer as any)?.company;
+        const isCorporate = targetCompany && targetCompany !== 'main';
+
+        // Gather related customer IDs if corporate
+        const relatedCustomerIds = new Set<string>([historyCustomer.id]);
+        if (isCorporate) {
+          customers.forEach(c => {
+            if ((c as any)?.company === targetCompany) {
+              relatedCustomerIds.add(c.id);
+            }
+          });
+        }
+
+        // Available branches for this customer / corporate entity
+        const availableBranches = new Set<string>();
+        if (targetCustomer?.branchName) availableBranches.add(targetCustomer.branchName);
+        (targetCustomer?.branches || []).forEach(b => b && availableBranches.add(b));
+
+        if (isCorporate) {
+          customers.forEach(c => {
+            if ((c as any)?.company === targetCompany) {
+              if (c.branchName) availableBranches.add(c.branchName);
+              (c.branches || []).forEach(b => b && availableBranches.add(b));
+              if (c.name.toLowerCase().startsWith(targetCompany.toLowerCase())) {
+                const stripped = c.name.slice(targetCompany.length).trim();
+                if (stripped) availableBranches.add(stripped);
+              }
+            }
+          });
+        }
+
+        // Also scan transactions for any branchName or projectName
+        transactions.forEach(t => {
+          if (relatedCustomerIds.has(t.entityId) || (isCorporate && (t as any).company === targetCompany)) {
+            const br = (t as any).branchName || (t as any).projectName;
+            if (br) availableBranches.add(br);
+          }
+        });
+
+        const branchOptions = Array.from(availableBranches).filter(Boolean);
+
         // Reverse so oldest is first for running balance calculation
         let runningBalance = 0;
         let totalDebit = 0;
         let totalCredit = 0;
         
         const allEntityTx = [...transactions]
-          .filter(t => t.entityId === historyCustomer.id)
+          .filter(t => {
+            const matchesEntity = relatedCustomerIds.has(t.entityId) || (isCorporate && (t as any).company === targetCompany);
+            if (!matchesEntity) return false;
+
+            if (ledgerBranchFilter !== 'all') {
+              const txBranch = (t as any).branchName || (t as any).projectName || '';
+              const matchesBranchName = txBranch === ledgerBranchFilter || (t.entityName && t.entityName.includes(ledgerBranchFilter));
+              if (!matchesBranchName) return false;
+            }
+
+            return true;
+          })
           .reverse()
           .map(t => {
             const isDebit = t.type === 'sale' || t.type === 'opening_balance';
@@ -779,8 +836,19 @@ export default function CustomerDueList() {
               {/* ── Modal Header ── */}
               <div className="bg-[#081621] text-white px-6 py-4 flex items-center justify-between flex-shrink-0">
                 <div>
-                  <h2 className="text-xl font-black tracking-tight">{historyCustomer.name}</h2>
-                  <span className="inline-block mt-1 text-[11px] font-semibold bg-white/10 text-blue-200 px-2.5 py-0.5 rounded-full tracking-wide">Customer Account</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-xl font-black tracking-tight">{historyCustomer.name}</h2>
+                    {isCorporate && (
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
+                        Corporate Client ({targetCompany})
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[11px] font-semibold bg-white/10 text-slate-300 px-2.5 py-0.5 rounded-full tracking-wide">
+                      {ledgerBranchFilter !== 'all' ? `Project: ${ledgerBranchFilter}` : (isCorporate ? 'Company Total Ledger' : 'Customer Account')}
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={() => setHistoryCustomer(null)}
@@ -792,7 +860,7 @@ export default function CustomerDueList() {
 
               {/* ── Filter + Action Bar ── */}
               <div className="bg-gray-50 border-b border-gray-200 px-6 py-3 flex flex-wrap items-center gap-4 flex-shrink-0">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
                   <div className="flex flex-col">
                     <label className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">From Date</label>
                     <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
@@ -802,9 +870,24 @@ export default function CustomerDueList() {
                     <label className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">To Date</label>
                     <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
                   </div>
-                  {(fromDate || toDate) && (
+                  {branchOptions.length > 0 && (
+                    <div className="flex flex-col ml-0 sm:ml-2">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Filter Branch / Project</label>
+                      <select
+                        value={ledgerBranchFilter}
+                        onChange={e => setLedgerBranchFilter(e.target.value)}
+                        className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+                      >
+                        <option value="all">All Branches / Projects (Entire Company)</option>
+                        {branchOptions.map((br, bi) => (
+                          <option key={bi} value={br}>{br}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {(fromDate || toDate || ledgerBranchFilter !== 'all') && (
                     <button
-                      onClick={() => { setFromDate(''); setToDate(''); }}
+                      onClick={() => { setFromDate(''); setToDate(''); setLedgerBranchFilter('all'); }}
                       className="mt-4 text-xs text-gray-400 hover:text-red-500 transition-colors"
                       title="Clear filters"
                     >
@@ -939,6 +1022,17 @@ export default function CustomerDueList() {
                                 #{t.documentNumber}
                               </span>
                             )}
+                            {(() => {
+                              const br = (t as any).branchName || (t as any).projectName;
+                              if (br) {
+                                return (
+                                  <span className="ml-2 text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200 font-semibold">
+                                    📁 {br}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </td>
                           <td className="px-5 py-3 text-right font-mono font-semibold text-red-600 text-sm">
                             {t.isDebit ? formatCurrency(t.amt, settings) : <span className="text-gray-300">—</span>}

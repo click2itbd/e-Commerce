@@ -10,7 +10,7 @@ interface POSModalsProps {
   toggleSerialSelection: (serial: string) => void;
   isAddingCustomer: boolean;
   setIsAddingCustomer: (v: boolean) => void;
-  customerFormData: {name: string, phone: string, email: string, address: string};
+  customerFormData: {name: string, phone: string, email: string, address: string, branchName?: string};
   setCustomerFormData: (v: any) => void;
   handleQuickAddCustomer: (e: React.FormEvent) => void;
 }
@@ -99,8 +99,12 @@ export const POSModals: React.FC<POSModalsProps> = ({
             <h2 className="text-xl font-black text-gray-900 mb-4 pb-4 border-b border-gray-100">Quick Add Customer</h2>
             <form onSubmit={handleQuickAddCustomer} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Name *</label>
-                <input required type="text" className="w-full rounded-lg border-gray-300 text-sm" value={customerFormData.name} onChange={e => setCustomerFormData({...customerFormData, name: e.target.value})} />
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Customer / Company Name *</label>
+                <input required type="text" placeholder="e.g. Volumezero or Md. Rahim" className="w-full rounded-lg border-gray-300 text-sm font-semibold" value={customerFormData.name} onChange={e => setCustomerFormData({...customerFormData, name: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Branch / Project (Optional)</label>
+                <input type="text" placeholder="e.g. Treelogy Two (leave empty for retail)" className="w-full rounded-lg border-gray-300 text-sm" value={customerFormData.branchName || ''} onChange={e => setCustomerFormData({...customerFormData, branchName: e.target.value})} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone</label>

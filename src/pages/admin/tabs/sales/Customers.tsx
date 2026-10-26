@@ -48,6 +48,8 @@ const Customers: React.FC<CustomersProps> = ({
     email: '',
     address: '',
     company: 'main',
+    branchName: '',
+    branchesText: '',
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -140,12 +142,19 @@ const Customers: React.FC<CustomersProps> = ({
 
     try {
       setSubmitting(true);
+      const parsedBranches = customerFormData.branchesText
+        ? customerFormData.branchesText.split(',').map(b => b.trim()).filter(Boolean)
+        : (customerFormData.branchName ? [customerFormData.branchName.trim()] : []);
+      const primaryBranch = customerFormData.branchName?.trim() || parsedBranches[0] || '';
+
       const customerData = {
         name: customerFormData.name.trim(),
         phone: customerFormData.phone.trim(),
         email: customerFormData.email.trim(),
         address: customerFormData.address.trim(),
         company: customerFormData.company || 'main',
+        branchName: primaryBranch,
+        branches: parsedBranches,
         updatedAt: new Date().toISOString(),
       };
 
@@ -162,7 +171,7 @@ const Customers: React.FC<CustomersProps> = ({
 
       setIsAddingCustomer(false);
       setEditingCustomer(null);
-      setCustomerFormData({ name: '', phone: '', email: '', address: '', company: 'main' });
+      setCustomerFormData({ name: '', phone: '', email: '', address: '', company: 'main', branchName: '', branchesText: '' });
       fetchCustomers();
       if (fetchData) fetchData();
     } catch (error) {
@@ -236,7 +245,7 @@ const Customers: React.FC<CustomersProps> = ({
               <button
                 onClick={() => {
                   setEditingCustomer(null);
-                  setCustomerFormData({ name: '', phone: '', email: '', address: '', company: 'main' });
+                  setCustomerFormData({ name: '', phone: '', email: '', address: '', company: 'main', branchName: '', branchesText: '' });
                   setIsAddingCustomer(true);
                 }}
                 className="w-full md:w-auto bg-emerald-500 text-white px-5 py-3 rounded-xl hover:bg-emerald-400 transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
@@ -311,16 +320,35 @@ const Customers: React.FC<CustomersProps> = ({
             <form onSubmit={handleSaveCustomer} className="p-6 space-y-5 overflow-y-auto flex-1">
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                  Customer Name <span className="text-red-500">*</span>
+                  Customer / Company Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Tanvir Hasan"
+                  placeholder="e.g. Volumezero, Simpletree, or Md. Rahim"
                   value={customerFormData.name}
                   onChange={e => setCustomerFormData({ ...customerFormData, name: e.target.value })}
                   className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none transition-all"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                  <span>Branch / Project Name (Optional)</span>
+                  <span className="text-[9px] text-slate-400 font-normal">Multiple branches separated by commas</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="e.g. Treelogy Two, Silver Spring (leave empty for retail)"
+                    value={customerFormData.branchesText}
+                    onChange={e => setCustomerFormData({ ...customerFormData, branchesText: e.target.value, branchName: e.target.value.split(',')[0]?.trim() || '' })}
+                    className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none transition-all placeholder:text-slate-400 text-sm"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  For corporate clients, specify branch/project names. Can be selected during billing.
+                </p>
               </div>
 
               <div>
@@ -437,7 +465,7 @@ const Customers: React.FC<CustomersProps> = ({
                       </div>
                       <div>
                         <span className="font-bold text-sm text-slate-900 block group-hover:text-blue-600 transition-colors">{customer.name}</span>
-                        <div className="mt-1">
+                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                           {(() => {
                             const comp = (customer as any).company || 'main';
                             if (comp === 'spacezero') {
@@ -450,6 +478,15 @@ const Customers: React.FC<CustomersProps> = ({
                               return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">Click2IT</span>;
                             }
                           })()}
+                          {((customer.branches && customer.branches.length > 0) || customer.branchName) && (
+                            <div className="flex flex-wrap gap-1">
+                              {(customer.branches && customer.branches.length > 0 ? customer.branches : [customer.branchName]).filter(Boolean).map((br, idx) => (
+                                <span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                  📁 {br}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -507,6 +544,8 @@ const Customers: React.FC<CustomersProps> = ({
                               email: customer.email || '',
                               address: customer.address || '',
                               company: (customer as any).company || 'main',
+                              branchName: customer.branchName || '',
+                              branchesText: (customer.branches && customer.branches.length > 0) ? customer.branches.join(', ') : (customer.branchName || ''),
                             });
                             setIsAddingCustomer(true);
                           }}

@@ -403,11 +403,13 @@ export const generatePDF = async (
       currentY += 30;
     } else {
     const o = order as Order;
+    const branchOrProject = (o.branchName || (o as any).projectName || '').trim();
+    const hasBranch = Boolean(branchOrProject);
 
     // Light Grey Box Backgrounds
     doc.setFillColor(248, 250, 252);
     
-    // Calculate dynamic box height based on address length
+    // Calculate dynamic box height based on address length and optional branch line
     const splitAddr = doc.splitTextToSize(
       o.shippingAddress || o.customerPhone || "N/A",
       (pageWidth - 30) / 2 - 10,
@@ -416,10 +418,10 @@ export const generatePDF = async (
     let rightSideLines = 2; // Details No, Date
     if (o.workOrderNumber) rightSideLines++;
     
-    const leftSideHeight = 18 + (splitAddr.length * 5) + 3; // 22 is start of addr, + height, + bottom padding
+    const leftSideHeight = (hasBranch ? 23 : 18) + (splitAddr.length * 5) + 3;
     const rightSideHeight = 13 + (rightSideLines * 6) + 3; 
     
-    const boxHeight = Math.max(leftSideHeight, rightSideHeight, 26); // minimum 32 height
+    const boxHeight = Math.max(leftSideHeight, rightSideHeight, 26); // minimum 26 height
 
     // Left Box - Bill To
     doc.rect(15, currentY, (pageWidth - 30) / 2, boxHeight, "F");
@@ -448,12 +450,21 @@ export const generatePDF = async (
     doc.setTextColor(15, 23, 42);
     doc.text(type === "challan" ? "Ship To:" : "Bill To:", 20, currentY + 7);
 
-      doc.text(o.customerName || "N/A", 20, currentY + 13);
+    doc.text(o.customerName || "N/A", 20, currentY + 13);
 
+    let addrY = currentY + 18;
+    if (hasBranch) {
       doc.setFontSize(9.5);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(71, 85, 105);
-      doc.text(splitAddr, 20, currentY + 18);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Branch / Project: ${branchOrProject}`, 20, currentY + 18);
+      addrY = currentY + 23;
+    }
+
+    doc.setFontSize(9.5);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text(splitAddr, 20, addrY);
 
     // Box 2 (Right) Content
     doc.setFontSize(11);

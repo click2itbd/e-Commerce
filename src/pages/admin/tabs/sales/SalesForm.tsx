@@ -109,6 +109,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     email: '',
     address: '',
     company: 'main',
+    branchName: '',
   });
 
     const [saleData, setSaleData] = useState(() => {
@@ -138,6 +139,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       appliedDiscountPercentage: 0,
       appliedDiscountCode: '',
       notes: '',
+      branchName: '',
+      company: 'main',
     };
   });
 
@@ -552,6 +555,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const handleCustomerChange = (customerId: string) => {
     const selected = customers.find(c => c.id === customerId);
     if (selected) {
+      const initialBranch = selected.branchName || (selected.branches && selected.branches[0]) || '';
       setSaleData(prev => ({
         ...prev,
         customerId: selected.id,
@@ -559,6 +563,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         customerPhone: selected.phone || '',
         customerEmail: selected.email || '',
         shippingAddress: selected.address || '',
+        branchName: initialBranch,
+        company: (selected as any).company || 'main',
       }));
     } else {
       setSaleData(prev => ({
@@ -569,6 +575,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         customerPhone: '',
         customerEmail: '',
         shippingAddress: '',
+        branchName: '',
       }));
     }
   };
@@ -582,12 +589,16 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     }
 
     try {
+      const branchVal = newCustomerForm.branchName?.trim() || '';
+      const branchesArr = branchVal ? [branchVal] : [];
       const docRef = await addDoc(collection(db, 'customers'), {
         name: newCustomerForm.name.trim(),
         phone: newCustomerForm.phone.trim(),
         email: newCustomerForm.email.trim(),
         address: newCustomerForm.address.trim(),
         company: newCustomerForm.company || 'main',
+        branchName: branchVal,
+        branches: branchesArr,
         createdAt: new Date().toISOString(),
       });
 
@@ -598,6 +609,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         email: newCustomerForm.email.trim(),
         address: newCustomerForm.address.trim(),
         company: newCustomerForm.company || 'main',
+        branchName: branchVal,
+        branches: branchesArr,
         createdAt: new Date().toISOString(),
       };
 
@@ -610,10 +623,12 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         customerPhone: newlyAdded.phone || '',
         customerEmail: newlyAdded.email || '',
         shippingAddress: newlyAdded.address || '',
+        branchName: branchVal,
+        company: newlyAdded.company || 'main',
       }));
 
       setIsAddingNewCustomer(false);
-      setNewCustomerForm({ name: '', phone: '', email: '', address: '', company: 'main' });
+      setNewCustomerForm({ name: '', phone: '', email: '', address: '', company: 'main', branchName: '' });
       toast.success(`Customer "${newlyAdded.name}" added and selected!`);
       fetchData();
     } catch (err) {
@@ -834,6 +849,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         customerPhone: saleData.customerPhone || '',
         customerEmail: saleData.customerEmail || '',
         shippingAddress: saleData.shippingAddress || '',
+        branchName: saleData.branchName || '',
+        projectName: saleData.branchName || '',
         items: processedItems,
         subtotal,
         discountAmount: effectiveDiscount,
@@ -958,6 +975,9 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           entityType: 'customer',
           referenceId: orderRefId,
           documentNumber: docNumber,
+          branchName: saleData.branchName || '',
+          projectName: saleData.branchName || '',
+          company: saleData.company || 'main',
           paymentAccountId: '', // No payment account for the sale itself
           paymentMethod: '',
           createdAt,
@@ -976,10 +996,22 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             entityType: 'customer',
             referenceId: orderRefId,
             documentNumber: docNumber,
+            branchName: saleData.branchName || '',
+            projectName: saleData.branchName || '',
+            company: saleData.company || 'main',
             paymentAccountId: selectedAcc?.id || '',
             paymentMethod: selectedAcc?.type || selectedAcc?.name || saleData.paymentMethod || 'cash',
             createdAt,
           });
+        }
+
+        // Auto-save branch to customer's branches list if newly introduced
+        if (saleData.customerId && saleData.branchName) {
+          const curCust = customers.find(c => c.id === saleData.customerId);
+          if (curCust && (!curCust.branches || !curCust.branches.includes(saleData.branchName))) {
+            const updatedBranches = Array.from(new Set([...(curCust.branches || []), saleData.branchName]));
+            updateDoc(doc(db, 'customers', saleData.customerId), { branches: updatedBranches }).catch(e => console.error(e));
+          }
         }
       }
 
@@ -1419,7 +1451,76 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 </button>
               </div>
 
-              {!saleData.customerId && (
+              {saleData.customerId ? (
+                <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-black text-xs flex items-center justify-center shrink-0">
+                      {(saleData.customerName || 'C').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="truncate">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-slate-800 text-sm">{saleData.customerName}</span>
+                        {saleData.customerPhone && <span className="text-slate-500 font-mono text-xs">({saleData.customerPhone})</span>}
+                      </div>
+                      {saleData.shippingAddress && <p className="text-[11px] text-slate-500 truncate">{saleData.shippingAddress}</p>}
+                    </div>
+                  </div>
+
+                  {/* Branch / Project Selector */}
+                  {(() => {
+                    const selCust = customers.find(c => c.id === saleData.customerId);
+                    const bSet = new Set<string>();
+                    if (selCust?.branchName) bSet.add(selCust.branchName);
+                    (selCust?.branches || []).forEach(b => b && bSet.add(b));
+                    const custComp = (selCust as any)?.company || saleData.company;
+                    if (custComp && custComp !== 'main') {
+                      customers.forEach(oc => {
+                        if ((oc as any).company === custComp) {
+                          if (oc.branchName) bSet.add(oc.branchName);
+                          (oc.branches || []).forEach(b => b && bSet.add(b));
+                          if (oc.name.toLowerCase().startsWith(custComp.toLowerCase())) {
+                            const stripped = oc.name.slice(custComp.length).trim();
+                            if (stripped) bSet.add(stripped);
+                          }
+                        }
+                      });
+                    }
+                    const bList = Array.from(bSet).filter(Boolean);
+
+                    return (
+                      <div className="flex items-center gap-2 shrink-0 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-2xs">
+                        <span className="text-[11px] font-black text-slate-500 uppercase whitespace-nowrap">
+                          Branch / Project:
+                        </span>
+                        <select
+                          value={saleData.branchName || ''}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === '__new__') {
+                              const newBr = window.prompt('Enter new Branch / Project name:');
+                              if (newBr && newBr.trim()) {
+                                setSaleData({ ...saleData, branchName: newBr.trim() });
+                              }
+                            } else {
+                              setSaleData({ ...saleData, branchName: val });
+                            }
+                          }}
+                          className="bg-transparent font-bold text-slate-800 outline-none text-xs cursor-pointer"
+                        >
+                          <option value="">-- Main Office / None --</option>
+                          {bList.map((br, bi) => (
+                            <option key={bi} value={br}>{br}</option>
+                          ))}
+                          {saleData.branchName && !bList.includes(saleData.branchName) && (
+                            <option value={saleData.branchName}>{saleData.branchName}</option>
+                          )}
+                          <option value="__new__">+ Add New Branch/Project...</option>
+                        </select>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
                 <div className="bg-gradient-to-r from-blue-50/90 to-indigo-50/60 border border-blue-200/80 rounded-xl p-3 flex items-center gap-2.5 text-blue-900 text-xs">
                   <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 font-bold text-xs">i</div>
                   <span>
@@ -2071,15 +2172,28 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             <form onSubmit={handleQuickAddCustomer} className="p-6 space-y-4 text-xs">
               <div>
                 <label className="block font-bold text-gray-700 uppercase mb-1">
-                  Customer Name <span className="text-red-500">*</span>
+                  Customer / Company Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Shakib Al Hasan"
+                  placeholder="e.g. Volumezero, Simpletree, or Md. Rahim"
                   value={newCustomerForm.name}
                   onChange={e => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg p-2.5 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-700 uppercase mb-1">
+                  Branch / Project Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Treelogy Two, Silver Spring (leave empty for retail)"
+                  value={newCustomerForm.branchName || ''}
+                  onChange={e => setNewCustomerForm({ ...newCustomerForm, branchName: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg p-2.5 font-medium"
                 />
               </div>
 
