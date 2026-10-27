@@ -280,11 +280,12 @@ const Customers: React.FC<CustomersProps> = ({
          {/* Company Filter Tabs */}
          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
            {[
-             { id: 'all', label: 'All Companies' },
-             { id: 'main', label: 'Click2IT' },
-             { id: 'spacezero', label: 'Spacezero' },
-             { id: 'volumezero', label: 'Volumezero' },
-             { id: 'simpletree', label: 'Simpletree' },
+             { id: 'all', label: 'All Clients' },
+             { id: 'main', label: 'General / Retail' },
+             { id: 'volumezero', label: 'Volumezero (Parent)' },
+             { id: 'spacezero', label: 'Spacezero (অঙ্গ)' },
+             { id: 'simpletree', label: 'Simpletree (অঙ্গ)' },
+             ...companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).map(c => ({ id: c.id, label: c.name }))
            ].map(comp => (
              <button
                key={comp.id}
@@ -359,9 +360,21 @@ const Customers: React.FC<CustomersProps> = ({
                       onChange={e => setCustomerFormData({ ...customerFormData, company: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 text-xs outline-none transition-all cursor-pointer"
                     >
-                      {companies.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
+                      <optgroup label="General / Retail Clients">
+                        <option value="main">General / Retail Client (Individual)</option>
+                      </optgroup>
+                      <optgroup label="Volumezero Group (Corporate)">
+                        <option value="volumezero">Volumezero (Parent Group / Head Office)</option>
+                        <option value="spacezero">Volumezero ↳ Spacezero (অঙ্গ প্রতিষ্ঠান)</option>
+                        <option value="simpletree">Volumezero ↳ Simpletree (অঙ্গ প্রতিষ্ঠান)</option>
+                      </optgroup>
+                      {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).length > 0 && (
+                        <optgroup label="Other Corporate Units">
+                          {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                 </div>
@@ -491,13 +504,13 @@ const Customers: React.FC<CustomersProps> = ({
                           {(() => {
                             const comp = (customer as any).company || 'main';
                             if (comp === 'spacezero') {
-                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">Spacezero</span>;
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">Volumezero ↳ Spacezero</span>;
                             } else if (comp === 'volumezero') {
-                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">Volumezero</span>;
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">Volumezero (Main)</span>;
                             } else if (comp === 'simpletree') {
-                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">Simpletree</span>;
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">Volumezero ↳ Simpletree</span>;
                             } else {
-                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">Click2IT</span>;
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">Retail / General</span>;
                             }
                           })()}
                           {((customer.branches && customer.branches.length > 0) || customer.branchName) && (

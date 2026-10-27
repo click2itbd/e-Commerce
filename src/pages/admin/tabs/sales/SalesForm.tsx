@@ -1297,9 +1297,21 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   onChange={e => setSaleData({ ...saleData, company: e.target.value })}
                   className="w-full h-10 border border-slate-200 bg-white rounded-xl px-3 font-bold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all cursor-pointer shadow-2xs"
                 >
-                  {companies.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                  <optgroup label="General / Retail Clients">
+                    <option value="main">General / Retail Client</option>
+                  </optgroup>
+                  <optgroup label="Volumezero Group (Corporate)">
+                    <option value="volumezero">Volumezero (Parent Group / Head Office)</option>
+                    <option value="spacezero">Volumezero ↳ Spacezero (অঙ্গ প্রতিষ্ঠান)</option>
+                    <option value="simpletree">Volumezero ↳ Simpletree (অঙ্গ প্রতিষ্ঠান)</option>
+                  </optgroup>
+                  {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).length > 0 && (
+                    <optgroup label="Other Corporate Units">
+                      {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
 
@@ -2251,9 +2263,21 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   onChange={e => setNewCustomerForm({ ...newCustomerForm, company: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg p-2.5 font-bold"
                 >
-                  {companies.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                  <optgroup label="General / Retail Clients">
+                    <option value="main">General / Retail Client</option>
+                  </optgroup>
+                  <optgroup label="Volumezero Group (Corporate)">
+                    <option value="volumezero">Volumezero (Parent Group / Head Office)</option>
+                    <option value="spacezero">Volumezero ↳ Spacezero (অঙ্গ প্রতিষ্ঠান)</option>
+                    <option value="simpletree">Volumezero ↳ Simpletree (অঙ্গ প্রতিষ্ঠান)</option>
+                  </optgroup>
+                  {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).length > 0 && (
+                    <optgroup label="Other Corporate Units">
+                      {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
 

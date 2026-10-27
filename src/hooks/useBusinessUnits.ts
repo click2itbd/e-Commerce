@@ -25,36 +25,38 @@ import { toast } from 'react-hot-toast';
 
 export const DEFAULT_COMPANIES: BusinessCompany[] = [
   { 
-    id: 'spacezero', 
-    name: 'Spacezero', 
-    code: 'SZ',
-    color: 'purple',
-    iconName: 'Sparkles',
+    id: 'volumezero', 
+    name: 'Volumezero (Parent Group)', 
+    code: 'VZ',
+    color: 'blue',
+    iconName: 'Building2',
     isDefault: true,
     createdAt: '2026-01-01T00:00:00.000Z'
   },
   { 
-    id: 'volumezero', 
-    name: 'Volumezero', 
-    code: 'VZ',
-    color: 'blue',
-    iconName: 'Box',
+    id: 'spacezero', 
+    name: 'Spacezero (অঙ্গ প্রতিষ্ঠান)', 
+    code: 'SZ',
+    color: 'purple',
+    iconName: 'Sparkles',
+    parentCompany: 'volumezero',
     isDefault: true,
     createdAt: '2026-01-01T00:00:00.000Z'
   },
   { 
     id: 'simpletree', 
-    name: 'Simpletree', 
+    name: 'Simpletree (অঙ্গ প্রতিষ্ঠান)', 
     code: 'ST',
     color: 'emerald',
     iconName: 'Trees',
+    parentCompany: 'volumezero',
     isDefault: true,
     createdAt: '2026-01-01T00:00:00.000Z'
   },
   { 
     id: 'main', 
-    name: 'Click2IT (Main)', 
-    code: 'C2IT',
+    name: 'General / Retail Client', 
+    code: 'GEN',
     color: 'slate',
     iconName: 'Store',
     isDefault: true,
@@ -241,15 +243,60 @@ export function useBusinessUnits() {
           const data = docSnap.data();
           const list: BusinessCompany[] = Array.isArray(data?.list) ? data.list : [];
           
+          let hasMigration = false;
+          const migratedList = list.map(c => {
+            const updated = { ...c };
+            if (c.id === 'main' && (c.name === 'Click2IT (Main)' || c.name === 'Click2IT')) {
+              updated.name = 'General / Retail Client';
+              updated.code = 'GEN';
+              hasMigration = true;
+            }
+            if (c.id === 'volumezero' && c.name === 'Volumezero') {
+              updated.name = 'Volumezero (Parent Group)';
+              hasMigration = true;
+            }
+            if (c.id === 'spacezero') {
+              if (!updated.parentCompany || updated.parentCompany !== 'volumezero') {
+                updated.parentCompany = 'volumezero';
+                hasMigration = true;
+              }
+              if (updated.name === 'Spacezero') {
+                updated.name = 'Spacezero (অঙ্গ প্রতিষ্ঠান)';
+                hasMigration = true;
+              }
+            }
+            if (c.id === 'simpletree') {
+              if (!updated.parentCompany || updated.parentCompany !== 'volumezero') {
+                updated.parentCompany = 'volumezero';
+                hasMigration = true;
+              }
+              if (updated.name === 'Simpletree') {
+                updated.name = 'Simpletree (অঙ্গ প্রতিষ্ঠান)';
+                hasMigration = true;
+              }
+            }
+            return updated;
+          });
+
           // Ensure all default companies exist in list if not already present
-          const existingIds = new Set(list.map(c => c.id.toLowerCase()));
-          const merged: BusinessCompany[] = [...list];
+          const existingIds = new Set(migratedList.map(c => c.id.toLowerCase()));
+          const merged: BusinessCompany[] = [...migratedList];
           
           DEFAULT_COMPANIES.forEach(def => {
             if (!existingIds.has(def.id.toLowerCase())) {
               merged.push(def);
+              hasMigration = true;
             }
           });
+
+          // Auto-persist normalized companies if changed
+          if (hasMigration) {
+            setDoc(
+              doc(db, 'settings', 'business_units'),
+              { list: merged, updatedAt: new Date().toISOString() },
+              { merge: true }
+            ).catch(() => {});
+          }
 
           setCompanies(merged);
           try {

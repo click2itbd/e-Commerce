@@ -193,6 +193,7 @@ export interface BusinessCompany {
   color?: string;
   iconName?: string;
   isDefault?: boolean;
+  parentCompany?: string;
   createdAt?: string;
 }
 

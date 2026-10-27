@@ -626,11 +626,19 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                   <select
                     value={formData.company}
                     onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:border-indigo-500 focus:bg-white"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:border-indigo-500 focus:bg-white cursor-pointer"
                   >
-                    {companies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
+                    <optgroup label="Volumezero Group (Corporate)">
+                      <option value="volumezero">Volumezero (Parent Group)</option>
+                      <option value="spacezero">Volumezero ↳ Spacezero (অঙ্গ প্রতিষ্ঠান)</option>
+                      <option value="simpletree">Volumezero ↳ Simpletree (অঙ্গ প্রতিষ্ঠান)</option>
+                    </optgroup>
+                    <optgroup label="General / Other">
+                      <option value="main">General / Retail</option>
+                      {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
               </div>

@@ -44,6 +44,7 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [tagline, setTagline] = useState('');
+  const [parentCompany, setParentCompany] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -57,6 +58,7 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
       setEmail(initialData.email || '');
       setAddress(initialData.address || '');
       setTagline((initialData as any).tagline || '');
+      setParentCompany(initialData.parentCompany || '');
     } else {
       setName('');
       setSlug('');
@@ -67,6 +69,7 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
       setEmail('');
       setAddress('');
       setTagline('');
+      setParentCompany('');
     }
   }, [initialData, isOpen]);
 
@@ -119,7 +122,8 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
         phone: phone.trim(),
         email: email.trim(),
         address: address.trim(),
-        tagline: tagline.trim()
+        tagline: tagline.trim(),
+        parentCompany: parentCompany ? parentCompany : undefined
       });
       onClose();
     } catch (err: any) {
@@ -255,6 +259,21 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
                 onChange={e => setPhone(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-all shadow-2xs"
               />
+            </div>
+
+            {/* Corporate Parent Group */}
+            <div>
+              <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+                Corporate Parent Group (Hierarchy)
+              </label>
+              <select
+                value={parentCompany}
+                onChange={e => setParentCompany(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-all shadow-2xs cursor-pointer"
+              >
+                <option value="">Independent / Top-Level Entity</option>
+                <option value="volumezero">Volumezero (অঙ্গ প্রতিষ্ঠান / Subsidiary of Volumezero)</option>
+              </select>
             </div>
           </div>
 

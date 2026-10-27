@@ -944,9 +944,24 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
             >
               <div>
                 <div className="flex items-center justify-between mb-2.5">
-                  <span className={cn("text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border flex items-center gap-1.5 shadow-2xs", theme.badgeBg)}>
-                    <CompIcon size={12} /> {company.name}
-                  </span>
+                  <div className="flex flex-col gap-0.5">
+                    <span className={cn("text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border flex items-center gap-1.5 shadow-2xs w-fit", theme.badgeBg)}>
+                      <CompIcon size={12} /> {company.name}
+                    </span>
+                    {company.parentCompany === 'volumezero' ? (
+                      <span className="text-[9px] font-bold text-slate-500 pl-1">
+                        ↳ Volumezero অঙ্গ প্রতিষ্ঠান
+                      </span>
+                    ) : company.id === 'volumezero' ? (
+                      <span className="text-[9px] font-bold text-blue-600 pl-1">
+                        ★ Corporate Parent Group
+                      </span>
+                    ) : company.id === 'main' ? (
+                      <span className="text-[9px] font-bold text-slate-500 pl-1">
+                        Retail / General Clients
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="flex items-center gap-1">
                     {isSelected ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-black text-indigo-700 bg-white/90 px-2 py-0.5 rounded-full border border-indigo-200 shadow-2xs">
