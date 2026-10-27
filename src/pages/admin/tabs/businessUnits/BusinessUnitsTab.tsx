@@ -1064,7 +1064,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
             Add Company
           </span>
           <span className="text-[10px] text-slate-400 font-semibold mt-0.5">
-            + New Sister Concern
+            + Add Corporate Client
           </span>
         </div>
       </div>
@@ -2100,7 +2100,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
               {/* Company Selector */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                  Assigned Sister Concern / Business Unit
+                  Assigned Corporate Company
                 </label>
                 <select
                   value={getOrderCompany(viewingOrder)}
@@ -2260,7 +2260,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
                 {/* Company Selector */}
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                   <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                    1. Select Sister Concern / Concern
+                    1. Select Company
                   </label>
                   <select
                     value={statementCompany}
@@ -2270,7 +2270,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
                     }}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 cursor-pointer"
                   >
-                    <option value="all">All Sister Concerns (Consolidated)</option>
+                    <option value="all">All Companies (Consolidated)</option>
                     {companies.map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
@@ -2280,14 +2280,14 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
                 {/* Branch / Project Selector */}
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                   <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                    2. Filter by Branch / Project
+                    2. Filter by Project
                   </label>
                   <select
                     value={statementBranch}
                     onChange={(e) => setStatementBranch(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 cursor-pointer"
                   >
-                    <option value="all">All Branches & Projects</option>
+                    <option value="all">All Projects (Company Total)</option>
                     {availableBranches.map(b => (
                       <option key={b} value={b}>{b}</option>
                     ))}

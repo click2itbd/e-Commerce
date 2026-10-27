@@ -158,7 +158,7 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
               </div>
               <div>
                 <h3 className="text-lg font-black">
-                  {initialData ? 'Edit Sister Concern' : 'Add New Sister Concern'}
+                  {initialData ? 'Edit Company' : 'Add New Company'}
                 </h3>
                 <p className="text-xs text-slate-300 mt-0.5">
                   Configure company identity, branding color, and directory info.

@@ -336,13 +336,16 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
 
                 <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 mb-8">
                   <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Suggested Parts</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[30vh] overflow-y-auto custom-scrollbar pr-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[35vh] overflow-y-auto custom-scrollbar pr-2">
                     {Object.entries(suggestedBuild.components).map(([cat, product]) => (
-                      <div key={cat} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 shadow-sm">
-                        <img src={product.images?.[0] || '/placeholder.png'} className="w-12 h-12 object-contain mix-blend-multiply" />
-                        <div>
-                          <p className="text-[10px] font-bold text-violet-500 uppercase tracking-wider">{cat.replace('-', ' ')}</p>
-                          <p className="text-sm font-bold text-slate-900 line-clamp-1">{product.name}</p>
+                      <div key={cat} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-slate-100 shadow-xs">
+                        <div className="w-12 h-12 rounded-xl bg-slate-50 p-1 shrink-0 flex items-center justify-center border border-slate-100">
+                          <img src={product.images?.[0] || '/placeholder.png'} className="w-full h-full object-contain" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-black text-violet-600 uppercase tracking-wider">{cat.replace('-', ' ')}</p>
+                          <p className="text-xs font-bold text-slate-900 line-clamp-1">{product.name}</p>
+                          <p className="text-xs font-black text-slate-800 mt-0.5">{formatCurrency(product.discountPrice || product.price)}</p>
                         </div>
                       </div>
                     ))}

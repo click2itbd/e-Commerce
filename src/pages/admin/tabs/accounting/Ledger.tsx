@@ -6,15 +6,16 @@ import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
-import { Book, X, User, Download, Printer, Plus, ArrowLeft, Receipt, Check, CreditCard, Filter } from 'lucide-react';
+import { Book, X, User, Download, Printer, Plus, ArrowLeft, Receipt, Check, CreditCard, Filter, Building2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generatePDF } from '../../../../lib/pdf';
 import { logAudit } from '../../../../lib/audit';
+import { useBusinessUnits } from '../../../../hooks/useBusinessUnits';
 
 interface LedgerTabProps {
-  selectedLedgerEntity?: { id: string; name: string; type: 'customer' | 'vendor' } | null;
-  setSelectedLedgerEntity?: (v: { id: string; name: string; type: 'customer' | 'vendor' } | null) => void;
+  selectedLedgerEntity?: { id: string; name: string; type: 'customer' | 'vendor'; isCompany?: boolean; companyKey?: string } | null;
+  setSelectedLedgerEntity?: (v: { id: string; name: string; type: 'customer' | 'vendor'; isCompany?: boolean; companyKey?: string } | null) => void;
 }
 
 const LedgerTab: React.FC<LedgerTabProps> = ({
@@ -37,6 +38,12 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
   const [showLedgerReportModal, setShowLedgerReportModal] = useState<boolean>(false);
   const [ledgerReportModalData, setLedgerReportModalData] = useState<any[]>([]);
   const [ledgerReportType, setLedgerReportType] = useState<'income' | 'expense' | null>(null);
+  const { companies } = useBusinessUnits();
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>('all');
+
+  useEffect(() => {
+    setSelectedProjectFilter('all');
+  }, [selectedLedgerEntity?.id]);
 
   // Quick Payment Recording State
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
@@ -135,14 +142,108 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
       .map(k => data[k]);
   };
 
+  // Corporate and Project Helpers
+  const isCorporateCompany = Boolean((selectedLedgerEntity as any)?.isCompany);
+  const companyKey = (selectedLedgerEntity as any)?.companyKey || (selectedLedgerEntity?.id);
+
+  const targetCustomer = useMemo(() => {
+    if (!selectedLedgerEntity || isCorporateCompany || selectedLedgerEntity.type !== 'customer') return null;
+    return customers.find(c => c.id === selectedLedgerEntity.id) || null;
+  }, [selectedLedgerEntity, isCorporateCompany, customers]);
+
+  const targetCompany = useMemo(() => {
+    if (isCorporateCompany) return companyKey;
+    if (targetCustomer?.company && targetCustomer.company !== 'main') return targetCustomer.company;
+    return '';
+  }, [isCorporateCompany, companyKey, targetCustomer]);
+
+  const isCorporate = Boolean(targetCompany);
+
+  const corporateCustomerIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (selectedLedgerEntity?.id) ids.add(selectedLedgerEntity.id);
+    if (!isCorporate) return ids;
+    customers.forEach(c => {
+      if ((c as any).company === targetCompany || c.name.toLowerCase() === targetCompany.toLowerCase()) {
+        ids.add(c.id);
+      }
+    });
+    return ids;
+  }, [isCorporate, targetCompany, selectedLedgerEntity, customers]);
+
+  // All available projects for this corporate company or customer
+  const availableProjects = useMemo(() => {
+    const projs = new Set<string>();
+    if (isCorporate) {
+      customers.forEach(c => {
+        if ((c as any).company === targetCompany || c.name.toLowerCase() === targetCompany.toLowerCase()) {
+          if (c.branchName) projs.add(c.branchName);
+          (c.branches || []).forEach(b => b && projs.add(b));
+        }
+      });
+      orders.forEach(o => {
+        if (o.company === targetCompany || corporateCustomerIds.has(o.customerId || '')) {
+          const p = o.projectName || o.branchName;
+          if (p) projs.add(p);
+        }
+      });
+      transactions.forEach(t => {
+        if (corporateCustomerIds.has(t.entityId) || (t as any).company === targetCompany) {
+          const p = (t as any).branchName || (t as any).projectName;
+          if (p) projs.add(p);
+        }
+      });
+    } else if (targetCustomer) {
+      if (targetCustomer.branchName) projs.add(targetCustomer.branchName);
+      (targetCustomer.branches || []).forEach(b => b && projs.add(b));
+      orders.forEach(o => {
+        if (o.customerId === targetCustomer.id) {
+          const p = o.projectName || o.branchName;
+          if (p) projs.add(p);
+        }
+      });
+    }
+    return Array.from(projs).filter(Boolean);
+  }, [isCorporate, targetCompany, targetCustomer, customers, orders, transactions, corporateCustomerIds]);
+
   // 2. Entity Party Ledger Calculations
   const getEntityTransactions = () => {
     if (!selectedLedgerEntity) return [];
+
+    const orderProjectMap = new Map<string, string>();
+    orders.forEach(o => {
+      const p = (o.projectName || o.branchName || '').trim();
+      if (p) {
+        if (o.id) orderProjectMap.set(o.id, p);
+        if (o.documentNumber) orderProjectMap.set(o.documentNumber, p);
+      }
+    });
+
     return transactions.filter(t => {
-      const matchesEntity = t.entityId === selectedLedgerEntity.id || t.entityName === selectedLedgerEntity.name;
+      let matchesEntity = false;
+      if (isCorporate) {
+        matchesEntity = corporateCustomerIds.has(t.entityId) || 
+                        (t as any).company === targetCompany || 
+                        (t.entityName && t.entityName.toLowerCase().includes(selectedLedgerEntity.name.toLowerCase()));
+      } else {
+        matchesEntity = t.entityId === selectedLedgerEntity.id || t.entityName === selectedLedgerEntity.name;
+      }
+      if (!matchesEntity) return false;
+
       const tDate = new Date(t.date).toISOString().split('T')[0];
       const matchesDate = tDate >= generalLedgerStartDate && tDate <= generalLedgerEndDate;
-      return matchesEntity && matchesDate;
+      if (!matchesDate) return false;
+
+      if (selectedProjectFilter !== 'all') {
+        const directProj = (t as any).branchName || (t as any).projectName || '';
+        const mappedProj = (t.referenceId && orderProjectMap.get(t.referenceId)) || 
+                           (t.documentNumber && orderProjectMap.get(t.documentNumber)) || '';
+        const effProj = directProj || mappedProj;
+        const matchesProj = effProj === selectedProjectFilter || (t.description && t.description.includes(selectedProjectFilter));
+        if (!matchesProj) return false;
+      }
+
+      return true;
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
 
@@ -181,28 +282,31 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
     if (!selectedLedgerEntity || selectedLedgerEntity.type !== 'customer') return [];
     return orders.filter(o => {
       if (o.status === 'cancelled' || o.type === 'quotation') return false;
-      const matchesId = o.customerId === selectedLedgerEntity.id;
+      const matchesId = isCorporate ? corporateCustomerIds.has(o.customerId || '') : o.customerId === selectedLedgerEntity.id;
       const matchesName = o.customerName && selectedLedgerEntity.name && o.customerName.toLowerCase().trim() === selectedLedgerEntity.name.toLowerCase().trim();
-      if (!matchesId && !matchesName) return false;
+      const matchesComp = isCorporate && o.company === targetCompany;
+      if (!matchesId && !matchesName && !matchesComp) return false;
       const total = Number(o.total || 0);
       const paid = Number(o.paidAmount || (o as any).amountPaid || 0);
       return (total - paid) > 0.01;
     }).sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
-  }, [selectedLedgerEntity, orders]);
+  }, [selectedLedgerEntity, orders, isCorporate, corporateCustomerIds, targetCompany]);
 
   const entityProjects = useMemo(() => {
+    if (availableProjects.length > 0) return availableProjects;
     const projs = new Set<string>();
     entityUnpaidOrders.forEach(o => {
       const p = o.projectName || o.branchName;
       if (p) projs.add(p);
     });
     return Array.from(projs);
-  }, [entityUnpaidOrders]);
+  }, [availableProjects, entityUnpaidOrders]);
 
   const displayedUnpaidOrders = useMemo(() => {
-    if (modalProjectFilter === 'all') return entityUnpaidOrders;
-    return entityUnpaidOrders.filter(o => (o.projectName || o.branchName) === modalProjectFilter);
-  }, [entityUnpaidOrders, modalProjectFilter]);
+    const filter = modalProjectFilter !== 'all' ? modalProjectFilter : (selectedProjectFilter !== 'all' ? selectedProjectFilter : 'all');
+    if (filter === 'all') return entityUnpaidOrders;
+    return entityUnpaidOrders.filter(o => (o.projectName || o.branchName) === filter);
+  }, [entityUnpaidOrders, modalProjectFilter, selectedProjectFilter]);
 
   // Unpaid Purchases for Vendor in Ledger
   const entityUnpaidPurchases = useMemo(() => {
@@ -568,7 +672,8 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${selectedLedgerEntity.name}_statement_${generalLedgerStartDate}_to_${generalLedgerEndDate}.csv`;
+    const safeProj = selectedProjectFilter !== 'all' ? `_${selectedProjectFilter.replace(/\s+/g, '_')}` : (isCorporate ? '_AllProjects' : '');
+    a.download = `${selectedLedgerEntity.name}${safeProj}_statement_${generalLedgerStartDate}_to_${generalLedgerEndDate}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -583,7 +688,10 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
     doc.setFontSize(16);
     doc.text(settings?.siteName || 'Click2IT', 14, 18);
     doc.setFontSize(11);
-    doc.text(`Account Statement: ${selectedLedgerEntity.name} (${selectedLedgerEntity.type.toUpperCase()})`, 14, 25);
+    const statementLabel = selectedProjectFilter !== 'all'
+      ? `${selectedLedgerEntity.name} (Project: ${selectedProjectFilter})`
+      : (isCorporate ? `${selectedLedgerEntity.name} (All Projects Combined)` : `${selectedLedgerEntity.name} (${selectedLedgerEntity.type.toUpperCase()})`);
+    doc.text(`Account Statement: ${statementLabel}`, 14, 25);
     doc.setFontSize(9);
     doc.text(`Period: ${generalLedgerStartDate} to ${generalLedgerEndDate} | Generated: ${new Date().toLocaleDateString()}`, 14, 31);
 
@@ -688,6 +796,32 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
                     -- All (General Ledger) --
                   </div>
                   
+                  {/* Corporate Companies */}
+                  {companies.filter(c => c.id !== 'main' && c.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).length > 0 && (
+                    <div className="font-black text-[10px] text-blue-600 uppercase mt-2 px-2 mb-1 flex items-center gap-1">
+                      <Building2 size={11} /> Corporate Companies
+                    </div>
+                  )}
+                  {companies.filter(c => c.id !== 'main' && c.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).map(comp => (
+                    <div 
+                      key={`comp-${comp.id}`} 
+                      className="p-2 hover:bg-blue-50 cursor-pointer rounded flex items-center justify-between gap-2 transition-colors"
+                      onClick={() => {
+                        if (setSelectedLedgerEntity) {
+                          setSelectedLedgerEntity({ id: comp.id, name: comp.name, type: 'customer', isCompany: true, companyKey: comp.id } as any);
+                        }
+                        setSelectedProjectFilter('all');
+                        setShowEntityDropdown(false);
+                        setEntitySearchQuery('');
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>🏢</span> <span className="font-bold text-slate-800">{comp.name}</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-blue-600 bg-blue-100/70 px-1.5 py-0.5 rounded">All Projects</span>
+                    </div>
+                  ))}
+                  
                   {customers.filter(c => c.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).length > 0 && (
                     <div className="font-black text-[10px] text-gray-400 uppercase mt-2 px-2 mb-1">Customers</div>
                   )}
@@ -751,6 +885,25 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
               className="border-none bg-transparent text-xs font-bold text-gray-800 p-0 focus:ring-0"
             />
           </div>
+
+          {/* Project Filter (if corporate or projects available) */}
+          {selectedLedgerEntity && availableProjects.length > 0 && (
+            <div className="flex items-center gap-2 bg-blue-50/90 border border-blue-200 px-3 py-1.5 rounded-lg shadow-2xs">
+              <label className="text-[10px] font-black text-blue-700 uppercase whitespace-nowrap">
+                Project:
+              </label>
+              <select
+                value={selectedProjectFilter}
+                onChange={e => setSelectedProjectFilter(e.target.value)}
+                className="border-none bg-transparent text-xs font-bold text-blue-900 p-0 focus:ring-0 cursor-pointer outline-none"
+              >
+                <option value="all">All Projects (Company Total)</option>
+                {availableProjects.map((p, idx) => (
+                  <option key={idx} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -760,13 +913,26 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
           {/* Entity Summary Banner */}
           <div className="mx-6 p-4 rounded-xl bg-gradient-to-r from-[#081621] to-[#122b3f] text-white flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-md">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/20 text-red-300 border border-red-400/30">
-                  {selectedLedgerEntity.type} Account
+                  {isCorporateCompany ? 'Corporate Company' : `${selectedLedgerEntity.type} Account`}
                 </span>
                 <span className="text-xs text-gray-300">ID: #{selectedLedgerEntity.id.slice(0, 8)}</span>
               </div>
-              <h3 className="text-2xl font-black mt-1">{selectedLedgerEntity.name}</h3>
+              <h3 className="text-2xl font-black mt-1 flex items-center gap-2.5 flex-wrap">
+                <span>{selectedLedgerEntity.name}</span>
+                {selectedProjectFilter !== 'all' ? (
+                  <span className="text-xs font-bold text-emerald-300 bg-emerald-950/80 border border-emerald-500/40 px-3 py-1 rounded-full shadow-2xs">
+                    📁 Project: {selectedProjectFilter}
+                  </span>
+                ) : (
+                  isCorporate && (
+                    <span className="text-xs font-bold text-blue-300 bg-blue-950/80 border border-blue-500/40 px-3 py-1 rounded-full shadow-2xs">
+                      🏢 All Projects (Company Total)
+                    </span>
+                  )
+                )}
+              </h3>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <button

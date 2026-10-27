@@ -418,15 +418,15 @@ export function getHierarchicalCompanyGroups(companies: BusinessCompany[]): Comp
   parents.forEach(p => {
     const subs = companies.filter(c => c.parentCompany === p.id);
     const opts: CompanyGroupOption[] = [
-      { id: p.id, label: `${p.name} (Parent Group / Head Office)`, name: p.name }
+      { id: p.id, label: p.name, name: p.name }
     ];
     subs.forEach(s => {
-      opts.push({ id: s.id, label: `${p.name} ↳ ${s.name} (অঙ্গ প্রতিষ্ঠান)`, name: s.name });
+      opts.push({ id: s.id, label: `${p.name} ↳ ${s.name}`, name: s.name });
     });
 
     groups.push({
       groupKey: p.id,
-      groupLabel: `${p.name} Group (Corporate)`,
+      groupLabel: `${p.name} (Corporate)`,
       options: opts
     });
   });

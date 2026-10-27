@@ -351,21 +351,21 @@ const Customers: React.FC<CustomersProps> = ({
                   />
                 </div>
 
-                {/* Business Unit / Sister Concern */}
+                {/* Company Selection */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
                       <Building2 size={13} className="text-slate-400" />
-                      <span>Business Unit / Sister Concern</span>
+                      <span>Company (Corporate Client)</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => setIsCompanyModalOpen(true)}
                       className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-0.5 rounded-lg border border-emerald-200 transition-all cursor-pointer shadow-2xs"
-                      title="Add a new business unit or corporate sister concern"
+                      title="Add a new corporate company"
                     >
                       <Plus size={11} className="stroke-[3]" />
-                      <span>+ Add Unit</span>
+                      <span>+ Add Company</span>
                     </button>
                   </div>
                   <div className="relative">
@@ -389,7 +389,7 @@ const Customers: React.FC<CustomersProps> = ({
                       ))}
                       <optgroup label="Actions">
                         <option value="__add_new__" className="text-emerald-600 font-bold">
-                          + Add New Business Unit / Sister Concern...
+                          + Add New Company...
                         </option>
                       </optgroup>
                     </select>
@@ -441,23 +441,23 @@ const Customers: React.FC<CustomersProps> = ({
                   </div>
                 </div>
 
-                {/* Branch / Project Name */}
+                {/* Project Name */}
                 <div className="md:col-span-2 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
                   <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1.5 flex items-center justify-between">
-                    <span>Branch / Project Name(s) (Optional)</span>
-                    <span className="text-[9px] text-slate-400 font-normal">Comma-separated for multiple</span>
+                    <span>Project Name(s) (Optional)</span>
+                    <span className="text-[9px] text-slate-400 font-normal">Comma-separated for multiple (e.g. Simpletree Kapilmuni, Treelogy Two)</span>
                   </label>
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="e.g. Treelogy Two, Silver Spring, Dhanmondi Office (leave empty for retail)"
+                      placeholder="e.g. Simpletree Kapilmuni, Treelogy Two (leave empty for retail)"
                       value={customerFormData.branchesText}
                       onChange={e => setCustomerFormData({ ...customerFormData, branchesText: e.target.value, branchName: e.target.value.split(',')[0]?.trim() || '' })}
                       className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none transition-all placeholder:text-slate-400 text-xs"
                     />
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1.5">
-                    For corporate clients, specify branch/project names. These can be selected during POS sales, invoices, and statement generation.
+                    For corporate clients, specify project names. These can be selected during POS sales, invoices, and statement generation.
                   </p>
                 </div>
               </div>

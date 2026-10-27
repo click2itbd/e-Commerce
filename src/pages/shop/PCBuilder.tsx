@@ -591,7 +591,19 @@ export const PCBuilder: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <div className="print:hidden">
-            <BuilderHeader onReset={handleReset} />
+            <BuilderHeader
+              onReset={handleReset}
+              isDarkMode={isDarkMode}
+              onToggleTheme={() => setIsDarkMode(prev => !prev)}
+              selectedCount={Object.values(selectedComponents).filter(Boolean).length}
+              totalPrice={
+                Object.values(selectedComponents)
+                  .filter(Boolean)
+                  .reduce((sum, p) => sum + (p.discountPrice || p.price) * ((p as any).builderQuantity || 1), 0) +
+                (includeAssembly ? 1500 : 0)
+              }
+              wattage={calculateEstimatedWattage(selectedComponents)}
+            />
           </div>
           
           <div className="print:block hidden mb-8">

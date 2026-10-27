@@ -1289,21 +1289,21 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 />
               </div>
 
-              {/* Business Unit / Sister Concern */}
+              {/* Company Selection */}
               <div className="min-w-0">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
                     <Building2 size={13} className="text-slate-400 shrink-0" />
-                    <span>Company / Unit</span>
+                    <span>Company</span>
                   </label>
                   <button
                     type="button"
                     onClick={() => { setCompanyModalTarget('sale'); setIsCompanyModalOpen(true); }}
                     className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-200 transition-all cursor-pointer shadow-2xs"
-                    title="Add new corporate concern"
+                    title="Add new corporate company"
                   >
                     <Plus size={10} className="stroke-[3]" />
-                    <span>+ Unit</span>
+                    <span>+ Company</span>
                   </button>
                 </div>
                 <select
@@ -1327,7 +1327,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   ))}
                   <optgroup label="Actions">
                     <option value="__add_new__" className="text-emerald-600 font-bold">
-                      + Add New Business Unit / Concern...
+                      + Add New Company...
                     </option>
                   </optgroup>
                 </select>
@@ -1534,14 +1534,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     return (
                       <div className="flex items-center gap-2 shrink-0 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-2xs">
                         <span className="text-[11px] font-black text-slate-500 uppercase whitespace-nowrap">
-                          Branch / Project:
+                          Project:
                         </span>
                         <select
                           value={saleData.branchName || ''}
                           onChange={e => {
                             const val = e.target.value;
                             if (val === '__new__') {
-                              const newBr = window.prompt('Enter new Branch / Project name:');
+                              const newBr = window.prompt('Enter new Project name:');
                               if (newBr && newBr.trim()) {
                                 setSaleData({ ...saleData, branchName: newBr.trim() });
                               }
@@ -1551,14 +1551,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                           }}
                           className="bg-transparent font-bold text-slate-800 outline-none text-xs cursor-pointer"
                         >
-                          <option value="">-- Main Office / None --</option>
+                          <option value="">-- None / General --</option>
                           {bList.map((br, bi) => (
                             <option key={bi} value={br}>{br}</option>
                           ))}
                           {saleData.branchName && !bList.includes(saleData.branchName) && (
                             <option value={saleData.branchName}>{saleData.branchName}</option>
                           )}
-                          <option value="__new__">+ Add New Branch/Project...</option>
+                          <option value="__new__">+ Add New Project...</option>
                         </select>
                       </div>
                     );
@@ -2276,14 +2276,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-gray-700 uppercase">Sister Concern / Company</label>
+                  <label className="font-bold text-gray-700 uppercase">Company (Corporate Client)</label>
                   <button
                     type="button"
                     onClick={() => { setCompanyModalTarget('customer'); setIsCompanyModalOpen(true); }}
                     className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 transition-all cursor-pointer"
                   >
                     <Plus size={10} className="stroke-[3]" />
-                    <span>+ Add Unit</span>
+                    <span>+ Add Company</span>
                   </button>
                 </div>
                 <select
@@ -2307,7 +2307,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   ))}
                   <optgroup label="Actions">
                     <option value="__add_new__" className="text-emerald-600 font-bold">
-                      + Add New Business Unit / Concern...
+                      + Add New Company...
                     </option>
                   </optgroup>
                 </select>

@@ -135,15 +135,15 @@ export const POSCartArea: React.FC<POSCartAreaProps> = ({
               ) : null}
             </div>
 
-            {/* Branch / Project Selector */}
+            {/* Project Selector */}
             <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-[11px] text-slate-500 font-semibold uppercase whitespace-nowrap">Branch/Project:</span>
+              <span className="text-[11px] text-slate-500 font-bold uppercase whitespace-nowrap">Project:</span>
               <select
                 value={selectedBranch || ''}
                 onChange={e => setSelectedBranch?.(e.target.value)}
-                className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 shadow-2xs"
+                className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 shadow-2xs cursor-pointer"
               >
-                <option value="">-- Main / None --</option>
+                <option value="">-- None / General --</option>
                 {availableBranches.map((br, i) => (
                   <option key={i} value={br}>{br}</option>
                 ))}
