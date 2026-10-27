@@ -1289,49 +1289,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 />
               </div>
 
-              {/* Company Selection */}
-              <div className="min-w-0">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
-                    <Building2 size={13} className="text-slate-400 shrink-0" />
-                    <span>Company</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => { setCompanyModalTarget('sale'); setIsCompanyModalOpen(true); }}
-                    className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-200 transition-all cursor-pointer shadow-2xs"
-                    title="Add new corporate company"
-                  >
-                    <Plus size={10} className="stroke-[3]" />
-                    <span>+ Company</span>
-                  </button>
-                </div>
-                <select
-                  value={saleData.company || 'main'}
-                  onChange={e => {
-                    if (e.target.value === '__add_new__') {
-                      setCompanyModalTarget('sale');
-                      setIsCompanyModalOpen(true);
-                    } else {
-                      setSaleData({ ...saleData, company: e.target.value });
-                    }
-                  }}
-                  className="w-full h-10 border border-slate-200 bg-white rounded-xl px-3 font-bold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all cursor-pointer shadow-2xs"
-                >
-                  {getHierarchicalCompanyGroups(companies).map(group => (
-                    <optgroup key={group.groupKey} label={group.groupLabel}>
-                      {group.options.map(opt => (
-                        <option key={opt.id} value={opt.id}>{opt.label}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                  <optgroup label="Actions">
-                    <option value="__add_new__" className="text-emerald-600 font-bold">
-                      + Add New Company...
-                    </option>
-                  </optgroup>
-                </select>
-              </div>
 
               {/* Work Order # */}
               <div className="min-w-0">
@@ -1534,14 +1491,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     return (
                       <div className="flex items-center gap-2 shrink-0 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-2xs">
                         <span className="text-[11px] font-black text-slate-500 uppercase whitespace-nowrap">
-                          Project:
+                          Branch Name:
                         </span>
                         <select
                           value={saleData.branchName || ''}
                           onChange={e => {
                             const val = e.target.value;
                             if (val === '__new__') {
-                              const newBr = window.prompt('Enter new Project name:');
+                              const newBr = window.prompt('Enter new Branch name:');
                               if (newBr && newBr.trim()) {
                                 setSaleData({ ...saleData, branchName: newBr.trim() });
                               }
@@ -1551,14 +1508,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                           }}
                           className="bg-transparent font-bold text-slate-800 outline-none text-xs cursor-pointer"
                         >
-                          <option value="">-- None / General --</option>
+                          <option value="">-- Main Office / None --</option>
                           {bList.map((br, bi) => (
                             <option key={bi} value={br}>{br}</option>
                           ))}
                           {saleData.branchName && !bList.includes(saleData.branchName) && (
                             <option value={saleData.branchName}>{saleData.branchName}</option>
                           )}
-                          <option value="__new__">+ Add New Project...</option>
+                          <option value="__new__">+ Add New Branch...</option>
                         </select>
                       </div>
                     );
@@ -2230,11 +2187,11 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
               <div>
                 <label className="block font-bold text-gray-700 uppercase mb-1">
-                  Branch / Project Name (Optional)
+                  Branch Name (Optional)
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Treelogy Two, Silver Spring (leave empty for retail)"
+                  placeholder="e.g. Simpletree, Treelogy Two, Dhanmondi Branch (leave empty for retail)"
                   value={newCustomerForm.branchName || ''}
                   onChange={e => setNewCustomerForm({ ...newCustomerForm, branchName: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg p-2.5 font-medium"
@@ -2274,44 +2231,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 />
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-gray-700 uppercase">Company (Corporate Client)</label>
-                  <button
-                    type="button"
-                    onClick={() => { setCompanyModalTarget('customer'); setIsCompanyModalOpen(true); }}
-                    className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 transition-all cursor-pointer"
-                  >
-                    <Plus size={10} className="stroke-[3]" />
-                    <span>+ Add Company</span>
-                  </button>
-                </div>
-                <select
-                  value={newCustomerForm.company || 'main'}
-                  onChange={e => {
-                    if (e.target.value === '__add_new__') {
-                      setCompanyModalTarget('customer');
-                      setIsCompanyModalOpen(true);
-                    } else {
-                      setNewCustomerForm({ ...newCustomerForm, company: e.target.value });
-                    }
-                  }}
-                  className="w-full border border-gray-200 rounded-lg p-2.5 font-bold"
-                >
-                  {getHierarchicalCompanyGroups(companies).map(group => (
-                    <optgroup key={group.groupKey} label={group.groupLabel}>
-                      {group.options.map(opt => (
-                        <option key={opt.id} value={opt.id}>{opt.label}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                  <optgroup label="Actions">
-                    <option value="__add_new__" className="text-emerald-600 font-bold">
-                      + Add New Company...
-                    </option>
-                  </optgroup>
-                </select>
-              </div>
 
 
               <div className="flex gap-2 pt-2">

@@ -457,7 +457,7 @@ export const generatePDF = async (
       doc.setFontSize(9.5);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 41, 59);
-      doc.text(`Project: ${branchOrProject}`, 20, currentY + 18);
+      doc.text(`Branch: ${branchOrProject}`, 20, currentY + 18);
       addrY = currentY + 23;
     }
 

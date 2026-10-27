@@ -103,8 +103,8 @@ export const POSModals: React.FC<POSModalsProps> = ({
                 <input required type="text" placeholder="e.g. Volumezero or Md. Rahim" className="w-full rounded-lg border-gray-300 text-sm font-semibold" value={customerFormData.name} onChange={e => setCustomerFormData({...customerFormData, name: e.target.value})} />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Project Name (Optional)</label>
-                <input type="text" placeholder="e.g. Simpletree Kapilmuni, Treelogy Two (leave empty for retail)" className="w-full rounded-lg border-gray-300 text-sm" value={customerFormData.branchName || ''} onChange={e => setCustomerFormData({...customerFormData, branchName: e.target.value})} />
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Branch Name (Optional)</label>
+                <input type="text" placeholder="e.g. Simpletree, Treelogy Two, Dhanmondi Branch (leave empty for retail)" className="w-full rounded-lg border-gray-300 text-sm" value={customerFormData.branchName || ''} onChange={e => setCustomerFormData({...customerFormData, branchName: e.target.value})} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone</label>

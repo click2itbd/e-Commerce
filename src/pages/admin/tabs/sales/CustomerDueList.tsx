@@ -485,7 +485,7 @@ export default function CustomerDueList() {
 
           const docNum = ord.documentNumber || ord.id;
           settledDocNumbers.push(docNum);
-          const projInfo = (ord.projectName || ord.branchName) ? ` (Project: ${ord.projectName || ord.branchName})` : '';
+          const projInfo = (ord.branchName || ord.projectName) ? ` (Branch: ${ord.branchName || ord.projectName})` : '';
 
           // 2. Add Transaction in Firestore
           await addDoc(collection(db, 'transactions'), {
@@ -946,9 +946,9 @@ export default function CustomerDueList() {
                           onChange={e => setModalProjectFilter(e.target.value)}
                           className="text-[11px] font-bold bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 outline-none focus:border-blue-500 cursor-pointer"
                         >
-                          <option value="all">All Projects / Branches ({customerUnpaidOrders.length})</option>
+                          <option value="all">All Branches ({customerUnpaidOrders.length})</option>
                           {customerProjects.map((p, idx) => (
-                            <option key={idx} value={p}>Project: {p}</option>
+                            <option key={idx} value={p}>Branch: {p}</option>
                           ))}
                         </select>
                       )}
@@ -1298,7 +1298,7 @@ export default function CustomerDueList() {
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[11px] font-semibold bg-white/10 text-slate-300 px-2.5 py-0.5 rounded-full tracking-wide">
-                      {ledgerBranchFilter !== 'all' ? `Project: ${ledgerBranchFilter}` : (isCorporate ? 'Company Total Ledger' : 'Customer Account')}
+                      {ledgerBranchFilter !== 'all' ? `Branch: ${ledgerBranchFilter}` : (isCorporate ? 'Company Total Ledger' : 'Customer Account')}
                     </span>
                   </div>
                 </div>
