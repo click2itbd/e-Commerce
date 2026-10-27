@@ -190,6 +190,41 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
     return { deadStockCount, deadStockCapital, slowMovingCount, stagnantCount };
   }, [products, productSalesMap]);
 
+  // Comprehensive inventory metrics (Stock Units, Cost Valuation, Retail Valuation, Low/Out Stock)
+  const [stockValueMode, setStockValueMode] = useState<'cost' | 'retail'>('cost');
+  const inventoryStats = useMemo(() => {
+    let totalStockUnits = 0;
+    let totalCostValue = 0;
+    let totalRetailValue = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+
+    products.forEach(p => {
+      const stock = Math.max(0, Number(p.stock) || 0);
+      const cost = Number(p.costPrice) > 0 ? Number(p.costPrice) : (Number(p.price) || 0);
+      const retail = Number(p.price) || 0;
+
+      totalStockUnits += stock;
+      totalCostValue += stock * cost;
+      totalRetailValue += stock * retail;
+
+      if (p.isOutOfStock || stock === 0) {
+        outOfStockCount += 1;
+      } else if (stock < (p.lowStockThreshold || 10)) {
+        lowStockCount += 1;
+      }
+    });
+
+    return {
+      totalProducts: products.length,
+      totalStockUnits,
+      totalCostValue,
+      totalRetailValue,
+      lowStockCount,
+      outOfStockCount,
+    };
+  }, [products]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (brandDropdownRef.current && !brandDropdownRef.current.contains(event.target as Node)) {
@@ -285,77 +320,131 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
             </div>
 
             {/* Top Summary Dashboard */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 p-6 bg-slate-50 border-b border-slate-200">
-              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                  <Package size={22} />
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-5 bg-slate-50 border-b border-slate-200">
+              {/* Card 1: Total Products */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                  <Package size={20} />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-slate-500 font-medium">Total Products</p>
-                  <p className="text-xl font-black text-slate-900 truncate">{products.length}</p>
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                  <DollarSign size={22} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-slate-500 font-medium">Inventory Value</p>
-                  <p className="text-xl font-black text-slate-900 truncate">{formatCurrency(products.reduce((acc, p) => acc + ((p.stock || 0) * (p.costPrice ?? p.price ?? 0)), 0), settings)}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Total Products</p>
+                  <p className="text-lg xl:text-xl font-black text-slate-900 leading-tight mt-0.5">
+                    {inventoryStats.totalProducts} <span className="text-xs font-semibold text-slate-400">Items</span>
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                    Total Units: <span className="font-bold text-blue-600">{inventoryStats.totalStockUnits} pcs</span>
+                  </p>
                 </div>
               </div>
+
+              {/* Card 2: Stock / Inventory Value (With Cost / Retail toggle & full precision display) */}
+              <div 
+                className="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3 relative group"
+                title={`Cost Valuation: ${formatCurrency(inventoryStats.totalCostValue, settings)}\nRetail Valuation: ${formatCurrency(inventoryStats.totalRetailValue, settings)}\nClick toggle to switch between Cost and Retail view.`}
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                  <DollarSign size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Stock Value</p>
+                    <button
+                      type="button"
+                      onClick={() => setStockValueMode(prev => prev === 'cost' ? 'retail' : 'cost')}
+                      className={cn(
+                        "text-[9px] font-black uppercase px-1.5 py-0.5 rounded cursor-pointer transition-colors border",
+                        stockValueMode === 'cost'
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                          : "bg-blue-100 text-blue-800 border-blue-300"
+                      )}
+                      title="Click to toggle between Purchase Cost vs Selling Retail value"
+                    >
+                      {stockValueMode === 'cost' ? 'Cost' : 'Retail'}
+                    </button>
+                  </div>
+                  <p className="text-sm sm:text-base xl:text-lg font-black text-slate-900 leading-tight mt-0.5 break-normal">
+                    {formatCurrency(
+                      stockValueMode === 'cost' ? inventoryStats.totalCostValue : inventoryStats.totalRetailValue, 
+                      settings
+                    )}
+                  </p>
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium mt-0.5">
+                    <span>
+                      {stockValueMode === 'cost' ? 'Retail:' : 'Cost:'}{' '}
+                      <span className="font-bold text-slate-700">
+                        {formatCurrency(
+                          stockValueMode === 'cost' ? inventoryStats.totalRetailValue : inventoryStats.totalCostValue, 
+                          settings
+                        )}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Low Stock */}
               <div 
                 onClick={() => { setStockFilter(stockFilter === 'low_stock' ? 'all' : 'low_stock'); setCurrentPage(1); }}
                 className={cn(
-                  "p-4 rounded-xl border shadow-sm flex items-center gap-3.5 cursor-pointer transition-all",
+                  "p-3.5 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition-all",
                   stockFilter === 'low_stock' ? "bg-amber-50 border-amber-300 ring-2 ring-amber-400" : "bg-white border-slate-100 hover:border-amber-200"
                 )}
               >
-                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                  <AlertTriangle size={22} />
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+                  <AlertTriangle size={20} />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-slate-500 font-medium">Low Stock</p>
-                  <p className="text-xl font-black text-slate-900 truncate">{products.filter(p => !p.isOutOfStock && p.stock > 0 && p.stock < (p.lowStockThreshold || 10)).length}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Low Stock</p>
+                  <p className="text-lg xl:text-xl font-black text-amber-700 leading-tight mt-0.5">
+                    {inventoryStats.lowStockCount} <span className="text-xs font-semibold text-slate-400">Items</span>
+                  </p>
+                  <p className="text-[10px] text-amber-600 font-medium mt-0.5">Under Threshold</p>
                 </div>
               </div>
+
+              {/* Card 4: Out of Stock */}
               <div 
                 onClick={() => { setStockFilter(stockFilter === 'out_of_stock' ? 'all' : 'out_of_stock'); setCurrentPage(1); }}
                 className={cn(
-                  "p-4 rounded-xl border shadow-sm flex items-center gap-3.5 cursor-pointer transition-all",
+                  "p-3.5 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition-all",
                   stockFilter === 'out_of_stock' ? "bg-red-50 border-red-300 ring-2 ring-red-400" : "bg-white border-slate-100 hover:border-red-200"
                 )}
               >
-                <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
-                  <AlertCircle size={22} />
+                <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0 border border-red-100">
+                  <AlertCircle size={20} />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-slate-500 font-medium">Out of Stock</p>
-                  <p className="text-xl font-black text-slate-900 truncate">{products.filter(p => p.isOutOfStock || (p.stock || 0) === 0).length}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Out of Stock</p>
+                  <p className="text-lg xl:text-xl font-black text-red-600 leading-tight mt-0.5">
+                    {inventoryStats.outOfStockCount} <span className="text-xs font-semibold text-slate-400">Items</span>
+                  </p>
+                  <p className="text-[10px] text-red-500 font-medium mt-0.5">0 Units Left</p>
                 </div>
               </div>
+
+              {/* Card 5: Dead Stock */}
               <div 
                 onClick={() => { setStockFilter(stockFilter === 'dead_stock_90' ? 'all' : 'dead_stock_90'); setCurrentPage(1); }}
                 className={cn(
-                  "p-4 rounded-xl border shadow-sm flex items-center gap-3.5 cursor-pointer transition-all col-span-2 lg:col-span-1",
+                  "p-3.5 rounded-xl border shadow-sm flex items-center gap-3 cursor-pointer transition-all col-span-2 lg:col-span-1",
                   stockFilter === 'dead_stock_90'
                     ? "bg-rose-50 border-rose-300 ring-2 ring-rose-400"
                     : "bg-white border-slate-100 hover:border-rose-200 hover:bg-rose-50/20"
                 )}
                 title="Click to filter Dead Stock (90+ days without sale)"
               >
-                <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                  <Flame size={22} className="text-rose-600 animate-pulse" />
+                <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+                  <Flame size={20} className="text-rose-600 animate-pulse" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-rose-600 font-bold uppercase tracking-wider flex items-center gap-1">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] text-rose-600 font-bold uppercase tracking-wider flex items-center gap-1">
                     Dead Stock (90d+)
                   </p>
-                  <p className="text-xl font-black text-rose-700 truncate">
-                    {deadStockStats.deadStockCount} <span className="text-xs font-bold text-slate-500">Items</span>
+                  <p className="text-lg xl:text-xl font-black text-rose-700 leading-tight mt-0.5">
+                    {deadStockStats.deadStockCount} <span className="text-xs font-semibold text-slate-400">Items</span>
                   </p>
-                  <p className="text-[10px] text-slate-400 truncate">
-                    Locked: {formatCurrency(deadStockStats.deadStockCapital, settings)}
+                  <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                    Locked: <span className="font-bold text-rose-600">{formatCurrency(deadStockStats.deadStockCapital, settings)}</span>
                   </p>
                 </div>
               </div>
@@ -1419,7 +1508,16 @@ Storage: 512GB SSD"
                         </span>
                       </td>
                       <td className="px-6 py-4"><span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">{product.category}</span></td>
-                      <td className="px-6 py-4 text-sm font-bold text-gray-900">{formatCurrency(product.price, settings)}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-gray-900">{formatCurrency(product.price, settings)}</span>
+                          {Number(product.costPrice) > 0 ? (
+                            <span className="text-[10px] font-semibold text-slate-400">
+                              Cost: {formatCurrency(product.costPrice, settings)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
                       <td className="px-6 py-4">
                         {(() => {
                           const saleInfo = productSalesMap[product.id];
@@ -1429,13 +1527,20 @@ Storage: 512GB SSD"
 
                           return (
                             <div className="flex flex-col gap-1.5 items-start">
-                              <span className={cn(
-                                "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border",
-                                product.stock >= 10 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
-                                product.stock > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-red-50 text-red-700 border-red-200"
-                              )}>
-                                {product.stock > 0 ? `${product.stock} IN STOCK` : 'OUT OF STOCK'}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={cn(
+                                  "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border",
+                                  product.stock >= 10 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
+                                  product.stock > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-red-50 text-red-700 border-red-200"
+                                )}>
+                                  {product.stock > 0 ? `${product.stock} IN STOCK` : 'OUT OF STOCK'}
+                                </span>
+                                {product.stock > 0 && (
+                                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200" title="Total Stock Value for this item">
+                                    Val: {formatCurrency(Math.max(0, Number(product.stock) || 0) * (Number(product.costPrice) > 0 ? Number(product.costPrice) : (Number(product.price) || 0)), settings)}
+                                  </span>
+                                )}
+                              </div>
 
                               {product.stock > 0 && days >= 90 && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded shadow-2xs">
