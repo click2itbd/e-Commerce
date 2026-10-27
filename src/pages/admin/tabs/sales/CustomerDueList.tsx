@@ -19,7 +19,17 @@ import {
   Receipt,
   CheckSquare,
   Square,
-  Filter
+  Filter,
+  Printer,
+  Download,
+  ArrowUpDown,
+  Phone,
+  MapPin,
+  User,
+  FileText,
+  CheckCircle2,
+  DollarSign,
+  Users
 } from 'lucide-react';
 import { generatePDF } from '../../../../lib/pdf';
 import { Customer, Transaction, PaymentAccount, Order } from '../../../../types';
@@ -39,6 +49,7 @@ export default function CustomerDueList() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'due_desc' | 'due_asc' | 'aging_desc' | 'name_asc'>('due_desc');
   
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string, name: string, due: number } | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<{ id: string, name: string } | null>(null);
@@ -246,14 +257,157 @@ export default function CustomerDueList() {
     }
   });
 
-  const dueCustomers = allDueCustomers
-    .filter(c => agingFilter === 'all' || c.agingBucket === agingFilter)
-    .filter(c => 
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      (c.phone && c.phone.includes(searchTerm))
-    );
+  const dueCustomers = useMemo(() => {
+    let list = allDueCustomers
+      .filter(c => agingFilter === 'all' || c.agingBucket === agingFilter)
+      .filter(c => {
+        if (!searchTerm.trim()) return true;
+        const q = searchTerm.toLowerCase();
+        return (
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.phone || '').includes(searchTerm) ||
+          (c.address || '').toLowerCase().includes(q) ||
+          (c.branchName || '').toLowerCase().includes(q) ||
+          (c.branches || []).some(b => b.toLowerCase().includes(q))
+        );
+      });
+
+    list.sort((a, b) => {
+      if (sortBy === 'due_desc') return b.due - a.due;
+      if (sortBy === 'due_asc') return a.due - b.due;
+      if (sortBy === 'aging_desc') return (b.daysOld || 0) - (a.daysOld || 0);
+      if (sortBy === 'name_asc') return (a.name || '').localeCompare(b.name || '');
+      return b.due - a.due;
+    });
+
+    return list;
+  }, [allDueCustomers, agingFilter, searchTerm, sortBy]);
 
   const totalOverallDue = dueCustomers.reduce((acc, curr) => acc + curr.due, 0);
+
+  // Export Customer Due List to CSV
+  const handleExportCSV = () => {
+    if (dueCustomers.length === 0) {
+      toast.error('No customer due records to export');
+      return;
+    }
+    const headers = ['Customer Name', 'Phone', 'Address', 'Branch', 'Days Overdue', 'Oldest Due Date', 'Aging Status', 'Due Amount (BDT)'];
+    const rows = dueCustomers.map(c => [
+      `"${(c.name || '').replace(/"/g, '""')}"`,
+      `"${(c.phone || '').replace(/"/g, '""')}"`,
+      `"${(c.address || '').replace(/"/g, '""')}"`,
+      `"${(c.branchName || (c.branches && c.branches[0]) || '').replace(/"/g, '""')}"`,
+      c.daysOld || 0,
+      c.oldestDate ? new Date(c.oldestDate).toLocaleDateString() : 'N/A',
+      c.agingBucket ? c.agingBucket.replace('_', '-') + ' days' : 'Current',
+      c.due || 0
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `customer_due_report_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success('Customer Due List exported successfully!');
+  };
+
+  // Print Due Report
+  const handlePrintReport = () => {
+    if (dueCustomers.length === 0) {
+      toast.error('No due records to print');
+      return;
+    }
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Pop-up blocked. Please allow pop-ups for this site.');
+      return;
+    }
+    const storeName = settings?.storeName || 'Click2IT';
+    const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    
+    const rowsHtml = dueCustomers.map((c, idx) => `
+      <tr>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center;">${idx + 1}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: bold; color: #0f172a;">
+          ${c.name}
+          ${c.branchName ? `<br><span style="font-size: 10px; color: #64748b; font-weight: normal;">Branch: ${c.branchName}</span>` : ''}
+        </td>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #334155;">${c.phone || 'N/A'}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #475569;">${c.address || 'N/A'}</td>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center;">
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: bold; background: ${c.daysOld > 60 ? '#ffe4e6; color: #9f1239' : c.daysOld > 30 ? '#fef3c7; color: #92400e' : '#ecfdf5; color: #065f46'};">
+            ${c.daysOld} Days Overdue
+          </span>
+        </td>
+        <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: 800; text-align: right; color: #dc2626;">৳${Number(c.due).toLocaleString()}</td>
+      </tr>
+    `).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Customer Due Aging Report - ${dateStr}</title>
+        <style>
+          @page { size: A4 portrait; margin: 12mm; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; color: #0f172a; }
+          table { width: 100%; border-collapse: collapse; }
+          th { background: #0f172a; color: #ffffff; padding: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; }
+        </style>
+      </head>
+      <body>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px;">
+          <div>
+            <h1 style="margin: 0; font-size: 22px; font-weight: 900; color: #0f172a;">${storeName}</h1>
+            <p style="margin: 3px 0 0; font-size: 12px; color: #64748b;">Customer Outstanding & Aging Summary Report</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0; font-size: 12px; font-weight: bold; color: #0f172a;">Date: ${dateStr}</p>
+            <p style="margin: 3px 0 0; font-size: 11px; color: #64748b;">Total Outstanding: <strong style="color: #dc2626; font-size: 14px;">৳${Number(totalOverallDue).toLocaleString()}</strong></p>
+            <p style="margin: 2px 0 0; font-size: 11px; color: #64748b;">Total Due Accounts: <strong>${dueCustomers.length}</strong></p>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 35px; text-align: center;">#</th>
+              <th>Customer Name</th>
+              <th>Phone</th>
+              <th>Address</th>
+              <th style="text-align: center;">Aging Status</th>
+              <th style="text-align: right;">Due Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+          <tfoot>
+            <tr style="background: #f8fafc; font-weight: bold;">
+              <td colspan="5" style="padding: 12px 10px; text-align: right; font-size: 13px; text-transform: uppercase;">Total Outstanding:</td>
+              <td style="padding: 12px 10px; text-align: right; font-size: 15px; color: #dc2626; font-weight: 900;">৳${Number(totalOverallDue).toLocaleString()}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div style="margin-top: 30px; display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; border-top: 1px dashed #cbd5e1; padding-top: 10px;">
+          <span>Report Generated automatically on ${new Date().toLocaleString()}</span>
+          <span>Printed from Click2IT ERP</span>
+        </div>
+        <script>
+          window.onload = function() { window.print(); window.close(); }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
 
   
   const handleDeleteTransaction = async (txId: string) => {
@@ -636,170 +790,343 @@ export default function CustomerDueList() {
 
   return (
     <div className="space-y-6">
+      {/* Hero Header Area */}
+      <div className="p-6 md:p-8 bg-gradient-to-r from-slate-900 to-[#081621] text-white rounded-2xl shadow-lg border border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-[10px] font-black uppercase tracking-widest mb-3">
+              <CreditCard size={12} className="text-blue-400" /> Outstanding Management
+            </div>
+            <h2 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3">
+              Customer Due List
+              <span className="text-xs font-bold text-slate-300 bg-white/10 px-3 py-1 rounded-full border border-white/5">
+                {agingStats.all.count} Overdue Accounts
+              </span>
+            </h2>
+            <p className="text-sm text-slate-400 mt-2 max-w-2xl">
+              Track aging balances, collect overdue payments, and dispatch WhatsApp payment reminders to clients.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            {/* Quick Summary Card */}
+            <div className="bg-white/5 border border-white/10 backdrop-blur-sm px-4 py-2.5 rounded-xl flex flex-col items-end">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Outstanding</span>
+              <span className="text-xl font-black text-rose-400">{formatCurrency(agingStats.all.total, settings)}</span>
+            </div>
+
+            {/* Action Buttons */}
+            <button
+              type="button"
+              onClick={handlePrintReport}
+              className="bg-white/10 hover:bg-white/20 text-white border border-white/10 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm"
+              title="Print Customer Due Aging Report"
+            >
+              <Printer size={15} /> Print Report
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md shadow-emerald-600/20"
+              title="Download Due List as CSV Excel sheet"
+            >
+              <Download size={15} /> Export CSV
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Due Aging Filter Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <button
           type="button"
           onClick={() => setAgingFilter('all')}
           className={cn(
-            "p-3.5 rounded-xl border text-left transition-all relative overflow-hidden",
+            "p-4 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer",
             agingFilter === 'all'
-              ? "bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/20"
-              : "bg-white text-slate-800 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+              ? "bg-[#081621] text-white border-[#081621] shadow-lg ring-2 ring-blue-500/30"
+              : "bg-white text-slate-800 border-slate-200 hover:border-slate-300 hover:shadow-sm"
           )}
         >
-          <div className="text-[10px] font-black uppercase tracking-wider opacity-70 mb-1">All Outstandings</div>
-          <div className="text-base sm:text-lg font-black">{formatCurrency(agingStats.all.total, settings)}</div>
-          <div className="text-[11px] opacity-80 mt-0.5">{agingStats.all.count} Customers</div>
+          <div className="flex items-center justify-between mb-2">
+            <span className={cn("text-[10px] font-black uppercase tracking-wider", agingFilter === 'all' ? "text-slate-300" : "text-slate-500")}>
+              All Outstandings
+            </span>
+            <Layers size={14} className={agingFilter === 'all' ? "text-blue-400" : "text-slate-400"} />
+          </div>
+          <div className="text-lg sm:text-xl font-black tracking-tight">{formatCurrency(agingStats.all.total, settings)}</div>
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/10 text-[11px]">
+            <span className={agingFilter === 'all' ? "text-slate-300 font-medium" : "text-slate-500"}>
+              {agingStats.all.count} Customers
+            </span>
+            <span className={cn("font-bold text-[10px] px-1.5 py-0.5 rounded", agingFilter === 'all' ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600")}>
+              100%
+            </span>
+          </div>
         </button>
 
         <button
           type="button"
           onClick={() => setAgingFilter('0_30')}
           className={cn(
-            "p-3.5 rounded-xl border text-left transition-all relative overflow-hidden",
+            "p-4 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer",
             agingFilter === '0_30'
-              ? "bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-600/20"
-              : "bg-emerald-50/50 text-emerald-900 border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50"
+              ? "bg-emerald-600 text-white border-emerald-600 shadow-lg ring-2 ring-emerald-500/30"
+              : "bg-white text-emerald-950 border-emerald-200 hover:border-emerald-300 hover:shadow-sm"
           )}
         >
-          <div className="text-[10px] font-black uppercase tracking-wider opacity-80 mb-1 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> 0 - 30 Days (Current)
+          <div className="flex items-center justify-between mb-2">
+            <span className={cn("text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5", agingFilter === '0_30' ? "text-emerald-100" : "text-emerald-700")}>
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span> 0 - 30 Days
+            </span>
+            <CheckCircle2 size={14} className={agingFilter === '0_30' ? "text-emerald-200" : "text-emerald-500"} />
           </div>
-          <div className="text-base sm:text-lg font-black">{formatCurrency(agingStats['0_30'].total, settings)}</div>
-          <div className="text-[11px] opacity-80 mt-0.5">{agingStats['0_30'].count} Fresh Due</div>
+          <div className="text-lg sm:text-xl font-black tracking-tight">{formatCurrency(agingStats['0_30'].total, settings)}</div>
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/10 text-[11px]">
+            <span className={agingFilter === '0_30' ? "text-emerald-100 font-medium" : "text-emerald-700"}>
+              {agingStats['0_30'].count} Fresh Due
+            </span>
+            <span className={cn("font-bold text-[10px] px-1.5 py-0.5 rounded", agingFilter === '0_30' ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-800")}>
+              {agingStats.all.total > 0 ? `${Math.round((agingStats['0_30'].total / agingStats.all.total) * 100)}%` : '0%'}
+            </span>
+          </div>
         </button>
 
         <button
           type="button"
           onClick={() => setAgingFilter('31_60')}
           className={cn(
-            "p-3.5 rounded-xl border text-left transition-all relative overflow-hidden",
+            "p-4 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer",
             agingFilter === '31_60'
-              ? "bg-amber-600 text-white border-amber-600 shadow-md ring-2 ring-amber-600/20"
-              : "bg-amber-50/50 text-amber-900 border-amber-200 hover:border-amber-300 hover:bg-amber-50"
+              ? "bg-amber-600 text-white border-amber-600 shadow-lg ring-2 ring-amber-500/30"
+              : "bg-white text-amber-950 border-amber-200 hover:border-amber-300 hover:shadow-sm"
           )}
         >
-          <div className="text-[10px] font-black uppercase tracking-wider opacity-80 mb-1 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span> 31 - 60 Days (Attention)
+          <div className="flex items-center justify-between mb-2">
+            <span className={cn("text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5", agingFilter === '31_60' ? "text-amber-100" : "text-amber-700")}>
+              <span className="w-2 h-2 rounded-full bg-amber-400"></span> 31 - 60 Days
+            </span>
+            <Clock size={14} className={agingFilter === '31_60' ? "text-amber-200" : "text-amber-500"} />
           </div>
-          <div className="text-base sm:text-lg font-black">{formatCurrency(agingStats['31_60'].total, settings)}</div>
-          <div className="text-[11px] opacity-80 mt-0.5">{agingStats['31_60'].count} Follow Up</div>
+          <div className="text-lg sm:text-xl font-black tracking-tight">{formatCurrency(agingStats['31_60'].total, settings)}</div>
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/10 text-[11px]">
+            <span className={agingFilter === '31_60' ? "text-amber-100 font-medium" : "text-amber-700"}>
+              {agingStats['31_60'].count} Follow Up
+            </span>
+            <span className={cn("font-bold text-[10px] px-1.5 py-0.5 rounded", agingFilter === '31_60' ? "bg-white/20 text-white" : "bg-amber-50 text-amber-800")}>
+              {agingStats.all.total > 0 ? `${Math.round((agingStats['31_60'].total / agingStats.all.total) * 100)}%` : '0%'}
+            </span>
+          </div>
         </button>
 
         <button
           type="button"
           onClick={() => setAgingFilter('61_90')}
           className={cn(
-            "p-3.5 rounded-xl border text-left transition-all relative overflow-hidden",
+            "p-4 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer",
             agingFilter === '61_90'
-              ? "bg-orange-600 text-white border-orange-600 shadow-md ring-2 ring-orange-600/20"
-              : "bg-orange-50/50 text-orange-900 border-orange-200 hover:border-orange-300 hover:bg-orange-50"
+              ? "bg-orange-600 text-white border-orange-600 shadow-lg ring-2 ring-orange-500/30"
+              : "bg-white text-orange-950 border-orange-200 hover:border-orange-300 hover:shadow-sm"
           )}
         >
-          <div className="text-[10px] font-black uppercase tracking-wider opacity-80 mb-1 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-orange-500 inline-block"></span> 61 - 90 Days (Overdue)
+          <div className="flex items-center justify-between mb-2">
+            <span className={cn("text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5", agingFilter === '61_90' ? "text-orange-100" : "text-orange-700")}>
+              <span className="w-2 h-2 rounded-full bg-orange-400"></span> 61 - 90 Days
+            </span>
+            <AlertCircle size={14} className={agingFilter === '61_90' ? "text-orange-200" : "text-orange-500"} />
           </div>
-          <div className="text-base sm:text-lg font-black">{formatCurrency(agingStats['61_90'].total, settings)}</div>
-          <div className="text-[11px] opacity-80 mt-0.5">{agingStats['61_90'].count} Urgent Collection</div>
+          <div className="text-lg sm:text-xl font-black tracking-tight">{formatCurrency(agingStats['61_90'].total, settings)}</div>
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/10 text-[11px]">
+            <span className={agingFilter === '61_90' ? "text-orange-100 font-medium" : "text-orange-700"}>
+              {agingStats['61_90'].count} Overdue
+            </span>
+            <span className={cn("font-bold text-[10px] px-1.5 py-0.5 rounded", agingFilter === '61_90' ? "bg-white/20 text-white" : "bg-orange-50 text-orange-800")}>
+              {agingStats.all.total > 0 ? `${Math.round((agingStats['61_90'].total / agingStats.all.total) * 100)}%` : '0%'}
+            </span>
+          </div>
         </button>
 
         <button
           type="button"
           onClick={() => setAgingFilter('90_plus')}
           className={cn(
-            "p-3.5 rounded-xl border text-left transition-all relative overflow-hidden",
+            "p-4 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer",
             agingFilter === '90_plus'
-              ? "bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-600/30"
-              : "bg-rose-50/70 text-rose-900 border-rose-200 hover:border-rose-300 hover:bg-rose-100"
+              ? "bg-rose-600 text-white border-rose-600 shadow-lg ring-2 ring-rose-500/30"
+              : "bg-white text-rose-950 border-rose-200 hover:border-rose-300 hover:shadow-sm"
           )}
         >
-          <div className="text-[10px] font-black uppercase tracking-wider opacity-90 mb-1 flex items-center gap-1 text-rose-700">
-            <AlertTriangle size={12} className="text-rose-600 animate-bounce" /> 90+ Days (Critical)
+          <div className="flex items-center justify-between mb-2">
+            <span className={cn("text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5", agingFilter === '90_plus' ? "text-rose-100" : "text-rose-700")}>
+              <AlertTriangle size={12} className={agingFilter === '90_plus' ? "text-rose-200 animate-bounce" : "text-rose-500"} /> 90+ Days
+            </span>
+            <AlertTriangle size={14} className={agingFilter === '90_plus' ? "text-rose-200" : "text-rose-500"} />
           </div>
-          <div className="text-base sm:text-lg font-black text-rose-700">{formatCurrency(agingStats['90_plus'].total, settings)}</div>
-          <div className="text-[11px] font-bold text-rose-600 mt-0.5">{agingStats['90_plus'].count} High Risk Due</div>
+          <div className="text-lg sm:text-xl font-black tracking-tight">{formatCurrency(agingStats['90_plus'].total, settings)}</div>
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/10 text-[11px]">
+            <span className={agingFilter === '90_plus' ? "text-rose-100 font-medium" : "text-rose-700"}>
+              {agingStats['90_plus'].count} Critical
+            </span>
+            <span className={cn("font-bold text-[10px] px-1.5 py-0.5 rounded", agingFilter === '90_plus' ? "bg-white/20 text-white" : "bg-rose-50 text-rose-800")}>
+              {agingStats.all.total > 0 ? `${Math.round((agingStats['90_plus'].total / agingStats.all.total) * 100)}%` : '0%'}
+            </span>
+          </div>
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <CreditCard className="text-blue-600" /> Customer Due List
-              {agingFilter !== 'all' && (
-                <span className="text-xs font-black uppercase px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
-                  Filter: {agingFilter.replace('_', '-')} Days
-                </span>
+      {/* Main Table Card */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        {/* Controls Row: Search, Sort, Filter */}
+        <div className="p-4 md:p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto flex-1">
+            {/* Search Input */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="text"
+                placeholder="Search customers by name, phone, branch, address..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs transition-all placeholder:text-slate-400"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-100"
+                >
+                  <X size={13} />
+                </button>
               )}
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">Manage, age, and collect outstanding payments from customers</p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
-            <div className="bg-red-50 text-red-700 px-4 py-2 rounded-lg border border-red-100 flex flex-col items-end">
-              <span className="text-xs font-bold uppercase">Filtered Due</span>
-              <span className="text-lg font-black">{formatCurrency(totalOverallDue, settings)}</span>
             </div>
-            <label className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 cursor-pointer whitespace-nowrap">
+
+            {/* Sort Selector */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden sm:inline">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as any)}
+                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 shadow-2xs cursor-pointer"
+              >
+                <option value="due_desc">Highest Due First</option>
+                <option value="due_asc">Lowest Due First</option>
+                <option value="aging_desc">Most Overdue (Days)</option>
+                <option value="name_asc">Customer Name (A-Z)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0 justify-between sm:justify-end">
+            {/* Show All Toggle */}
+            <label className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 cursor-pointer shadow-2xs hover:bg-slate-50 transition-colors">
               <input
                 type="checkbox"
                 checked={showAll}
                 onChange={e => setShowAll(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600"
+                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-600 font-medium">Show All</span>
+              <span className="text-xs text-slate-700 font-bold whitespace-nowrap">Show All Customers</span>
             </label>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="text"
-                placeholder="Search by name or phone..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-              />
+
+            {/* Filtered Total Badge */}
+            <div className="bg-red-50 text-red-700 border border-red-200/80 px-3.5 py-1.5 rounded-xl flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider">Filtered Due:</span>
+              <span className="text-sm font-black">{formatCurrency(totalOverallDue, settings)}</span>
             </div>
           </div>
         </div>
 
+        {/* Table Content */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-gray-600">
-            <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-bold border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4">Customer Name</th>
-                <th className="px-6 py-4">Phone</th>
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-900 text-slate-300 text-[11px] font-black uppercase tracking-wider">
+                <th className="px-6 py-4">Customer Profile</th>
+                <th className="px-6 py-4">Contact Info</th>
                 <th className="px-6 py-4">Aging Status</th>
                 <th className="px-6 py-4 text-right">Due Amount</th>
-                <th className="px-6 py-4 text-center">Action</th>
+                <th className="px-6 py-4 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-100 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-16 text-center text-slate-400">
                     <div className="animate-pulse flex flex-col items-center">
-                      <div className="h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
-                      Loading due list...
+                      <div className="h-7 w-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                      <span className="text-sm font-semibold">Calculating customer outstandings...</span>
                     </div>
                   </td>
                 </tr>
               ) : dueCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                    <Check className="mx-auto text-green-500 mb-2" size={24} />
-                    No pending dues found in this category.
+                  <td colSpan={5} className="px-6 py-16 text-center">
+                    <div className="max-w-sm mx-auto flex flex-col items-center text-slate-400">
+                      <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mb-3">
+                        <Check size={24} />
+                      </div>
+                      <h4 className="text-slate-800 font-bold text-sm">No Pending Dues</h4>
+                      <p className="text-xs text-slate-400 mt-1">All customers in this category have cleared their balances.</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 dueCustomers.map((customer) => (
-                  <tr key={customer.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-gray-900">{customer.name}</td>
-                    <td className="px-6 py-4">{customer.phone || 'N/A'}</td>
+                  <tr key={customer.id} className="hover:bg-slate-50/80 transition-colors group">
+                    {/* Customer Profile & Branches */}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3.5">
+                        <div className="h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm shadow-inner shrink-0 bg-blue-50 text-blue-700 border border-blue-200/80">
+                          {(customer.name || 'C').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <span className="font-bold text-sm text-slate-900 block group-hover:text-blue-600 transition-colors">
+                            {customer.name}
+                          </span>
+                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                            {((customer.branches && customer.branches.length > 0) || customer.branchName) && (
+                              <div className="flex flex-wrap gap-1">
+                                {(customer.branches && customer.branches.length > 0 ? customer.branches : [customer.branchName]).filter(Boolean).map((br, idx) => (
+                                  <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
+                                    Branch: {br}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {customer.address && (
+                              <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                                <MapPin size={11} className="text-slate-400 shrink-0" />
+                                <span className="truncate max-w-[200px]">{customer.address}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Contact Phone & WhatsApp */}
+                    <td className="px-6 py-4">
+                      {customer.phone ? (
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={`tel:${customer.phone}`}
+                            className="text-slate-700 hover:text-blue-600 font-semibold text-xs flex items-center gap-1.5 transition-colors"
+                          >
+                            <Phone size={13} className="text-slate-400" /> {customer.phone}
+                          </a>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">No phone</span>
+                      )}
+                    </td>
+
+                    {/* Aging Status Badge */}
                     <td className="px-6 py-4">
                       {customer.daysOld > 0 ? (
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-1">
                           <span className={cn(
-                            "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black w-fit",
+                            "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black w-fit",
                             customer.agingBucket === '90_plus' ? "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse" :
                             customer.agingBucket === '61_90' ? "bg-orange-100 text-orange-800 border border-orange-200" :
                             customer.agingBucket === '31_60' ? "bg-amber-100 text-amber-800 border border-amber-200" :
@@ -807,45 +1134,57 @@ export default function CustomerDueList() {
                           )}>
                             <Clock size={11} /> {customer.daysOld} Days Overdue
                           </span>
-                          <span className="text-[10px] text-gray-400">
+                          <span className="text-[10px] text-slate-400 font-medium">
                             Since {customer.oldestDate ? new Date(customer.oldestDate).toLocaleDateString() : 'N/A'}
                           </span>
                         </div>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-gray-100 text-gray-600">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">
                           Current (0d)
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right font-black text-red-600">
-                      {formatCurrency(customer.due, settings)}
+
+                    {/* Due Amount */}
+                    <td className="px-6 py-4 text-right">
+                      <span className="font-black text-base text-red-600 tracking-tight">
+                        {formatCurrency(customer.due, settings)}
+                      </span>
                     </td>
+
+                    {/* Actions */}
                     <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center items-center gap-2">
+                      <div className="flex justify-center items-center gap-1.5">
                         {customer.phone && (
                           <button
                             type="button"
                             onClick={() => handleSendWhatsAppReminder(customer)}
-                            title="Send Due Reminder on WhatsApp"
-                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-2xs"
+                            title="Send WhatsApp Due Reminder"
+                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 p-2 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1"
                           >
-                            <MessageCircle size={13} className="text-emerald-600" /> WhatsApp
+                            <MessageCircle size={14} className="text-emerald-600" />
+                            <span className="hidden xl:inline">WhatsApp</span>
                           </button>
                         )}
                         <button
+                          type="button"
                           onClick={() => {
                             setHistoryCustomer({ id: customer.id, name: customer.name });
                             setLedgerBranchFilter('all');
                           }}
-                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                          title="View Customer Ledger History"
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition-colors shadow-2xs flex items-center gap-1.5"
                         >
-                          History
+                          <FileText size={13} className="text-slate-500" />
+                          <span>History</span>
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleOpenPaymentModal({ id: customer.id, name: customer.name, due: customer.due })}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer"
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5 cursor-pointer shrink-0"
                         >
-                          Receive Payment
+                          <DollarSign size={13} />
+                          <span>Receive</span>
                         </button>
                       </div>
                     </td>
