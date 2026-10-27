@@ -186,7 +186,7 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
     if (!woNumber) return [];
     const cleanWO = woNumber.toLowerCase().trim();
     return orders.filter(o => {
-      if (o.status === 'cancelled') return false;
+      if (o.status === 'cancelled' || o.type === 'quotation') return false;
       const oWO = (o as any).workOrderNumber ? String((o as any).workOrderNumber).toLowerCase().trim() : '';
       const notes = (o.notes || '').toLowerCase();
       return oWO === cleanWO || (oWO && cleanWO.includes(oWO)) || notes.includes(cleanWO);

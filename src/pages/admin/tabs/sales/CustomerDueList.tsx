@@ -343,7 +343,7 @@ export default function CustomerDueList() {
   const customerUnpaidOrders = useMemo(() => {
     if (!selectedCustomer) return [];
     return orders.filter(o => {
-      if (o.status === 'cancelled') return false;
+      if (o.status === 'cancelled' || o.type === 'quotation') return false;
       const matchesId = o.customerId === selectedCustomer.id;
       const matchesName = o.customerName && selectedCustomer.name && o.customerName.toLowerCase().trim() === selectedCustomer.name.toLowerCase().trim();
       if (!matchesId && !matchesName) return false;
@@ -568,7 +568,7 @@ export default function CustomerDueList() {
           let remPay = Number(paymentAmount);
           const unpaidOrders = orders
             .filter(o => {
-              if (o.status === 'cancelled') return false;
+              if (o.status === 'cancelled' || o.type === 'quotation') return false;
               const matchesId = o.customerId === selectedCustomer.id;
               const matchesName = o.customerName && selectedCustomer.name && o.customerName.toLowerCase().trim() === selectedCustomer.name.toLowerCase().trim();
               if (!matchesId && !matchesName) return false;

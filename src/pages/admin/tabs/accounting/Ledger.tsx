@@ -180,7 +180,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
   const entityUnpaidOrders = useMemo(() => {
     if (!selectedLedgerEntity || selectedLedgerEntity.type !== 'customer') return [];
     return orders.filter(o => {
-      if (o.status === 'cancelled') return false;
+      if (o.status === 'cancelled' || o.type === 'quotation') return false;
       const matchesId = o.customerId === selectedLedgerEntity.id;
       const matchesName = o.customerName && selectedLedgerEntity.name && o.customerName.toLowerCase().trim() === selectedLedgerEntity.name.toLowerCase().trim();
       if (!matchesId && !matchesName) return false;

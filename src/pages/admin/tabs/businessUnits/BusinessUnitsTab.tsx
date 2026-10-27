@@ -85,12 +85,12 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
   const [deletingCompany, setDeletingCompany] = useState<BusinessCompany | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Local state for instant optimistic updates
-  const [localOrders, setLocalOrders] = useState<Order[]>(orders);
+  // Local state for instant optimistic updates (excluding quotations)
+  const [localOrders, setLocalOrders] = useState<Order[]>(() => orders.filter(o => o.type !== 'quotation'));
   const [localCustomers, setLocalCustomers] = useState<Customer[]>(customers);
 
   useEffect(() => {
-    setLocalOrders(orders);
+    setLocalOrders(orders.filter(o => o.type !== 'quotation'));
   }, [orders]);
 
   useEffect(() => {
@@ -144,6 +144,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
     const nonMainCompanies = companies.filter(c => c.id !== 'main');
 
     localOrders.forEach(order => {
+      if (order.type === 'quotation') return;
       const currentComp = getOrderCompany(order);
       const text = `${order.customerName || ''} ${order.notes || ''} ${order.workOrderNumber || ''}`.toLowerCase();
       
@@ -190,7 +191,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
     let allThisMonthOrders = 0;
 
     localOrders.forEach(order => {
-      if (order.status === 'cancelled') return;
+      if (order.status === 'cancelled' || order.type === 'quotation') return;
       const comp = getOrderCompany(order);
       const rev = Number(order.total || order.paidAmount || 0);
 
@@ -270,7 +271,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
     const clientDuesMap: Record<string, Record<string, { name: string; due: number; phone?: string }>> = {};
 
     localOrders.forEach(order => {
-      if (order.status === 'cancelled') return;
+      if (order.status === 'cancelled' || order.type === 'quotation') return;
 
       // Filter by date
       if (dateFilter === 'today') {
@@ -364,7 +365,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
     const map: Record<string, ProjectStat> = {};
 
     localOrders.forEach(order => {
-      if (order.status === 'cancelled') return;
+      if (order.status === 'cancelled' || order.type === 'quotation') return;
       const comp = getOrderCompany(order);
       if (selectedCompany !== 'all' && comp !== selectedCompany) return;
 
@@ -438,6 +439,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
   const availableBranches = useMemo(() => {
     const set = new Set<string>();
     localOrders.forEach(o => {
+      if (o.status === 'cancelled' || o.type === 'quotation') return;
       const comp = getOrderCompany(o);
       if (statementCompany !== 'all' && comp !== statementCompany) return;
       if (o.branchName?.trim()) set.add(o.branchName.trim());
@@ -449,7 +451,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
   // Orders filtered specifically for Consolidated Statement
   const statementOrders = useMemo(() => {
     return localOrders.filter(o => {
-      if (o.status === 'cancelled') return false;
+      if (o.status === 'cancelled' || o.type === 'quotation') return false;
       const comp = getOrderCompany(o);
       if (statementCompany !== 'all' && comp !== statementCompany) return false;
       if (statementBranch !== 'all') {
@@ -560,7 +562,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
   // Filtered Orders
   const filteredOrders = useMemo(() => {
     return localOrders.filter(o => {
-      if (o.status === 'cancelled') return false;
+      if (o.status === 'cancelled' || o.type === 'quotation') return false;
       const comp = getOrderCompany(o);
       if (selectedCompany !== 'all' && comp !== selectedCompany) return false;
 
