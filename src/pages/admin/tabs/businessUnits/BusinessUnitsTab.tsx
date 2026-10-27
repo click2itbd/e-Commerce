@@ -948,19 +948,19 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
                     <span className={cn("text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border flex items-center gap-1.5 shadow-2xs w-fit", theme.badgeBg)}>
                       <CompIcon size={12} /> {company.name}
                     </span>
-                    {company.parentCompany === 'volumezero' ? (
+                    {company.parentCompany ? (
                       <span className="text-[9px] font-bold text-slate-500 pl-1">
-                        ↳ Volumezero অঙ্গ প্রতিষ্ঠান
+                        ↳ {companies.find(c => c.id.toLowerCase() === company.parentCompany?.toLowerCase())?.name || company.parentCompany} অঙ্গ প্রতিষ্ঠান
                       </span>
-                    ) : company.id === 'volumezero' ? (
+                    ) : company.id !== 'main' ? (
                       <span className="text-[9px] font-bold text-blue-600 pl-1">
                         ★ Corporate Parent Group
                       </span>
-                    ) : company.id === 'main' ? (
+                    ) : (
                       <span className="text-[9px] font-bold text-slate-500 pl-1">
                         Retail / General Clients
                       </span>
-                    ) : null}
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     {isSelected ? (
@@ -2035,6 +2035,7 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
           setEditingCompany(null);
         }}
         initialData={editingCompany}
+        companies={companies}
         onSave={handleSaveCompany}
       />
 

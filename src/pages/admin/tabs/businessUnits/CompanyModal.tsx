@@ -26,6 +26,7 @@ interface CompanyModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialData?: BusinessCompany | null;
+  companies?: BusinessCompany[];
   onSave: (companyData: any) => Promise<void>;
 }
 
@@ -33,6 +34,7 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
   isOpen,
   onClose,
   initialData,
+  companies = [],
   onSave
 }) => {
   const [name, setName] = useState('');
@@ -271,8 +273,18 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
                 onChange={e => setParentCompany(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-all shadow-2xs cursor-pointer"
               >
-                <option value="">Independent / Top-Level Entity</option>
-                <option value="volumezero">Volumezero (অঙ্গ প্রতিষ্ঠান / Subsidiary of Volumezero)</option>
+                <option value="">Independent / Top-Level Corporate Group</option>
+                {(() => {
+                  const parentOptions = companies.filter(c => c.id !== 'main' && !c.parentCompany && (!initialData || c.id !== initialData.id));
+                  if (parentOptions.length === 0) {
+                    return <option value="volumezero">Volumezero (অঙ্গ প্রতিষ্ঠান / Subsidiary of Volumezero)</option>;
+                  }
+                  return parentOptions.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} (অঙ্গ প্রতিষ্ঠান / Subsidiary of {p.name})
+                    </option>
+                  ));
+                })()}
               </select>
             </div>
           </div>

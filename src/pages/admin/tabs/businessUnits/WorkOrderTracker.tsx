@@ -26,7 +26,7 @@ import {
   X,
   FileText
 } from 'lucide-react';
-import { getCompanyTheme } from '../../../../hooks/useBusinessUnits';
+import { getCompanyTheme, getHierarchicalCompanyGroups } from '../../../../hooks/useBusinessUnits';
 
 interface WorkOrderTrackerProps {
   orders: Order[];
@@ -628,17 +628,13 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                     onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:border-indigo-500 focus:bg-white cursor-pointer"
                   >
-                    <optgroup label="Volumezero Group (Corporate)">
-                      <option value="volumezero">Volumezero (Parent Group)</option>
-                      <option value="spacezero">Volumezero ↳ Spacezero (অঙ্গ প্রতিষ্ঠান)</option>
-                      <option value="simpletree">Volumezero ↳ Simpletree (অঙ্গ প্রতিষ্ঠান)</option>
-                    </optgroup>
-                    <optgroup label="General / Other">
-                      <option value="main">General / Retail</option>
-                      {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </optgroup>
+                    {getHierarchicalCompanyGroups(companies).map(group => (
+                      <optgroup key={group.groupKey} label={group.groupLabel}>
+                        {group.options.map(opt => (
+                          <option key={opt.id} value={opt.id}>{opt.label}</option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                 </div>
               </div>

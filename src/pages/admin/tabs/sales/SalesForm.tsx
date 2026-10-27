@@ -6,7 +6,8 @@ import { formatCurrency, cn, addWarranty, formatWarranty } from '../../../../lib
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { generatePDF } from '../../../../lib/pdf';
-import { useBusinessUnits } from '../../../../hooks/useBusinessUnits';
+import { useBusinessUnits, getHierarchicalCompanyGroups } from '../../../../hooks/useBusinessUnits';
+import { CompanyModal } from '../businessUnits/CompanyModal';
 import { PreparedBySelect } from '../../../../components/common/PreparedBySelect';
 import {
   Plus,
@@ -82,7 +83,9 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   transactions = [],
 }) => {
   const { profile } = useAuth();
-  const { companies } = useBusinessUnits();
+  const { companies, addCompany } = useBusinessUnits();
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [companyModalTarget, setCompanyModalTarget] = useState<'sale' | 'customer'>('sale');
 
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
@@ -1288,30 +1291,45 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
               {/* Business Unit / Sister Concern */}
               <div className="min-w-0">
-                <label className="block text-[11px] font-extrabold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5 whitespace-nowrap">
-                  <Building2 size={13} className="text-slate-400 shrink-0" />
-                  <span>Company / Unit</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
+                    <Building2 size={13} className="text-slate-400 shrink-0" />
+                    <span>Company / Unit</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => { setCompanyModalTarget('sale'); setIsCompanyModalOpen(true); }}
+                    className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-200 transition-all cursor-pointer shadow-2xs"
+                    title="Add new corporate concern"
+                  >
+                    <Plus size={10} className="stroke-[3]" />
+                    <span>+ Unit</span>
+                  </button>
+                </div>
                 <select
                   value={saleData.company || 'main'}
-                  onChange={e => setSaleData({ ...saleData, company: e.target.value })}
+                  onChange={e => {
+                    if (e.target.value === '__add_new__') {
+                      setCompanyModalTarget('sale');
+                      setIsCompanyModalOpen(true);
+                    } else {
+                      setSaleData({ ...saleData, company: e.target.value });
+                    }
+                  }}
                   className="w-full h-10 border border-slate-200 bg-white rounded-xl px-3 font-bold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all cursor-pointer shadow-2xs"
                 >
-                  <optgroup label="General / Retail Clients">
-                    <option value="main">General / Retail Client</option>
-                  </optgroup>
-                  <optgroup label="Volumezero Group (Corporate)">
-                    <option value="volumezero">Volumezero (Parent Group / Head Office)</option>
-                    <option value="spacezero">Volumezero ↳ Spacezero (অঙ্গ প্রতিষ্ঠান)</option>
-                    <option value="simpletree">Volumezero ↳ Simpletree (অঙ্গ প্রতিষ্ঠান)</option>
-                  </optgroup>
-                  {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).length > 0 && (
-                    <optgroup label="Other Corporate Units">
-                      {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
+                  {getHierarchicalCompanyGroups(companies).map(group => (
+                    <optgroup key={group.groupKey} label={group.groupLabel}>
+                      {group.options.map(opt => (
+                        <option key={opt.id} value={opt.id}>{opt.label}</option>
                       ))}
                     </optgroup>
-                  )}
+                  ))}
+                  <optgroup label="Actions">
+                    <option value="__add_new__" className="text-emerald-600 font-bold">
+                      + Add New Business Unit / Concern...
+                    </option>
+                  </optgroup>
                 </select>
               </div>
 
@@ -2257,27 +2275,41 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 uppercase mb-1">Sister Concern / Company</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-gray-700 uppercase">Sister Concern / Company</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCompanyModalTarget('customer'); setIsCompanyModalOpen(true); }}
+                    className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 transition-all cursor-pointer"
+                  >
+                    <Plus size={10} className="stroke-[3]" />
+                    <span>+ Add Unit</span>
+                  </button>
+                </div>
                 <select
                   value={newCustomerForm.company || 'main'}
-                  onChange={e => setNewCustomerForm({ ...newCustomerForm, company: e.target.value })}
+                  onChange={e => {
+                    if (e.target.value === '__add_new__') {
+                      setCompanyModalTarget('customer');
+                      setIsCompanyModalOpen(true);
+                    } else {
+                      setNewCustomerForm({ ...newCustomerForm, company: e.target.value });
+                    }
+                  }}
                   className="w-full border border-gray-200 rounded-lg p-2.5 font-bold"
                 >
-                  <optgroup label="General / Retail Clients">
-                    <option value="main">General / Retail Client</option>
-                  </optgroup>
-                  <optgroup label="Volumezero Group (Corporate)">
-                    <option value="volumezero">Volumezero (Parent Group / Head Office)</option>
-                    <option value="spacezero">Volumezero ↳ Spacezero (অঙ্গ প্রতিষ্ঠান)</option>
-                    <option value="simpletree">Volumezero ↳ Simpletree (অঙ্গ প্রতিষ্ঠান)</option>
-                  </optgroup>
-                  {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).length > 0 && (
-                    <optgroup label="Other Corporate Units">
-                      {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
+                  {getHierarchicalCompanyGroups(companies).map(group => (
+                    <optgroup key={group.groupKey} label={group.groupLabel}>
+                      {group.options.map(opt => (
+                        <option key={opt.id} value={opt.id}>{opt.label}</option>
                       ))}
                     </optgroup>
-                  )}
+                  ))}
+                  <optgroup label="Actions">
+                    <option value="__add_new__" className="text-emerald-600 font-bold">
+                      + Add New Business Unit / Concern...
+                    </option>
+                  </optgroup>
                 </select>
               </div>
 
@@ -2310,6 +2342,21 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           }} 
         />
       )}
+      {/* Quick Add Business Unit / Sister Concern Modal */}
+      <CompanyModal
+        isOpen={isCompanyModalOpen}
+        onClose={() => setIsCompanyModalOpen(false)}
+        companies={companies}
+        onSave={async (compData) => {
+          const created = await addCompany(compData);
+          if (companyModalTarget === 'customer') {
+            setNewCustomerForm(prev => ({ ...prev, company: created.id }));
+          } else {
+            setSaleData(prev => ({ ...prev, company: created.id }));
+          }
+          setIsCompanyModalOpen(false);
+        }}
+      />
     </div>
   );
 };

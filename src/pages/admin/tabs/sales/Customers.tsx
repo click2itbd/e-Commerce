@@ -19,7 +19,8 @@ import {
   FileText,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
-import { useBusinessUnits } from '../../../../hooks/useBusinessUnits';
+import { useBusinessUnits, getHierarchicalCompanyGroups } from '../../../../hooks/useBusinessUnits';
+import { CompanyModal } from '../businessUnits/CompanyModal';
 import { Pagination } from '../../../../components/common/Pagination';
 
 interface CustomersProps {
@@ -36,7 +37,8 @@ const Customers: React.FC<CustomersProps> = ({
   setActiveTab,
 }) => {
   const { user, isAdmin, hasPermission } = useAuth();
-  const { companies } = useBusinessUnits();
+  const { companies, addCompany } = useBusinessUnits();
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
 
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
   const [loading, setLoading] = useState(!initialCustomers || initialCustomers.length === 0);
@@ -351,30 +353,45 @@ const Customers: React.FC<CustomersProps> = ({
 
                 {/* Business Unit / Sister Concern */}
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
-                    Business Unit / Sister Concern
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                      <Building2 size={13} className="text-slate-400" />
+                      <span>Business Unit / Sister Concern</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCompanyModalOpen(true)}
+                      className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-0.5 rounded-lg border border-emerald-200 transition-all cursor-pointer shadow-2xs"
+                      title="Add a new business unit or corporate sister concern"
+                    >
+                      <Plus size={11} className="stroke-[3]" />
+                      <span>+ Add Unit</span>
+                    </button>
+                  </div>
                   <div className="relative">
                     <select
                       value={customerFormData.company || 'main'}
-                      onChange={e => setCustomerFormData({ ...customerFormData, company: e.target.value })}
+                      onChange={e => {
+                        if (e.target.value === '__add_new__') {
+                          setIsCompanyModalOpen(true);
+                        } else {
+                          setCustomerFormData({ ...customerFormData, company: e.target.value });
+                        }
+                      }}
                       className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 text-xs outline-none transition-all cursor-pointer"
                     >
-                      <optgroup label="General / Retail Clients">
-                        <option value="main">General / Retail Client (Individual)</option>
-                      </optgroup>
-                      <optgroup label="Volumezero Group (Corporate)">
-                        <option value="volumezero">Volumezero (Parent Group / Head Office)</option>
-                        <option value="spacezero">Volumezero ↳ Spacezero (অঙ্গ প্রতিষ্ঠান)</option>
-                        <option value="simpletree">Volumezero ↳ Simpletree (অঙ্গ প্রতিষ্ঠান)</option>
-                      </optgroup>
-                      {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).length > 0 && (
-                        <optgroup label="Other Corporate Units">
-                          {companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
+                      {getHierarchicalCompanyGroups(companies).map(group => (
+                        <optgroup key={group.groupKey} label={group.groupLabel}>
+                          {group.options.map(opt => (
+                            <option key={opt.id} value={opt.id}>{opt.label}</option>
                           ))}
                         </optgroup>
-                      )}
+                      ))}
+                      <optgroup label="Actions">
+                        <option value="__add_new__" className="text-emerald-600 font-bold">
+                          + Add New Business Unit / Sister Concern...
+                        </option>
+                      </optgroup>
                     </select>
                   </div>
                 </div>
@@ -468,6 +485,18 @@ const Customers: React.FC<CustomersProps> = ({
         </div>
       )}
 
+      {/* Quick Add Business Unit / Sister Concern Modal */}
+      <CompanyModal
+        isOpen={isCompanyModalOpen}
+        onClose={() => setIsCompanyModalOpen(false)}
+        companies={companies}
+        onSave={async (compData) => {
+          const created = await addCompany(compData);
+          setCustomerFormData(prev => ({ ...prev, company: created.id }));
+          setIsCompanyModalOpen(false);
+        }}
+      />
+
       {/* Customers Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
@@ -502,16 +531,20 @@ const Customers: React.FC<CustomersProps> = ({
                         <span className="font-bold text-sm text-slate-900 block group-hover:text-blue-600 transition-colors">{customer.name}</span>
                         <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                           {(() => {
-                            const comp = (customer as any).company || 'main';
-                            if (comp === 'spacezero') {
-                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">Volumezero ↳ Spacezero</span>;
-                            } else if (comp === 'volumezero') {
-                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">Volumezero (Main)</span>;
-                            } else if (comp === 'simpletree') {
-                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">Volumezero ↳ Simpletree</span>;
-                            } else {
+                            const compId = (customer as any).company || 'main';
+                            if (compId === 'main') {
                               return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">Retail / General</span>;
                             }
+                            const found = companies.find(c => c.id.toLowerCase() === compId.toLowerCase());
+                            if (!found) {
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">{compId}</span>;
+                            }
+                            if (found.parentCompany) {
+                              const parent = companies.find(c => c.id.toLowerCase() === found.parentCompany?.toLowerCase());
+                              const parentName = parent ? parent.name : found.parentCompany;
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">{parentName} ↳ {found.name}</span>;
+                            }
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">{found.name} (Main)</span>;
                           })()}
                           {((customer.branches && customer.branches.length > 0) || customer.branchName) && (
                             <div className="flex flex-wrap gap-1">

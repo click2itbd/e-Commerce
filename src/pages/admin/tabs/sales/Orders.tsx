@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useBusinessUnits, getCompanyTheme } from '../../../../hooks/useBusinessUnits';
+import { useBusinessUnits, getCompanyTheme, getHierarchicalCompanyGroups } from '../../../../hooks/useBusinessUnits';
 import { useConfirm } from '../../../../context/ConfirmContext';
 import { db } from '../../../../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
@@ -274,12 +274,13 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
               className="text-sm border-gray-200 rounded-lg focus:ring-[#EF4444] focus:border-[#EF4444]"
             >
               <option value="all">All Units / Concerns</option>
-              <option value="main">General / Retail</option>
-              <optgroup label="Volumezero Group">
-                <option value="volumezero">Volumezero (Parent Group)</option>
-                <option value="spacezero">Volumezero ↳ Spacezero (অঙ্গ প্রতিষ্ঠান)</option>
-                <option value="simpletree">Volumezero ↳ Simpletree (অঙ্গ প্রতিষ্ঠান)</option>
-              </optgroup>
+              {getHierarchicalCompanyGroups(companies).map(group => (
+                <optgroup key={group.groupKey} label={group.groupLabel}>
+                  {group.options.map(opt => (
+                    <option key={opt.id} value={opt.id}>{opt.label}</option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
           </div>
           <div className="flex items-center gap-2">
@@ -443,15 +444,18 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-slate-800 text-[13px]">{order.customerName}</span>
                                 {(() => {
-                                  const comp = order.company || 'main';
-                                  if (comp === 'spacezero') {
-                                    return <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-wider">Volumezero ↳ Spacezero</span>;
-                                  } else if (comp === 'volumezero') {
-                                    return <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 border border-blue-200 rounded text-[9px] font-black uppercase tracking-wider">Volumezero (Main)</span>;
-                                  } else if (comp === 'simpletree') {
-                                    return <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[9px] font-black uppercase tracking-wider">Volumezero ↳ Simpletree</span>;
+                                  const compId = order.company || 'main';
+                                  if (compId === 'main') return null;
+                                  const found = companies.find(c => c.id.toLowerCase() === compId.toLowerCase());
+                                  if (!found) {
+                                    return <span className="px-1.5 py-0.2 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[9px] font-black uppercase tracking-wider">{compId}</span>;
                                   }
-                                  return null;
+                                  if (found.parentCompany) {
+                                    const parent = companies.find(c => c.id.toLowerCase() === found.parentCompany?.toLowerCase());
+                                    const parentName = parent ? parent.name : found.parentCompany;
+                                    return <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-wider">{parentName} ↳ {found.name}</span>;
+                                  }
+                                  return <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 border border-blue-200 rounded text-[9px] font-black uppercase tracking-wider">{found.name}</span>;
                                 })()}
                               </div>
                               <span className="text-[11px] text-slate-500 font-semibold mt-0.5">{order.customerPhone}</span>

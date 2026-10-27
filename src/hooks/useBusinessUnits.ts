@@ -26,7 +26,7 @@ import { toast } from 'react-hot-toast';
 export const DEFAULT_COMPANIES: BusinessCompany[] = [
   { 
     id: 'volumezero', 
-    name: 'Volumezero (Parent Group)', 
+    name: 'Volumezero', 
     code: 'VZ',
     color: 'blue',
     iconName: 'Building2',
@@ -35,7 +35,7 @@ export const DEFAULT_COMPANIES: BusinessCompany[] = [
   },
   { 
     id: 'spacezero', 
-    name: 'Spacezero (অঙ্গ প্রতিষ্ঠান)', 
+    name: 'Spacezero', 
     code: 'SZ',
     color: 'purple',
     iconName: 'Sparkles',
@@ -45,7 +45,7 @@ export const DEFAULT_COMPANIES: BusinessCompany[] = [
   },
   { 
     id: 'simpletree', 
-    name: 'Simpletree (অঙ্গ প্রতিষ্ঠান)', 
+    name: 'Simpletree', 
     code: 'ST',
     color: 'emerald',
     iconName: 'Trees',
@@ -251,27 +251,29 @@ export function useBusinessUnits() {
               updated.code = 'GEN';
               hasMigration = true;
             }
-            if (c.id === 'volumezero' && c.name === 'Volumezero') {
-              updated.name = 'Volumezero (Parent Group)';
-              hasMigration = true;
-            }
-            if (c.id === 'spacezero') {
-              if (!updated.parentCompany || updated.parentCompany !== 'volumezero') {
-                updated.parentCompany = 'volumezero';
+            if (c.id === 'volumezero') {
+              if (c.name.includes('(Parent Group)')) {
+                updated.name = 'Volumezero';
                 hasMigration = true;
               }
-              if (updated.name === 'Spacezero') {
-                updated.name = 'Spacezero (অঙ্গ প্রতিষ্ঠান)';
+            }
+            if (c.id === 'spacezero') {
+              if (c.name.includes('(অঙ্গ প্রতিষ্ঠান)')) {
+                updated.name = 'Spacezero';
+                hasMigration = true;
+              }
+              if (!updated.parentCompany || updated.parentCompany !== 'volumezero') {
+                updated.parentCompany = 'volumezero';
                 hasMigration = true;
               }
             }
             if (c.id === 'simpletree') {
-              if (!updated.parentCompany || updated.parentCompany !== 'volumezero') {
-                updated.parentCompany = 'volumezero';
+              if (c.name.includes('(অঙ্গ প্রতিষ্ঠান)')) {
+                updated.name = 'Simpletree';
                 hasMigration = true;
               }
-              if (updated.name === 'Simpletree') {
-                updated.name = 'Simpletree (অঙ্গ প্রতিষ্ঠান)';
+              if (!updated.parentCompany || updated.parentCompany !== 'volumezero') {
+                updated.parentCompany = 'volumezero';
                 hasMigration = true;
               }
             }
@@ -384,4 +386,61 @@ export function useBusinessUnits() {
     updateCompany,
     deleteCompany
   };
+}
+
+export interface CompanyGroupOption {
+  id: string;
+  label: string;
+  name: string;
+}
+
+export interface CompanyGroup {
+  groupKey: string;
+  groupLabel: string;
+  options: CompanyGroupOption[];
+}
+
+export function getHierarchicalCompanyGroups(companies: BusinessCompany[]): CompanyGroup[] {
+  const groups: CompanyGroup[] = [];
+
+  // 1. General / Retail
+  const retail = companies.find(c => c.id === 'main') || { id: 'main', name: 'General / Retail Client' };
+  groups.push({
+    groupKey: 'retail',
+    groupLabel: 'General / Retail Clients',
+    options: [
+      { id: retail.id, label: `${retail.name} (Individual)`, name: retail.name }
+    ]
+  });
+
+  // 2. Top-level corporate parent groups (companies that are NOT main and have no parentCompany)
+  const parents = companies.filter(c => c.id !== 'main' && !c.parentCompany);
+  parents.forEach(p => {
+    const subs = companies.filter(c => c.parentCompany === p.id);
+    const opts: CompanyGroupOption[] = [
+      { id: p.id, label: `${p.name} (Parent Group / Head Office)`, name: p.name }
+    ];
+    subs.forEach(s => {
+      opts.push({ id: s.id, label: `${p.name} ↳ ${s.name} (অঙ্গ প্রতিষ্ঠান)`, name: s.name });
+    });
+
+    groups.push({
+      groupKey: p.id,
+      groupLabel: `${p.name} Group (Corporate)`,
+      options: opts
+    });
+  });
+
+  // 3. Standalone / Other Corporate Units
+  const knownParentIds = new Set(parents.map(p => p.id));
+  const orphans = companies.filter(c => c.id !== 'main' && c.parentCompany && !knownParentIds.has(c.parentCompany));
+  if (orphans.length > 0) {
+    groups.push({
+      groupKey: 'other',
+      groupLabel: 'Other Corporate Units',
+      options: orphans.map(c => ({ id: c.id, label: c.name, name: c.name }))
+    });
+  }
+
+  return groups;
 }
