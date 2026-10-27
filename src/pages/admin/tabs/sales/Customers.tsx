@@ -19,6 +19,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
+import { useBusinessUnits } from '../../../../hooks/useBusinessUnits';
 import { Pagination } from '../../../../components/common/Pagination';
 
 interface CustomersProps {
@@ -35,6 +36,7 @@ const Customers: React.FC<CustomersProps> = ({
   setActiveTab,
 }) => {
   const { user, isAdmin, hasPermission } = useAuth();
+  const { companies } = useBusinessUnits();
 
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
   const [loading, setLoading] = useState(!initialCustomers || initialCustomers.length === 0);
@@ -300,132 +302,152 @@ const Customers: React.FC<CustomersProps> = ({
          </div>
       </div>
 
-      {/* Customer Modal (Add / Edit) */}
+      {/* Customer Modal (Add / Edit) - Horizontal Layout */}
       {(isAddingCustomer || editingCustomer) && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="bg-slate-50 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col border border-slate-200/50">
-            <div className="p-5 px-6 bg-slate-900 text-white flex items-center justify-between shrink-0">
-              <h3 className="font-black text-lg flex items-center gap-2">
-                <Users size={18} className="text-emerald-400" />
-                {editingCustomer ? 'Edit Customer' : 'New Customer'}
-              </h3>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl sm:max-w-3xl w-full overflow-hidden flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-5 px-6 bg-[#081621] text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <Users size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-white">
+                    {editingCustomer ? 'Edit Customer Profile' : 'New Customer Registration'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {editingCustomer ? 'Update customer profile and assigned business unit' : 'Register a retail client or corporate business partner'}
+                  </p>
+                </div>
+              </div>
               <button
+                type="button"
                 onClick={() => { setIsAddingCustomer(false); setEditingCustomer(null); }}
-                className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg"
+                className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCustomer} className="p-6 space-y-5 overflow-y-auto flex-1">
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                  Customer / Company Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Volumezero, Simpletree, or Md. Rahim"
-                  value={customerFormData.name}
-                  onChange={e => setCustomerFormData({ ...customerFormData, name: e.target.value })}
-                  className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
-                  <span>Branch / Project Name (Optional)</span>
-                  <span className="text-[9px] text-slate-400 font-normal">Multiple branches separated by commas</span>
-                </label>
-                <div className="relative">
+            {/* Form */}
+            <form onSubmit={handleSaveCustomer} className="p-6 md:p-8 space-y-5 overflow-y-auto max-h-[82vh]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+                {/* Customer Name */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
+                    Customer / Company Name <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
-                    placeholder="e.g. Treelogy Two, Silver Spring (leave empty for retail)"
-                    value={customerFormData.branchesText}
-                    onChange={e => setCustomerFormData({ ...customerFormData, branchesText: e.target.value, branchName: e.target.value.split(',')[0]?.trim() || '' })}
-                    className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none transition-all placeholder:text-slate-400 text-sm"
+                    required
+                    placeholder="e.g. Volumezero, Simpletree, or Md. Rahim"
+                    value={customerFormData.name}
+                    onChange={e => setCustomerFormData({ ...customerFormData, name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 text-xs outline-none transition-all"
                   />
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  For corporate clients, specify branch/project names. Can be selected during billing.
-                </p>
-              </div>
 
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Phone Number</label>
-                <div className="relative">
-                  <input
-                    type="tel"
-                    placeholder="e.g. 017XXXXXXXX"
-                    value={customerFormData.phone}
-                    onChange={e => setCustomerFormData({ ...customerFormData, phone: e.target.value })}
-                    className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl pl-10 pr-4 py-2.5 font-bold text-slate-800 outline-none transition-all"
-                  />
-                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                {/* Business Unit / Sister Concern */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
+                    Business Unit / Sister Concern
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={customerFormData.company || 'main'}
+                      onChange={e => setCustomerFormData({ ...customerFormData, company: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 text-xs outline-none transition-all cursor-pointer"
+                    >
+                      {companies.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Phone Number */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Phone Number</label>
+                  <div className="relative">
+                    <input
+                      type="tel"
+                      placeholder="e.g. 017XXXXXXXX"
+                      value={customerFormData.phone}
+                      onChange={e => setCustomerFormData({ ...customerFormData, phone: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-2.5 font-bold text-slate-800 text-xs outline-none transition-all"
+                    />
+                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                  </div>
+                </div>
+
+                {/* Email Address */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Email Address</label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      placeholder="e.g. contact@example.com"
+                      value={customerFormData.email}
+                      onChange={e => setCustomerFormData({ ...customerFormData, email: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-2.5 font-bold text-slate-800 text-xs outline-none transition-all"
+                    />
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                  </div>
+                </div>
+
+                {/* Physical Address */}
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Physical Address / Office Location</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="e.g. House #12, Road #5, Dhanmondi, Dhaka"
+                      value={customerFormData.address}
+                      onChange={e => setCustomerFormData({ ...customerFormData, address: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-2.5 font-bold text-slate-800 text-xs outline-none transition-all"
+                    />
+                    <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                  </div>
+                </div>
+
+                {/* Branch / Project Name */}
+                <div className="md:col-span-2 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
+                  <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                    <span>Branch / Project Name(s) (Optional)</span>
+                    <span className="text-[9px] text-slate-400 font-normal">Comma-separated for multiple</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="e.g. Treelogy Two, Silver Spring, Dhanmondi Office (leave empty for retail)"
+                      value={customerFormData.branchesText}
+                      onChange={e => setCustomerFormData({ ...customerFormData, branchesText: e.target.value, branchName: e.target.value.split(',')[0]?.trim() || '' })}
+                      className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none transition-all placeholder:text-slate-400 text-xs"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1.5">
+                    For corporate clients, specify branch/project names. These can be selected during POS sales, invoices, and statement generation.
+                  </p>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Email Address</label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    placeholder="e.g. contact@example.com"
-                    value={customerFormData.email}
-                    onChange={e => setCustomerFormData({ ...customerFormData, email: e.target.value })}
-                    className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl pl-10 pr-4 py-2.5 font-bold text-slate-800 outline-none transition-all"
-                  />
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Physical Address</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="e.g. Dhanmondi, Dhaka"
-                    value={customerFormData.address}
-                    onChange={e => setCustomerFormData({ ...customerFormData, address: e.target.value })}
-                    className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl pl-10 pr-4 py-2.5 font-bold text-slate-800 outline-none transition-all"
-                  />
-                  <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                  Business Unit / Sister Concern
-                </label>
-                <div className="relative">
-                  <select
-                    value={customerFormData.company || 'main'}
-                    onChange={e => setCustomerFormData({ ...customerFormData, company: e.target.value })}
-                    className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none transition-all cursor-pointer"
-                  >
-                    <option value="main">Click2IT (Main)</option>
-                    <option value="spacezero">Spacezero</option>
-                    <option value="volumezero">Volumezero</option>
-                    <option value="simpletree">Simpletree</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => { setIsAddingCustomer(false); setEditingCustomer(null); }}
-                  className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
+                  className="px-5 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"
+                  className="bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <CheckCircle className="w-4 h-4" />
-                  {submitting ? 'Saving...' : (editingCustomer ? 'Update Customer' : 'Save Customer')}
+                  <span>{submitting ? 'Saving...' : (editingCustomer ? 'Update Customer' : 'Save Customer')}</span>
                 </button>
               </div>
             </form>
