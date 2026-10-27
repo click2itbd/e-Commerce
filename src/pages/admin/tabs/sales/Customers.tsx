@@ -19,8 +19,6 @@ import {
   FileText,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
-import { useBusinessUnits, getHierarchicalCompanyGroups } from '../../../../hooks/useBusinessUnits';
-import { CompanyModal } from '../businessUnits/CompanyModal';
 import { Pagination } from '../../../../components/common/Pagination';
 
 interface CustomersProps {
@@ -37,8 +35,6 @@ const Customers: React.FC<CustomersProps> = ({
   setActiveTab,
 }) => {
   const { user, isAdmin, hasPermission } = useAuth();
-  const { companies, addCompany } = useBusinessUnits();
-  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
 
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
   const [loading, setLoading] = useState(!initialCustomers || initialCustomers.length === 0);
@@ -59,7 +55,6 @@ const Customers: React.FC<CustomersProps> = ({
 
   // Search & Pagination
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
 
@@ -215,11 +210,9 @@ const Customers: React.FC<CustomersProps> = ({
       const matchesPhone = (customer.phone || '').toLowerCase().includes(q);
       const matchesEmail = (customer.email || '').toLowerCase().includes(q);
       const matchesAddress = (customer.address || '').toLowerCase().includes(q);
-      if (!matchesName && !matchesPhone && !matchesEmail && !matchesAddress) return false;
-    }
-    if (selectedCompanyFilter !== 'all') {
-      const cComp = (customer as any).company || 'main';
-      if (cComp !== selectedCompanyFilter) return false;
+      const matchesBranch = (customer.branchName || '').toLowerCase().includes(q) ||
+        (customer.branches || []).some(b => b.toLowerCase().includes(q));
+      if (!matchesName && !matchesPhone && !matchesEmail && !matchesAddress && !matchesBranch) return false;
     }
     return true;
   });
@@ -261,12 +254,12 @@ const Customers: React.FC<CustomersProps> = ({
         </div>
       </div>
 
-      {/* Search Bar & Company Filter */}
-      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row items-center justify-between gap-4">
-         <div className="relative w-full max-w-md">
+      {/* Search Bar */}
+      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+         <div className="relative w-full max-w-lg">
             <input
               type="text"
-              placeholder="Search customers by name, phone, email..."
+              placeholder="Search customers by name, phone, email, branch..."
               value={searchQuery}
               onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="w-full pl-10 pr-10 py-2.5 text-sm font-medium bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm transition-all placeholder:text-slate-400"
@@ -278,30 +271,8 @@ const Customers: React.FC<CustomersProps> = ({
               </button>
             )}
          </div>
-
-         {/* Company Filter Tabs */}
-         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
-           {[
-             { id: 'all', label: 'All Clients' },
-             { id: 'main', label: 'General / Retail' },
-             { id: 'volumezero', label: 'Volumezero (Parent)' },
-             { id: 'spacezero', label: 'Spacezero (অঙ্গ)' },
-             { id: 'simpletree', label: 'Simpletree (অঙ্গ)' },
-             ...companies.filter(c => !['main', 'volumezero', 'spacezero', 'simpletree'].includes(c.id)).map(c => ({ id: c.id, label: c.name }))
-           ].map(comp => (
-             <button
-               key={comp.id}
-               type="button"
-               onClick={() => { setSelectedCompanyFilter(comp.id); setCurrentPage(1); }}
-               className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
-                 selectedCompanyFilter === comp.id
-                   ? 'bg-[#081621] text-white shadow-sm'
-                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-               }`}
-             >
-               {comp.label}
-             </button>
-           ))}
+         <div className="text-xs text-slate-500 font-bold shrink-0">
+           Showing {filteredCustomers.length} of {customers.length} {customers.length === 1 ? 'Customer' : 'Customers'}
          </div>
       </div>
 
@@ -440,18 +411,6 @@ const Customers: React.FC<CustomersProps> = ({
         </div>
       )}
 
-      {/* Quick Add Business Unit / Sister Concern Modal */}
-      <CompanyModal
-        isOpen={isCompanyModalOpen}
-        onClose={() => setIsCompanyModalOpen(false)}
-        companies={companies}
-        onSave={async (compData) => {
-          const created = await addCompany(compData);
-          setCustomerFormData(prev => ({ ...prev, company: created.id }));
-          setIsCompanyModalOpen(false);
-        }}
-      />
-
       {/* Customers Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
@@ -484,33 +443,15 @@ const Customers: React.FC<CustomersProps> = ({
                       </div>
                       <div>
                         <span className="font-bold text-sm text-slate-900 block group-hover:text-blue-600 transition-colors">{customer.name}</span>
-                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                          {(() => {
-                            const compId = (customer as any).company || 'main';
-                            if (compId === 'main') {
-                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">Retail / General</span>;
-                            }
-                            const found = companies.find(c => c.id.toLowerCase() === compId.toLowerCase());
-                            if (!found) {
-                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">{compId}</span>;
-                            }
-                            if (found.parentCompany) {
-                              const parent = companies.find(c => c.id.toLowerCase() === found.parentCompany?.toLowerCase());
-                              const parentName = parent ? parent.name : found.parentCompany;
-                              return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">{parentName} ↳ {found.name}</span>;
-                            }
-                            return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">{found.name} (Main)</span>;
-                          })()}
-                          {((customer.branches && customer.branches.length > 0) || customer.branchName) && (
-                            <div className="flex flex-wrap gap-1">
-                              {(customer.branches && customer.branches.length > 0 ? customer.branches : [customer.branchName]).filter(Boolean).map((br, idx) => (
-                                <span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                                  📁 {br}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        {((customer.branches && customer.branches.length > 0) || customer.branchName) && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {(customer.branches && customer.branches.length > 0 ? customer.branches : [customer.branchName]).filter(Boolean).map((br, idx) => (
+                              <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
+                                Branch: {br}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>

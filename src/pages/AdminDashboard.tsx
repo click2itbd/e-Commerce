@@ -4359,30 +4359,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <button
               onClick={() => {
-                setActiveTab("business_units");
-                setIsMobileMenuOpen(false);
-              }}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
-                activeTab === "business_units"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 hover:bg-gray-50",
-              )}
-            >
-              <Building2
-                size={16}
-                className={
-                  activeTab === "business_units" ? "text-blue-600" : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">Corporate Clients</span>
-              )}
-            </button>
-
-            <button
-              onClick={() => {
                 setActiveTab("deliveries");
                 setIsMobileMenuOpen(false);
               }}
