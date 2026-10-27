@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, getDoc, addDoc, doc, updateDoc, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../../../../context/SettingsContext';
-import { formatCurrency } from '../../../../lib/utils';
-import { Search, CreditCard, X, Check } from 'lucide-react';
+import { formatCurrency, cn } from '../../../../lib/utils';
+import { Search, CreditCard, X, Check, Receipt, Filter } from 'lucide-react';
 import { generatePDF } from '../../../../lib/pdf';
 import { Vendor, Transaction, PaymentAccount } from '../../../../types';
 
@@ -17,6 +17,7 @@ export default function VendorDueList() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [purchases, setPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -31,6 +32,10 @@ export default function VendorDueList() {
   const [paymentAccountId, setPaymentAccountId] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Bill-wise Due Settlement state
+  const [settlementMode, setSettlementMode] = useState<'bill' | 'lump_sum'>('bill');
+  const [purchaseAllocations, setPurchaseAllocations] = useState<Record<string, number>>({});
 
   // Opening Balance state
   const [showOpeningBalForm, setShowOpeningBalForm] = useState(false);
@@ -133,6 +138,9 @@ export default function VendorDueList() {
       
       const allAccs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(allAccs);
+
+      const allPurchases = purSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setPurchases(allPurchases);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load data');
@@ -256,11 +264,94 @@ export default function VendorDueList() {
     }
   };
 
+  // Unpaid Purchases for the selected vendor in Payment Modal
+  const vendorUnpaidPurchases = useMemo(() => {
+    if (!selectedVendor) return [];
+    return purchases.filter(p => {
+      const matchesId = p.vendorId === selectedVendor.id;
+      const matchesName = p.vendorName && selectedVendor.name && p.vendorName.toLowerCase().trim() === selectedVendor.name.toLowerCase().trim();
+      if (!matchesId && !matchesName) return false;
+      const total = Number(p.total || p.grandTotal || 0);
+      const paid = Number(p.paidAmount || p.paid || 0);
+      return (total - paid) > 0.01;
+    }).sort((a, b) => new Date(a.createdAt || a.date || 0).getTime() - new Date(b.createdAt || b.date || 0).getTime());
+  }, [selectedVendor, purchases]);
+
+  // Open Payment Modal and initialize state
+  const handleOpenPaymentModal = (vendor: { id: string; name: string; due: number }) => {
+    setSelectedVendor(vendor);
+    setPaymentNotes('');
+
+    const unpaid = purchases.filter(p => {
+      const matchesId = p.vendorId === vendor.id;
+      const matchesName = p.vendorName && vendor.name && p.vendorName.toLowerCase().trim() === vendor.name.toLowerCase().trim();
+      if (!matchesId && !matchesName) return false;
+      const total = Number(p.total || p.grandTotal || 0);
+      const paid = Number(p.paidAmount || p.paid || 0);
+      return (total - paid) > 0.01;
+    });
+
+    if (unpaid.length > 0) {
+      setSettlementMode('bill');
+      setPurchaseAllocations({});
+      setPaymentAmount('');
+    } else {
+      setSettlementMode('lump_sum');
+      setPurchaseAllocations({});
+      setPaymentAmount(vendor.due > 0 ? vendor.due : '');
+    }
+  };
+
+  const handleTogglePurchaseSelection = (purId: string, purDue: number) => {
+    setPurchaseAllocations(prev => {
+      const next = { ...prev };
+      if (next[purId] && next[purId] > 0) {
+        delete next[purId];
+      } else {
+        next[purId] = purDue;
+      }
+      const totalAlloc = Object.values(next).reduce((s, a) => s + (Number(a) || 0), 0);
+      setPaymentAmount(totalAlloc > 0 ? totalAlloc : '');
+      return next;
+    });
+  };
+
+  const handleAllocationAmountChange = (purId: string, amount: number, maxDue: number) => {
+    const validAmount = Math.max(0, Math.min(amount, maxDue));
+    setPurchaseAllocations(prev => {
+      const next = { ...prev };
+      if (validAmount > 0) {
+        next[purId] = validAmount;
+      } else {
+        delete next[purId];
+      }
+      const totalAlloc = Object.values(next).reduce((s, a) => s + (Number(a) || 0), 0);
+      setPaymentAmount(totalAlloc > 0 ? totalAlloc : '');
+      return next;
+    });
+  };
+
+  const handleSelectAllPurchases = () => {
+    const next: Record<string, number> = {};
+    vendorUnpaidPurchases.forEach(p => {
+      const due = Math.max(0, (Number(p.total || p.grandTotal || 0)) - (Number(p.paidAmount || p.paid || 0)));
+      if (due > 0) next[p.id] = due;
+    });
+    setPurchaseAllocations(next);
+    const totalAlloc = Object.values(next).reduce((s, a) => s + (Number(a) || 0), 0);
+    setPaymentAmount(totalAlloc > 0 ? totalAlloc : '');
+  };
+
+  const handleClearAllAllocations = () => {
+    setPurchaseAllocations({});
+    setPaymentAmount('');
+  };
+
   const handleMakePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVendor) return;
     if (!paymentAmount || Number(paymentAmount) <= 0) {
-      toast.error('Enter a valid amount');
+      toast.error('Enter a valid payment amount');
       return;
     }
     if (!paymentAccountId) {
@@ -271,80 +362,171 @@ export default function VendorDueList() {
     try {
       setSubmitting(true);
       const acc = paymentAccounts.find(a => a.id === paymentAccountId);
-      
-      const txData = {
-        type: 'payment_made',
-        amount: Number(paymentAmount),
-        date: new Date().toISOString(),
-        description: paymentNotes || 'Paid vendor due payment',
-        entityId: selectedVendor.id,
-        entityName: selectedVendor.name,
-        entityType: 'vendor',
-        paymentAccountId: paymentAccountId,
-        paymentMethod: acc?.type || 'cash',
-        createdAt: new Date().toISOString(),
-        previousDue: selectedVendor.due,
-        currentBalance: selectedVendor.due - Number(paymentAmount)
-      };
+      const paymentDate = new Date().toISOString();
+      const allocatedEntries = Object.entries(purchaseAllocations).filter(([_, amt]) => Number(amt) > 0);
 
-      const txRef = await addDoc(collection(db, 'transactions'), txData);
-      
-      // Sync payment to vendor's unpaid purchases
-      try {
-        let remPay = Number(paymentAmount);
-        const purSnap = await getDocs(query(
-          collection(db, 'purchases'),
-          where('vendorId', '==', selectedVendor.id)
-        ));
-        const unpaidPurchases = purSnap.docs
-          .map(d => ({ id: d.id, ...d.data() as any }))
-          .filter(p => (Number(p.total) || 0) > (Number(p.paidAmount) || 0))
-          .sort((a, b) => new Date(a.createdAt || a.date || 0).getTime() - new Date(b.createdAt || b.date || 0).getTime());
+      if (settlementMode === 'bill' && allocatedEntries.length > 0) {
+        // Bill-Wise Purchase Settlement
+        const updatedVendorDue = Math.max(0, selectedVendor.due - Number(paymentAmount));
+        const settledDocNumbers: string[] = [];
 
-        for (const pur of unpaidPurchases) {
-          if (remPay <= 0) break;
-          const dueOnPur = (Number(pur.total) || 0) - (Number(pur.paidAmount) || 0);
-          const payAmt = Math.min(remPay, dueOnPur);
-          const updatedPaid = (Number(pur.paidAmount) || 0) + payAmt;
-          await updateDoc(doc(db, 'purchases', pur.id), {
-            paidAmount: updatedPaid,
-            paymentStatus: updatedPaid >= (Number(pur.total) || 0) ? 'paid' : 'partial'
+        for (const [purId, allocAmt] of allocatedEntries) {
+          const pur = purchases.find(p => p.id === purId);
+          if (!pur) continue;
+
+          const currentPaid = Number(pur.paidAmount || pur.paid || 0);
+          const purTotal = Number(pur.total || pur.grandTotal || 0);
+          const newPaid = currentPaid + Number(allocAmt);
+          const newStatus = newPaid >= purTotal ? 'paid' : 'partial';
+
+          // 1. Update purchase in Firestore
+          await updateDoc(doc(db, 'purchases', purId), {
+            paidAmount: newPaid,
+            paid: newPaid,
+            paymentStatus: newStatus
           });
-          remPay -= payAmt;
-        }
-      } catch (err) {
-        console.warn('Failed to sync purchase payment status:', err);
-      }
 
-      // Generate PDF receipt / voucher immediately
-      const savedTx = { id: txRef.id, referenceId: `VOU-${Date.now().toString().slice(-6)}`, ...txData, _autoPrint: true };
-      try {
-        generatePDF(savedTx as any, 'receipt', settings);
-      } catch (err) {
-        console.error('Failed to generate receipt PDF', err);
-      }
+          const docNum = pur.billNumber || pur.documentNumber || pur.id;
+          settledDocNumbers.push(docNum);
 
-      await logAudit(
-        'CREATE',
-        'Payment',
-        `Paid vendor due of ৳${paymentAmount} to "${selectedVendor.name}" (${acc?.type || 'cash'})`,
-        profile?.displayName || user?.displayName || user?.email || 'Admin',
-        {
-          entityId: selectedVendor.id,
-          newState: {
-            amount: Number(paymentAmount),
+          // 2. Add Transaction in Firestore
+          await addDoc(collection(db, 'transactions'), {
+            type: 'payment_made',
+            amount: Number(allocAmt),
+            date: paymentDate,
+            description: paymentNotes 
+              ? `${paymentNotes} - Paid for Purchase Bill #${docNum}`
+              : `Paid for Purchase Bill #${docNum}`,
+            entityId: selectedVendor.id,
+            entityName: selectedVendor.name,
+            entityType: 'vendor',
+            documentNumber: docNum,
+            referenceId: pur.id,
+            paymentAccountId: paymentAccountId,
+            paymentMethod: acc?.type || 'cash',
+            createdAt: paymentDate,
             previousDue: selectedVendor.due,
-            newDue: selectedVendor.due - Number(paymentAmount)
-          }
+            currentBalance: updatedVendorDue
+          });
         }
-      );
 
-      toast.success('Payment recorded successfully & Voucher generated');
+        // Generate voucher PDF
+        const savedTx = { 
+          id: `VOU-${Date.now().toString().slice(-6)}`, 
+          referenceId: `VOU-${Date.now().toString().slice(-6)}`, 
+          type: 'payment_made',
+          amount: Number(paymentAmount),
+          date: paymentDate,
+          description: `Settled ${allocatedEntries.length} purchase bill(s): ${settledDocNumbers.join(', ')}`,
+          entityId: selectedVendor.id,
+          entityName: selectedVendor.name,
+          paymentMethod: acc?.type || 'cash',
+          _autoPrint: true 
+        };
+        try {
+          generatePDF(savedTx as any, 'receipt', settings);
+        } catch (err) {
+          console.error('Failed to generate receipt PDF', err);
+        }
+
+        await logAudit(
+          'CREATE',
+          'Payment',
+          `Paid vendor bill-wise payment of ৳${paymentAmount} to "${selectedVendor.name}" across ${allocatedEntries.length} bill(s): ${settledDocNumbers.join(', ')} (${acc?.type || 'cash'})`,
+          profile?.displayName || user?.displayName || user?.email || 'Admin',
+          {
+            entityId: selectedVendor.id,
+            previousState: { due: selectedVendor.due },
+            newState: {
+              due: updatedVendorDue,
+              amount: Number(paymentAmount),
+              settledBills: settledDocNumbers
+            }
+          }
+        );
+
+        toast.success(`Payment of ৳${Number(paymentAmount).toLocaleString()} recorded for ${allocatedEntries.length} purchase bill(s)!`);
+      } else {
+        // Lump Sum Payment (General / FIFO fallback)
+        const txData = {
+          type: 'payment_made',
+          amount: Number(paymentAmount),
+          date: paymentDate,
+          description: paymentNotes || 'Paid vendor due payment (General / Lump Sum)',
+          entityId: selectedVendor.id,
+          entityName: selectedVendor.name,
+          entityType: 'vendor',
+          paymentAccountId: paymentAccountId,
+          paymentMethod: acc?.type || 'cash',
+          createdAt: paymentDate,
+          previousDue: selectedVendor.due,
+          currentBalance: selectedVendor.due - Number(paymentAmount)
+        };
+
+        const txRef = await addDoc(collection(db, 'transactions'), txData);
+
+        // Auto FIFO sync
+        try {
+          let remPay = Number(paymentAmount);
+          const unpaidPurchases = purchases
+            .filter(p => {
+              const matchesId = p.vendorId === selectedVendor.id;
+              const matchesName = p.vendorName && selectedVendor.name && p.vendorName.toLowerCase().trim() === selectedVendor.name.toLowerCase().trim();
+              if (!matchesId && !matchesName) return false;
+              const tot = Number(p.total || p.grandTotal || 0);
+              const pd = Number(p.paidAmount || p.paid || 0);
+              return (tot - pd) > 0.01;
+            })
+            .sort((a, b) => new Date(a.createdAt || a.date || 0).getTime() - new Date(b.createdAt || b.date || 0).getTime());
+
+          for (const pur of unpaidPurchases) {
+            if (remPay <= 0) break;
+            const dueOnPur = (Number(pur.total || pur.grandTotal) || 0) - (Number(pur.paidAmount || pur.paid) || 0);
+            const payAmt = Math.min(remPay, dueOnPur);
+            const updatedPaid = (Number(pur.paidAmount || pur.paid) || 0) + payAmt;
+            const updatedStatus = updatedPaid >= (Number(pur.total || pur.grandTotal) || 0) ? 'paid' : 'partial';
+            await updateDoc(doc(db, 'purchases', pur.id), {
+              paidAmount: updatedPaid,
+              paid: updatedPaid,
+              paymentStatus: updatedStatus
+            });
+            remPay -= payAmt;
+          }
+        } catch (err) {
+          console.warn('FIFO sync error:', err);
+        }
+
+        const savedTx = { id: txRef.id, referenceId: `VOU-${Date.now().toString().slice(-6)}`, ...txData, _autoPrint: true };
+        try {
+          generatePDF(savedTx as any, 'receipt', settings);
+        } catch (err) {
+          console.error('Failed to generate receipt PDF', err);
+        }
+
+        await logAudit(
+          'CREATE',
+          'Payment',
+          `Paid vendor due of ৳${paymentAmount} to "${selectedVendor.name}" (${acc?.type || 'cash'})`,
+          profile?.displayName || user?.displayName || user?.email || 'Admin',
+          {
+            entityId: selectedVendor.id,
+            previousState: { due: selectedVendor.due },
+            newState: {
+              due: selectedVendor.due - Number(paymentAmount),
+              amount: Number(paymentAmount)
+            }
+          }
+        );
+
+        toast.success(`Payment of ৳${Number(paymentAmount).toLocaleString()} recorded!`);
+      }
+
       setSelectedVendor(null);
+      setPurchaseAllocations({});
       setPaymentAmount('');
       setPaymentAccountId('');
       setPaymentNotes('');
-      fetchData(); // Refresh the list
+      fetchData();
     } catch (error) {
       console.error('Error recording payment:', error);
       toast.error('Failed to record payment');
@@ -425,11 +607,8 @@ export default function VendorDueList() {
                           History
                         </button>
                         <button
-                          onClick={() => {
-                            setSelectedVendor({ id: vendor.id, name: vendor.name, due: vendor.due });
-                            setPaymentAmount(vendor.due);
-                          }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                          onClick={() => handleOpenPaymentModal({ id: vendor.id, name: vendor.name, due: vendor.due })}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer"
                         >
                           Make Payment
                         </button>
@@ -443,85 +622,306 @@ export default function VendorDueList() {
         </div>
       </div>
 
-      {/* Payment Modal */}
+      {/* Bill-Wise Due Settlement Modal */}
       {selectedVendor && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="font-bold text-lg text-gray-900">Receive Due Payment</h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh] border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-[#081621] via-indigo-950 to-[#081621] text-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center border border-blue-400/20">
+                  <Receipt size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-base tracking-tight text-white flex items-center gap-2">
+                    Pay Vendor / Supplier Due
+                  </h3>
+                  <span className="text-[11px] text-slate-300">
+                    Settle outstanding dues by specific purchase bill or lump sum
+                  </span>
+                </div>
+              </div>
               <button 
-                onClick={() => setSelectedVendor(null)}
-                className="text-gray-400 hover:text-red-500 transition-colors"
+                onClick={() => {
+                  setSelectedVendor(null);
+                  setPurchaseAllocations({});
+                }}
+                className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
             
-            <form onSubmit={handleMakePayment} className="p-6 overflow-y-auto space-y-4">
-              <div className="bg-blue-50 text-blue-800 p-4 rounded-lg border border-blue-100 mb-2">
-                <div className="text-xs font-bold uppercase text-blue-600 mb-1">Vendor</div>
-                <div className="font-black text-lg">{selectedVendor.name}</div>
-                <div className="text-sm mt-1 flex justify-between">
-                  <span>Current Due:</span>
-                  <span className="font-bold text-red-600">{formatCurrency(selectedVendor.due, settings)}</span>
+            <form onSubmit={handleMakePayment} className="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs">
+              {/* Vendor Info Card */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Vendor Account</span>
+                  <div className="font-black text-base text-slate-900 mt-0.5">{selectedVendor.name}</div>
+                  <span className="text-[11px] text-slate-500">
+                    {vendorUnpaidPurchases.length} unpaid / partial bill(s) on file
+                  </span>
+                </div>
+                <div className="bg-white border border-rose-200 px-4 py-2 rounded-xl text-right shadow-2xs">
+                  <span className="text-[10px] font-bold text-rose-600 block uppercase">Total Balance Due</span>
+                  <span className="font-black text-lg text-rose-700">{formatCurrency(selectedVendor.due, settings)}</span>
+                </div>
+              </div>
+
+              {/* Settlement Mode Switcher */}
+              <div className="flex border border-slate-200 bg-slate-100/70 p-1 rounded-xl gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSettlementMode('bill')}
+                  className={cn(
+                    "flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                    settlementMode === 'bill'
+                      ? "bg-white text-blue-700 shadow-sm border border-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  <Receipt size={14} /> Pay by Specific Purchase Bill ({vendorUnpaidPurchases.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettlementMode('lump_sum');
+                    setPaymentAmount(selectedVendor.due > 0 ? selectedVendor.due : '');
+                  }}
+                  className={cn(
+                    "flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                    settlementMode === 'lump_sum'
+                      ? "bg-white text-blue-700 shadow-sm border border-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  <CreditCard size={14} /> General / Lump Sum Payment
+                </button>
+              </div>
+
+              {/* Purchase Bills Table (When in Bill Mode) */}
+              {settlementMode === 'bill' && (
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                  <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-slate-800 text-xs">
+                      Unpaid Purchase Bills ({vendorUnpaidPurchases.length})
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllPurchases}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                      >
+                        Select All Full
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearAllAllocations}
+                        className="text-[10px] font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {vendorUnpaidPurchases.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 bg-slate-50/50">
+                      <Receipt size={24} className="mx-auto mb-1 text-slate-400 opacity-50" />
+                      <p className="font-bold text-xs">No active unpaid purchase bills found for this vendor.</p>
+                      <p className="text-[11px] text-slate-500 mt-1">Switch to "General / Lump Sum Payment" to record a direct payment.</p>
+                    </div>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100/70 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 sticky top-0 bg-slate-100">
+                          <tr>
+                            <th className="py-2 px-3 text-center w-8">#</th>
+                            <th className="py-2 px-3">Bill # & Date</th>
+                            <th className="py-2 px-3">Items</th>
+                            <th className="py-2 px-3 text-right">Bill Total</th>
+                            <th className="py-2 px-3 text-right">Paid</th>
+                            <th className="py-2 px-3 text-right">Due</th>
+                            <th className="py-2 px-3 text-right w-36">Pay Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {vendorUnpaidPurchases.map(p => {
+                            const tot = Number(p.total || p.grandTotal || 0);
+                            const pd = Number(p.paidAmount || p.paid || 0);
+                            const purDue = Math.max(0, tot - pd);
+                            const isAllocated = (purchaseAllocations[p.id] || 0) > 0;
+                            const currentAlloc = purchaseAllocations[p.id] || '';
+                            const docNum = p.billNumber || p.documentNumber || p.id;
+                            const dateStr = p.date || p.createdAt;
+
+                            return (
+                              <tr 
+                                key={p.id} 
+                                className={cn(
+                                  "transition-colors",
+                                  isAllocated ? "bg-blue-50/40" : "hover:bg-slate-50"
+                                )}
+                              >
+                                <td className="py-2 px-3 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isAllocated}
+                                    onChange={() => handleTogglePurchaseSelection(p.id, purDue)}
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span className="font-black text-slate-900 block">{docNum}</span>
+                                  <span className="text-[10px] text-slate-400">
+                                    {dateStr ? new Date(dateStr).toLocaleDateString('en-GB') : 'N/A'}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 text-slate-600">
+                                  {p.items?.length ? `${p.items.length} item(s)` : '-'}
+                                </td>
+                                <td className="py-2 px-3 text-right font-medium text-slate-700">
+                                  {formatCurrency(tot, settings)}
+                                </td>
+                                <td className="py-2 px-3 text-right text-emerald-600 font-bold">
+                                  {formatCurrency(pd, settings)}
+                                </td>
+                                <td className="py-2 px-3 text-right font-black text-rose-600">
+                                  {formatCurrency(purDue, settings)}
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      max={purDue}
+                                      placeholder="0"
+                                      value={currentAlloc}
+                                      onChange={(e) => handleAllocationAmountChange(p.id, Number(e.target.value), purDue)}
+                                      className="w-20 px-2 py-1 bg-white border border-slate-200 rounded-md text-right font-black text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAllocationAmountChange(p.id, purDue, purDue)}
+                                      className="text-[9px] font-black uppercase px-1.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded transition-colors cursor-pointer whitespace-nowrap"
+                                      title="Pay entire bill due"
+                                    >
+                                      Full
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Allocation Bottom Summary */}
+                  {Object.keys(purchaseAllocations).length > 0 && (
+                    <div className="p-3 bg-blue-50/80 border-t border-blue-200 flex items-center justify-between font-bold text-xs">
+                      <span className="text-blue-900 flex items-center gap-1.5">
+                        <Check size={14} className="text-blue-700" />
+                        Selected for settlement: {Object.values(purchaseAllocations).filter(v => v > 0).length} bill(s)
+                      </span>
+                      <span className="text-blue-900 font-black text-sm">
+                        Total: {formatCurrency(Number(paymentAmount) || 0, settings)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Total Amount Input & Account Select */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
+                    {settlementMode === 'bill' ? 'Total Settlement Amount (BDT)' : 'Payment Amount (BDT)'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    max={selectedVendor.due}
+                    value={paymentAmount}
+                    onChange={(e) => {
+                      setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value));
+                    }}
+                    placeholder="Enter amount"
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-black text-slate-900 text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    required
+                  />
+                  {settlementMode === 'lump_sum' && selectedVendor.due > 0 && (
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentAmount(selectedVendor.due)}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                      >
+                        Full Due ({formatCurrency(selectedVendor.due, settings)})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentAmount(Math.round(selectedVendor.due / 2))}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                      >
+                        50% Due
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
+                    Pay From Account
+                  </label>
+                  <select
+                    value={paymentAccountId}
+                    onChange={(e) => setPaymentAccountId(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white cursor-pointer"
+                    required
+                  >
+                    <option value="">-- Select Account --</option>
+                    {paymentAccounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} ({acc.type})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                  Payment Amount
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  max={selectedVendor.due}
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full border border-gray-200 rounded-lg p-3 font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                  Receive In Account
-                </label>
-                <select
-                  value={paymentAccountId}
-                  onChange={(e) => setPaymentAccountId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-                  required
-                >
-                  <option value="">-- Select Account --</option>
-                  {paymentAccounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.name} ({acc.type})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                  Notes / Reference (Optional)
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
+                  Notes / Reference / Bank Cheque No. (Optional)
                 </label>
                 <textarea
                   rows={2}
                   value={paymentNotes}
                   onChange={(e) => setPaymentNotes(e.target.value)}
-                  placeholder="e.g., Paid via Bkash / Cash memo #..."
-                  className="w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  placeholder="e.g., Paid via Bank Transfer / Cheque #... / Cash Voucher #..."
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedVendor(null);
+                    setPurchaseAllocations({});
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-xs text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
                   disabled={submitting || !paymentAmount || !paymentAccountId}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-black text-xs transition-all shadow-md shadow-blue-900/20 flex items-center gap-2 cursor-pointer"
                 >
-                  {submitting ? 'Processing...' : 'Confirm Receipt'}
+                  {submitting ? 'Processing Payment...' : `Confirm Payment (${formatCurrency(Number(paymentAmount) || 0, settings)})`}
                 </button>
               </div>
             </form>
@@ -616,13 +1016,25 @@ export default function VendorDueList() {
                     </button>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setShowOpeningBalForm(v => !v); setObAmount(''); setObDescription('Previous outstanding balance'); }}
-                  className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg transition-colors shadow-sm"
-                >
-                  + Opening Balance
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const vDue = closingBalance > 0 ? closingBalance : 0;
+                      handleOpenPaymentModal({ id: historyVendor.id, name: historyVendor.name, due: vDue });
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition-colors shadow-sm cursor-pointer"
+                  >
+                    <CreditCard size={13} /> Make Payment
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowOpeningBalForm(v => !v); setObAmount(''); setObDescription('Previous outstanding balance'); }}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg transition-colors shadow-sm cursor-pointer"
+                  >
+                    + Opening Balance
+                  </button>
+                </div>
               </div>
 
               {/* ── Summary Cards ── */}

@@ -1,12 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, getDoc, addDoc, doc, updateDoc, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../../../../context/SettingsContext';
 import { formatCurrency, cn } from '../../../../lib/utils';
-import { Search, CreditCard, X, Check, Trash2, Clock, AlertTriangle, MessageCircle, AlertCircle, Calendar } from 'lucide-react';
+import { 
+  Search, 
+  CreditCard, 
+  X, 
+  Check, 
+  Trash2, 
+  Clock, 
+  AlertTriangle, 
+  MessageCircle, 
+  AlertCircle, 
+  Calendar,
+  Layers,
+  Receipt,
+  CheckSquare,
+  Square,
+  Filter
+} from 'lucide-react';
 import { generatePDF } from '../../../../lib/pdf';
-import { Customer, Transaction, PaymentAccount } from '../../../../types';
+import { Customer, Transaction, PaymentAccount, Order } from '../../../../types';
 
 import { where } from 'firebase/firestore';
 import { useAuth } from '../../../../context/AuthContext';
@@ -20,6 +36,7 @@ export default function CustomerDueList() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -36,6 +53,11 @@ export default function CustomerDueList() {
   const [submitting, setSubmitting] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [agingFilter, setAgingFilter] = useState<AgingBucket>('all');
+
+  // Invoice / Project Wise Due Settlement state
+  const [settlementMode, setSettlementMode] = useState<'invoice' | 'lump_sum'>('invoice');
+  const [modalProjectFilter, setModalProjectFilter] = useState<string>('all');
+  const [orderAllocations, setOrderAllocations] = useState<Record<string, number>>({});
 
   // Opening Balance state
   const [showOpeningBalForm, setShowOpeningBalForm] = useState(false);
@@ -117,6 +139,9 @@ export default function CustomerDueList() {
       
       const allAccs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(allAccs);
+
+      const allOrders: Order[] = ordSnap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+      setOrders(allOrders);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load data');
@@ -314,6 +339,111 @@ export default function CustomerDueList() {
     }
   };
 
+  // Unpaid Orders for the selected customer in Payment Modal
+  const customerUnpaidOrders = useMemo(() => {
+    if (!selectedCustomer) return [];
+    return orders.filter(o => {
+      if (o.status === 'cancelled') return false;
+      const matchesId = o.customerId === selectedCustomer.id;
+      const matchesName = o.customerName && selectedCustomer.name && o.customerName.toLowerCase().trim() === selectedCustomer.name.toLowerCase().trim();
+      if (!matchesId && !matchesName) return false;
+      const total = Number(o.total || 0);
+      const paid = Number(o.paidAmount || (o as any).amountPaid || 0);
+      return (total - paid) > 0.01;
+    }).sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+  }, [selectedCustomer, orders]);
+
+  // Distinct projects / branches for this customer's unpaid orders
+  const customerProjects = useMemo(() => {
+    const set = new Set<string>();
+    customerUnpaidOrders.forEach(o => {
+      const proj = (o.projectName || o.branchName || '').trim();
+      if (proj) set.add(proj);
+    });
+    return Array.from(set).sort();
+  }, [customerUnpaidOrders]);
+
+  // Filtered unpaid orders based on modal project dropdown
+  const displayedUnpaidOrders = useMemo(() => {
+    if (modalProjectFilter === 'all') return customerUnpaidOrders;
+    return customerUnpaidOrders.filter(o => 
+      (o.projectName || '').trim() === modalProjectFilter || 
+      (o.branchName || '').trim() === modalProjectFilter
+    );
+  }, [customerUnpaidOrders, modalProjectFilter]);
+
+  // Open Payment Modal and initialize state
+  const handleOpenPaymentModal = (customer: { id: string; name: string; due: number }) => {
+    setSelectedCustomer(customer);
+    setPaymentNotes('');
+    setModalProjectFilter('all');
+
+    const unpaid = orders.filter(o => {
+      if (o.status === 'cancelled') return false;
+      const matchesId = o.customerId === customer.id;
+      const matchesName = o.customerName && customer.name && o.customerName.toLowerCase().trim() === customer.name.toLowerCase().trim();
+      if (!matchesId && !matchesName) return false;
+      const total = Number(o.total || 0);
+      const paid = Number(o.paidAmount || (o as any).amountPaid || 0);
+      return (total - paid) > 0.01;
+    });
+
+    if (unpaid.length > 0) {
+      setSettlementMode('invoice');
+      setOrderAllocations({});
+      setPaymentAmount('');
+    } else {
+      setSettlementMode('lump_sum');
+      setOrderAllocations({});
+      setPaymentAmount(customer.due > 0 ? customer.due : '');
+    }
+  };
+
+  const handleToggleOrderSelection = (orderId: string, orderDue: number) => {
+    setOrderAllocations(prev => {
+      const next = { ...prev };
+      if (next[orderId] && next[orderId] > 0) {
+        delete next[orderId];
+      } else {
+        next[orderId] = orderDue;
+      }
+      const totalAlloc = Object.values(next).reduce((s, a) => s + (Number(a) || 0), 0);
+      setPaymentAmount(totalAlloc > 0 ? totalAlloc : '');
+      return next;
+    });
+  };
+
+  const handleAllocationAmountChange = (orderId: string, amount: number, maxDue: number) => {
+    const validAmount = Math.max(0, Math.min(amount, maxDue));
+    setOrderAllocations(prev => {
+      const next = { ...prev };
+      if (validAmount > 0) {
+        next[orderId] = validAmount;
+      } else {
+        delete next[orderId];
+      }
+      const totalAlloc = Object.values(next).reduce((s, a) => s + (Number(a) || 0), 0);
+      setPaymentAmount(totalAlloc > 0 ? totalAlloc : '');
+      return next;
+    });
+  };
+
+  const handleSelectAllOrders = () => {
+    const next: Record<string, number> = {};
+    displayedUnpaidOrders.forEach(o => {
+      const due = Math.max(0, (Number(o.total || 0)) - (Number(o.paidAmount || (o as any).amountPaid || 0)));
+      if (due > 0) next[o.id] = due;
+    });
+    setOrderAllocations(next);
+    const totalAlloc = Object.values(next).reduce((s, a) => s + (Number(a) || 0), 0);
+    setPaymentAmount(totalAlloc > 0 ? totalAlloc : '');
+  };
+
+  const handleClearAllAllocations = () => {
+    setOrderAllocations({});
+    setPaymentAmount('');
+  };
+
   const handleReceivePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomer) return;
@@ -329,78 +459,167 @@ export default function CustomerDueList() {
     try {
       setSubmitting(true);
       const acc = paymentAccounts.find(a => a.id === paymentAccountId);
-      
-      const txData = {
-        type: 'payment_received',
-        amount: Number(paymentAmount),
-        date: new Date().toISOString(),
-        description: paymentNotes || 'Received customer due payment',
-        entityId: selectedCustomer.id,
-        entityName: selectedCustomer.name,
-        entityType: 'customer',
-        paymentAccountId: paymentAccountId,
-        paymentMethod: acc?.type || 'cash',
-        createdAt: new Date().toISOString(),
-        previousDue: selectedCustomer.due,
-        currentBalance: selectedCustomer.due - Number(paymentAmount)
-      };
+      const paymentDate = new Date().toISOString();
+      const allocatedEntries = Object.entries(orderAllocations).filter(([_, amt]) => Number(amt) > 0);
 
-      const txRef = await addDoc(collection(db, 'transactions'), txData);
-      
-      // Generate PDF receipt immediately
-      const savedTx = { id: txRef.id, referenceId: `REC-${Date.now().toString().slice(-6)}`, ...txData, _autoPrint: true };
-      try {
-        generatePDF(savedTx as any, 'receipt', settings);
-      } catch (err) {
-        console.error('Failed to generate receipt PDF', err);
-      }
+      if (settlementMode === 'invoice' && allocatedEntries.length > 0) {
+        // Specific Invoice / Order Settlement
+        const updatedCustomerDue = Math.max(0, selectedCustomer.due - Number(paymentAmount));
+        const settledDocNumbers: string[] = [];
 
-      await logAudit(
-        'CREATE',
-        'Payment',
-        `Received customer due payment of ৳${paymentAmount} from "${selectedCustomer.name}" (${acc?.type || 'cash'})`,
-        profile?.displayName || user?.displayName || user?.email || 'Admin',
-        {
-          entityId: selectedCustomer.id,
-          newState: {
-            amount: Number(paymentAmount),
-            previousDue: selectedCustomer.due,
-            newDue: selectedCustomer.due - Number(paymentAmount)
-          }
-        }
-      );
+        for (const [ordId, allocAmt] of allocatedEntries) {
+          const ord = orders.find(o => o.id === ordId);
+          if (!ord) continue;
 
-      // Automatically sync payment to customer's unpaid invoice orders
-      try {
-        let remPay = Number(paymentAmount);
-        const ordSnap = await getDocs(query(
-          collection(db, 'orders'),
-          where('customerId', '==', selectedCustomer.id),
-          where('type', '==', 'invoice')
-        ));
-        const unpaidOrders = ordSnap.docs
-          .map(d => ({ id: d.id, ...d.data() as any }))
-          .filter(o => o.paymentStatus !== 'paid' && ((Number(o.total) || 0) > (Number(o.paidAmount) || 0)))
-          .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+          const currentPaid = Number(ord.paidAmount || (ord as any).amountPaid || 0);
+          const ordTotal = Number(ord.total || 0);
+          const newPaid = currentPaid + Number(allocAmt);
+          const newStatus = newPaid >= ordTotal ? 'paid' : 'partial';
 
-        for (const ord of unpaidOrders) {
-          if (remPay <= 0) break;
-          const dueOnOrder = (Number(ord.total) || 0) - (Number(ord.paidAmount) || 0);
-          const payAmt = Math.min(remPay, dueOnOrder);
-          const updatedPaid = (Number(ord.paidAmount) || 0) + payAmt;
-          const updatedStatus = updatedPaid >= (Number(ord.total) || 0) ? 'paid' : 'partial';
-          await updateDoc(doc(db, 'orders', ord.id), {
-            paidAmount: updatedPaid,
-            paymentStatus: updatedStatus
+          // 1. Update Order in Firestore
+          await updateDoc(doc(db, 'orders', ordId), {
+            paidAmount: newPaid,
+            paymentStatus: newStatus
           });
-          remPay -= payAmt;
+
+          const docNum = ord.documentNumber || ord.id;
+          settledDocNumbers.push(docNum);
+          const projInfo = (ord.projectName || ord.branchName) ? ` (Project: ${ord.projectName || ord.branchName})` : '';
+
+          // 2. Add Transaction in Firestore
+          await addDoc(collection(db, 'transactions'), {
+            type: 'payment_received',
+            amount: Number(allocAmt),
+            date: paymentDate,
+            description: paymentNotes 
+              ? `${paymentNotes} - Settled Invoice #${docNum}${projInfo}`
+              : `Payment received for Invoice #${docNum}${projInfo}`,
+            entityId: selectedCustomer.id,
+            entityName: selectedCustomer.name,
+            entityType: 'customer',
+            documentNumber: docNum,
+            referenceId: ord.id,
+            paymentAccountId: paymentAccountId,
+            paymentMethod: acc?.type || 'cash',
+            createdAt: paymentDate,
+            previousDue: selectedCustomer.due,
+            currentBalance: updatedCustomerDue
+          });
         }
-      } catch (err) {
-        console.warn('Failed to sync order payment status:', err);
+
+        // Generate PDF receipt immediately
+        const savedTx = { 
+          id: `REC-${Date.now().toString().slice(-6)}`, 
+          referenceId: `REC-${Date.now().toString().slice(-6)}`, 
+          type: 'payment_received',
+          amount: Number(paymentAmount),
+          date: paymentDate,
+          description: `Settled ${allocatedEntries.length} invoice(s): ${settledDocNumbers.join(', ')}`,
+          entityId: selectedCustomer.id,
+          entityName: selectedCustomer.name,
+          paymentMethod: acc?.type || 'cash',
+          _autoPrint: true 
+        };
+        try {
+          generatePDF(savedTx as any, 'receipt', settings);
+        } catch (err) {
+          console.error('Failed to generate receipt PDF', err);
+        }
+
+        await logAudit(
+          'CREATE',
+          'Payment',
+          `Received order-wise payment of ৳${paymentAmount} from "${selectedCustomer.name}" across ${allocatedEntries.length} invoice(s): ${settledDocNumbers.join(', ')} (${acc?.type || 'cash'})`,
+          profile?.displayName || user?.displayName || user?.email || 'Admin',
+          {
+            entityId: selectedCustomer.id,
+            previousState: { due: selectedCustomer.due },
+            newState: {
+              due: updatedCustomerDue,
+              amount: Number(paymentAmount),
+              settledInvoices: settledDocNumbers
+            }
+          }
+        );
+
+        toast.success(`Payment of ৳${Number(paymentAmount).toLocaleString()} received for ${allocatedEntries.length} invoice(s)!`);
+      } else {
+        // Lump Sum Payment (General / FIFO fallback)
+        const txData = {
+          type: 'payment_received',
+          amount: Number(paymentAmount),
+          date: paymentDate,
+          description: paymentNotes || 'Received customer due payment (General / Lump Sum)',
+          entityId: selectedCustomer.id,
+          entityName: selectedCustomer.name,
+          entityType: 'customer',
+          paymentAccountId: paymentAccountId,
+          paymentMethod: acc?.type || 'cash',
+          createdAt: paymentDate,
+          previousDue: selectedCustomer.due,
+          currentBalance: selectedCustomer.due - Number(paymentAmount)
+        };
+
+        const txRef = await addDoc(collection(db, 'transactions'), txData);
+
+        // Auto FIFO sync
+        try {
+          let remPay = Number(paymentAmount);
+          const unpaidOrders = orders
+            .filter(o => {
+              if (o.status === 'cancelled') return false;
+              const matchesId = o.customerId === selectedCustomer.id;
+              const matchesName = o.customerName && selectedCustomer.name && o.customerName.toLowerCase().trim() === selectedCustomer.name.toLowerCase().trim();
+              if (!matchesId && !matchesName) return false;
+              const tot = Number(o.total || 0);
+              const pd = Number(o.paidAmount || (o as any).amountPaid || 0);
+              return (tot - pd) > 0.01;
+            })
+            .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+
+          for (const ord of unpaidOrders) {
+            if (remPay <= 0) break;
+            const dueOnOrder = (Number(ord.total) || 0) - (Number(ord.paidAmount || (ord as any).amountPaid) || 0);
+            const payAmt = Math.min(remPay, dueOnOrder);
+            const updatedPaid = (Number(ord.paidAmount || (ord as any).amountPaid) || 0) + payAmt;
+            const updatedStatus = updatedPaid >= (Number(ord.total) || 0) ? 'paid' : 'partial';
+            await updateDoc(doc(db, 'orders', ord.id), {
+              paidAmount: updatedPaid,
+              paymentStatus: updatedStatus
+            });
+            remPay -= payAmt;
+          }
+        } catch (err) {
+          console.warn('Failed to sync order payment status:', err);
+        }
+
+        const savedTx = { id: txRef.id, referenceId: `REC-${Date.now().toString().slice(-6)}`, ...txData, _autoPrint: true };
+        try {
+          generatePDF(savedTx as any, 'receipt', settings);
+        } catch (err) {
+          console.error('Failed to generate receipt PDF', err);
+        }
+
+        await logAudit(
+          'CREATE',
+          'Payment',
+          `Received customer due payment of ৳${paymentAmount} from "${selectedCustomer.name}" (${acc?.type || 'cash'})`,
+          profile?.displayName || user?.displayName || user?.email || 'Admin',
+          {
+            entityId: selectedCustomer.id,
+            previousState: { due: selectedCustomer.due },
+            newState: {
+              due: selectedCustomer.due - Number(paymentAmount),
+              amount: Number(paymentAmount)
+            }
+          }
+        );
+
+        toast.success(`Payment of ৳${Number(paymentAmount).toLocaleString()} received!`);
       }
 
-      toast.success('Payment received successfully & Receipt generated');
       setSelectedCustomer(null);
+      setOrderAllocations({});
       setPaymentAmount('');
       setPaymentAccountId('');
       setPaymentNotes('');
@@ -621,11 +840,8 @@ export default function CustomerDueList() {
                           History
                         </button>
                         <button
-                          onClick={() => {
-                            setSelectedCustomer({ id: customer.id, name: customer.name, due: customer.due });
-                            setPaymentAmount(customer.due);
-                          }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                          onClick={() => handleOpenPaymentModal({ id: customer.id, name: customer.name, due: customer.due })}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer"
                         >
                           Receive Payment
                         </button>
@@ -639,85 +855,323 @@ export default function CustomerDueList() {
         </div>
       </div>
 
-      {/* Payment Modal */}
+      {/* Invoice & Project-Wise Due Settlement Modal */}
       {selectedCustomer && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="font-bold text-lg text-gray-900">Receive Due Payment</h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh] border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-[#081621] via-indigo-950 to-[#081621] text-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center border border-blue-400/20">
+                  <Receipt size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-base tracking-tight text-white flex items-center gap-2">
+                    Receive Due Payment
+                  </h3>
+                  <span className="text-[11px] text-slate-300">
+                    Settle outstanding dues by specific invoice or lump sum
+                  </span>
+                </div>
+              </div>
               <button 
-                onClick={() => setSelectedCustomer(null)}
-                className="text-gray-400 hover:text-red-500 transition-colors"
+                onClick={() => {
+                  setSelectedCustomer(null);
+                  setOrderAllocations({});
+                }}
+                className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
             
-            <form onSubmit={handleReceivePayment} className="p-6 overflow-y-auto space-y-4">
-              <div className="bg-blue-50 text-blue-800 p-4 rounded-lg border border-blue-100 mb-2">
-                <div className="text-xs font-bold uppercase text-blue-600 mb-1">Customer</div>
-                <div className="font-black text-lg">{selectedCustomer.name}</div>
-                <div className="text-sm mt-1 flex justify-between">
-                  <span>Current Due:</span>
-                  <span className="font-bold text-red-600">{formatCurrency(selectedCustomer.due, settings)}</span>
+            <form onSubmit={handleReceivePayment} className="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs">
+              {/* Customer Info Card */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Customer Account</span>
+                  <div className="font-black text-base text-slate-900 mt-0.5">{selectedCustomer.name}</div>
+                  <span className="text-[11px] text-slate-500">
+                    {customerUnpaidOrders.length} unpaid / partial invoice(s) on file
+                  </span>
+                </div>
+                <div className="bg-white border border-rose-200 px-4 py-2 rounded-xl text-right shadow-2xs">
+                  <span className="text-[10px] font-bold text-rose-600 block uppercase">Total Balance Due</span>
+                  <span className="font-black text-lg text-rose-700">{formatCurrency(selectedCustomer.due, settings)}</span>
+                </div>
+              </div>
+
+              {/* Settlement Mode Switcher */}
+              <div className="flex border border-slate-200 bg-slate-100/70 p-1 rounded-xl gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSettlementMode('invoice')}
+                  className={cn(
+                    "flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                    settlementMode === 'invoice'
+                      ? "bg-white text-blue-700 shadow-sm border border-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  <Receipt size={14} /> Pay by Specific Invoice / Project ({customerUnpaidOrders.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettlementMode('lump_sum');
+                    setPaymentAmount(selectedCustomer.due > 0 ? selectedCustomer.due : '');
+                  }}
+                  className={cn(
+                    "flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                    settlementMode === 'lump_sum'
+                      ? "bg-white text-blue-700 shadow-sm border border-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  <CreditCard size={14} /> General / Lump Sum Payment
+                </button>
+              </div>
+
+              {/* Order / Invoice Table (When in Invoice Mode) */}
+              {settlementMode === 'invoice' && (
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                  <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-800 text-xs">Unpaid Invoices</span>
+                      {customerProjects.length > 1 && (
+                        <select
+                          value={modalProjectFilter}
+                          onChange={e => setModalProjectFilter(e.target.value)}
+                          className="text-[11px] font-bold bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 outline-none focus:border-blue-500 cursor-pointer"
+                        >
+                          <option value="all">All Projects / Branches ({customerUnpaidOrders.length})</option>
+                          {customerProjects.map((p, idx) => (
+                            <option key={idx} value={p}>Project: {p}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllOrders}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                      >
+                        Select All Full
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearAllAllocations}
+                        className="text-[10px] font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {displayedUnpaidOrders.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 bg-slate-50/50">
+                      <Receipt size={24} className="mx-auto mb-1 text-slate-400 opacity-50" />
+                      <p className="font-bold text-xs">No unpaid invoices found under this project filter.</p>
+                      <p className="text-[11px] text-slate-500 mt-1">Switch to "General / Lump Sum Payment" to record a direct payment.</p>
+                    </div>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100/70 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 sticky top-0 bg-slate-100">
+                          <tr>
+                            <th className="py-2 px-3 text-center w-8">#</th>
+                            <th className="py-2 px-3">Invoice & Date</th>
+                            <th className="py-2 px-3">Project / Branch</th>
+                            <th className="py-2 px-3 text-right">Bill Total</th>
+                            <th className="py-2 px-3 text-right">Paid</th>
+                            <th className="py-2 px-3 text-right">Due</th>
+                            <th className="py-2 px-3 text-right w-36">Pay Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {displayedUnpaidOrders.map(o => {
+                            const tot = Number(o.total || 0);
+                            const pd = Number(o.paidAmount || (o as any).amountPaid || 0);
+                            const ordDue = Math.max(0, tot - pd);
+                            const isAllocated = (orderAllocations[o.id] || 0) > 0;
+                            const currentAlloc = orderAllocations[o.id] || '';
+                            const projName = o.projectName || o.branchName || '';
+
+                            return (
+                              <tr 
+                                key={o.id} 
+                                className={cn(
+                                  "transition-colors",
+                                  isAllocated ? "bg-blue-50/40" : "hover:bg-slate-50"
+                                )}
+                              >
+                                <td className="py-2 px-3 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isAllocated}
+                                    onChange={() => handleToggleOrderSelection(o.id, ordDue)}
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span className="font-black text-slate-900 block">{o.documentNumber || o.id}</span>
+                                  <span className="text-[10px] text-slate-400">
+                                    {o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-GB') : 'N/A'}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3">
+                                  {projName ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                      {projName}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-[10px]">Main Store</span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-3 text-right font-medium text-slate-700">
+                                  {formatCurrency(tot, settings)}
+                                </td>
+                                <td className="py-2 px-3 text-right text-emerald-600 font-bold">
+                                  {formatCurrency(pd, settings)}
+                                </td>
+                                <td className="py-2 px-3 text-right font-black text-rose-600">
+                                  {formatCurrency(ordDue, settings)}
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      max={ordDue}
+                                      placeholder="0"
+                                      value={currentAlloc}
+                                      onChange={(e) => handleAllocationAmountChange(o.id, Number(e.target.value), ordDue)}
+                                      className="w-20 px-2 py-1 bg-white border border-slate-200 rounded-md text-right font-black text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAllocationAmountChange(o.id, ordDue, ordDue)}
+                                      className="text-[9px] font-black uppercase px-1.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded transition-colors cursor-pointer whitespace-nowrap"
+                                      title="Pay entire bill due"
+                                    >
+                                      Full
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Allocation Bottom Summary */}
+                  {Object.keys(orderAllocations).length > 0 && (
+                    <div className="p-3 bg-blue-50/80 border-t border-blue-200 flex items-center justify-between font-bold text-xs">
+                      <span className="text-blue-900 flex items-center gap-1.5">
+                        <Check size={14} className="text-blue-700" />
+                        Selected for settlement: {Object.values(orderAllocations).filter(v => v > 0).length} invoice(s)
+                      </span>
+                      <span className="text-blue-900 font-black text-sm">
+                        Total: {formatCurrency(Number(paymentAmount) || 0, settings)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Total Amount Input & Account Select */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
+                    {settlementMode === 'invoice' ? 'Total Settlement Amount (BDT)' : 'Payment Amount (BDT)'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    max={selectedCustomer.due}
+                    value={paymentAmount}
+                    onChange={(e) => {
+                      setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value));
+                    }}
+                    placeholder="Enter amount"
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-black text-slate-900 text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    required
+                  />
+                  {settlementMode === 'lump_sum' && selectedCustomer.due > 0 && (
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentAmount(selectedCustomer.due)}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                      >
+                        Full Due ({formatCurrency(selectedCustomer.due, settings)})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentAmount(Math.round(selectedCustomer.due / 2))}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                      >
+                        50% Due
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
+                    Receive In Account
+                  </label>
+                  <select
+                    value={paymentAccountId}
+                    onChange={(e) => setPaymentAccountId(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white cursor-pointer"
+                    required
+                  >
+                    <option value="">-- Select Account --</option>
+                    {paymentAccounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} ({acc.type})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                  Payment Amount
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  max={selectedCustomer.due}
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full border border-gray-200 rounded-lg p-3 font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                  Receive In Account
-                </label>
-                <select
-                  value={paymentAccountId}
-                  onChange={(e) => setPaymentAccountId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-                  required
-                >
-                  <option value="">-- Select Account --</option>
-                  {paymentAccounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.name} ({acc.type})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                  Notes / Reference (Optional)
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
+                  Notes / Reference / Bank Cheque No. (Optional)
                 </label>
                 <textarea
                   rows={2}
                   value={paymentNotes}
                   onChange={(e) => setPaymentNotes(e.target.value)}
-                  placeholder="e.g., Paid via Bkash / Cash memo #..."
-                  className="w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  placeholder="e.g., Paid via Bkash / Cheque #... / Ref order #..."
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCustomer(null);
+                    setOrderAllocations({});
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-xs text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
                   disabled={submitting || !paymentAmount || !paymentAccountId}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-black text-xs transition-all shadow-md shadow-blue-900/20 flex items-center gap-2 cursor-pointer"
                 >
-                  {submitting ? 'Processing...' : 'Confirm Receipt'}
+                  {submitting ? 'Processing Receipt...' : `Confirm Receipt (${formatCurrency(Number(paymentAmount) || 0, settings)})`}
                 </button>
               </div>
             </form>
@@ -891,13 +1345,29 @@ export default function CustomerDueList() {
                     </button>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setShowOpeningBalForm(v => !v); setObAmount(''); setObDescription('Previous outstanding balance'); }}
-                  className="flex-shrink-0 mt-0 inline-flex items-center gap-1.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg transition-colors shadow-sm"
-                >
-                  + Opening Balance
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cust = customers.find(c => c.id === historyCustomer.id);
+                      handleOpenPaymentModal({ 
+                        id: historyCustomer.id, 
+                        name: historyCustomer.name, 
+                        due: closingBalance > 0 ? closingBalance : ((cust as any)?.due || 0) 
+                      });
+                    }}
+                    className="flex-shrink-0 mt-0 inline-flex items-center gap-1.5 text-xs font-black bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition-colors shadow-sm cursor-pointer"
+                  >
+                    <CreditCard size={13} /> Receive Payment
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowOpeningBalForm(v => !v); setObAmount(''); setObDescription('Previous outstanding balance'); }}
+                    className="flex-shrink-0 mt-0 inline-flex items-center gap-1.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg transition-colors shadow-sm cursor-pointer"
+                  >
+                    + Opening Balance
+                  </button>
+                </div>
               </div>
 
               {/* ── Summary Cards ── */}
