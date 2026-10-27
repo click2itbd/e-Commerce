@@ -461,7 +461,8 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
 
             const docNum = ord.documentNumber || ord.id;
             settledDocNumbers.push(docNum);
-            const projInfo = ord.projectName ? ` [Project: ${ord.projectName}]` : (ord.branchName ? ` [Branch: ${ord.branchName}]` : '');
+            const proj = ord.projectName || ord.branchName;
+            const projInfo = proj ? ` [Branch / Project: ${proj}]` : '';
 
             await addDoc(collection(db, 'transactions'), {
               type: 'payment_received',
@@ -689,8 +690,8 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
     doc.text(settings?.siteName || 'Click2IT', 14, 18);
     doc.setFontSize(11);
     const statementLabel = selectedProjectFilter !== 'all'
-      ? `${selectedLedgerEntity.name} (Project: ${selectedProjectFilter})`
-      : (isCorporate ? `${selectedLedgerEntity.name} (All Projects Combined)` : `${selectedLedgerEntity.name} (${selectedLedgerEntity.type.toUpperCase()})`);
+      ? `${selectedLedgerEntity.name} (Branch / Project: ${selectedProjectFilter})`
+      : (isCorporate ? `${selectedLedgerEntity.name} (All Branches / Projects Combined)` : `${selectedLedgerEntity.name} (${selectedLedgerEntity.type.toUpperCase()})`);
     doc.text(`Account Statement: ${statementLabel}`, 14, 25);
     doc.setFontSize(9);
     doc.text(`Period: ${generalLedgerStartDate} to ${generalLedgerEndDate} | Generated: ${new Date().toLocaleDateString()}`, 14, 31);
@@ -818,7 +819,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
                       <div className="flex items-center gap-2">
                         <span>🏢</span> <span className="font-bold text-slate-800">{comp.name}</span>
                       </div>
-                      <span className="text-[10px] font-bold text-blue-600 bg-blue-100/70 px-1.5 py-0.5 rounded">All Projects</span>
+                      <span className="text-[10px] font-bold text-blue-600 bg-blue-100/70 px-1.5 py-0.5 rounded">All Branches / Projects</span>
                     </div>
                   ))}
                   
@@ -886,18 +887,18 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
             />
           </div>
 
-          {/* Project Filter (if corporate or projects available) */}
+          {/* Branch / Project Filter (if corporate or projects available) */}
           {selectedLedgerEntity && availableProjects.length > 0 && (
             <div className="flex items-center gap-2 bg-blue-50/90 border border-blue-200 px-3 py-1.5 rounded-lg shadow-2xs">
               <label className="text-[10px] font-black text-blue-700 uppercase whitespace-nowrap">
-                Project:
+                Branch / Project:
               </label>
               <select
                 value={selectedProjectFilter}
                 onChange={e => setSelectedProjectFilter(e.target.value)}
                 className="border-none bg-transparent text-xs font-bold text-blue-900 p-0 focus:ring-0 cursor-pointer outline-none"
               >
-                <option value="all">All Projects (Company Total)</option>
+                <option value="all">All Branches / Projects (Company Total)</option>
                 {availableProjects.map((p, idx) => (
                   <option key={idx} value={p}>{p}</option>
                 ))}
@@ -923,12 +924,12 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
                 <span>{selectedLedgerEntity.name}</span>
                 {selectedProjectFilter !== 'all' ? (
                   <span className="text-xs font-bold text-emerald-300 bg-emerald-950/80 border border-emerald-500/40 px-3 py-1 rounded-full shadow-2xs">
-                    📁 Project: {selectedProjectFilter}
+                    📁 Branch / Project: {selectedProjectFilter}
                   </span>
                 ) : (
                   isCorporate && (
                     <span className="text-xs font-bold text-blue-300 bg-blue-950/80 border border-blue-500/40 px-3 py-1 rounded-full shadow-2xs">
-                      🏢 All Projects (Company Total)
+                      🏢 All Branches / Projects (Company Total)
                     </span>
                   )
                 )}
@@ -1048,7 +1049,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
                     >
                       <Receipt size={14} /> 
                       {isCustomer 
-                        ? `Pay by Specific Invoice / Project (${entityUnpaidOrders.length})` 
+                        ? `Pay by Specific Invoice / Branch / Project (${entityUnpaidOrders.length})` 
                         : `Pay by Specific Purchase Bill (${entityUnpaidPurchases.length})`}
                     </button>
                     <button
@@ -1082,9 +1083,9 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
                               onChange={e => setModalProjectFilter(e.target.value)}
                               className="text-[11px] font-bold bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 outline-none focus:border-blue-500 cursor-pointer"
                             >
-                              <option value="all">All Projects / Branches ({entityUnpaidOrders.length})</option>
+                              <option value="all">All Branches / Projects ({entityUnpaidOrders.length})</option>
                               {entityProjects.map((p, idx) => (
-                                <option key={idx} value={p}>Project: {p}</option>
+                                <option key={idx} value={p}>Branch / Project: {p}</option>
                               ))}
                             </select>
                           )}
@@ -1122,7 +1123,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
                                 <tr>
                                   <th className="py-2 px-3 text-center w-8">#</th>
                                   <th className="py-2 px-3">Invoice & Date</th>
-                                  <th className="py-2 px-3">Project / Branch</th>
+                                  <th className="py-2 px-3">Branch / Project</th>
                                   <th className="py-2 px-3 text-right">Bill Total</th>
                                   <th className="py-2 px-3 text-right">Paid</th>
                                   <th className="py-2 px-3 text-right">Due</th>

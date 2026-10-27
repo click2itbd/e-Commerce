@@ -291,7 +291,7 @@ export default function CustomerDueList() {
       toast.error('No customer due records to export');
       return;
     }
-    const headers = ['Customer Name', 'Phone', 'Address', 'Branch', 'Days Overdue', 'Oldest Due Date', 'Aging Status', 'Due Amount (BDT)'];
+    const headers = ['Customer Name', 'Phone', 'Address', 'Branch / Project', 'Days Overdue', 'Oldest Due Date', 'Aging Status', 'Due Amount (BDT)'];
     const rows = dueCustomers.map(c => [
       `"${(c.name || '').replace(/"/g, '""')}"`,
       `"${(c.phone || '').replace(/"/g, '""')}"`,
@@ -334,7 +334,7 @@ export default function CustomerDueList() {
         <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center;">${idx + 1}</td>
         <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: bold; color: #0f172a;">
           ${c.name}
-          ${c.branchName ? `<br><span style="font-size: 10px; color: #64748b; font-weight: normal;">Branch: ${c.branchName}</span>` : ''}
+          ${c.branchName ? `<br><span style="font-size: 10px; color: #64748b; font-weight: normal;">Branch / Project: ${c.branchName}</span>` : ''}
         </td>
         <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #334155;">${c.phone || 'N/A'}</td>
         <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #475569;">${c.address || 'N/A'}</td>
@@ -639,7 +639,7 @@ export default function CustomerDueList() {
 
           const docNum = ord.documentNumber || ord.id;
           settledDocNumbers.push(docNum);
-          const projInfo = (ord.branchName || ord.projectName) ? ` (Branch: ${ord.branchName || ord.projectName})` : '';
+          const projInfo = (ord.branchName || ord.projectName) ? ` (Branch / Project: ${ord.branchName || ord.projectName})` : '';
 
           // 2. Add Transaction in Firestore
           await addDoc(collection(db, 'transactions'), {
@@ -985,7 +985,7 @@ export default function CustomerDueList() {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input
                 type="text"
-                placeholder="Search customers by name, phone, branch, address..."
+                placeholder="Search customers by name, phone, branch / project, address..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs transition-all placeholder:text-slate-400"
@@ -1089,7 +1089,7 @@ export default function CustomerDueList() {
                               <div className="flex flex-wrap gap-1">
                                 {(customer.branches && customer.branches.length > 0 ? customer.branches : [customer.branchName]).filter(Boolean).map((br, idx) => (
                                   <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
-                                    Branch: {br}
+                                    Branch / Project: {br}
                                   </span>
                                 ))}
                               </div>
@@ -1285,9 +1285,9 @@ export default function CustomerDueList() {
                           onChange={e => setModalProjectFilter(e.target.value)}
                           className="text-[11px] font-bold bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 outline-none focus:border-blue-500 cursor-pointer"
                         >
-                          <option value="all">All Branches ({customerUnpaidOrders.length})</option>
+                          <option value="all">All Branches / Projects ({customerUnpaidOrders.length})</option>
                           {customerProjects.map((p, idx) => (
-                            <option key={idx} value={p}>Branch: {p}</option>
+                            <option key={idx} value={p}>Branch / Project: {p}</option>
                           ))}
                         </select>
                       )}
@@ -1323,7 +1323,7 @@ export default function CustomerDueList() {
                           <tr>
                             <th className="py-2 px-3 text-center w-8">#</th>
                             <th className="py-2 px-3">Invoice & Date</th>
-                            <th className="py-2 px-3">Project / Branch</th>
+                            <th className="py-2 px-3">Branch / Project</th>
                             <th className="py-2 px-3 text-right">Bill Total</th>
                             <th className="py-2 px-3 text-right">Paid</th>
                             <th className="py-2 px-3 text-right">Due</th>
@@ -1637,7 +1637,7 @@ export default function CustomerDueList() {
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[11px] font-semibold bg-white/10 text-slate-300 px-2.5 py-0.5 rounded-full tracking-wide">
-                      {ledgerBranchFilter !== 'all' ? `Branch: ${ledgerBranchFilter}` : (isCorporate ? 'Company Total Ledger' : 'Customer Account')}
+                      {ledgerBranchFilter !== 'all' ? `Branch / Project: ${ledgerBranchFilter}` : (isCorporate ? 'Company Total Ledger' : 'Customer Account')}
                     </span>
                   </div>
                 </div>

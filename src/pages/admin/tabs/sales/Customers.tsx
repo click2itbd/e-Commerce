@@ -367,23 +367,23 @@ const Customers: React.FC<CustomersProps> = ({
                   </div>
                 </div>
 
-                {/* Branch Name */}
+                {/* Branch / Project Name */}
                 <div className="md:col-span-2 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
                   <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1.5 flex items-center justify-between">
-                    <span>Branch Name(s) (Optional)</span>
+                    <span>Branch / Project Name(s) (Optional)</span>
                     <span className="text-[9px] text-slate-400 font-normal">Comma-separated for multiple (e.g. Simpletree, Treelogy Two, Kapilmuni)</span>
                   </label>
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="e.g. Simpletree, Treelogy Two, Dhanmondi Branch (leave empty for retail)"
+                      placeholder="e.g. Simpletree, Treelogy Two, Kapilmuni (leave empty for retail)"
                       value={customerFormData.branchesText}
                       onChange={e => setCustomerFormData({ ...customerFormData, branchesText: e.target.value, branchName: e.target.value.split(',')[0]?.trim() || '' })}
                       className="w-full bg-white border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none transition-all placeholder:text-slate-400 text-xs"
                     />
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1.5">
-                    For corporate clients, specify branch names. These can be selected during POS sales, invoices, and statement generation.
+                    For corporate clients, specify branch or project names. These can be selected during POS sales, invoices, and statement generation.
                   </p>
                 </div>
               </div>
@@ -447,7 +447,7 @@ const Customers: React.FC<CustomersProps> = ({
                           <div className="mt-1 flex flex-wrap gap-1">
                             {(customer.branches && customer.branches.length > 0 ? customer.branches : [customer.branchName]).filter(Boolean).map((br, idx) => (
                               <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
-                                Branch: {br}
+                                Branch / Project: {br}
                               </span>
                             ))}
                           </div>

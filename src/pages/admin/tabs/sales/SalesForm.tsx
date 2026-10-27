@@ -1491,14 +1491,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     return (
                       <div className="flex items-center gap-2 shrink-0 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-2xs">
                         <span className="text-[11px] font-black text-slate-500 uppercase whitespace-nowrap">
-                          Branch Name:
+                          Branch / Project:
                         </span>
                         <select
                           value={saleData.branchName || ''}
                           onChange={e => {
                             const val = e.target.value;
                             if (val === '__new__') {
-                              const newBr = window.prompt('Enter new Branch name:');
+                              const newBr = window.prompt('Enter new Branch / Project name:');
                               if (newBr && newBr.trim()) {
                                 setSaleData({ ...saleData, branchName: newBr.trim() });
                               }
@@ -1515,7 +1515,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                           {saleData.branchName && !bList.includes(saleData.branchName) && (
                             <option value={saleData.branchName}>{saleData.branchName}</option>
                           )}
-                          <option value="__new__">+ Add New Branch...</option>
+                          <option value="__new__">+ Add New Branch / Project...</option>
                         </select>
                       </div>
                     );
@@ -2187,11 +2187,11 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
               <div>
                 <label className="block font-bold text-gray-700 uppercase mb-1">
-                  Branch Name (Optional)
+                  Branch / Project Name (Optional)
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Simpletree, Treelogy Two, Dhanmondi Branch (leave empty for retail)"
+                  placeholder="e.g. Simpletree, Treelogy Two, Kapilmuni (leave empty for retail)"
                   value={newCustomerForm.branchName || ''}
                   onChange={e => setNewCustomerForm({ ...newCustomerForm, branchName: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg p-2.5 font-medium"
