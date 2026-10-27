@@ -479,6 +479,7 @@ export default function CustomerDueList() {
           // 1. Update Order in Firestore
           await updateDoc(doc(db, 'orders', ordId), {
             paidAmount: newPaid,
+            amountPaid: newPaid,
             paymentStatus: newStatus
           });
 
@@ -585,6 +586,7 @@ export default function CustomerDueList() {
             const updatedStatus = updatedPaid >= (Number(ord.total) || 0) ? 'paid' : 'partial';
             await updateDoc(doc(db, 'orders', ord.id), {
               paidAmount: updatedPaid,
+              amountPaid: updatedPaid,
               paymentStatus: updatedStatus
             });
             remPay -= payAmt;
