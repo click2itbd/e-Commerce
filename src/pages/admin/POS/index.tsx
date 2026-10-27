@@ -119,6 +119,45 @@ export const RetailPOS = () => {
         console.error("Failed to parse pending service item", e);
       }
     }
+
+    // Check for pending quotation to import into POS cart
+    const pendingQuote = localStorage.getItem("pos_pending_quotation");
+    if (pendingQuote) {
+      try {
+        const parsedQuote = JSON.parse(pendingQuote);
+        if (parsedQuote.items && Array.isArray(parsedQuote.items) && parsedQuote.items.length > 0) {
+          const newCartItems = parsedQuote.items.map((it: any, idx: number) => ({
+            cartItemId: `${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
+            product: {
+              id: it.id || it.productId || `quote-item-${idx}`,
+              name: it.name || 'Quoted Item',
+              price: Number(it.price || 0),
+              sku: it.sku || '',
+              brand: it.brand || '',
+              warranty: it.warranty || '',
+              stock: 999, // Allow selling quoted items
+              category: it.category || 'Quotation Item',
+              description: it.description || '',
+            } as unknown as Product,
+            quantity: Number(it.quantity || 1),
+            selectedSerials: [],
+            selectedVariant: null,
+          }));
+          setCart(prev => [...prev, ...newCartItems]);
+        }
+        if (parsedQuote.customer) {
+          setSelectedCustomer(parsedQuote.customer);
+        }
+        if (parsedQuote.discountAmount && Number(parsedQuote.discountAmount) > 0) {
+          setDiscountType("flat");
+          setDiscountValue(Number(parsedQuote.discountAmount));
+        }
+        localStorage.removeItem("pos_pending_quotation");
+        toast.success(`Imported Quotation #${parsedQuote.documentNumber || ''} (${parsedQuote.customerName || 'Customer'}) into POS cart!`);
+      } catch (e) {
+        console.error("Failed to parse pending quotation", e);
+      }
+    }
   }, []);
 
   useEffect(() => {
