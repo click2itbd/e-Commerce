@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../../../firebase';
-import { collection, getDocs, addDoc, query, orderBy } from 'firebase/firestore';
-import { Transaction, Customer, Vendor } from '../../../../types';
+import { collection, getDocs, addDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
+import { Transaction, Customer, Vendor, Order, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
-import { Book, X, User, Download, Printer, Plus, ArrowLeft } from 'lucide-react';
+import { Book, X, User, Download, Printer, Plus, ArrowLeft, Receipt, Check, CreditCard, Filter } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { generatePDF } from '../../../../lib/pdf';
+import { logAudit } from '../../../../lib/audit';
 
 interface LedgerTabProps {
   selectedLedgerEntity?: { id: string; name: string; type: 'customer' | 'vendor' } | null;
@@ -24,6 +26,9 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [purchases, setPurchases] = useState<any[]>([]);
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [generalLedgerFilterType, setGeneralLedgerFilterType] = useState<'daily' | 'monthly'>('daily');
   const [generalLedgerStartDate, setGeneralLedgerStartDate] = useState(
     new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]
@@ -35,10 +40,15 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
 
   // Quick Payment Recording State
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [settlementMode, setSettlementMode] = useState<'specific' | 'lump_sum'>('specific');
+  const [allocations, setAllocations] = useState<Record<string, number>>({});
+  const [modalProjectFilter, setModalProjectFilter] = useState('all');
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentAccountId, setPaymentAccountId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentDescription, setPaymentDescription] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [submittingPayment, setSubmittingPayment] = useState(false);
 
   const [showEntityDropdown, setShowEntityDropdown] = useState(false);
   const [entitySearchQuery, setEntitySearchQuery] = useState('');
@@ -66,12 +76,18 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
 
   const fetchEntities = async () => {
     try {
-      const [cSnap, vSnap] = await Promise.all([
+      const [cSnap, vSnap, ordSnap, purSnap, accSnap] = await Promise.all([
         getDocs(query(collection(db, 'customers'), orderBy('name'))),
         getDocs(query(collection(db, 'vendors'), orderBy('name'))),
+        getDocs(collection(db, 'orders')),
+        getDocs(collection(db, 'purchases')),
+        getDocs(collection(db, 'payment_accounts'))
       ]);
       setCustomers(cSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer)));
       setVendors(vSnap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor)));
+      setOrders(ordSnap.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
+      setPurchases(purSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)));
+      setPaymentAccounts(accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount)));
     } catch (err) {
       console.error('Error loading ledger entities:', err);
     }
@@ -160,37 +176,372 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
   const totalCredit = entityLedgerRows.reduce((sum, r) => sum + r.credit, 0);
   const finalBalance = isCustomer ? totalDebit - totalCredit : totalCredit - totalDebit;
 
+  // Unpaid Orders & Projects for Customer in Ledger
+  const entityUnpaidOrders = useMemo(() => {
+    if (!selectedLedgerEntity || selectedLedgerEntity.type !== 'customer') return [];
+    return orders.filter(o => {
+      if (o.status === 'cancelled') return false;
+      const matchesId = o.customerId === selectedLedgerEntity.id;
+      const matchesName = o.customerName && selectedLedgerEntity.name && o.customerName.toLowerCase().trim() === selectedLedgerEntity.name.toLowerCase().trim();
+      if (!matchesId && !matchesName) return false;
+      const total = Number(o.total || 0);
+      const paid = Number(o.paidAmount || (o as any).amountPaid || 0);
+      return (total - paid) > 0.01;
+    }).sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+  }, [selectedLedgerEntity, orders]);
+
+  const entityProjects = useMemo(() => {
+    const projs = new Set<string>();
+    entityUnpaidOrders.forEach(o => {
+      const p = o.projectName || o.branchName;
+      if (p) projs.add(p);
+    });
+    return Array.from(projs);
+  }, [entityUnpaidOrders]);
+
+  const displayedUnpaidOrders = useMemo(() => {
+    if (modalProjectFilter === 'all') return entityUnpaidOrders;
+    return entityUnpaidOrders.filter(o => (o.projectName || o.branchName) === modalProjectFilter);
+  }, [entityUnpaidOrders, modalProjectFilter]);
+
+  // Unpaid Purchases for Vendor in Ledger
+  const entityUnpaidPurchases = useMemo(() => {
+    if (!selectedLedgerEntity || selectedLedgerEntity.type !== 'vendor') return [];
+    return purchases.filter(p => {
+      const matchesId = p.vendorId === selectedLedgerEntity.id;
+      const matchesName = p.vendorName && selectedLedgerEntity.name && p.vendorName.toLowerCase().trim() === selectedLedgerEntity.name.toLowerCase().trim();
+      if (!matchesId && !matchesName) return false;
+      const total = Number(p.total || p.grandTotal || 0);
+      const paid = Number(p.paidAmount || p.paid || 0);
+      return (total - paid) > 0.01;
+    }).sort((a, b) => new Date(a.createdAt || a.date || 0).getTime() - new Date(b.createdAt || b.date || 0).getTime());
+  }, [selectedLedgerEntity, purchases]);
+
+  // Open Payment Modal and initialize state
+  const handleOpenPaymentModal = () => {
+    if (!selectedLedgerEntity) return;
+    setAllocations({});
+    setPaymentDescription('');
+    setModalProjectFilter('all');
+    setPaymentDate(new Date().toISOString().split('T')[0]);
+
+    if (selectedLedgerEntity.type === 'customer') {
+      const unpaid = orders.filter(o => {
+        if (o.status === 'cancelled') return false;
+        const matchesId = o.customerId === selectedLedgerEntity.id;
+        const matchesName = o.customerName && selectedLedgerEntity.name && o.customerName.toLowerCase().trim() === selectedLedgerEntity.name.toLowerCase().trim();
+        if (!matchesId && !matchesName) return false;
+        const total = Number(o.total || 0);
+        const paid = Number(o.paidAmount || (o as any).amountPaid || 0);
+        return (total - paid) > 0.01;
+      });
+      if (unpaid.length > 0) {
+        setSettlementMode('specific');
+        setPaymentAmount(0);
+      } else {
+        setSettlementMode('lump_sum');
+        setPaymentAmount(finalBalance > 0 ? finalBalance : 0);
+      }
+    } else {
+      const unpaid = purchases.filter(p => {
+        const matchesId = p.vendorId === selectedLedgerEntity.id;
+        const matchesName = p.vendorName && selectedLedgerEntity.name && p.vendorName.toLowerCase().trim() === selectedLedgerEntity.name.toLowerCase().trim();
+        if (!matchesId && !matchesName) return false;
+        const total = Number(p.total || p.grandTotal || 0);
+        const paid = Number(p.paidAmount || p.paid || 0);
+        return (total - paid) > 0.01;
+      });
+      if (unpaid.length > 0) {
+        setSettlementMode('specific');
+        setPaymentAmount(0);
+      } else {
+        setSettlementMode('lump_sum');
+        setPaymentAmount(finalBalance > 0 ? finalBalance : 0);
+      }
+    }
+
+    if (paymentAccounts.length > 0 && !paymentAccountId) {
+      setPaymentAccountId(paymentAccounts[0].id);
+    }
+    setIsRecordingPayment(true);
+  };
+
+  const handleToggleAllocation = (id: string, maxDue: number) => {
+    setAllocations(prev => {
+      const next = { ...prev };
+      if (next[id] && next[id] > 0) {
+        delete next[id];
+      } else {
+        next[id] = maxDue;
+      }
+      const totalAlloc = Object.values(next).reduce((s, a) => s + (Number(a) || 0), 0);
+      setPaymentAmount(totalAlloc);
+      return next;
+    });
+  };
+
+  const handleAllocationAmountChange = (id: string, amount: number, maxDue: number) => {
+    const validAmount = Math.max(0, Math.min(amount, maxDue));
+    setAllocations(prev => {
+      const next = { ...prev };
+      if (validAmount > 0) {
+        next[id] = validAmount;
+      } else {
+        delete next[id];
+      }
+      const totalAlloc = Object.values(next).reduce((s, a) => s + (Number(a) || 0), 0);
+      setPaymentAmount(totalAlloc);
+      return next;
+    });
+  };
+
+  const handleSelectAllAllocations = () => {
+    const next: Record<string, number> = {};
+    if (selectedLedgerEntity?.type === 'customer') {
+      displayedUnpaidOrders.forEach(o => {
+        const due = Math.max(0, (Number(o.total) || 0) - (Number(o.paidAmount || (o as any).amountPaid) || 0));
+        if (due > 0) next[o.id] = due;
+      });
+    } else {
+      entityUnpaidPurchases.forEach(p => {
+        const due = Math.max(0, (Number(p.total || p.grandTotal) || 0) - (Number(p.paidAmount || p.paid) || 0));
+        if (due > 0) next[p.id] = due;
+      });
+    }
+    setAllocations(next);
+    const totalAlloc = Object.values(next).reduce((s, a) => s + (Number(a) || 0), 0);
+    setPaymentAmount(totalAlloc);
+  };
+
+  const handleClearAllAllocations = () => {
+    setAllocations({});
+    setPaymentAmount(0);
+  };
+
   // Handle Recording New Payment / Due Collection
   const handleSavePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLedgerEntity || paymentAmount <= 0) {
+    if (!selectedLedgerEntity) return;
+    if (paymentAmount <= 0) {
       toast.error('Please enter a valid payment amount');
       return;
     }
 
     try {
-      const type = selectedLedgerEntity.type === 'customer' ? 'payment_received' : 'payment_made';
-      const newTx = {
-        date: new Date(paymentDate).toISOString(),
-        amount: Number(paymentAmount),
-        type,
-        paymentMethod,
-        description: paymentDescription || `${selectedLedgerEntity.type === 'customer' ? 'Received from' : 'Paid to'} ${selectedLedgerEntity.name}`,
-        entityId: selectedLedgerEntity.id,
-        entityName: selectedLedgerEntity.name,
-        entityType: selectedLedgerEntity.type,
-        createdAt: new Date().toISOString(),
-      };
+      setSubmittingPayment(true);
+      const isCust = selectedLedgerEntity.type === 'customer';
+      const allocatedEntries = Object.entries(allocations).filter(([_, amt]) => Number(amt) > 0);
+      const acc = paymentAccounts.find(a => a.id === paymentAccountId);
+      const chosenMethod = acc?.type || paymentMethod || 'cash';
+      const dateIso = new Date(paymentDate).toISOString();
 
-      await addDoc(collection(db, 'transactions'), newTx);
-      toast.success('Payment recorded successfully!');
+      if (settlementMode === 'specific' && allocatedEntries.length > 0) {
+        // Specific order/purchase bill settlement
+        const settledDocNumbers: string[] = [];
+
+        if (isCust) {
+          for (const [ordId, allocAmt] of allocatedEntries) {
+            const ord = orders.find(o => o.id === ordId);
+            if (!ord) continue;
+
+            const currentPaid = Number(ord.paidAmount || (ord as any).amountPaid || 0);
+            const ordTotal = Number(ord.total || 0);
+            const newPaid = currentPaid + Number(allocAmt);
+            const newStatus = newPaid >= ordTotal ? 'paid' : 'partial';
+
+            await updateDoc(doc(db, 'orders', ordId), {
+              paidAmount: newPaid,
+              paymentStatus: newStatus
+            });
+
+            const docNum = ord.documentNumber || ord.id;
+            settledDocNumbers.push(docNum);
+            const projInfo = ord.projectName ? ` [Project: ${ord.projectName}]` : (ord.branchName ? ` [Branch: ${ord.branchName}]` : '');
+
+            await addDoc(collection(db, 'transactions'), {
+              type: 'payment_received',
+              amount: Number(allocAmt),
+              date: dateIso,
+              description: paymentDescription 
+                ? `${paymentDescription} - Settled Invoice #${docNum}${projInfo}`
+                : `Payment received for Invoice #${docNum}${projInfo}`,
+              entityId: selectedLedgerEntity.id,
+              entityName: selectedLedgerEntity.name,
+              entityType: 'customer',
+              documentNumber: docNum,
+              referenceId: ord.id,
+              paymentAccountId: paymentAccountId || '',
+              paymentMethod: chosenMethod,
+              createdAt: dateIso,
+            });
+          }
+
+          toast.success(`Payment of ৳${paymentAmount.toLocaleString()} received across ${allocatedEntries.length} invoice(s)!`);
+        } else {
+          // Vendor specific purchase bills
+          for (const [purId, allocAmt] of allocatedEntries) {
+            const pur = purchases.find(p => p.id === purId);
+            if (!pur) continue;
+
+            const currentPaid = Number(pur.paidAmount || pur.paid || 0);
+            const purTotal = Number(pur.total || pur.grandTotal || 0);
+            const newPaid = currentPaid + Number(allocAmt);
+            const newStatus = newPaid >= purTotal ? 'paid' : 'partial';
+
+            await updateDoc(doc(db, 'purchases', purId), {
+              paidAmount: newPaid,
+              paid: newPaid,
+              paymentStatus: newStatus
+            });
+
+            const docNum = pur.billNumber || pur.documentNumber || pur.id;
+            settledDocNumbers.push(docNum);
+
+            await addDoc(collection(db, 'transactions'), {
+              type: 'payment_made',
+              amount: Number(allocAmt),
+              date: dateIso,
+              description: paymentDescription 
+                ? `${paymentDescription} - Paid Purchase Bill #${docNum}`
+                : `Paid Purchase Bill #${docNum}`,
+              entityId: selectedLedgerEntity.id,
+              entityName: selectedLedgerEntity.name,
+              entityType: 'vendor',
+              documentNumber: docNum,
+              referenceId: pur.id,
+              paymentAccountId: paymentAccountId || '',
+              paymentMethod: chosenMethod,
+              createdAt: dateIso,
+            });
+          }
+
+          toast.success(`Payment of ৳${paymentAmount.toLocaleString()} paid across ${allocatedEntries.length} bill(s)!`);
+        }
+
+        // Receipt/Voucher PDF
+        const savedTx = {
+          id: `${isCust ? 'REC' : 'VOU'}-${Date.now().toString().slice(-6)}`,
+          referenceId: `${isCust ? 'REC' : 'VOU'}-${Date.now().toString().slice(-6)}`,
+          type: isCust ? 'payment_received' : 'payment_made',
+          amount: Number(paymentAmount),
+          date: dateIso,
+          description: `Settled ${allocatedEntries.length} ${isCust ? 'invoice(s)' : 'purchase bill(s)'}: ${settledDocNumbers.join(', ')}`,
+          entityId: selectedLedgerEntity.id,
+          entityName: selectedLedgerEntity.name,
+          paymentMethod: chosenMethod,
+          _autoPrint: true
+        };
+        try {
+          generatePDF(savedTx as any, 'receipt', settings);
+        } catch (err) {
+          console.error('Failed to generate receipt PDF', err);
+        }
+
+        // Audit Log
+        await logAudit(
+          'CREATE',
+          'Payment',
+          `${isCust ? 'Received customer' : 'Paid vendor'} bill-wise payment of ৳${paymentAmount} for "${selectedLedgerEntity.name}" across ${allocatedEntries.length} document(s): ${settledDocNumbers.join(', ')} (${chosenMethod})`,
+          (settings as any)?.companyName || 'Admin',
+          {
+            entityId: selectedLedgerEntity.id,
+            previousState: { due: finalBalance },
+            newState: {
+              due: Math.max(0, finalBalance - paymentAmount),
+              amount: Number(paymentAmount),
+              settledDocs: settledDocNumbers
+            }
+          }
+        );
+      } else {
+        // Lump Sum Payment (General / FIFO fallback)
+        const type = isCust ? 'payment_received' : 'payment_made';
+        const newTx = {
+          date: dateIso,
+          amount: Number(paymentAmount),
+          type,
+          paymentMethod: chosenMethod,
+          paymentAccountId: paymentAccountId || '',
+          description: paymentDescription || `${isCust ? 'Received from' : 'Paid to'} ${selectedLedgerEntity.name} (General / Lump Sum)`,
+          entityId: selectedLedgerEntity.id,
+          entityName: selectedLedgerEntity.name,
+          entityType: selectedLedgerEntity.type,
+          createdAt: dateIso,
+        };
+
+        const txRef = await addDoc(collection(db, 'transactions'), newTx);
+
+        // Auto FIFO sync
+        try {
+          let remPay = Number(paymentAmount);
+          if (isCust) {
+            for (const ord of entityUnpaidOrders) {
+              if (remPay <= 0) break;
+              const dueOnOrder = (Number(ord.total) || 0) - (Number(ord.paidAmount || (ord as any).amountPaid) || 0);
+              const payAmt = Math.min(remPay, dueOnOrder);
+              const updatedPaid = (Number(ord.paidAmount || (ord as any).amountPaid) || 0) + payAmt;
+              const updatedStatus = updatedPaid >= (Number(ord.total) || 0) ? 'paid' : 'partial';
+              await updateDoc(doc(db, 'orders', ord.id), {
+                paidAmount: updatedPaid,
+                paymentStatus: updatedStatus
+              });
+              remPay -= payAmt;
+            }
+          } else {
+            for (const pur of entityUnpaidPurchases) {
+              if (remPay <= 0) break;
+              const dueOnPur = (Number(pur.total || pur.grandTotal) || 0) - (Number(pur.paidAmount || pur.paid) || 0);
+              const payAmt = Math.min(remPay, dueOnPur);
+              const updatedPaid = (Number(pur.paidAmount || pur.paid) || 0) + payAmt;
+              const updatedStatus = updatedPaid >= (Number(pur.total || pur.grandTotal) || 0) ? 'paid' : 'partial';
+              await updateDoc(doc(db, 'purchases', pur.id), {
+                paidAmount: updatedPaid,
+                paid: updatedPaid,
+                paymentStatus: updatedStatus
+              });
+              remPay -= payAmt;
+            }
+          }
+        } catch (err) {
+          console.warn('FIFO sync error:', err);
+        }
+
+        const savedTx = { id: txRef.id, referenceId: `${isCust ? 'REC' : 'VOU'}-${Date.now().toString().slice(-6)}`, ...newTx, _autoPrint: true };
+        try {
+          generatePDF(savedTx as any, 'receipt', settings);
+        } catch (err) {
+          console.error('Failed to generate receipt PDF', err);
+        }
+
+        await logAudit(
+          'CREATE',
+          'Payment',
+          `${isCust ? 'Received customer' : 'Paid vendor'} payment of ৳${paymentAmount} for "${selectedLedgerEntity.name}" (${chosenMethod})`,
+          (settings as any)?.companyName || 'Admin',
+          {
+            entityId: selectedLedgerEntity.id,
+            previousState: { due: finalBalance },
+            newState: {
+              due: Math.max(0, finalBalance - paymentAmount),
+              amount: Number(paymentAmount)
+            }
+          }
+        );
+
+        toast.success('Payment recorded successfully!');
+      }
+
       setIsRecordingPayment(false);
+      setAllocations({});
       setPaymentAmount(0);
       setPaymentDescription('');
       fetchTransactions();
+      fetchEntities();
     } catch (err) {
       console.error(err);
       toast.error('Failed to record payment');
+    } finally {
+      setSubmittingPayment(false);
     }
   };
 
@@ -417,8 +768,8 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <button
-                onClick={() => setIsRecordingPayment(true)}
-                className="bg-[#EF4444] hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all shadow-sm"
+                onClick={handleOpenPaymentModal}
+                className="bg-[#EF4444] hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer"
               >
                 <Plus size={14} /> {isCustomer ? 'Collect Due / Receive' : 'Make Payment'}
               </button>
@@ -463,88 +814,463 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
             </div>
           </div>
 
-          {/* Record Payment Form Modal */}
+          {/* Bill-Wise Due Settlement Modal */}
           {isRecordingPayment && (
-            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
-                <div className="p-5 bg-[#081621] text-white flex items-center justify-between">
-                  <h3 className="font-bold text-base">
-                    {isCustomer ? 'Receive Payment from Customer' : 'Make Payment to Supplier'}
-                  </h3>
-                  <button onClick={() => setIsRecordingPayment(false)} className="text-gray-400 hover:text-white">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[92vh] border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
+                {/* Modal Header */}
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-[#081621] via-indigo-950 to-[#081621] text-white">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center border border-blue-400/20">
+                      <Receipt size={18} />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-base tracking-tight text-white flex items-center gap-2">
+                        {isCustomer ? 'Receive Due Payment from Customer' : 'Make Payment to Supplier / Vendor'}
+                      </h3>
+                      <span className="text-[11px] text-slate-300">
+                        {isCustomer 
+                          ? 'Settle outstanding customer dues by specific invoice or lump sum' 
+                          : 'Settle outstanding supplier dues by specific purchase bill or lump sum'}
+                      </span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setIsRecordingPayment(false);
+                      setAllocations({});
+                    }} 
+                    className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                  >
                     <X size={18} />
                   </button>
                 </div>
-                <form onSubmit={handleSavePayment} className="p-6 space-y-4 text-xs">
-                  <div>
-                    <label className="block font-bold text-gray-700 uppercase mb-1">Party</label>
-                    <input
-                      type="text"
-                      disabled
-                      value={`${selectedLedgerEntity.name} (${selectedLedgerEntity.type})`}
-                      className="w-full bg-gray-100 border border-gray-200 rounded-lg p-2 font-bold text-gray-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-gray-700 uppercase mb-1">Payment Amount (৳)</label>
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      value={paymentAmount || ''}
-                      onChange={e => setPaymentAmount(Number(e.target.value))}
-                      placeholder="e.g. 5000"
-                      className="w-full border border-gray-200 rounded-lg p-2 text-base font-black text-gray-900 focus:ring-2 focus:ring-red-100 outline-none"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
+
+                <form onSubmit={handleSavePayment} className="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs">
+                  {/* Entity Info Card */}
+                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <label className="block font-bold text-gray-700 uppercase mb-1">Payment Method</label>
-                      <select
-                        value={paymentMethod}
-                        onChange={e => setPaymentMethod(e.target.value)}
-                        className="w-full border border-gray-200 rounded-lg p-2 font-medium"
-                      >
-                        <option value="cash">Cash</option>
-                        <option value="bank">Bank Transfer</option>
-                        <option value="bkash">bKash</option>
-                        <option value="nagad">Nagad</option>
-                        <option value="card">Card / POS</option>
-                      </select>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                        {selectedLedgerEntity.type} Account
+                      </span>
+                      <div className="font-black text-base text-slate-900 mt-0.5">{selectedLedgerEntity.name}</div>
+                      <span className="text-[11px] text-slate-500">
+                        {isCustomer 
+                          ? `${entityUnpaidOrders.length} unpaid / partial invoice(s) on file`
+                          : `${entityUnpaidPurchases.length} unpaid / partial bill(s) on file`}
+                      </span>
                     </div>
+                    <div className="bg-white border border-rose-200 px-4 py-2 rounded-xl text-right shadow-2xs">
+                      <span className="text-[10px] font-bold text-rose-600 block uppercase">Current Ledger Due</span>
+                      <span className="font-black text-lg text-rose-700">{formatCurrency(finalBalance, settings)}</span>
+                    </div>
+                  </div>
+
+                  {/* Settlement Mode Switcher */}
+                  <div className="flex border border-slate-200 bg-slate-100/70 p-1 rounded-xl gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSettlementMode('specific')}
+                      className={cn(
+                        "flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                        settlementMode === 'specific'
+                          ? "bg-white text-blue-700 shadow-sm border border-slate-200"
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      <Receipt size={14} /> 
+                      {isCustomer 
+                        ? `Pay by Specific Invoice / Project (${entityUnpaidOrders.length})` 
+                        : `Pay by Specific Purchase Bill (${entityUnpaidPurchases.length})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSettlementMode('lump_sum');
+                        setPaymentAmount(finalBalance > 0 ? finalBalance : 0);
+                      }}
+                      className={cn(
+                        "flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                        settlementMode === 'lump_sum'
+                          ? "bg-white text-blue-700 shadow-sm border border-slate-200"
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                    >
+                      <CreditCard size={14} /> General / Lump Sum Payment
+                    </button>
+                  </div>
+
+                  {/* Specific Document Table */}
+                  {settlementMode === 'specific' && (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                      <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-800 text-xs">
+                            {isCustomer ? 'Unpaid Customer Invoices' : 'Unpaid Purchase Bills'}
+                          </span>
+                          {isCustomer && entityProjects.length > 1 && (
+                            <select
+                              value={modalProjectFilter}
+                              onChange={e => setModalProjectFilter(e.target.value)}
+                              className="text-[11px] font-bold bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 outline-none focus:border-blue-500 cursor-pointer"
+                            >
+                              <option value="all">All Projects / Branches ({entityUnpaidOrders.length})</option>
+                              {entityProjects.map((p, idx) => (
+                                <option key={idx} value={p}>Project: {p}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleSelectAllAllocations}
+                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                          >
+                            Select All Full
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleClearAllAllocations}
+                            className="text-[10px] font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Items */}
+                      {isCustomer ? (
+                        displayedUnpaidOrders.length === 0 ? (
+                          <div className="p-6 text-center text-slate-400 bg-slate-50/50">
+                            <Receipt size={24} className="mx-auto mb-1 text-slate-400 opacity-50" />
+                            <p className="font-bold text-xs">No unpaid invoices found for this customer.</p>
+                            <p className="text-[11px] text-slate-500 mt-1">Switch to "General / Lump Sum Payment" to record a direct payment.</p>
+                          </div>
+                        ) : (
+                          <div className="max-h-60 overflow-y-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead className="bg-slate-100/70 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 sticky top-0 bg-slate-100">
+                                <tr>
+                                  <th className="py-2 px-3 text-center w-8">#</th>
+                                  <th className="py-2 px-3">Invoice & Date</th>
+                                  <th className="py-2 px-3">Project / Branch</th>
+                                  <th className="py-2 px-3 text-right">Bill Total</th>
+                                  <th className="py-2 px-3 text-right">Paid</th>
+                                  <th className="py-2 px-3 text-right">Due</th>
+                                  <th className="py-2 px-3 text-right w-36">Pay Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {displayedUnpaidOrders.map(o => {
+                                  const tot = Number(o.total || 0);
+                                  const pd = Number(o.paidAmount || (o as any).amountPaid || 0);
+                                  const ordDue = Math.max(0, tot - pd);
+                                  const isAllocated = (allocations[o.id] || 0) > 0;
+                                  const currentAlloc = allocations[o.id] || '';
+                                  const projName = o.projectName || o.branchName || '';
+
+                                  return (
+                                    <tr 
+                                      key={o.id} 
+                                      className={cn(
+                                        "transition-colors",
+                                        isAllocated ? "bg-blue-50/40" : "hover:bg-slate-50"
+                                      )}
+                                    >
+                                      <td className="py-2 px-3 text-center">
+                                        <input
+                                          type="checkbox"
+                                          checked={isAllocated}
+                                          onChange={() => handleToggleAllocation(o.id, ordDue)}
+                                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        <span className="font-black text-slate-900 block">{o.documentNumber || o.id}</span>
+                                        <span className="text-[10px] text-slate-400">
+                                          {o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-GB') : 'N/A'}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        {projName ? (
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                            {projName}
+                                          </span>
+                                        ) : (
+                                          <span className="text-slate-400 text-[10px]">Main Store</span>
+                                        )}
+                                      </td>
+                                      <td className="py-2 px-3 text-right font-medium text-slate-700">
+                                        {formatCurrency(tot, settings)}
+                                      </td>
+                                      <td className="py-2 px-3 text-right text-emerald-600 font-bold">
+                                        {formatCurrency(pd, settings)}
+                                      </td>
+                                      <td className="py-2 px-3 text-right font-black text-rose-600">
+                                        {formatCurrency(ordDue, settings)}
+                                      </td>
+                                      <td className="py-2 px-3 text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            max={ordDue}
+                                            placeholder="0"
+                                            value={currentAlloc}
+                                            onChange={(e) => handleAllocationAmountChange(o.id, Number(e.target.value), ordDue)}
+                                            className="w-20 px-2 py-1 bg-white border border-slate-200 rounded-md text-right font-black text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAllocationAmountChange(o.id, ordDue, ordDue)}
+                                            className="text-[9px] font-black uppercase px-1.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded transition-colors cursor-pointer whitespace-nowrap"
+                                            title="Pay entire bill due"
+                                          >
+                                            Full
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )
+                      ) : (
+                        entityUnpaidPurchases.length === 0 ? (
+                          <div className="p-6 text-center text-slate-400 bg-slate-50/50">
+                            <Receipt size={24} className="mx-auto mb-1 text-slate-400 opacity-50" />
+                            <p className="font-bold text-xs">No active unpaid purchase bills found for this vendor.</p>
+                            <p className="text-[11px] text-slate-500 mt-1">Switch to "General / Lump Sum Payment" to record a direct payment.</p>
+                          </div>
+                        ) : (
+                          <div className="max-h-60 overflow-y-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead className="bg-slate-100/70 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 sticky top-0 bg-slate-100">
+                                <tr>
+                                  <th className="py-2 px-3 text-center w-8">#</th>
+                                  <th className="py-2 px-3">Bill # & Date</th>
+                                  <th className="py-2 px-3">Items</th>
+                                  <th className="py-2 px-3 text-right">Bill Total</th>
+                                  <th className="py-2 px-3 text-right">Paid</th>
+                                  <th className="py-2 px-3 text-right">Due</th>
+                                  <th className="py-2 px-3 text-right w-36">Pay Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {entityUnpaidPurchases.map(p => {
+                                  const tot = Number(p.total || p.grandTotal || 0);
+                                  const pd = Number(p.paidAmount || p.paid || 0);
+                                  const purDue = Math.max(0, tot - pd);
+                                  const isAllocated = (allocations[p.id] || 0) > 0;
+                                  const currentAlloc = allocations[p.id] || '';
+                                  const docNum = p.billNumber || p.documentNumber || p.id;
+                                  const dateStr = p.date || p.createdAt;
+
+                                  return (
+                                    <tr 
+                                      key={p.id} 
+                                      className={cn(
+                                        "transition-colors",
+                                        isAllocated ? "bg-blue-50/40" : "hover:bg-slate-50"
+                                      )}
+                                    >
+                                      <td className="py-2 px-3 text-center">
+                                        <input
+                                          type="checkbox"
+                                          checked={isAllocated}
+                                          onChange={() => handleToggleAllocation(p.id, purDue)}
+                                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        <span className="font-black text-slate-900 block">{docNum}</span>
+                                        <span className="text-[10px] text-slate-400">
+                                          {dateStr ? new Date(dateStr).toLocaleDateString('en-GB') : 'N/A'}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 px-3 text-slate-600">
+                                        {p.items?.length ? `${p.items.length} item(s)` : '-'}
+                                      </td>
+                                      <td className="py-2 px-3 text-right font-medium text-slate-700">
+                                        {formatCurrency(tot, settings)}
+                                      </td>
+                                      <td className="py-2 px-3 text-right text-emerald-600 font-bold">
+                                        {formatCurrency(pd, settings)}
+                                      </td>
+                                      <td className="py-2 px-3 text-right font-black text-rose-600">
+                                        {formatCurrency(purDue, settings)}
+                                      </td>
+                                      <td className="py-2 px-3 text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            max={purDue}
+                                            placeholder="0"
+                                            value={currentAlloc}
+                                            onChange={(e) => handleAllocationAmountChange(p.id, Number(e.target.value), purDue)}
+                                            className="w-20 px-2 py-1 bg-white border border-slate-200 rounded-md text-right font-black text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAllocationAmountChange(p.id, purDue, purDue)}
+                                            className="text-[9px] font-black uppercase px-1.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded transition-colors cursor-pointer whitespace-nowrap"
+                                            title="Pay entire bill due"
+                                          >
+                                            Full
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )
+                      )}
+
+                      {/* Allocation Bottom Summary */}
+                      {Object.keys(allocations).length > 0 && (
+                        <div className="p-3 bg-blue-50/80 border-t border-blue-200 flex items-center justify-between font-bold text-xs">
+                          <span className="text-blue-900 flex items-center gap-1.5">
+                            <Check size={14} className="text-blue-700" />
+                            Selected for settlement: {Object.values(allocations).filter(v => v > 0).length} document(s)
+                          </span>
+                          <span className="text-blue-900 font-black text-sm">
+                            Total: {formatCurrency(Number(paymentAmount) || 0, settings)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Total Amount Input & Account Select */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block font-bold text-gray-700 uppercase mb-1">Date</label>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
+                        {settlementMode === 'specific' ? 'Total Settlement Amount (৳)' : 'Payment Amount (৳)'}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={paymentAmount || ''}
+                        onChange={(e) => {
+                          setPaymentAmount(e.target.value === '' ? 0 : Number(e.target.value));
+                        }}
+                        placeholder="Enter amount"
+                        className="w-full border border-slate-200 rounded-xl p-2.5 font-black text-slate-900 text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        required
+                      />
+                      {settlementMode === 'lump_sum' && finalBalance > 0 && (
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPaymentAmount(finalBalance)}
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                          >
+                            Full Due ({formatCurrency(finalBalance, settings)})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentAmount(Math.round(finalBalance / 2))}
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                          >
+                            50% Due
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
+                        Payment Account / Method
+                      </label>
+                      {paymentAccounts.length > 0 ? (
+                        <select
+                          value={paymentAccountId}
+                          onChange={(e) => {
+                            setPaymentAccountId(e.target.value);
+                            const acc = paymentAccounts.find(a => a.id === e.target.value);
+                            if (acc) setPaymentMethod(acc.type || 'cash');
+                          }}
+                          className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white cursor-pointer"
+                          required
+                        >
+                          <option value="">-- Select Account --</option>
+                          {paymentAccounts.map(acc => (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.name} ({acc.type})
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <select
+                          value={paymentMethod}
+                          onChange={e => setPaymentMethod(e.target.value)}
+                          className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                        >
+                          <option value="cash">Cash</option>
+                          <option value="bank">Bank Transfer</option>
+                          <option value="bkash">bKash</option>
+                          <option value="nagad">Nagad</option>
+                          <option value="card">Card / POS</option>
+                        </select>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Date</label>
                       <input
                         type="date"
                         value={paymentDate}
                         onChange={e => setPaymentDate(e.target.value)}
-                        className="w-full border border-gray-200 rounded-lg p-2 font-medium"
+                        className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
+                        Note / Reference / Cheque No. (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={paymentDescription}
+                        onChange={e => setPaymentDescription(e.target.value)}
+                        placeholder="e.g., Money receipt #MR-001 / Cheque #..."
+                        className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="block font-bold text-gray-700 uppercase mb-1">Note / Reference</label>
-                    <input
-                      type="text"
-                      value={paymentDescription}
-                      onChange={e => setPaymentDescription(e.target.value)}
-                      placeholder="e.g. Money receipt #MR-001 / Advance"
-                      className="w-full border border-gray-200 rounded-lg p-2"
-                    />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      type="submit"
-                      className="flex-1 bg-[#EF4444] hover:bg-red-600 text-white font-bold py-2.5 rounded-lg transition-all"
-                    >
-                      Confirm & Save
-                    </button>
+
+                  <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
                     <button
                       type="button"
-                      onClick={() => setIsRecordingPayment(false)}
-                      className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold"
+                      onClick={() => {
+                        setIsRecordingPayment(false);
+                        setAllocations({});
+                      }}
+                      className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-xs text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
                     >
                       Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingPayment || paymentAmount <= 0}
+                      className="bg-[#EF4444] hover:bg-red-600 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-black text-xs transition-all shadow-md shadow-red-900/20 flex items-center gap-2 cursor-pointer"
+                    >
+                      {submittingPayment 
+                        ? 'Processing...' 
+                        : isCustomer 
+                          ? `Confirm Receipt (${formatCurrency(paymentAmount || 0, settings)})`
+                          : `Confirm Payment (${formatCurrency(paymentAmount || 0, settings)})`}
                     </button>
                   </div>
                 </form>
