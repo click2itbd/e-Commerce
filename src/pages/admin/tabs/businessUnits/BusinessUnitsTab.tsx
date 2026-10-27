@@ -31,7 +31,11 @@ import {
   ExternalLink,
   Tag,
   Edit2,
-  Trash2
+  Trash2,
+  FileCheck2,
+  FileText,
+  Share2,
+  Layers
 } from 'lucide-react';
 import { 
   useBusinessUnits, 
@@ -40,6 +44,8 @@ import {
   getCompanyIcon 
 } from '../../../../hooks/useBusinessUnits';
 import { CompanyModal } from './CompanyModal';
+import { WorkOrderTracker } from './WorkOrderTracker';
+import { generateCorporateGroupStatement, BranchFinancialSummary } from '../../../../lib/corporatePdf';
 import { BusinessCompany } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { doc, updateDoc, writeBatch } from 'firebase/firestore';
@@ -92,7 +98,11 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
   }, [customers]);
 
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
-  const [activeSubTab, setActiveSubTab] = useState<'orders' | 'customers' | 'profit_report'>('orders');
+  const [activeSubTab, setActiveSubTab] = useState<'orders' | 'customers' | 'profit_report' | 'work_orders'>('orders');
+  const [isStatementModalOpen, setIsStatementModalOpen] = useState(false);
+  const [statementCompany, setStatementCompany] = useState<string>('all');
+  const [statementBranch, setStatementBranch] = useState<string>('all');
+  const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<'this_month' | 'last_month' | 'today' | 'all'>('this_month');
 
@@ -333,6 +343,219 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
 
     return { list, totals };
   }, [localOrders, companies, dateFilter, todayStr, currentMonthStart, lastMonthStart, lastMonthEnd]);
+
+  // Project / Branch Financial Breakdown (Feature 5)
+  const projectFinancials = useMemo(() => {
+    interface ProjectStat {
+      key: string;
+      projectName: string;
+      branchName: string;
+      companyId: string;
+      companyName: string;
+      orderCount: number;
+      revenue: number;
+      cost: number;
+      grossProfit: number;
+      paid: number;
+      due: number;
+      clientName: string;
+    }
+
+    const map: Record<string, ProjectStat> = {};
+
+    localOrders.forEach(order => {
+      if (order.status === 'cancelled') return;
+      const comp = getOrderCompany(order);
+      if (selectedCompany !== 'all' && comp !== selectedCompany) return;
+
+      if (dateFilter === 'today') {
+        if (!order.createdAt || order.createdAt.split('T')[0] !== todayStr) return;
+      } else if (dateFilter === 'this_month') {
+        if (!order.createdAt || order.createdAt < currentMonthStart) return;
+      } else if (dateFilter === 'last_month') {
+        if (!order.createdAt || order.createdAt < lastMonthStart || order.createdAt > lastMonthEnd) return;
+      }
+
+      const branch = (order.branchName || '').trim();
+      const proj = (order.projectName || '').trim();
+      const label = proj || branch || 'General Project';
+      const key = `${comp}_${label}`;
+
+      const compObj = companies.find(c => c.id === comp);
+      const companyName = compObj ? compObj.name : comp;
+
+      if (!map[key]) {
+        map[key] = {
+          key,
+          projectName: proj || (branch ? branch : 'General'),
+          branchName: branch || 'Main',
+          companyId: comp,
+          companyName,
+          orderCount: 0,
+          revenue: 0,
+          cost: 0,
+          grossProfit: 0,
+          paid: 0,
+          due: 0,
+          clientName: order.customerName || 'N/A'
+        };
+      }
+
+      const rev = Number(order.total || 0);
+      const paid = Number(order.paidAmount || (order as any).amountPaid || 0);
+      const due = Math.max(0, rev - paid);
+
+      let orderCost = 0;
+      if ((order as any).totalCost) {
+        orderCost = Number((order as any).totalCost);
+      } else if (order.items && Array.isArray(order.items)) {
+        orderCost = order.items.reduce((s: number, it: any) => s + (Number(it.costPrice || 0) * Number(it.quantity || 1)), 0);
+      }
+      const profit = rev - orderCost;
+
+      map[key].orderCount += 1;
+      map[key].revenue += rev;
+      map[key].cost += orderCost;
+      map[key].grossProfit += profit;
+      map[key].paid += paid;
+      map[key].due += due;
+    });
+
+    const list = Object.values(map).sort((a, b) => b.revenue - a.revenue);
+    const totals = {
+      orderCount: list.reduce((s, p) => s + p.orderCount, 0),
+      revenue: list.reduce((s, p) => s + p.revenue, 0),
+      cost: list.reduce((s, p) => s + p.cost, 0),
+      grossProfit: list.reduce((s, p) => s + p.grossProfit, 0),
+      paid: list.reduce((s, p) => s + p.paid, 0),
+      due: list.reduce((s, p) => s + p.due, 0),
+    };
+
+    return { list, totals };
+  }, [localOrders, companies, selectedCompany, dateFilter, todayStr, currentMonthStart, lastMonthStart, lastMonthEnd]);
+
+  // Distinct branches / projects available for statement filtering
+  const availableBranches = useMemo(() => {
+    const set = new Set<string>();
+    localOrders.forEach(o => {
+      const comp = getOrderCompany(o);
+      if (statementCompany !== 'all' && comp !== statementCompany) return;
+      if (o.branchName?.trim()) set.add(o.branchName.trim());
+      if (o.projectName?.trim()) set.add(o.projectName.trim());
+    });
+    return Array.from(set).sort();
+  }, [localOrders, statementCompany]);
+
+  // Orders filtered specifically for Consolidated Statement
+  const statementOrders = useMemo(() => {
+    return localOrders.filter(o => {
+      if (o.status === 'cancelled') return false;
+      const comp = getOrderCompany(o);
+      if (statementCompany !== 'all' && comp !== statementCompany) return false;
+      if (statementBranch !== 'all') {
+        const matchesBranch = (o.branchName || '').trim() === statementBranch;
+        const matchesProject = (o.projectName || '').trim() === statementBranch;
+        if (!matchesBranch && !matchesProject) return false;
+      }
+      return true;
+    });
+  }, [localOrders, statementCompany, statementBranch]);
+
+  // Financial summary for Consolidated Statement
+  const statementFinancialSummary = useMemo(() => {
+    const totalBilled = statementOrders.reduce((s, o) => s + Number(o.total || 0), 0);
+    const totalPaid = statementOrders.reduce((s, o) => s + Number(o.paidAmount || (o as any).amountPaid || 0), 0);
+    const totalDue = Math.max(0, totalBilled - totalPaid);
+
+    const branchMap: Record<string, BranchFinancialSummary> = {};
+    statementOrders.forEach(o => {
+      const bName = (o.projectName || o.branchName || 'General Project').trim();
+      if (!branchMap[bName]) {
+        branchMap[bName] = {
+          branchName: bName,
+          orderCount: 0,
+          invoiced: 0,
+          paid: 0,
+          due: 0
+        };
+      }
+      const billed = Number(o.total || 0);
+      const paid = Number(o.paidAmount || (o as any).amountPaid || 0);
+      branchMap[bName].orderCount += 1;
+      branchMap[bName].invoiced += billed;
+      branchMap[bName].paid += paid;
+      branchMap[bName].due += Math.max(0, billed - paid);
+    });
+
+    return {
+      totalBilled,
+      totalPaid,
+      totalDue,
+      orderCount: statementOrders.length,
+      branchBreakdown: Object.values(branchMap).sort((a, b) => b.invoiced - a.invoiced)
+    };
+  }, [statementOrders]);
+
+  // Handle PDF Generation
+  const handleGenerateStatementPDF = async (action: 'download' | 'print' = 'download') => {
+    setIsGeneratingStatement(true);
+    try {
+      const targetCompany = statementCompany !== 'all' 
+        ? companies.find(c => c.id === statementCompany) 
+        : undefined;
+      const companyName = targetCompany ? targetCompany.name : 'Corporate Group / All Concerns';
+      
+      await generateCorporateGroupStatement({
+        companyName,
+        companyId: statementCompany,
+        clientName: statementOrders[0]?.customerName || companyName,
+        clientPhone: statementOrders[0]?.customerPhone,
+        periodLabel: dateFilter === 'today' ? 'Today' : dateFilter === 'this_month' ? 'This Month' : dateFilter === 'last_month' ? 'Last Month' : 'All Time',
+        branchSummaries: statementFinancialSummary.branchBreakdown,
+        orders: statementOrders,
+        settings,
+        action
+      });
+      toast.success(action === 'download' ? 'Consolidated Statement PDF downloaded!' : 'Opening print preview...');
+    } catch (err: any) {
+      console.error('Error generating corporate PDF:', err);
+      toast.error('Failed to generate statement: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsGeneratingStatement(false);
+    }
+  };
+
+  // Handle WhatsApp Statement Share
+  const handleShareStatementWhatsApp = () => {
+    const targetCompany = statementCompany !== 'all' 
+      ? companies.find(c => c.id === statementCompany) 
+      : undefined;
+    const companyName = targetCompany ? targetCompany.name : 'Corporate Group';
+    const branchLabel = statementBranch !== 'all' ? ` (Project/Branch: ${statementBranch})` : '';
+    
+    const primaryPhone = statementOrders.find(o => o.customerPhone)?.customerPhone || '';
+    const cleanPhone = primaryPhone.replace(/[^0-9]/g, '');
+
+    const lines = [
+      `*Financial Statement Summary - ${companyName}${branchLabel}*`,
+      `Date: ${new Date().toLocaleDateString('en-GB')}`,
+      `Total Invoices: ${statementFinancialSummary.orderCount}`,
+      `Total Billed: BDT ${statementFinancialSummary.totalBilled.toLocaleString()}`,
+      `Total Received: BDT ${statementFinancialSummary.totalPaid.toLocaleString()}`,
+      `*Outstanding Balance (Due): BDT ${statementFinancialSummary.totalDue.toLocaleString()}*`,
+      '',
+      statementFinancialSummary.branchBreakdown.length > 1 ? '*Project Breakdown:*' : '',
+      ...statementFinancialSummary.branchBreakdown.map(b => 
+        `• ${b.branchName}: BDT ${b.invoiced.toLocaleString()} (Due: BDT ${b.due.toLocaleString()})`
+      ),
+      '',
+      'Thank you for your business. For detailed ledger or queries, please contact accounts.'
+    ].filter(Boolean).join('\n');
+
+    const encoded = encodeURIComponent(lines);
+    const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+    window.open(waUrl, '_blank');
+  };
 
   // Filtered Orders
   const filteredOrders = useMemo(() => {
@@ -585,10 +808,24 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
                 setEditingCompany(null);
                 setIsCompanyModalOpen(true);
               }}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-indigo-950/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-indigo-950/40 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             >
               <Building2 size={15} />
               <span>+ Add Company</span>
+            </button>
+
+            {/* Consolidated Statement PDF & WhatsApp Share Button */}
+            <button
+              onClick={() => {
+                setStatementCompany(selectedCompany !== 'all' ? selectedCompany : 'all');
+                setStatementBranch('all');
+                setIsStatementModalOpen(true);
+              }}
+              className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-4 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 backdrop-blur-md transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-sm"
+              title="Generate Corporate Consolidated Statement PDF & WhatsApp Summary"
+            >
+              <FileText size={15} className="text-indigo-300" />
+              <span>Statement PDF</span>
             </button>
 
             {/* Quick Create Sale Button */}
@@ -853,10 +1090,21 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
             >
               <TrendingUp size={14} /> Profit & Due Report 📊
             </button>
+            <button
+              onClick={() => setActiveSubTab('work_orders')}
+              className={cn(
+                "px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 whitespace-nowrap",
+                activeSubTab === 'work_orders'
+                  ? "bg-amber-600 text-white shadow-md shadow-amber-900/20"
+                  : "bg-amber-50/70 text-amber-800 hover:bg-amber-100 border border-amber-200"
+              )}
+            >
+              <FileCheck2 size={14} /> Work Orders / POs 📑
+            </button>
           </div>
 
           <div className="flex items-center gap-3 w-full md:w-auto">
-            {activeSubTab !== 'profit_report' ? (
+            {(activeSubTab === 'orders' || activeSubTab === 'customers') ? (
               <div className="relative w-full md:w-80">
                 <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -1541,11 +1789,183 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
                 </table>
               </div>
             </div>
+
+            {/* Section 2: Project & Branch-Wise Profit & Margin Breakdown (Feature 5) */}
+            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs mt-8">
+              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/10 text-indigo-300 flex items-center justify-center shrink-0 border border-white/10">
+                    <Layers size={18} />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-sm tracking-tight flex items-center gap-2">
+                      Project & Branch Profitability Breakdown
+                      <span className="text-[10px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2 py-0.5 rounded-full font-bold">
+                        {projectFinancials.list.length} Projects
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      Revenue, product cost (COGS), gross margin %, and collection balance per client project/branch
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ['Project / Branch', 'Company', 'Client', 'Orders', 'Revenue (BDT)', 'Cost (BDT)', 'Gross Profit (BDT)', 'Margin %', 'Collected (BDT)', 'Pending Due (BDT)'];
+                      const rows = projectFinancials.list.map(p => {
+                        const margin = p.revenue > 0 ? Math.round((p.grossProfit / p.revenue) * 100) : 0;
+                        return [
+                          `"${p.projectName}"`,
+                          `"${p.companyName}"`,
+                          `"${p.clientName}"`,
+                          p.orderCount,
+                          p.revenue,
+                          p.cost,
+                          p.grossProfit,
+                          `"${margin}%"`,
+                          p.paid,
+                          p.due
+                        ];
+                      });
+
+                      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.setAttribute('download', `project_profitability_${dateFilter}_${new Date().toISOString().split('T')[0]}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(url);
+                      toast.success('Project profitability report exported to CSV');
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/15 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Download size={13} className="text-indigo-300" /> Export Projects CSV
+                  </button>
+                </div>
+              </div>
+
+              {projectFinancials.list.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 bg-slate-50/50">
+                  <Layers size={28} className="mx-auto mb-2 opacity-40 text-slate-400" />
+                  <p className="text-xs font-bold">No project or branch orders found for this timeframe.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-50 text-slate-500 font-black uppercase tracking-wider text-[10px] border-b border-slate-200">
+                      <tr>
+                        <th className="py-3.5 px-4">Project / Branch</th>
+                        <th className="py-3.5 px-4">Sister Concern</th>
+                        <th className="py-3.5 px-4">Client</th>
+                        <th className="py-3.5 px-4 text-center">Orders</th>
+                        <th className="py-3.5 px-4 text-right">Revenue</th>
+                        <th className="py-3.5 px-4 text-right">COGS Cost</th>
+                        <th className="py-3.5 px-4 text-right">Gross Profit</th>
+                        <th className="py-3.5 px-4 text-center">Margin %</th>
+                        <th className="py-3.5 px-4 text-right">Collected</th>
+                        <th className="py-3.5 px-4 text-right">Pending Due</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {projectFinancials.list.map((proj) => {
+                        const margin = proj.revenue > 0 ? Math.round((proj.grossProfit / proj.revenue) * 100) : 0;
+                        const compTheme = getCompanyTheme(companies.find(c => c.id === proj.companyId)?.color || 'slate');
+                        return (
+                          <tr key={proj.key} className="hover:bg-indigo-50/30 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <span className="font-black text-slate-900 block text-xs">{proj.projectName}</span>
+                              {proj.branchName && proj.branchName !== proj.projectName && (
+                                <span className="text-[10px] text-slate-400">Branch: {proj.branchName}</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className={cn(
+                                "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border",
+                                compTheme.badgeBg,
+                                compTheme.textColor,
+                                compTheme.activeBorder
+                              )}>
+                                {proj.companyName}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-700 font-semibold truncate max-w-[140px]">
+                              {proj.clientName}
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-bold text-slate-600">
+                              {proj.orderCount}
+                            </td>
+                            <td className="py-3.5 px-4 text-right font-black text-slate-900">
+                              {formatCurrency(proj.revenue, settings)}
+                            </td>
+                            <td className="py-3.5 px-4 text-right text-slate-600 font-bold">
+                              {formatCurrency(proj.cost, settings)}
+                            </td>
+                            <td className="py-3.5 px-4 text-right font-black text-emerald-700">
+                              {formatCurrency(proj.grossProfit, settings)}
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-[10px] font-black inline-block",
+                                margin >= 25 ? "bg-emerald-100 text-emerald-800" :
+                                margin >= 10 ? "bg-amber-100 text-amber-800" :
+                                "bg-rose-100 text-rose-800"
+                              )}>
+                                {margin}%
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right text-blue-700 font-bold">
+                              {formatCurrency(proj.paid, settings)}
+                            </td>
+                            <td className="py-3.5 px-4 text-right font-black text-rose-600">
+                              {proj.due > 0 ? formatCurrency(proj.due, settings) : '৳0'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-100 text-slate-900 font-black text-xs border-t-2 border-slate-300">
+                      <tr>
+                        <td colSpan={3} className="py-3.5 px-4">Total (Projects / Branches)</td>
+                        <td className="py-3.5 px-4 text-center">{projectFinancials.totals.orderCount}</td>
+                        <td className="py-3.5 px-4 text-right">{formatCurrency(projectFinancials.totals.revenue, settings)}</td>
+                        <td className="py-3.5 px-4 text-right">{formatCurrency(projectFinancials.totals.cost, settings)}</td>
+                        <td className="py-3.5 px-4 text-right text-emerald-800">{formatCurrency(projectFinancials.totals.grossProfit, settings)}</td>
+                        <td className="py-3.5 px-4 text-center">
+                          {projectFinancials.totals.revenue > 0 ? Math.round((projectFinancials.totals.grossProfit / projectFinancials.totals.revenue) * 100) : 0}%
+                        </td>
+                        <td className="py-3.5 px-4 text-right text-blue-800">{formatCurrency(projectFinancials.totals.paid, settings)}</td>
+                        <td className="py-3.5 px-4 text-right text-rose-700">{formatCurrency(projectFinancials.totals.due, settings)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Work Order Tracker SubTab (Feature 2) */}
+        {activeSubTab === 'work_orders' && (
+          <div className="p-4 md:p-6">
+            <WorkOrderTracker
+              orders={localOrders}
+              companies={companies}
+              customers={localCustomers}
+              selectedCompany={selectedCompany}
+              settings={settings}
+              setActiveTab={setActiveTab}
+            />
           </div>
         )}
 
         {/* Pagination & Footer Controls */}
-        {activeSubTab !== 'profit_report' && (
+        {(activeSubTab === 'orders' || activeSubTab === 'customers') && (
         <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/40 text-xs text-slate-600">
           <div className="flex items-center gap-2">
             <span>Rows per page:</span>
@@ -1780,6 +2200,189 @@ export const BusinessUnitsTab: React.FC<BusinessUnitsTabProps> = ({
                 type="button"
                 onClick={() => setViewingOrder(null)}
                 className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Consolidated Statement Generator Modal (Feature 1) */}
+      {isStatementModalOpen && (
+        <div className="fixed inset-0 z-[130] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-200">
+            {/* Modal Header */}
+            <div className="p-5 px-6 bg-gradient-to-r from-[#081621] via-indigo-950 to-[#081621] text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-400/20">
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    Consolidated Corporate Statement
+                  </h3>
+                  <p className="text-[11px] text-slate-300">
+                    Generate multi-branch or project-wise statement with financial summary & ledger
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsStatementModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
+              {/* Selectors */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Company Selector */}
+                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                    1. Select Sister Concern / Concern
+                  </label>
+                  <select
+                    value={statementCompany}
+                    onChange={(e) => {
+                      setStatementCompany(e.target.value);
+                      setStatementBranch('all');
+                    }}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="all">All Sister Concerns (Consolidated)</option>
+                    {companies.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Branch / Project Selector */}
+                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                    2. Filter by Branch / Project
+                  </label>
+                  <select
+                    value={statementBranch}
+                    onChange={(e) => setStatementBranch(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="all">All Branches & Projects</option>
+                    {availableBranches.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Live Statement Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-100/70 border border-slate-200/80 rounded-2xl p-3 text-center">
+                  <span className="text-[10px] font-bold text-slate-500 block uppercase">Invoices</span>
+                  <span className="text-base font-black text-slate-900 block mt-0.5">
+                    {statementFinancialSummary.orderCount}
+                  </span>
+                </div>
+                <div className="bg-slate-100/70 border border-slate-200/80 rounded-2xl p-3 text-center">
+                  <span className="text-[10px] font-bold text-slate-500 block uppercase">Total Billed</span>
+                  <span className="text-base font-black text-slate-900 block mt-0.5">
+                    {formatCurrency(statementFinancialSummary.totalBilled, settings)}
+                  </span>
+                </div>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 text-center">
+                  <span className="text-[10px] font-bold text-emerald-700 block uppercase">Total Received</span>
+                  <span className="text-base font-black text-emerald-800 block mt-0.5">
+                    {formatCurrency(statementFinancialSummary.totalPaid, settings)}
+                  </span>
+                </div>
+                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 text-center">
+                  <span className="text-[10px] font-bold text-rose-700 block uppercase">Outstanding Due</span>
+                  <span className="text-base font-black text-rose-700 block mt-0.5">
+                    {formatCurrency(statementFinancialSummary.totalDue, settings)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Branch / Project Breakdown Preview */}
+              {statementFinancialSummary.branchBreakdown.length > 0 && (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                  <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 font-black text-slate-700 text-xs flex justify-between items-center">
+                    <span>Included Projects / Branches ({statementFinancialSummary.branchBreakdown.length})</span>
+                    <span className="text-[10px] text-slate-500 font-semibold">Sub-totals</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-100">
+                    {statementFinancialSummary.branchBreakdown.map(b => (
+                      <div key={b.branchName} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div>
+                          <span className="font-bold text-slate-800 block">{b.branchName}</span>
+                          <span className="text-[10px] text-slate-400">{b.orderCount} invoice(s)</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-black text-slate-900 block">{formatCurrency(b.invoiced, settings)}</span>
+                          {b.due > 0 ? (
+                            <span className="text-[10px] font-bold text-rose-600">Due: {formatCurrency(b.due, settings)}</span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-600">Paid in full</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {statementOrders.length === 0 && (
+                <div className="p-6 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <AlertCircle size={24} className="mx-auto mb-1 text-slate-400 opacity-60" />
+                  <p className="font-bold">No orders match this selection.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="p-4 px-6 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                {/* Download PDF */}
+                <button
+                  type="button"
+                  disabled={isGeneratingStatement || statementOrders.length === 0}
+                  onClick={() => handleGenerateStatementPDF('download')}
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-2 shadow-md shadow-indigo-900/20 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  <Download size={14} />
+                  <span>{isGeneratingStatement ? 'Generating...' : 'Download Statement PDF'}</span>
+                </button>
+
+                {/* Print PDF */}
+                <button
+                  type="button"
+                  disabled={isGeneratingStatement || statementOrders.length === 0}
+                  onClick={() => handleGenerateStatementPDF('print')}
+                  className="px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5 disabled:opacity-50 transition-all cursor-pointer shadow-2xs"
+                >
+                  <Printer size={14} />
+                  <span>Print</span>
+                </button>
+
+                {/* WhatsApp Share */}
+                <button
+                  type="button"
+                  disabled={statementOrders.length === 0}
+                  onClick={handleShareStatementWhatsApp}
+                  className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-950/20 disabled:opacity-50 transition-all cursor-pointer"
+                  title="Share summary directly via WhatsApp"
+                >
+                  <Share2 size={14} />
+                  <span>Share WhatsApp</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsStatementModalOpen(false)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
               >
                 Close
               </button>

@@ -196,6 +196,23 @@ export interface BusinessCompany {
   createdAt?: string;
 }
 
+export interface WorkOrder {
+  id?: string;
+  orderNumber: string; // e.g. WO-2026-001 or PO-4921
+  company: string; // e.g. 'simpletree', 'volumezero', 'spacezero', 'main'
+  branchName?: string; // Project / Branch name e.g. 'Saleh\'s Popy', 'GSR'
+  clientName: string; // Name of client / company
+  title: string; // Work description or subject
+  budget: number; // Total approved budget in BDT
+  issuedDate: string; // YYYY-MM-DD
+  deadlineDate?: string; // YYYY-MM-DD
+  contactPerson?: string;
+  contactPhone?: string;
+  status: 'active' | 'completed' | 'on_hold' | 'cancelled';
+  notes?: string;
+  createdAt: string;
+}
+
 export interface Customer {
   id: string;
   name: string;

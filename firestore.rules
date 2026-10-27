@@ -71,7 +71,7 @@ rules_version = '2';
 //    - `customers`, `vendors`, `transactions`, `transaction_categories`,
 //      `payment_accounts`, `employees`, `employee_leaves`,
 //      `employee_salaries`, `sold_serials`, `service_records`,
-//      `campaigns`, `audiences`, `tasks`, `internal_notes`,
+//      `campaigns`, `audiences`, `tasks`, `work_orders`, `internal_notes`,
 //      `cash_register`, `conveyances`, `purchases`, `purchase_returns`,
 //      `sale_returns`, `emailTemplates`, `servers`, `hosting_config`,
 //      `audit_logs`, `auditLogs`, `admin_alerts`, `paymentAuditLog`, `domainAuditLog`,
@@ -845,6 +845,10 @@ service cloud.firestore {
     }
 
     match /purchases/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /work_orders/{docId} {
       allow read, write: if isStaffOrAdmin();
     }
 
