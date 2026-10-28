@@ -459,6 +459,11 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                                 })()}
                               </div>
                               <span className="text-[11px] text-slate-500 font-semibold mt-0.5">{order.customerPhone}</span>
+                              {(order.projectName || order.branchName) && (
+                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 w-fit mt-1">
+                                  Project: {order.projectName || order.branchName}
+                                </span>
+                              )}
 
                             </div>
                           </td>
@@ -713,8 +718,14 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                 <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 flex-1 relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-2xl"></div>
                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Billed To</h3>
-                  <div className="text-slate-900 font-black text-xl mb-3">{viewingOrder.customerName || 'Walk-in Customer'}</div>
-                  <div className="space-y-1.5">
+                  <div className="text-slate-900 font-black text-xl mb-1">{viewingOrder.customerName || 'Walk-in Customer'}</div>
+                  {(viewingOrder.projectName || viewingOrder.branchName) && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold my-1.5">
+                      <span className="text-slate-500 font-medium">Project Name:</span>
+                      <span className="text-blue-900 font-black">{viewingOrder.projectName || viewingOrder.branchName}</span>
+                    </div>
+                  )}
+                  <div className="space-y-1.5 mt-2">
                     {viewingOrder.customerPhone && <div className="text-sm text-slate-600 flex items-center gap-2"><Phone size={14} className="text-slate-400"/> {viewingOrder.customerPhone}</div>}
                     {viewingOrder.customerEmail && <div className="text-sm text-slate-600 flex items-center gap-2"><Mail size={14} className="text-slate-400"/> {viewingOrder.customerEmail}</div>}
                     {viewingOrder.customerAddress && <div className="text-sm text-slate-600 flex items-start gap-2"><MapPin size={14} className="text-slate-400 shrink-0 mt-0.5"/> <span className="max-w-[250px] leading-snug">{viewingOrder.customerAddress}</span></div>}
@@ -739,6 +750,15 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                         {viewingOrder.status}
                       </span>
                     </div>
+
+                    {(viewingOrder.projectName || viewingOrder.branchName) && (
+                      <>
+                        <div className="text-sm font-semibold text-slate-500">Project Name:</div>
+                        <div className="text-sm font-bold text-blue-700 text-right truncate" title={viewingOrder.projectName || viewingOrder.branchName}>
+                          {viewingOrder.projectName || viewingOrder.branchName}
+                        </div>
+                      </>
+                    )}
                     
                     <div className="text-sm font-semibold text-slate-500">Prepared By:</div>
                     <div className="text-sm font-bold text-slate-900 text-right">{viewingOrder.userId || 'Admin'}</div>
