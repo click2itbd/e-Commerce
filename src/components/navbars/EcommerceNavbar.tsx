@@ -8,8 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
 import { auth, db } from '../../firebase';
 import { signOut } from 'firebase/auth';
-import { collection, getDocs, query, orderBy, limit, doc, setDoc, increment } from 'firebase/firestore';
-import { cn } from '../../lib/utils';
+import { collection, getDocs, query, orderBy, limit, doc, setDoc, increment, onSnapshot } from 'firebase/firestore';
 import { NavigationMenu, Product, SubCategory } from '../../types';
 import { setSiteContext } from '../../hooks/useSiteContext';
 
@@ -53,16 +52,17 @@ export const EcommerceNavbar: React.FC = () => {
   useEffect(() => {
     // Mark that the user is in the e-commerce context
     setSiteContext('ecommerce');
-    const fetchMenus = async () => {
-      try {
-        const q = query(collection(db, 'menus'), orderBy('order', 'asc'));
-        const snap = await getDocs(q);
+    // Real-time menus listener so category changes reflect dynamically
+    const qMenus = query(collection(db, 'menus'), orderBy('order', 'asc'));
+    const unsubscribeMenus = onSnapshot(
+      qMenus,
+      (snap) => {
         setMenus(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NavigationMenu[]);
-      } catch (error) {
-        console.error('Error fetching menus:', error);
+      },
+      (error) => {
+        console.error('Error listening to menus:', error);
       }
-    };
-    fetchMenus();
+    );
     const fetchProducts = async () => {
       try {
         const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
@@ -78,6 +78,10 @@ export const EcommerceNavbar: React.FC = () => {
     
     const saved = localStorage.getItem('recentSearches');
     if (saved) setRecentSearches(JSON.parse(saved));
+
+    return () => {
+      unsubscribeMenus();
+    };
   }, []);
 
   const handleLogout = async () => {
