@@ -441,29 +441,8 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
 
                           <td className="px-5 py-4 whitespace-nowrap">
                             <div className="flex flex-col">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold text-slate-800 text-[13px]">{order.customerName}</span>
-                                {(() => {
-                                  const compId = order.company || 'main';
-                                  if (compId === 'main') return null;
-                                  const found = companies.find(c => c.id.toLowerCase() === compId.toLowerCase());
-                                  if (!found) {
-                                    return <span className="px-1.5 py-0.2 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[9px] font-black uppercase tracking-wider">{compId}</span>;
-                                  }
-                                  if (found.parentCompany) {
-                                    const parent = companies.find(c => c.id.toLowerCase() === found.parentCompany?.toLowerCase());
-                                    const parentName = parent ? parent.name : found.parentCompany;
-                                    return <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-wider">{parentName} ↳ {found.name}</span>;
-                                  }
-                                  return <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 border border-blue-200 rounded text-[9px] font-black uppercase tracking-wider">{found.name}</span>;
-                                })()}
-                              </div>
+                              <span className="font-bold text-slate-800 text-[13px]">{order.customerName}</span>
                               <span className="text-[11px] text-slate-500 font-semibold mt-0.5">{order.customerPhone}</span>
-                              {(order.projectName || order.branchName) && (
-                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 w-fit mt-1">
-                                  Project: {order.projectName || order.branchName}
-                                </span>
-                              )}
 
                             </div>
                           </td>
