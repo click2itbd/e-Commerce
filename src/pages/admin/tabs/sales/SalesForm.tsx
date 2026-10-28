@@ -844,7 +844,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         type: saleData.type,
         saleSource: saleData.saleSource,
         company: saleData.company || 'main',
-          createdBy: saleData.createdBy || profile?.displayName || profile?.email || 'Admin',
+        createdBy: saleData.createdBy || saleData.preparedBy || profile?.displayName || profile?.email || 'Admin',
+        preparedBy: saleData.preparedBy || saleData.createdBy || profile?.displayName || profile?.email || 'Admin',
         customerId: saleData.customerId,
         customerName: saleData.customerName,
         workOrderNumber: saleData.workOrderNumber,
@@ -1005,15 +1006,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             paymentMethod: selectedAcc?.type || selectedAcc?.name || saleData.paymentMethod || 'cash',
             createdAt,
           });
-        }
-
-        // Auto-save branch to customer's branches list if newly introduced
-        if (saleData.customerId && saleData.branchName) {
-          const curCust = customers.find(c => c.id === saleData.customerId);
-          if (curCust && (!curCust.branches || !curCust.branches.includes(saleData.branchName))) {
-            const updatedBranches = Array.from(new Set([...(curCust.branches || []), saleData.branchName]));
-            updateDoc(doc(db, 'customers', saleData.customerId), { branches: updatedBranches }).catch(e => console.error(e));
-          }
         }
       }
 

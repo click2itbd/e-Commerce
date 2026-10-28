@@ -518,7 +518,7 @@ export const generatePDF = async (
       doc.setFont("helvetica", "bold");
       doc.text("Prepared By: ", 15 + (pageWidth - 30) / 2 + 5, currentRightY);
       doc.setFont("helvetica", "normal");
-      doc.text(o.createdBy || "Admin", 15 + (pageWidth - 30) / 2 + 28, currentRightY);
+      doc.text(o.preparedBy || o.createdBy || "Admin", 15 + (pageWidth - 30) / 2 + 28, currentRightY);
       currentRightY += 6;
       
       if (o.workOrderNumber) {
@@ -812,11 +812,12 @@ export const generatePDF = async (
   doc.setLineWidth(0.5);
 
   // Authorized Signature
-  if (ord?.preparedBy) {
+  const footerPreparedBy = ord?.preparedBy || (ord as any)?.createdBy;
+  if (footerPreparedBy) {
     doc.setFontSize(8.5);
     doc.setFont("helvetica", "italic");
     doc.setTextColor(71, 85, 105);
-    doc.text(`Prepared By: ${ord.preparedBy}`, 15, bottomY - 4);
+    doc.text(`Prepared By: ${footerPreparedBy}`, 15, bottomY - 4);
   }
   doc.line(15, bottomY, 70, bottomY);
   doc.setFontSize(9.5);

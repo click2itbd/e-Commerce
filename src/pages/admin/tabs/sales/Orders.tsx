@@ -760,7 +760,7 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                     )}
                     
                     <div className="text-sm font-semibold text-slate-500">Prepared By:</div>
-                    <div className="text-sm font-bold text-slate-900 text-right">{viewingOrder.userId || 'Admin'}</div>
+                    <div className="text-sm font-bold text-slate-900 text-right">{viewingOrder.preparedBy || viewingOrder.createdBy || viewingOrder.userId || 'Admin'}</div>
                   </div>
                 </div>
               </div>
