@@ -4,7 +4,7 @@ import { Product } from '../types';
 import { auth, db } from '../firebase';
 import { formatCurrency, cn } from '../lib/utils';
 import { toast } from 'react-hot-toast';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, addDoc, updateDoc } from 'firebase/firestore';
 
 interface PriceAlertModalProps {
   isOpen: boolean;
@@ -131,16 +131,54 @@ export const PriceAlertModal: React.FC<PriceAlertModalProps> = ({
         userId: auth.currentUser?.uid || 'guest',
       };
 
-      const res = await fetch('/api/price-alerts/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      let alertId = '';
+      let isSaved = false;
 
-      const data = await res.json();
+      // 1. Try Backend API first
+      try {
+        const res = await fetch('/api/price-alerts/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to set price alert');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.alertId) {
+            alertId = data.alertId;
+            isSaved = true;
+          }
+        }
+      } catch (apiErr) {
+        console.warn('Backend API subscribe call failed, using Firestore directly:', apiErr);
+      }
+
+      // 2. Direct Firestore fallback if backend API was unavailable
+      if (!isSaved) {
+        const q = query(
+          collection(db, 'price_alerts'),
+          where('productId', '==', product.id),
+          where('email', '==', payload.email),
+          where('status', '==', 'active')
+        );
+        const existingSnap = await getDocs(q);
+
+        if (!existingSnap.empty) {
+          const existingDoc = existingSnap.docs[0];
+          alertId = existingDoc.id;
+          await updateDoc(doc(db, 'price_alerts', alertId), {
+            ...payload,
+            status: 'active',
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          const newDocRef = await addDoc(collection(db, 'price_alerts'), {
+            ...payload,
+            status: 'active',
+            createdAt: new Date().toISOString(),
+          });
+          alertId = newDocRef.id;
+        }
       }
 
       toast.success(
@@ -149,7 +187,7 @@ export const PriceAlertModal: React.FC<PriceAlertModalProps> = ({
       );
 
       setActiveAlert({
-        id: data.alertId,
+        id: alertId,
         ...payload,
       });
 
@@ -171,20 +209,31 @@ export const PriceAlertModal: React.FC<PriceAlertModalProps> = ({
     const toastId = toast.loading('Cancelling price alert...');
 
     try {
-      const res = await fetch('/api/price-alerts/unsubscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          alertId: activeAlert.id,
-          productId: product.id,
-          email: activeAlert.email || email,
-        }),
-      });
+      let isCancelled = false;
+      try {
+        const res = await fetch('/api/price-alerts/unsubscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            alertId: activeAlert.id,
+            productId: product.id,
+            email: activeAlert.email || email,
+          }),
+        });
 
-      const data = await res.json();
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) isCancelled = true;
+        }
+      } catch (apiErr) {
+        console.warn('Backend API unsubscribe call failed, using Firestore directly:', apiErr);
+      }
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to cancel price alert');
+      if (!isCancelled && activeAlert.id) {
+        await updateDoc(doc(db, 'price_alerts', activeAlert.id), {
+          status: 'cancelled',
+          updatedAt: new Date().toISOString(),
+        });
       }
 
       toast.success('Price alert cancelled successfully', { id: toastId });

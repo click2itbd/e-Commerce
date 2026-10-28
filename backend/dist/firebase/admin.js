@@ -124,6 +124,11 @@ class CollectionAdapter extends QueryAdapter {
         const dRef = id ? doc(this.webDb, this.name, id) : doc(collection(this.webDb, this.name));
         return wrapDocRef(dRef);
     }
+    async add(data) {
+        const newDoc = doc(collection(this.webDb, this.name));
+        await setDoc(newDoc, data);
+        return wrapDocRef(newDoc);
+    }
 }
 function createClientFirestoreAdapter() {
     const config = getFirebaseClientConfig();
@@ -246,7 +251,15 @@ export function getAdminAuth() {
 export function isAdminDbAvailable() {
     if (initializationFailed)
         return false;
-    return Boolean(adminDb || clientAdapterDb || getAdminApps().length > 0 || getClientApps().length > 0);
+    if (adminDb || clientAdapterDb)
+        return true;
+    try {
+        const db = getAdminDb();
+        return Boolean(db);
+    }
+    catch {
+        return false;
+    }
 }
 export async function getAdminDocument(collectionName, docId) {
     const db = getAdminDb();
