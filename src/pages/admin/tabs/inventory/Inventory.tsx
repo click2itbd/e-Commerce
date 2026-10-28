@@ -208,7 +208,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
       totalCostValue += stock * cost;
       totalRetailValue += stock * retail;
 
-      if (p.isOutOfStock || stock === 0) {
+      if (stock <= 0) {
         outOfStockCount += 1;
       } else if (stock < (p.lowStockThreshold || 10)) {
         lowStockCount += 1;
@@ -474,7 +474,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
                       <option value="all">All Stock Status</option>
                       <option value="in_stock">In Stock Only</option>
                       <option value="low_stock">Low Stock (&lt;10)</option>
-                      <option value="out_of_stock">Out of Stock (0)</option>
+                      <option value="out_of_stock">Out of Stock</option>
                       <option value="slow_moving_30">🐢 Slow Moving (30-60 Days)</option>
                       <option value="stagnant_60">⚠️ Stagnant (60-90 Days)</option>
                       <option value="dead_stock_90">🔥 Dead Stock (90+ Days / Never Sold)</option>
@@ -1446,9 +1446,9 @@ Storage: 512GB SSD"
                       })
                       .filter(p => {
                         if (stockFilter === 'all') return true;
-                        if (stockFilter === 'in_stock') return !p.isOutOfStock && p.stock > 0;
-                        if (stockFilter === 'low_stock') return !p.isOutOfStock && p.stock > 0 && p.stock < (p.lowStockThreshold || 10);
-                        if (stockFilter === 'out_of_stock') return p.isOutOfStock || (p.stock || 0) === 0;
+                        if (stockFilter === 'in_stock') return (Number(p.stock) || 0) > 0;
+                        if (stockFilter === 'low_stock') return (Number(p.stock) || 0) > 0 && (Number(p.stock) || 0) < (p.lowStockThreshold || 10);
+                        if (stockFilter === 'out_of_stock') return (Number(p.stock) || 0) <= 0;
 
                         const saleInfo = productSalesMap[p.id];
                         const days = saleInfo?.lastSoldDate
@@ -1543,49 +1543,20 @@ Storage: 512GB SSD"
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className={cn(
                                   "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border",
-                                  product.isOutOfStock 
-                                    ? "bg-red-100 text-red-700 border-red-300 font-black"
-                                    : product.stock >= 10 
-                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
-                                      : product.stock > 0 
-                                        ? "bg-amber-50 text-amber-700 border-amber-200" 
-                                        : "bg-blue-50 text-blue-700 border-blue-200"
+                                  (Number(product.stock) || 0) >= 10 
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                    : (Number(product.stock) || 0) > 0 
+                                      ? "bg-amber-50 text-amber-700 border-amber-200" 
+                                      : "bg-red-50 text-red-700 border-red-200"
                                 )}>
-                                  {product.isOutOfStock 
-                                    ? 'OUT OF STOCK (MANUAL)' 
-                                    : product.stock > 0 
-                                      ? `${product.stock} IN STOCK` 
-                                      : '0 STOCK (STORE ACTIVE)'}
+                                  {(Number(product.stock) || 0) > 0 ? `${product.stock} IN STOCK` : 'OUT OF STOCK'}
                                 </span>
-                                {product.stock > 0 && (
+                                {(Number(product.stock) || 0) > 0 && (
                                   <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200" title="Total Stock Value for this item">
                                     Val: {formatCurrency(Math.max(0, Number(product.stock) || 0) * (Number(product.costPrice) > 0 ? Number(product.costPrice) : (Number(product.price) || 0)), settings)}
                                   </span>
                                 )}
                               </div>
-                              <button
-                                type="button"
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  try {
-                                    const nextState = !product.isOutOfStock;
-                                    await updateDoc(doc(db, 'products', product.id), { isOutOfStock: nextState });
-                                    toast.success(nextState ? `"${product.name}" marked as Out of Stock on store` : `"${product.name}" marked as In Stock on store`);
-                                    if (fetchData) fetchData();
-                                  } catch (err) {
-                                    toast.error('Failed to update store status');
-                                  }
-                                }}
-                                className={cn(
-                                  "text-[10px] font-bold px-2 py-0.5 rounded border transition-all cursor-pointer shadow-2xs",
-                                  product.isOutOfStock
-                                    ? "bg-red-50 text-red-700 hover:bg-red-100 border-red-200"
-                                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200"
-                                )}
-                                title={product.isOutOfStock ? "Click to make Available on store" : "Click to mark Out of Stock on store"}
-                              >
-                                {product.isOutOfStock ? "🔴 Store: Out of Stock" : "🟢 Store: Available"}
-                              </button>
 
                               {product.stock > 0 && days >= 90 && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded shadow-2xs">
@@ -1685,9 +1656,9 @@ Storage: 512GB SSD"
                 })
                 .filter(p => {
                   if (stockFilter === 'all') return true;
-                  if (stockFilter === 'in_stock') return !p.isOutOfStock && p.stock > 0;
-                  if (stockFilter === 'low_stock') return !p.isOutOfStock && p.stock > 0 && p.stock < (p.lowStockThreshold || 10);
-                  if (stockFilter === 'out_of_stock') return p.isOutOfStock || (p.stock || 0) === 0;
+                  if (stockFilter === 'in_stock') return (Number(p.stock) || 0) > 0;
+                  if (stockFilter === 'low_stock') return (Number(p.stock) || 0) > 0 && (Number(p.stock) || 0) < (p.lowStockThreshold || 10);
+                  if (stockFilter === 'out_of_stock') return (Number(p.stock) || 0) <= 0;
 
                   const saleInfo = productSalesMap[p.id];
                   const days = saleInfo?.lastSoldDate
