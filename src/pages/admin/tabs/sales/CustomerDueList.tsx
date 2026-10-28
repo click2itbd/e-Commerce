@@ -638,8 +638,9 @@ export default function CustomerDueList() {
           });
 
           const docNum = ord.documentNumber || ord.id;
-          settledDocNumbers.push(docNum);
-          const projInfo = (ord.branchName || ord.projectName) ? ` (Branch / Project: ${ord.branchName || ord.projectName})` : '';
+          const rawP = (ord.branchName || ord.projectName || '').trim();
+          const isRealP = rawP && !['main', 'main office', 'none', 'n/a', '-- main office / none --', '-- none / no project --', '-- main / default --', 'corporate', 'default'].includes(rawP.toLowerCase());
+          const projInfo = isRealP ? ` (Project: ${rawP})` : '';
 
           // 2. Add Transaction in Firestore
           await addDoc(collection(db, 'transactions'), {
@@ -1337,7 +1338,9 @@ export default function CustomerDueList() {
                             const ordDue = Math.max(0, tot - pd);
                             const isAllocated = (orderAllocations[o.id] || 0) > 0;
                             const currentAlloc = orderAllocations[o.id] || '';
-                            const projName = o.projectName || o.branchName || '';
+                            const rawProj = (o.projectName || o.branchName || '').trim();
+                            const isRealProj = rawProj && !['main', 'main office', 'none', 'n/a', '-- main office / none --', '-- none / no project --', '-- main / default --', 'corporate', 'default'].includes(rawProj.toLowerCase());
+                            const projName = isRealProj ? rawProj : '';
 
                             return (
                               <tr 
@@ -1367,7 +1370,7 @@ export default function CustomerDueList() {
                                       {projName}
                                     </span>
                                   ) : (
-                                    <span className="text-slate-400 text-[10px]">Main Store</span>
+                                    <span className="text-slate-400 text-[10px]">—</span>
                                   )}
                                 </td>
                                 <td className="py-2 px-3 text-right font-medium text-slate-700">

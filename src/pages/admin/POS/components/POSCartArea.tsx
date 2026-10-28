@@ -40,25 +40,14 @@ export const POSCartArea: React.FC<POSCartAreaProps> = ({
   const availableBranches = React.useMemo(() => {
     if (!selectedCustomer) return [];
     const set = new Set<string>();
-    if (selectedCustomer.branchName) set.add(selectedCustomer.branchName);
-    (selectedCustomer.branches || []).forEach(b => b && set.add(b));
-    
-    // Also check other customers that share the same corporate company
-    const custComp = (selectedCustomer as any).company;
-    if (custComp && custComp !== 'main') {
-      customers.forEach(otherC => {
-        if ((otherC as any).company === custComp) {
-          if (otherC.branchName) set.add(otherC.branchName);
-          (otherC.branches || []).forEach(b => b && set.add(b));
-          if (otherC.name.toLowerCase().startsWith(custComp.toLowerCase())) {
-            const stripped = otherC.name.slice(custComp.length).trim();
-            if (stripped) set.add(stripped);
-          }
-        }
-      });
+    (selectedCustomer.branches || []).forEach(b => {
+      if (b && typeof b === 'string' && b.trim()) set.add(b.trim());
+    });
+    if (selectedCustomer.branchName && typeof selectedCustomer.branchName === 'string' && selectedCustomer.branchName.trim()) {
+      set.add(selectedCustomer.branchName.trim());
     }
     return Array.from(set).filter(Boolean);
-  }, [selectedCustomer, customers]);
+  }, [selectedCustomer]);
 
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(customerSearch.toLowerCase()) || 
@@ -102,7 +91,7 @@ export const POSCartArea: React.FC<POSCartAreaProps> = ({
                     key={c.id} 
                     onClick={() => {
                       setSelectedCustomer(c);
-                      setSelectedBranch?.(c.branchName || (c.branches && c.branches[0]) || '');
+                      setSelectedBranch?.(''); // DO NOT auto-select project/branch! Keep empty unless user picks one
                       setCustomerSearch('');
                       setIsCustomerDropdownOpen(false);
                     }}
@@ -143,7 +132,7 @@ export const POSCartArea: React.FC<POSCartAreaProps> = ({
                 onChange={e => setSelectedBranch?.(e.target.value)}
                 className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 shadow-2xs cursor-pointer"
               >
-                <option value="">-- Main / Default --</option>
+                <option value="">-- None / No Project --</option>
                 {availableBranches.map((br, i) => (
                   <option key={i} value={br}>{br}</option>
                 ))}

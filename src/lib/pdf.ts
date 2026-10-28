@@ -403,7 +403,21 @@ export const generatePDF = async (
       currentY += 30;
     } else {
     const o = order as Order;
-    const branchOrProject = (o.branchName || (o as any).projectName || '').trim();
+    const rawBranch = (o.branchName || (o as any).projectName || '').trim();
+    const lowerBranch = rawBranch.toLowerCase();
+    const isRealBranch = Boolean(
+      rawBranch && 
+      lowerBranch !== 'main' && 
+      lowerBranch !== 'main office' && 
+      lowerBranch !== 'none' && 
+      lowerBranch !== 'n/a' && 
+      lowerBranch !== 'default' &&
+      lowerBranch !== 'corporate' &&
+      lowerBranch !== '-- main office / none --' &&
+      lowerBranch !== '-- none / no project --' &&
+      lowerBranch !== '-- main / default --'
+    );
+    const branchOrProject = isRealBranch ? rawBranch : '';
     const hasBranch = Boolean(branchOrProject);
 
     // Light Grey Box Backgrounds

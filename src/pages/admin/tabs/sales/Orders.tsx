@@ -51,6 +51,26 @@ export const getOrderCategory = (order: any): 'in_store' | 'ecommerce' | 'pc_bui
   return 'ecommerce';
 };
 
+export const getValidProjectName = (order: any): string => {
+  const p = (order?.projectName || order?.branchName || '').trim();
+  if (!p) return '';
+  const lower = p.toLowerCase();
+  if (
+    lower === 'main' ||
+    lower === 'main office' ||
+    lower === 'none' ||
+    lower === 'n/a' ||
+    lower === '-- main office / none --' ||
+    lower === '-- none / no project --' ||
+    lower === '-- main / default --' ||
+    lower === 'corporate' ||
+    lower === 'default'
+  ) {
+    return '';
+  }
+  return p;
+};
+
 const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQuery, setOrderSearchQuery, orderStatusFilter, setOrderStatusFilter, orderStartDate, setOrderStartDate, orderEndDate, setOrderEndDate, orderSort, setOrderSort, selectedOrderIds, setSelectedOrderIds, handleExportFilteredOrders, handleBulkUpdateOrderStatus, handleBulkExportOrders, handleBulkDeleteOrders, setSelectedLedgerEntity, setActiveTab, fetchData, updateOrderDiscount, updateOrderStatus, generatePDF, handleDeleteOrder, handleReturnOrder, handleEditInSales }) => {
   const { isAdmin, hasPermission } = useAuth();
   const { companies } = useBusinessUnits();
@@ -698,10 +718,10 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                   <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-2xl"></div>
                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Billed To</h3>
                   <div className="text-slate-900 font-black text-xl mb-1">{viewingOrder.customerName || 'Walk-in Customer'}</div>
-                  {(viewingOrder.projectName || viewingOrder.branchName) && (
+                  {getValidProjectName(viewingOrder) && (
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold my-1.5">
                       <span className="text-slate-500 font-medium">Project Name:</span>
-                      <span className="text-blue-900 font-black">{viewingOrder.projectName || viewingOrder.branchName}</span>
+                      <span className="text-blue-900 font-black">{getValidProjectName(viewingOrder)}</span>
                     </div>
                   )}
                   <div className="space-y-1.5 mt-2">
@@ -730,11 +750,11 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                       </span>
                     </div>
 
-                    {(viewingOrder.projectName || viewingOrder.branchName) && (
+                    {getValidProjectName(viewingOrder) && (
                       <>
                         <div className="text-sm font-semibold text-slate-500">Project Name:</div>
-                        <div className="text-sm font-bold text-blue-700 text-right truncate" title={viewingOrder.projectName || viewingOrder.branchName}>
-                          {viewingOrder.projectName || viewingOrder.branchName}
+                        <div className="text-sm font-bold text-blue-700 text-right truncate" title={getValidProjectName(viewingOrder)}>
+                          {getValidProjectName(viewingOrder)}
                         </div>
                       </>
                     )}

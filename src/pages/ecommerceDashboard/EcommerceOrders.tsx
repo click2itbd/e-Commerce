@@ -501,9 +501,14 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
                 <div>
                   <p className="text-xs text-gray-500 font-bold uppercase mb-1">Customer Details</p>
                   <p className="font-medium text-gray-900">{viewingOrder.customerName}</p>
-                  {(viewingOrder.projectName || viewingOrder.branchName) && (
-                    <p className="text-xs font-bold text-indigo-600 mt-0.5">Project: {viewingOrder.projectName || viewingOrder.branchName}</p>
-                  )}
+                  {(() => {
+                    const p = (viewingOrder.projectName || viewingOrder.branchName || '').trim();
+                    const lower = p.toLowerCase();
+                    const isValid = p && !['main', 'main office', 'none', 'n/a', '-- main office / none --', '-- none / no project --', '-- main / default --', 'corporate', 'default'].includes(lower);
+                    return isValid ? (
+                      <p className="text-xs font-bold text-indigo-600 mt-0.5">Project: {p}</p>
+                    ) : null;
+                  })()}
                   <p className="text-sm text-gray-600">{viewingOrder.customerPhone}</p>
                   <p className="text-sm text-gray-600">{viewingOrder.customerEmail}</p>
                 </div>

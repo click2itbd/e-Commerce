@@ -558,7 +558,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const handleCustomerChange = (customerId: string) => {
     const selected = customers.find(c => c.id === customerId);
     if (selected) {
-      const initialBranch = selected.branchName || (selected.branches && selected.branches[0]) || '';
       setSaleData(prev => ({
         ...prev,
         customerId: selected.id,
@@ -566,7 +565,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         customerPhone: selected.phone || '',
         customerEmail: selected.email || '',
         shippingAddress: selected.address || '',
-        branchName: initialBranch,
+        branchName: '', // Keep empty unless explicitly chosen/added
         company: (selected as any).company || 'main',
       }));
     } else {
@@ -1471,20 +1470,11 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   {(() => {
                     const selCust = customers.find(c => c.id === saleData.customerId);
                     const bSet = new Set<string>();
-                    if (selCust?.branchName) bSet.add(selCust.branchName);
-                    (selCust?.branches || []).forEach(b => b && bSet.add(b));
-                    const custComp = (selCust as any)?.company || saleData.company;
-                    if (custComp && custComp !== 'main') {
-                      customers.forEach(oc => {
-                        if ((oc as any).company === custComp) {
-                          if (oc.branchName) bSet.add(oc.branchName);
-                          (oc.branches || []).forEach(b => b && bSet.add(b));
-                          if (oc.name.toLowerCase().startsWith(custComp.toLowerCase())) {
-                            const stripped = oc.name.slice(custComp.length).trim();
-                            if (stripped) bSet.add(stripped);
-                          }
-                        }
-                      });
+                    (selCust?.branches || []).forEach(b => {
+                      if (b && typeof b === 'string' && b.trim()) bSet.add(b.trim());
+                    });
+                    if (selCust?.branchName && typeof selCust.branchName === 'string' && selCust.branchName.trim()) {
+                      bSet.add(selCust.branchName.trim());
                     }
                     const bList = Array.from(bSet).filter(Boolean);
 
@@ -1508,7 +1498,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                           }}
                           className="bg-transparent font-bold text-slate-800 outline-none text-xs cursor-pointer"
                         >
-                          <option value="">-- Main Office / None --</option>
+                          <option value="">-- None / No Project --</option>
                           {bList.map((br, bi) => (
                             <option key={bi} value={br}>{br}</option>
                           ))}
