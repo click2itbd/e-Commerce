@@ -336,7 +336,7 @@ export const BuilderSelectionModal: React.FC<BuilderSelectionModalProps> = ({
               {filteredProducts.map(product => {
                 const { isCompatible, reason } = getCompatibility(baseCategoryId, product, selectedComponents);
                 const isSelected = selectedComponents[category.id]?.id === product.id;
-                const isOutOfStock = product.stock <= 0;
+                const isOutOfStock = Boolean(product.isOutOfStock);
 
                 return (
                   <div

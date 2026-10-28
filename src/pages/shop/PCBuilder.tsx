@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as Icons from 'lucide-react';
 
 import { coreCategories, peripheralCategories, BuilderCategory } from '../../components/PCBuilder/constants';
-import { getCompatibility } from '../../components/PCBuilder/utils';
+import { getCompatibility, calculateEstimatedWattage } from '../../components/PCBuilder/utils';
 import { BuilderHeader } from '../../components/PCBuilder/BuilderHeader';
 import { BuilderSidebar } from '../../components/PCBuilder/BuilderSidebar';
 import { BuilderCategoryRow } from '../../components/PCBuilder/BuilderCategoryRow';

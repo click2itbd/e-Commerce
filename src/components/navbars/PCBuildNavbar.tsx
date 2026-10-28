@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Menu, X, LogOut, ChevronRight, Zap, Target, Server, Loader2, Moon, Sun, LayoutDashboard } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, X, LogOut, ChevronRight, Zap, Target, Server, Loader2, Moon, Sun } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
@@ -12,7 +12,7 @@ import { Product } from '../../types';
 
 export const PCBuildNavbar: React.FC = () => {
   const { items } = useCart();
-  const { user, canAccessAdmin } = useAuth();
+  const { user } = useAuth();
   const { settings } = useSettings();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
@@ -131,11 +131,6 @@ export const PCBuildNavbar: React.FC = () => {
             <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-900 font-semibold transition-colors flex items-center gap-1.5 group">
               <Server size={16} className="text-slate-500 group-hover:text-amber-400 transition-colors"/> Domain & Hosting
             </a>
-            {canAccessAdmin && (
-              <Link to="/admin" className="text-violet-400 hover:text-violet-300 font-bold transition-colors flex items-center gap-1.5 px-3 py-1 bg-violet-500/10 border border-violet-500/20 rounded-lg">
-                <LayoutDashboard size={15} /> Admin Dashboard
-              </Link>
-            )}
           </nav>
 
           {/* Search Bar - Live */}
@@ -206,11 +201,6 @@ export const PCBuildNavbar: React.FC = () => {
               )}
             </Link>
 
-            {canAccessAdmin && (
-              <Link to="/admin" className="hidden sm:flex items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-[0_0_15px_rgba(139,92,246,0.3)]">
-                <LayoutDashboard size={15} /> Admin Dashboard
-              </Link>
-            )}
             {user ? (
               <div className="hidden sm:flex items-center gap-4 border-l border-slate-200 pl-5">
                 

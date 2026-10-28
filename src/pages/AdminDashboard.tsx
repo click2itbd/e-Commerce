@@ -1758,6 +1758,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             hasSerialTracking: false,
             availableSerials: [],
             warrantyMonths: 0,
+            isOutOfStock: false,
           });
           debouncedFetchData();
         } catch (error) {
