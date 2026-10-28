@@ -6,12 +6,11 @@ import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
-import { Book, X, User, Download, Printer, Plus, ArrowLeft, Receipt, Check, CreditCard, Filter, Building2 } from 'lucide-react';
+import { Book, X, User, Download, Printer, Plus, ArrowLeft, Receipt, Check, CreditCard, Filter } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generatePDF } from '../../../../lib/pdf';
 import { logAudit } from '../../../../lib/audit';
-import { useBusinessUnits } from '../../../../hooks/useBusinessUnits';
 
 interface LedgerTabProps {
   selectedLedgerEntity?: { id: string; name: string; type: 'customer' | 'vendor'; isCompany?: boolean; companyKey?: string } | null;
@@ -38,7 +37,6 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
   const [showLedgerReportModal, setShowLedgerReportModal] = useState<boolean>(false);
   const [ledgerReportModalData, setLedgerReportModalData] = useState<any[]>([]);
   const [ledgerReportType, setLedgerReportType] = useState<'income' | 'expense' | null>(null);
-  const { companies } = useBusinessUnits();
   const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>('all');
 
   useEffect(() => {
@@ -797,31 +795,6 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
                     -- All (General Ledger) --
                   </div>
                   
-                  {/* Corporate Companies */}
-                  {companies.filter(c => c.id !== 'main' && c.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).length > 0 && (
-                    <div className="font-black text-[10px] text-blue-600 uppercase mt-2 px-2 mb-1 flex items-center gap-1">
-                      <Building2 size={11} /> Corporate Companies
-                    </div>
-                  )}
-                  {companies.filter(c => c.id !== 'main' && c.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).map(comp => (
-                    <div 
-                      key={`comp-${comp.id}`} 
-                      className="p-2 hover:bg-blue-50 cursor-pointer rounded flex items-center justify-between gap-2 transition-colors"
-                      onClick={() => {
-                        if (setSelectedLedgerEntity) {
-                          setSelectedLedgerEntity({ id: comp.id, name: comp.name, type: 'customer', isCompany: true, companyKey: comp.id } as any);
-                        }
-                        setSelectedProjectFilter('all');
-                        setShowEntityDropdown(false);
-                        setEntitySearchQuery('');
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>🏢</span> <span className="font-bold text-slate-800">{comp.name}</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-blue-600 bg-blue-100/70 px-1.5 py-0.5 rounded">All Branches / Projects</span>
-                    </div>
-                  ))}
                   
                   {customers.filter(c => c.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).length > 0 && (
                     <div className="font-black text-[10px] text-gray-400 uppercase mt-2 px-2 mb-1">Customers</div>
