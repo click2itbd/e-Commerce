@@ -23,6 +23,7 @@ interface ServiceRecord {
   status: string;
   receivedAt: string;
   equipmentType?: string;
+  preparedBy?: string;
   paymentMethod?: string;
   paymentStatus?: string;
   
@@ -70,6 +71,24 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   const [isAddingService, setIsAddingService] = useState(false);
   const [editingService, setEditingService] = useState<ServiceRecord | null>(null);
   
+  const suggestEquipmentType = (name: string): string => {
+    if (!name) return '';
+    const n = name.toLowerCase();
+    if (n.includes('hdd') || n.includes('ssd') || n.includes('hard drive') || n.includes('harddisk') || n.includes('storage') || n.includes('nvme') || n.includes('m.2')) return 'Hard Drive / Storage';
+    if (n.includes('laptop') || n.includes('notebook') || n.includes('macbook')) return 'Laptop';
+    if (n.includes('desktop') || n.includes('pc ') || n.includes('casing') || n.includes('computer')) return 'Desktop';
+    if (n.includes('monitor') || n.includes('display') || n.includes('screen')) return 'Monitor';
+    if (n.includes('printer') || n.includes('scanner')) return 'Printer';
+    if (n.includes('motherboard') || n.includes('mainboard')) return 'Motherboard';
+    if (n.includes('gpu') || n.includes('graphics card') || n.includes('rtx') || n.includes('gtx') || n.includes('radeon')) return 'Graphics Card';
+    if (n.includes('ram') || n.includes('memory')) return 'RAM / Memory';
+    if (n.includes('power supply') || n.includes('psu')) return 'Power Supply';
+    if (n.includes('ups') || n.includes('ips')) return 'UPS / Power';
+    if (n.includes('router') || n.includes('switch') || n.includes('modem') || n.includes('access point')) return 'Networking';
+    if (n.includes('camera') || n.includes('cctv')) return 'CCTV / Camera';
+    return '';
+  };
+
   const defaultFormData: any = {
     serialNumber: '',
     customerName: '',
@@ -79,7 +98,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     isWarranty: false,
     serviceCharge: 0,
     status: 'received',
-    equipmentType: 'Laptop',
+    equipmentType: '',
+    preparedBy: '',
     paymentMethod: 'cash',
     paymentStatus: 'pending',
     serviceType: 'in_house' as 'in_house' | 'rma',
@@ -351,8 +371,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
         body: [
           ['1', 'Product Name', record.productName || ''],
           ['2', 'Serial / IMEI', record.serialNumber || ''],
-          ['3', 'Equipment Type', record.equipmentType || 'Laptop'],
-          ['4', 'Service Type', record.isWarranty ? 'Warranty Service' : 'Paid Service'],
+          ['3', 'Equipment Type', record.equipmentType || 'N/A'],
+          ['4', 'Service Type', record.isWarranty ? 'Warranty Service' : (record.serviceType === 'rma' ? 'Warranty / RMA' : (record.serviceType === 'outsourced' ? 'Outsourced Repair' : 'Paid Service'))],
           ['5', 'Issue Description', record.issueDescription || '']
         ],
         theme: 'plain',
@@ -498,7 +518,9 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     try {
       const serviceData = {
         ...serviceFormData,
-        receivedAt: new Date().toISOString(),
+        receivedAt: serviceFormData.receivedAt 
+          ? (serviceFormData.receivedAt.includes('T') ? serviceFormData.receivedAt : `${serviceFormData.receivedAt}T12:00:00.000Z`)
+          : (editingService?.receivedAt || new Date().toISOString()),
       };
 
       if (editingService) {
@@ -642,6 +664,31 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="radio" name="serviceType" value="rma" checked={serviceFormData.serviceType === 'rma'} onChange={() => setServiceFormData({...serviceFormData, serviceType: 'rma'})} className="text-[#EF4444] focus:ring-[#EF4444]" />
                     <span>Warranty / RMA</span>
+                </label>
+              </div>
+
+              {/* Billing / Warranty Selection */}
+              <div className="flex items-center gap-6 p-4 bg-white rounded-lg border border-gray-200">
+                <div className="font-bold text-gray-700">Billing / Warranty:</div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="isWarrantyRadio" 
+                    checked={!serviceFormData.isWarranty} 
+                    onChange={() => setServiceFormData({...serviceFormData, isWarranty: false})} 
+                    className="text-[#EF4444] focus:ring-[#EF4444]" 
+                  />
+                  <span className="font-semibold text-gray-800">Paid Service</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="isWarrantyRadio" 
+                    checked={!!serviceFormData.isWarranty} 
+                    onChange={() => setServiceFormData({...serviceFormData, isWarranty: true, serviceCharge: 0})} 
+                    className="text-purple-600 focus:ring-purple-600" 
+                  />
+                  <span className="font-bold text-purple-700">Warranty / Free Service</span>
                 </label>
               </div>
 
@@ -792,9 +839,42 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     type="text"
                     required
                     value={serviceFormData.productName}
-                    onChange={e => setServiceFormData({ ...serviceFormData, productName: e.target.value })}
+                    onChange={e => {
+                      const pName = e.target.value;
+                      const suggested = (!serviceFormData.equipmentType || serviceFormData.equipmentType === 'Laptop') ? suggestEquipmentType(pName) : '';
+                      setServiceFormData({ 
+                        ...serviceFormData, 
+                        productName: pName,
+                        ...(suggested ? { equipmentType: suggested } : {})
+                      });
+                    }}
                     className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Equipment Type</label>
+                  <input
+                    type="text"
+                    list="equipment-type-suggestions"
+                    value={serviceFormData.equipmentType || ''}
+                    onChange={e => setServiceFormData({ ...serviceFormData, equipmentType: e.target.value })}
+                    className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
+                    placeholder="e.g. Hard Drive / Storage, Laptop, Desktop, Monitor, Printer..."
+                  />
+                  <datalist id="equipment-type-suggestions">
+                    <option value="Hard Drive / Storage" />
+                    <option value="Laptop" />
+                    <option value="Desktop" />
+                    <option value="Monitor" />
+                    <option value="Printer" />
+                    <option value="Motherboard" />
+                    <option value="Graphics Card (GPU)" />
+                    <option value="RAM / Memory" />
+                    <option value="Power Supply (PSU)" />
+                    <option value="UPS / IPS" />
+                    <option value="Networking / Router" />
+                    <option value="Accessories" />
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Issue Description</label>
@@ -836,6 +916,19 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                       className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
                       placeholder="Staff name"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
+                    <select
+                      value={serviceFormData.status || 'received'}
+                      onChange={e => setServiceFormData({ ...serviceFormData, status: e.target.value })}
+                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
+                    >
+                      <option value="received">Received</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="ready">Ready for Pickup</option>
+                      <option value="delivered">Delivered</option>
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
@@ -949,7 +1042,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                               isWarranty: !isExpired,
                               serviceCharge: isExpired ? 500 : 0,
                               status: 'received',
-                              equipmentType: 'Laptop',
+                              equipmentType: suggestEquipmentType(record.productName) || '',
+                              preparedBy: '',
                               paymentMethod: 'cash',
                               paymentStatus: 'pending',
                               serviceType: 'in_house',
@@ -1233,7 +1327,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                              <ShoppingCart size={14} />
                            </button>
                          )}
-                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, receivedAt: record.receivedAt ? record.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0], serviceType: record.serviceType || 'in_house', vendorId: record.vendorId || '', rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || 'Laptop', paymentMethod: record.paymentMethod || 'cash', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || '', outsourceCost: record.outsourceCost || 0, outsourcePaidAmount: record.outsourcePaidAmount || 0, outsourcePaymentMethod: record.outsourcePaymentMethod || 'cash', isOutsourced: record.isOutsourced || (record.outsourceCost > 0)}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
+                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, receivedAt: record.receivedAt ? record.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0], serviceType: record.serviceType || 'in_house', vendorId: record.vendorId || '', rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || suggestEquipmentType(record.productName) || '', isWarranty: !!record.isWarranty, status: record.status || 'received', paymentMethod: record.paymentMethod || 'cash', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || '', outsourceCost: record.outsourceCost || 0, outsourcePaidAmount: record.outsourcePaidAmount || 0, outsourcePaymentMethod: record.outsourcePaymentMethod || 'cash', isOutsourced: record.isOutsourced || (record.outsourceCost > 0)}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
                            <Edit2 size={14} />
                          </button>
                           <button onClick={() => handleDeleteService(record.id)} className="text-gray-500 hover:text-red-700 bg-gray-50 hover:bg-red-50 p-1.5 rounded shadow-sm transition-all" title="Delete Service">
