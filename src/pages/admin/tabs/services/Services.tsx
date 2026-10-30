@@ -516,8 +516,10 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   const handleSaveService = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const isPaidOrZero = Number(serviceFormData.serviceCharge || 0) <= 0 || serviceFormData.paymentStatus === "paid";
       const serviceData = {
         ...serviceFormData,
+        paymentStatus: isPaidOrZero ? "paid" : (serviceFormData.paymentStatus || "pending"),
         receivedAt: serviceFormData.receivedAt 
           ? (serviceFormData.receivedAt.includes('T') ? serviceFormData.receivedAt : `${serviceFormData.receivedAt}T12:00:00.000Z`)
           : (editingService?.receivedAt || new Date().toISOString()),
@@ -589,9 +591,25 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     }
   };
 
+  const togglePaymentStatus = async (record: ServiceRecord) => {
+    try {
+      const nextStatus = record.paymentStatus === "paid" ? "pending" : "paid";
+      await updateDoc(doc(db, "services", record.id), { paymentStatus: nextStatus });
+      toast.success(`Payment status set to ${nextStatus.toUpperCase()}`);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update payment status");
+    }
+  };
+
   const updateServiceStatus = async (record: ServiceRecord, newStatus: string) => {
     try {
-      await updateDoc(doc(db, 'services', record.id), { status: newStatus });
+      const updates: any = { status: newStatus };
+      if (newStatus === "delivered" && Number(record.serviceCharge || 0) <= 0) {
+        updates.paymentStatus = "paid";
+      }
+      await updateDoc(doc(db, 'services', record.id), updates);
       toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
       fetchData();
 
@@ -906,6 +924,33 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     onChange={e => setServiceFormData({ ...serviceFormData, serviceCharge: Number(e.target.value) || 0 })}
                     className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Payment Status</label>
+                    <select
+                      value={serviceFormData.paymentStatus || (Number(serviceFormData.serviceCharge) <= 0 ? 'paid' : 'pending')}
+                      onChange={e => setServiceFormData({ ...serviceFormData, paymentStatus: e.target.value })}
+                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="paid">Paid</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Payment Method</label>
+                    <select
+                      value={serviceFormData.paymentMethod || 'cash'}
+                      onChange={e => setServiceFormData({ ...serviceFormData, paymentMethod: e.target.value })}
+                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="bkash">bKash</option>
+                      <option value="nagad">Nagad</option>
+                      <option value="bank">Bank</option>
+                      <option value="card">Card</option>
+                    </select>
+                  </div>
                 </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Prepared By</label>
@@ -1231,9 +1276,11 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                             </span>
                             <span className={cn(
                               "px-2 py-1 rounded text-[10px] font-bold w-fit",
-                              record.isWarranty ? "bg-purple-100 text-purple-800" : "bg-orange-100 text-orange-800"
+                              record.isWarranty ? "bg-purple-100 text-purple-800" :
+                              Number(record.serviceCharge) <= 0 ? "bg-slate-100 text-slate-700" :
+                              "bg-orange-100 text-orange-800"
                             )}>
-                              {record.isWarranty ? "WARRANTY" : `PAID SERVICE`}
+                              {record.isWarranty ? "WARRANTY" : Number(record.serviceCharge) <= 0 ? "FREE / COMPLIMENTARY" : "PAID SERVICE"}
                             </span>
                           </>
                         )}
@@ -1244,13 +1291,24 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                         <div className="flex flex-col items-start gap-1">
                           <span className="font-bold text-sm text-gray-900">{formatCurrency(record.serviceCharge, settings)}</span>
                           <div className="flex flex-wrap items-center gap-1">
-                            <span className={cn(
-                              "px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold uppercase",
-                              record.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                            )}>
-                              {record.paymentStatus || 'pending'}
-                            </span>
-                            {(record.paymentMethod) && (
+                            {Number(record.serviceCharge) <= 0 ? (
+                              <span className="px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold uppercase bg-emerald-100 text-emerald-700">
+                                PAID / NO CHARGE
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => togglePaymentStatus(record)}
+                                title="Click to toggle Paid / Pending"
+                                className={cn(
+                                  "px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold uppercase cursor-pointer hover:opacity-80 active:scale-95 transition-all",
+                                  record.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                                )}
+                              >
+                                {record.paymentStatus || 'pending'}
+                              </button>
+                            )}
+                            {Number(record.serviceCharge) > 0 && record.paymentMethod && (
                               <span className="text-[9px] text-gray-500 bg-gray-100 py-0.5 px-1.5 rounded-[4px] uppercase">{record.paymentMethod.replace('_', ' ')}</span>
                             )}
                           </div>
@@ -1301,9 +1359,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                              </button>
                            )}
                            {record.status === 'delivered' && (
-                             <button onClick={() => updateServiceStatus(record, 'received')} className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-1 rounded transition-colors" title="Revert to Pending">
-                               <RefreshCw size={12} /> Mark Pending
-                             </button>
+                              <div className="flex items-center gap-1.5">
+                                <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded shadow-2xs">
+                                  <CheckCircle size={12} className="text-emerald-600" /> Delivered
+                                </span>
+                                <button onClick={() => updateServiceStatus(record, 'received')} className="text-gray-400 hover:text-amber-700 p-1 rounded hover:bg-amber-50 transition-colors" title="Revert to Received / In Progress">
+                                  <RefreshCw size={11} />
+                                </button>
+                              </div>
                            )}
                          </div>
                        )}
