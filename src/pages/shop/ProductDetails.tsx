@@ -239,7 +239,7 @@ export const ProductDetails: React.FC = () => {
     navigate('/cart');
   };
 
-  const isOutOfStock = Boolean(product?.isOutOfStock) || Number(product?.stock || 0) <= 0;
+  const isOutOfStock = Boolean(product?.isOutOfStock);
   const displayPrice = product.discountPrice || product.price;
   const sku = product.sku ? product.sku.split(' ')[0] : product.id.slice(0, 8).toUpperCase();
 

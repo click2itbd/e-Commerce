@@ -229,8 +229,8 @@ export const CategoryPage: React.FC = () => {
   const filteredProducts = products
     .filter(p => p.price >= priceRange.min && p.price <= priceRange.max)
     .filter(p => {
-      const isOut = Boolean(p.isOutOfStock) || Number(p.stock || 0) <= 0;
-      const isIn = !p.isOutOfStock && Number(p.stock || 0) > 0;
+      const isOut = Boolean(p.isOutOfStock);
+      const isIn = !p.isOutOfStock;
       if (showInStock && showOutOfStock) return true;
       if (!showInStock && !showOutOfStock) return true;
       if (showInStock) return isIn;

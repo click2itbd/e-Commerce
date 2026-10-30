@@ -21,7 +21,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const [showQuickView, setShowQuickView] = useState(false);
 
-  const isOutOfStock = Boolean(product.isOutOfStock) || Number(product.stock || 0) <= 0;
+  const isOutOfStock = Boolean(product.isOutOfStock);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
