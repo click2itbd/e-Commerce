@@ -224,6 +224,7 @@ export const ProductDetails: React.FC = () => {
   }
 
   const handleAddToCart = () => {
+    if (isOutOfStock) return;
     for (let i = 0; i < quantity; i++) {
       addToCart(product);
     }
@@ -231,12 +232,14 @@ export const ProductDetails: React.FC = () => {
   };
 
   const handleBuyNow = () => {
+    if (isOutOfStock) return;
     for (let i = 0; i < quantity; i++) {
       addToCart(product);
     }
     navigate('/cart');
   };
 
+  const isOutOfStock = Boolean(product?.isOutOfStock) || Number(product?.stock || 0) <= 0;
   const displayPrice = product.discountPrice || product.price;
   const sku = product.sku ? product.sku.split(' ')[0] : product.id.slice(0, 8).toUpperCase();
 
@@ -297,9 +300,9 @@ export const ProductDetails: React.FC = () => {
             price: currentPrice,
             priceValidUntil: '2028-12-31',
             itemCondition: 'https://schema.org/NewCondition',
-            availability: !product.isOutOfStock 
-              ? 'https://schema.org/InStock' 
-              : 'https://schema.org/OutOfStock',
+            availability: isOutOfStock 
+              ? 'https://schema.org/OutOfStock' 
+              : 'https://schema.org/InStock',
             seller: {
               '@type': 'Organization',
               name: 'CLICK2IT'
@@ -460,7 +463,7 @@ export const ProductDetails: React.FC = () => {
               
               <div className="flex items-center gap-2 text-gray-700">
                 <span className="font-bold">Availability:</span> 
-                {!product.isOutOfStock ? (
+                {!isOutOfStock ? (
                   <span className="font-bold text-green-600">In Stock</span>
                 ) : (
                   <span className="font-bold text-red-600">Out of Stock</span>
@@ -494,7 +497,7 @@ export const ProductDetails: React.FC = () => {
                 </div>
                 <button 
                   onClick={() => setQuantity(q => q + 1)}
-                  disabled={Boolean(product.isOutOfStock)}
+                  disabled={isOutOfStock}
                   className="w-9 h-9 flex items-center justify-center bg-white rounded-full text-gray-800 shadow-sm hover:bg-gray-50 transition-all active:scale-90 disabled:opacity-50"
                 >
                   <Plus size={16} strokeWidth={2.5} />
@@ -506,14 +509,14 @@ export const ProductDetails: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-4 mb-4">
               <button 
                 onClick={handleBuyNow}
-                disabled={Boolean(product.isOutOfStock)}
+                disabled={isOutOfStock}
                 className="flex-1 bg-[#F97316] text-white py-3.5 rounded-full font-bold hover:bg-[#e06612] transition-all duration-200 disabled:opacity-50 active:scale-95 active:shadow-inner shadow-sm"
               >
                 Shop Now
               </button>
               <button 
                 onClick={handleAddToCart}
-                disabled={Boolean(product.isOutOfStock)}
+                disabled={isOutOfStock}
                 className="flex-1 bg-white border border-gray-300 text-gray-800 py-3.5 rounded-full font-bold flex items-center justify-center gap-2 hover:border-[#081621] hover:text-[#081621] hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:border-gray-300 disabled:text-gray-400 active:scale-95 active:bg-gray-100"
               >
                 <ShoppingCart size={18} />
@@ -1073,7 +1076,7 @@ export const ProductDetails: React.FC = () => {
         </div>
         <button
           onClick={handleBuyNow}
-          disabled={Boolean(product.isOutOfStock)}
+          disabled={isOutOfStock}
           className="bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold px-6 py-2.5 rounded-xl disabled:opacity-50 whitespace-nowrap shadow-lg text-sm"
         >
           Buy Now

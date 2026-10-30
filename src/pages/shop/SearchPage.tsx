@@ -108,8 +108,8 @@ export const SearchPage: React.FC = () => {
         const pPrice = p.discountPrice || p.price;
         if (pPrice < priceRange.min || pPrice > priceRange.max) return false;
         
-        const isOut = Boolean(p.isOutOfStock);
-        const isIn = !p.isOutOfStock;
+        const isOut = Boolean(p.isOutOfStock) || Number(p.stock || 0) <= 0;
+        const isIn = !p.isOutOfStock && Number(p.stock || 0) > 0;
         if (showInStock && showOutOfStock) {
           // show all
         } else if (!showInStock && !showOutOfStock) {

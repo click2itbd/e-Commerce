@@ -76,7 +76,7 @@ export const Home: React.FC = () => {
     const q = query(
       collection(db, "products"),
       orderBy("createdAt", "desc"),
-      limit(12),
+      limit(48),
     );
 
     const unsubscribeProducts = onSnapshot(q, (querySnapshot) => {
