@@ -320,7 +320,32 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
       rebuildList();
     }, () => {});
 
-    // 8. Sensitive Action Alerts (Staff high discount, bill delete, return, payment delete)
+    // 8. Tasks (Pending / In Progress - Team To-Do Notifications)
+    const unsubTasks = onSnapshot(query(collection(db, 'tasks'), where('status', 'in', ['pending', 'in_progress']), limit(25)), (snap) => {
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.status === 'pending' || data.status === 'in_progress') {
+          itemsMap.set(`task-${d.id}`, {
+            id: `task-${d.id}`,
+            docId: d.id,
+            category: 'tasks',
+            targetTab: 'tasks',
+            title: `📋 ${data.status === 'pending' ? 'New Task Assigned' : 'Task in Progress'}`,
+            badgeText: (data.priority || 'TASK').toUpperCase(),
+            badgeColor: data.priority === 'high' ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold' : 'bg-blue-100 text-blue-800 border-blue-200',
+            message: `"${data.title || 'Task'}" — Assigned to ${data.assignedTo ? 'Staff' : 'Team'}`,
+            time: data.createdAt || new Date().toISOString(),
+            icon: CheckSquare,
+            iconBg: 'bg-indigo-600 text-white',
+          });
+        } else {
+          itemsMap.delete(`task-${d.id}`);
+        }
+      });
+      rebuildList();
+    }, () => {});
+
+    // 9. Sensitive Action Alerts (Staff high discount, bill delete, return, payment delete)
     const unsubAlerts = onSnapshot(query(collection(db, 'admin_alerts'), orderBy('timestamp', 'desc'), limit(30)), (snap) => {
       snap.docs.forEach((d) => {
         const data = d.data();
@@ -383,6 +408,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
       unsubQuotes();
       unsubPreBooks();
       unsubAlerts();
+      unsubTasks();
     };
   }, []);
 

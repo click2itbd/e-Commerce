@@ -41,6 +41,10 @@ import {
   Check,
   Undo2,
   MoreVertical,
+  MessageCircle,
+  Copy,
+  Share2,
+  BellRing,
 } from 'lucide-react';
 
 const PRESET_TAGS = [
@@ -150,6 +154,81 @@ export default function TaskManager() {
   const getUserObj = (userId?: string) => {
     if (!userId) return null;
     return users.find(u => u.uid === userId || (u as any)?.id === userId || u.email === userId) || null;
+  };
+
+  // Internal staff roles only (excludes customer, user, client)
+  const STAFF_ROLES = ['admin', 'staff', 'employee', 'manager', 'moderator', 'support'];
+
+  const staffMembers = useMemo(() => {
+    return users.filter(u => {
+      const role = (u.role || '').toLowerCase().trim();
+      if (role === 'customer' || role === 'user' || role === 'client' || !role) {
+        return false;
+      }
+      return STAFF_ROLES.includes(role);
+    }).sort((a, b) => {
+      const nameA = a.displayName || (a as any)?.name || a.email || '';
+      const nameB = b.displayName || (b as any)?.name || b.email || '';
+      return nameA.localeCompare(nameB);
+    });
+  }, [users]);
+
+  // Tasks assigned to logged in user
+  const myTasks = useMemo(() => {
+    if (!user?.uid && !user?.email) return [];
+    return tasks.filter(t => (t.assignedTo === user?.uid || t.assignedTo === user?.email));
+  }, [tasks, user]);
+
+  const myActiveTasksCount = useMemo(() => {
+    return myTasks.filter(t => t.status !== 'completed').length;
+  }, [myTasks]);
+
+  // Format WhatsApp Link
+  const getWhatsAppUrl = (task: Task | typeof formData, assigneeUser?: UserProfile | null) => {
+    const phone = assigneeUser?.phoneNumber || (assigneeUser as any)?.phone || '';
+    let cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+    if (cleanPhone.length === 11 && cleanPhone.startsWith('01')) {
+      cleanPhone = '88' + cleanPhone;
+    }
+
+    const checklistText = task.checklist && task.checklist.length > 0
+      ? `\n📋 *Checklist:*\n` + task.checklist.map((c, i) => `  ${i + 1}. [${c.done ? '✓' : ' '}] ${c.text}`).join('\n')
+      : '';
+
+    const message = `📋 *NEW TASK ASSIGNED*\n` +
+      `━━━━━━━━━━━━━━━━━━━\n` +
+      `📌 *Task:* ${task.title}\n` +
+      `⚡ *Priority:* ${(task.priority || 'medium').toUpperCase()}\n` +
+      `🏷️ *Category:* ${task.tag || 'General'}\n` +
+      `📅 *Due Date:* ${task.dueDate || 'No due date'}\n` +
+      (task.description ? `📝 *Details:* ${task.description}\n` : '') +
+      checklistText +
+      `\n━━━━━━━━━━━━━━━━━━━\n` +
+      `👉 *Open Admin Dashboard:* ${typeof window !== 'undefined' ? window.location.origin : ''}/admin`;
+
+    const encoded = encodeURIComponent(message);
+    if (cleanPhone) {
+      return `https://wa.me/${cleanPhone}?text=${encoded}`;
+    }
+    return `https://api.whatsapp.com/send?text=${encoded}`;
+  };
+
+  const handleSendWhatsApp = (task: Task, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const assignee = getUserObj(task.assignedTo);
+    const url = getWhatsAppUrl(task, assignee);
+    window.open(url, '_blank');
+    toast.success('Opening WhatsApp with task details...');
+  };
+
+  const handleCopyTask = (task: Task, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const checklistText = task.checklist && task.checklist.length > 0
+      ? `\nChecklist:\n` + task.checklist.map((c, i) => `  ${i + 1}. [${c.done ? '✓' : ' '}] ${c.text}`).join('\n')
+      : '';
+    const text = `📋 Task: ${task.title}\nPriority: ${(task.priority || 'medium').toUpperCase()}\nAssignee: ${getUserName(task.assignedTo)}\nDue Date: ${task.dueDate || 'N/A'}${task.description ? `\nDetails: ${task.description}` : ''}${checklistText}`;
+    navigator.clipboard.writeText(text);
+    toast.success('Task details copied to clipboard!');
   };
 
   const isOverdue = (task: Task) => {
@@ -697,6 +776,35 @@ export default function TaskManager() {
         </div>
       </div>
 
+      {/* 2.5 ASSIGNED TO ME ALERT BANNER */}
+      {myActiveTasksCount > 0 && (
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <BellRing size={20} className="animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-slate-900">
+                You have {myActiveTasksCount} active task{myActiveTasksCount > 1 ? 's' : ''} assigned to you!
+              </h4>
+              <p className="text-xs text-slate-600">
+                Operational duties assigned directly to your account. Stay on top of your daily deliverables.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setSelectedStaff(selectedStaff === user?.uid ? 'all' : (user?.uid || 'all'))}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 shrink-0 ${
+              selectedStaff === user?.uid
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                : 'bg-white text-blue-700 hover:bg-blue-50 border border-blue-200 shadow-2xs'
+            }`}
+          >
+            {selectedStaff === user?.uid ? '✓ Showing My Tasks (Click to Show All)' : '🎯 Focus On My Tasks'}
+          </button>
+        </div>
+      )}
+
       {/* 3. FILTER & SEARCH CONTROL TOOLBAR */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -720,17 +828,32 @@ export default function TaskManager() {
             )}
           </div>
 
+          {/* Assigned To Me Quick Toggle */}
+          {user?.uid && (
+            <button
+              onClick={() => setSelectedStaff(selectedStaff === user.uid ? 'all' : user.uid)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shrink-0 ${
+                selectedStaff === user.uid
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+              }`}
+            >
+              <CheckSquare size={14} />
+              <span>Assigned to Me ({myActiveTasksCount})</span>
+            </button>
+          )}
+
           {/* Staff Filter */}
-          <div className="min-w-[150px]">
+          <div className="min-w-[170px]">
             <select
               value={selectedStaff}
               onChange={e => setSelectedStaff(e.target.value)}
               className="w-full py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">👤 All Staff & Users</option>
-              {users.map(u => (
+              <option value="all">👥 All Staff Members ({staffMembers.length})</option>
+              {staffMembers.map(u => (
                 <option key={u.uid} value={u.uid}>
-                  {u.displayName || u.email || 'User'}
+                  {u.displayName || (u as any)?.name || u.email || 'Staff'} ({u.role || 'staff'})
                 </option>
               ))}
             </select>
@@ -934,21 +1057,37 @@ export default function TaskManager() {
                             {getPriorityBadge(task.priority)}
                           </div>
 
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1">
                             <button
-                              onClick={() => handleOpenModal(task)}
-                              className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-slate-100"
-                              title="Edit task"
+                              onClick={(e) => handleSendWhatsApp(task, e)}
+                              className="p-1 rounded-md text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                              title="Notify Staff on WhatsApp"
                             >
-                              <Edit2 size={13} />
+                              <MessageCircle size={13} />
                             </button>
                             <button
-                              onClick={() => task.id && handleDelete(task.id, task.title)}
-                              className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                              title="Delete task"
+                              onClick={(e) => handleCopyTask(task, e)}
+                              className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                              title="Copy task summary"
                             >
-                              <Trash2 size={13} />
+                              <Copy size={13} />
                             </button>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => handleOpenModal(task)}
+                                className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-slate-100"
+                                title="Edit task"
+                              >
+                                <Edit2 size={13} />
+                              </button>
+                              <button
+                                onClick={() => task.id && handleDelete(task.id, task.title)}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                title="Delete task"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
                         </div>
 
@@ -1174,6 +1313,20 @@ export default function TaskManager() {
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
+                            onClick={(e) => handleSendWhatsApp(task, e)}
+                            className="p-1.5 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                            title="Notify Staff on WhatsApp"
+                          >
+                            <MessageCircle size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => handleCopyTask(task, e)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                            title="Copy Summary"
+                          >
+                            <Copy size={14} />
+                          </button>
+                          <button
                             onClick={() => handleOpenModal(task)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100"
                             title="Edit"
@@ -1280,18 +1433,23 @@ export default function TaskManager() {
               {/* Assign To & Due Date */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
-                    Assign To Staff
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-600">
+                      Assign To Staff
+                    </label>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Staff Only ({staffMembers.length})
+                    </span>
+                  </div>
                   <select
                     value={formData.assignedTo}
                     onChange={e => setFormData({ ...formData, assignedTo: e.target.value })}
                     className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">👤 Unassigned (General)</option>
-                    {users.map(u => (
+                    <option value="">👤 Unassigned (General Team)</option>
+                    {staffMembers.map(u => (
                       <option key={u.uid} value={u.uid}>
-                        {u.displayName || u.email || 'User'} ({u.role || 'staff'})
+                        {u.displayName || (u as any)?.name || u.email || 'Staff'} ({u.role || 'staff'})
                       </option>
                     ))}
                   </select>
@@ -1371,20 +1529,36 @@ export default function TaskManager() {
               </div>
 
               {/* Modal Footer */}
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between gap-2.5 pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={handleCloseModal}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-bold transition-colors"
+                  onClick={() => {
+                    const assignee = getUserObj(formData.assignedTo);
+                    const url = getWhatsAppUrl(formData, assignee);
+                    window.open(url, '_blank');
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-black border border-emerald-200 flex items-center gap-1.5 transition-colors"
+                  title="Notify assigned staff directly on WhatsApp"
                 >
-                  Cancel
+                  <MessageCircle size={14} />
+                  <span>Notify via WhatsApp</span>
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20 transition-all"
-                >
-                  {editingTask ? 'Save Changes' : 'Create Task'}
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCloseModal}
+                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-bold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20 transition-all"
+                  >
+                    {editingTask ? 'Save Changes' : 'Create Task'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
