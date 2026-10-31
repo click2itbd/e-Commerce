@@ -667,9 +667,13 @@ export interface Task {
   status: 'pending' | 'in_progress' | 'completed';
   dueDate?: string;
   createdAt: string;
+  completedAt?: string;
   userId?: string;
   assignedTo?: string;
+  assignedBy?: string;
   priority?: 'low' | 'medium' | 'high';
+  tag?: string;
+  checklist?: { id: string; text: string; done: boolean }[];
 }
 
 export interface SupportTicket {
