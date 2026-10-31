@@ -50,10 +50,10 @@ export default function TaskManager() {
     if (task) {
       setEditingTask(task);
       setFormData({
-        title: task.title,
+        title: task.title || '',
         description: task.description || '',
-        assignedTo: task.assignedTo,
-        priority: task.priority,
+        assignedTo: task.assignedTo || '',
+        priority: (task.priority as any) || 'medium',
         dueDate: task.dueDate || '',
       });
     } else {
@@ -135,9 +135,10 @@ export default function TaskManager() {
     }
   };
 
-  const getUserName = (userId: string) => {
-    const u = users.find(u => u.uid === userId);
-    return u ? u.displayName : userId;
+  const getUserName = (userId?: string) => {
+    if (!userId) return 'Unassigned';
+    const u = users.find(u => u.uid === userId || (u as any)?.id === userId || u.email === userId);
+    return u?.displayName || (u as any)?.name || u?.email || userId || 'Unassigned';
   };
 
   const columns: { id: Task['status']; title: string; icon: React.ReactNode }[] = [
@@ -190,23 +191,23 @@ export default function TaskManager() {
                   )}
 
                   <div className="flex flex-wrap gap-2 mb-4">
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${getPriorityColor(task.priority)}`}>
-                      {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${getPriorityColor(task.priority || 'medium')}`}>
+                      {((task.priority || 'medium').charAt(0).toUpperCase() + (task.priority || 'medium').slice(1))} Priority
                     </span>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(task.status)}`}>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(task.status || 'pending')}`}>
                       {col.title}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between text-sm text-gray-500 pt-3 border-t border-gray-100">
                     <div className="flex items-center gap-1 truncate max-w-[60%]">
-                      <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
-                        {getUserName(task.assignedTo).charAt(0).toUpperCase()}
+                      <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
+                        {(getUserName(task.assignedTo) || 'U').charAt(0).toUpperCase()}
                       </div>
                       <span className="truncate" title={getUserName(task.assignedTo)}>{getUserName(task.assignedTo)}</span>
                     </div>
                     {task.dueDate && (
-                      <div className="text-xs">
+                      <div className="text-xs shrink-0">
                         Due: {new Date(task.dueDate).toLocaleDateString()}
                       </div>
                     )}
@@ -295,7 +296,7 @@ export default function TaskManager() {
                 >
                   <option value="">Select User</option>
                   {users.map(u => (
-                    <option key={u.uid} value={u.uid}>{u.displayName} ({u.role})</option>
+                    <option key={u.uid} value={u.uid}>{u.displayName || u.email || 'User'} ({u.role || 'user'})</option>
                   ))}
                 </select>
               </div>
