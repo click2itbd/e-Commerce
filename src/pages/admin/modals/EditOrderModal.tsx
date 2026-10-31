@@ -61,7 +61,31 @@ export default function EditOrderModal({ order, onClose, onSuccess, onEditInSale
         await Promise.all(Array.from(txIdsToUpdate).map(id => updateDoc(doc(db, 'transactions', id), { amount: total })));
       }
 
-      await logAudit('EDIT', 'Order', `Edited order #${order.documentNumber || order.id} (Total: ${total})`, profile?.displayName || profile?.email || 'Unknown');
+      await logAudit(
+        'EDIT',
+        'Order',
+        `Edited order #${order.documentNumber || order.id} for ${formData.customerName || order.customerName || 'Customer'} (Total: ৳${total})`,
+        profile?.displayName || profile?.email || 'Unknown',
+        {
+          entityId: order.id,
+          previousState: {
+            documentNumber: order.documentNumber || order.id,
+            customerName: order.customerName || '',
+            customerPhone: order.customerPhone || '',
+            total: order.total ?? subtotal,
+            discountAmount: order.discountAmount || 0,
+            items: order.items || [],
+          },
+          newState: {
+            documentNumber: order.documentNumber || order.id,
+            customerName: formData.customerName,
+            customerPhone: formData.customerPhone,
+            total: total,
+            discountAmount: discountAmount,
+            items: items,
+          }
+        }
+      );
       toast.success('Order updated successfully');
       onSuccess();
     } catch (error) {

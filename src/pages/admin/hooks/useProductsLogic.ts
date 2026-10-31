@@ -73,14 +73,24 @@ export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, se
                 previousState: {
                   name: editingProduct.name,
                   price: oldPrice,
+                  costPrice: (editingProduct as any).costPrice ?? null,
                   discountPrice: oldDiscount ?? null,
                   stock: editingProduct.stock,
+                  category: editingProduct.category ?? null,
+                  brand: (editingProduct as any).brand ?? null,
+                  barcode: (editingProduct as any).barcode || (editingProduct as any).sku || null,
+                  isOutOfStock: (editingProduct as any).isOutOfStock ?? false,
                 },
                 newState: {
                   name: formData.name,
                   price: newPrice,
+                  costPrice: (formData as any).costPrice ?? null,
                   discountPrice: newDiscount ?? null,
                   stock: formData.stock,
+                  category: formData.category ?? null,
+                  brand: (formData as any).brand ?? null,
+                  barcode: (formData as any).barcode || (formData as any).sku || null,
+                  isOutOfStock: (formData as any).isOutOfStock ?? false,
                 },
               }
             );
@@ -98,8 +108,13 @@ export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, se
                 newState: {
                   name: formData.name,
                   price: formData.price,
+                  costPrice: (formData as any).costPrice ?? null,
                   discountPrice: formData.discountPrice ?? null,
                   stock: formData.stock,
+                  category: formData.category ?? null,
+                  brand: (formData as any).brand ?? null,
+                  barcode: (formData as any).barcode || (formData as any).sku || null,
+                  isOutOfStock: (formData as any).isOutOfStock ?? false,
                 },
               }
             );

@@ -1080,14 +1080,36 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       toast.success(`${typeStr} #${docNumber} created successfully!`);
 
       // Log sale to Audit Trail
+      const isSaleEdit = Boolean(editingOrder);
       await logAudit(
-        editingOrder ? 'EDIT' : 'CREATE',
+        isSaleEdit ? 'EDIT' : 'CREATE',
         'Sale',
-        `${editingOrder ? 'Updated' : 'Created'} ${typeStr} #${docNumber} for ${saleData.customerName} (Net Total: ৳${netTotal}, Paid: ৳${paid}, Items: ${saleData.items.length})`,
+        `${isSaleEdit ? 'Updated' : 'Created'} ${typeStr} #${docNumber} for ${saleData.customerName} (Net Total: ৳${netTotal}, Paid: ৳${paid}, Items: ${saleData.items.length})`,
         saleData.preparedBy || profile?.displayName || profile?.email || 'Admin',
         {
           entityId: orderRefId,
-          newState: { documentNumber: docNumber, type: saleData.type, netTotal, paid, customerName: saleData.customerName, itemsCount: saleData.items.length }
+          previousState: isSaleEdit && editingOrder ? {
+            documentNumber: editingOrder.documentNumber || docNumber,
+            customerName: editingOrder.customerName,
+            customerPhone: editingOrder.customerPhone,
+            total: editingOrder.total,
+            paidAmount: editingOrder.paidAmount,
+            dueAmount: editingOrder.dueAmount,
+            items: editingOrder.items,
+            status: editingOrder.status
+          } : undefined,
+          newState: {
+            documentNumber: docNumber,
+            type: saleData.type,
+            customerName: saleData.customerName,
+            customerPhone: saleData.customerPhone,
+            total: netTotal,
+            paidAmount: paid,
+            dueAmount: Math.max(0, netTotal - paid),
+            items: saleData.items,
+            paymentMethod: saleData.paymentMethod,
+            preparedBy: saleData.preparedBy
+          }
         }
       );
 

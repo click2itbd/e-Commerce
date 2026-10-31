@@ -156,7 +156,19 @@ export const AuditLogs: React.FC = () => {
       return;
     }
 
-    if (inspectLog.previousState || inspectLog.newState) {
+    // If log has rich items or full product state, we may not need to query live DB
+    const hasRichItems = (
+      (inspectLog.newState && Array.isArray(inspectLog.newState.items) && inspectLog.newState.items.length > 0) ||
+      (inspectLog.previousState && Array.isArray(inspectLog.previousState.items) && inspectLog.previousState.items.length > 0)
+    );
+    const hasRichProduct = (
+      inspectLog.newState &&
+      inspectLog.newState.price !== undefined &&
+      inspectLog.newState.stock !== undefined &&
+      (inspectLog.newState.costPrice !== undefined || inspectLog.newState.category !== undefined)
+    );
+
+    if (hasRichItems || hasRichProduct) {
       setResolvedEntityData(null);
       setResolvingEntity(false);
       return;
@@ -175,51 +187,136 @@ export const AuditLogs: React.FC = () => {
 
         let foundDoc: any = null;
 
-        // 1. Quotation or Order/Sale: search 'orders' collection
-        if (entType.includes('quotation') || entType.includes('order') || entType.includes('sale') || (docNum && (docNum.startsWith('QUO') || docNum.startsWith('INV')))) {
+        // 1. Purchase: search 'purchases' collection
+        if (!foundDoc && (
+          entType.includes('purchase') ||
+          details.toLowerCase().includes('purchase') ||
+          (docNum && (docNum.startsWith('PUR') || docNum.startsWith('PO') || docNum.startsWith('PB')))
+        )) {
+          if (entityId) {
+            try {
+              const snap = await getDoc(doc(db, 'purchases', entityId));
+              if (snap.exists()) foundDoc = { id: snap.id, entityKind: 'purchase', ...snap.data() };
+            } catch {}
+          }
+          if (!foundDoc && docNum) {
+            try {
+              const snapDirect = await getDoc(doc(db, 'purchases', docNum));
+              if (snapDirect.exists()) foundDoc = { id: snapDirect.id, entityKind: 'purchase', ...snapDirect.data() };
+            } catch {}
+          }
+          if (!foundDoc && docNum) {
+            try {
+              const q = query(collection(db, 'purchases'), where('documentNumber', '==', docNum), limit(1));
+              const snap = await getDocs(q);
+              if (!snap.empty) foundDoc = { id: snap.docs[0].id, entityKind: 'purchase', ...snap.docs[0].data() };
+            } catch {}
+          }
+          if (!foundDoc && docNum) {
+            try {
+              const q = query(collection(db, 'purchases'), where('reference', '==', docNum), limit(1));
+              const snap = await getDocs(q);
+              if (!snap.empty) foundDoc = { id: snap.docs[0].id, entityKind: 'purchase', ...snap.docs[0].data() };
+            } catch {}
+          }
+          if (!foundDoc && docNum) {
+            const numOnly = docNum.replace(/^[A-Z]+-0*/i, '');
+            if (numOnly) {
+              try {
+                const q = query(collection(db, 'purchases'), where('documentNumber', '==', numOnly), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) foundDoc = { id: snap.docs[0].id, entityKind: 'purchase', ...snap.docs[0].data() };
+              } catch {}
+            }
+          }
+        }
+
+        // 2. Invoice / Sale / Quotation / Order: search 'orders' collection
+        if (!foundDoc && (
+          entType.includes('quotation') ||
+          entType.includes('order') ||
+          entType.includes('sale') ||
+          entType.includes('invoice') ||
+          details.toLowerCase().includes('invoice') ||
+          details.toLowerCase().includes('sale to') ||
+          details.toLowerCase().includes('order') ||
+          (docNum && (docNum.startsWith('QUO') || docNum.startsWith('INV') || docNum.startsWith('CHA') || docNum.startsWith('ORD')))
+        )) {
           if (entityId) {
             try {
               const snap = await getDoc(doc(db, 'orders', entityId));
-              if (snap.exists()) foundDoc = { id: snap.id, ...snap.data() };
+              if (snap.exists()) foundDoc = { id: snap.id, entityKind: 'order', ...snap.data() };
+            } catch {}
+          }
+          if (!foundDoc && docNum) {
+            try {
+              const snapDirect = await getDoc(doc(db, 'orders', docNum));
+              if (snapDirect.exists()) foundDoc = { id: snapDirect.id, entityKind: 'order', ...snapDirect.data() };
             } catch {}
           }
           if (!foundDoc && docNum) {
             try {
               const q = query(collection(db, 'orders'), where('documentNumber', '==', docNum), limit(1));
               const snap = await getDocs(q);
-              if (!snap.empty) {
-                foundDoc = { id: snap.docs[0].id, ...snap.docs[0].data() };
-              }
+              if (!snap.empty) foundDoc = { id: snap.docs[0].id, entityKind: 'order', ...snap.docs[0].data() };
             } catch {}
           }
-        }
-
-        // 2. Product: search 'products' collection
-        if (!foundDoc && (entType.includes('product') || details.toLowerCase().includes('product'))) {
-          if (entityId) {
+          if (!foundDoc && docNum) {
             try {
-              const snap = await getDoc(doc(db, 'products', entityId));
-              if (snap.exists()) foundDoc = { id: snap.id, ...snap.data() };
+              const q = query(collection(db, 'orders'), where('invoiceNumber', '==', docNum), limit(1));
+              const snap = await getDocs(q);
+              if (!snap.empty) foundDoc = { id: snap.docs[0].id, entityKind: 'order', ...snap.docs[0].data() };
             } catch {}
           }
-          if (!foundDoc) {
-            const nameMatch = details.match(/["'](.*?)["']/);
-            if (nameMatch) {
+          if (!foundDoc && docNum) {
+            const numOnly = docNum.replace(/^[A-Z]+-0*/i, '');
+            if (numOnly) {
               try {
-                const q = query(collection(db, 'products'), where('name', '==', nameMatch[1]), limit(1));
+                const q = query(collection(db, 'orders'), where('documentNumber', '==', numOnly), limit(1));
                 const snap = await getDocs(q);
-                if (!snap.empty) foundDoc = { id: snap.docs[0].id, ...snap.docs[0].data() };
+                if (!snap.empty) foundDoc = { id: snap.docs[0].id, entityKind: 'order', ...snap.docs[0].data() };
               } catch {}
             }
           }
         }
 
-        // 3. Customer: search 'customers' collection
+        // 3. Product: search 'products' collection
+        if (!foundDoc && (
+          entType.includes('product') ||
+          details.toLowerCase().includes('product') ||
+          details.toLowerCase().includes('price of')
+        )) {
+          if (entityId) {
+            try {
+              const snap = await getDoc(doc(db, 'products', entityId));
+              if (snap.exists()) foundDoc = { id: snap.id, entityKind: 'product', ...snap.data() };
+            } catch {}
+          }
+          if (!foundDoc && docNum) {
+            try {
+              const snapDirect = await getDoc(doc(db, 'products', docNum));
+              if (snapDirect.exists()) foundDoc = { id: snapDirect.id, entityKind: 'product', ...snapDirect.data() };
+            } catch {}
+          }
+          if (!foundDoc) {
+            const nameMatch = details.match(/["'](.*?)["']/) || details.match(/product\s*:\s*([^,\n(]+)/i) || details.match(/product\s+([^,\n(]+)/i);
+            const prodName = nameMatch ? nameMatch[1].trim() : null;
+            if (prodName) {
+              try {
+                const q = query(collection(db, 'products'), where('name', '==', prodName), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) foundDoc = { id: snap.docs[0].id, entityKind: 'product', ...snap.docs[0].data() };
+              } catch {}
+            }
+          }
+        }
+
+        // 4. Customer: search 'customers' collection
         if (!foundDoc && entType.includes('customer')) {
           if (entityId) {
             try {
               const snap = await getDoc(doc(db, 'customers', entityId));
-              if (snap.exists()) foundDoc = { id: snap.id, ...snap.data() };
+              if (snap.exists()) foundDoc = { id: snap.id, entityKind: 'customer', ...snap.data() };
             } catch {}
           }
         }
@@ -2557,47 +2654,144 @@ _Automated Digest from System Audit Trail_`;
                 </div>
               )}
 
-              {/* Live Resolved Entity Snapshot (For Past Quotations/Orders/Products with no inline log payload) */}
+              {/* Live Resolved Entity Snapshot (For Past Invoices/Purchases/Products/Quotations with no inline log payload) */}
               {!resolvingEntity && resolvedEntityData && (
                 <div className="space-y-4 pt-2 border-t border-slate-100">
                   <div className="flex items-center gap-2 text-xs text-blue-800 font-bold bg-blue-50 px-3.5 py-2 rounded-xl border border-blue-200">
                     <Info size={16} className="text-blue-600 shrink-0" />
                     <span>
-                      Live record data retrieved for {resolvedEntityData.documentNumber ? `#${resolvedEntityData.documentNumber}` : 'referenced record'}. Below are the current details in the system.
+                      Live record data retrieved for {resolvedEntityData.documentNumber ? `#${resolvedEntityData.documentNumber}` : (resolvedEntityData.name || 'referenced record')}. Below are the current details in the system.
                     </span>
                   </div>
 
-                  {/* Customer / Header Info */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                    {resolvedEntityData.customerName && (
-                      <div>
-                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Customer</span>
-                        <span className="font-bold text-slate-800">{resolvedEntityData.customerName}</span>
+                  {/* 1. PRODUCT SNAPSHOT */}
+                  {(resolvedEntityData.entityKind === 'product' || (resolvedEntityData.name && resolvedEntityData.price !== undefined && !resolvedEntityData.items)) && (
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 text-xs">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Product Name</span>
+                          <span className="text-sm font-black text-slate-900">{resolvedEntityData.name}</span>
+                        </div>
+                        {resolvedEntityData.isOutOfStock !== undefined && (
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider",
+                            resolvedEntityData.isOutOfStock ? "bg-rose-100 text-rose-800 border border-rose-200" : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          )}>
+                            {resolvedEntityData.isOutOfStock ? 'Out of Stock' : 'In Stock'}
+                          </span>
+                        )}
                       </div>
-                    )}
-                    {resolvedEntityData.customerPhone && (
-                      <div>
-                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Phone</span>
-                        <span className="font-mono font-bold text-slate-700">{resolvedEntityData.customerPhone}</span>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Sales Price</span>
+                          <span className="font-black text-emerald-700 text-sm">৳{Number(resolvedEntityData.price || 0).toLocaleString()}</span>
+                          {resolvedEntityData.discountPrice && (
+                            <span className="text-[10px] text-slate-400 line-through block">৳{Number(resolvedEntityData.discountPrice).toLocaleString()}</span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Purchase / Cost</span>
+                          <span className="font-bold text-slate-800 text-sm">৳{Number(resolvedEntityData.costPrice || 0).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Current Stock</span>
+                          <span className="font-black text-slate-800 text-sm">{resolvedEntityData.stock ?? 0} <span className="text-xs font-normal text-slate-500">pcs</span></span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Category / Brand</span>
+                          <span className="font-bold text-slate-700 block truncate">{resolvedEntityData.category || 'N/A'}</span>
+                          <span className="text-[10px] text-slate-400 block">{resolvedEntityData.brand || 'No brand'}</span>
+                        </div>
                       </div>
-                    )}
-                    {resolvedEntityData.total !== undefined && (
+
+                      {(resolvedEntityData.barcode || resolvedEntityData.sku) && (
+                        <div className="pt-2 border-t border-slate-200/80 flex items-center gap-4 text-[11px] text-slate-500 font-mono">
+                          {resolvedEntityData.barcode && <span>Barcode: <strong className="text-slate-700">{resolvedEntityData.barcode}</strong></span>}
+                          {resolvedEntityData.sku && <span>SKU: <strong className="text-slate-700">{resolvedEntityData.sku}</strong></span>}
+                          {resolvedEntityData.warrantyMonths > 0 && <span>Warranty: <strong className="text-slate-700">{resolvedEntityData.warrantyMonths} Months</strong></span>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 2. PURCHASE SNAPSHOT */}
+                  {(resolvedEntityData.entityKind === 'purchase' || resolvedEntityData.vendorName) && (
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                       <div>
-                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Grand Total</span>
-                        <span className="font-black text-emerald-700 text-sm">৳{Number(resolvedEntityData.total).toLocaleString()}</span>
+                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Vendor / Supplier</span>
+                        <span className="font-bold text-slate-800">{resolvedEntityData.vendorName || 'Supplier'}</span>
                       </div>
-                    )}
-                    {resolvedEntityData.status && (
                       <div>
-                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Status</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-200 text-slate-700 inline-block mt-0.5">
-                          {resolvedEntityData.status}
+                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Bill Total</span>
+                        <span className="font-black text-slate-900 text-sm">৳{Number(resolvedEntityData.total || resolvedEntityData.subtotal || 0).toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Paid Amount</span>
+                        <span className="font-black text-emerald-700 text-sm">৳{Number(resolvedEntityData.paidAmount || 0).toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Due Amount</span>
+                        <span className="font-black text-rose-600 text-sm">
+                          ৳{Math.max(0, Number(resolvedEntityData.total || 0) - Number(resolvedEntityData.paidAmount || 0)).toLocaleString()}
                         </span>
                       </div>
-                    )}
-                  </div>
+                      {resolvedEntityData.paymentMethod && (
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Payment Method</span>
+                          <span className="font-bold text-slate-700 uppercase text-[11px]">{resolvedEntityData.paymentMethod}</span>
+                        </div>
+                      )}
+                      {resolvedEntityData.paymentStatus && (
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Status</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-200 text-slate-700 inline-block mt-0.5">
+                            {resolvedEntityData.paymentStatus}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                  {/* Items List Table */}
+                  {/* 3. INVOICE / SALE / ORDER / QUOTATION SNAPSHOT */}
+                  {!(resolvedEntityData.entityKind === 'product' || (resolvedEntityData.name && resolvedEntityData.price !== undefined && !resolvedEntityData.items)) && !resolvedEntityData.vendorName && (
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      {resolvedEntityData.customerName && (
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Customer</span>
+                          <span className="font-bold text-slate-800">{resolvedEntityData.customerName}</span>
+                        </div>
+                      )}
+                      {resolvedEntityData.customerPhone && (
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Phone</span>
+                          <span className="font-mono font-bold text-slate-700">{resolvedEntityData.customerPhone}</span>
+                        </div>
+                      )}
+                      {resolvedEntityData.total !== undefined && (
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Grand Total</span>
+                          <span className="font-black text-emerald-700 text-sm">৳{Number(resolvedEntityData.total).toLocaleString()}</span>
+                        </div>
+                      )}
+                      {(resolvedEntityData.paidAmount !== undefined || resolvedEntityData.paid !== undefined) && (
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Paid / Received</span>
+                          <span className="font-bold text-slate-800 text-sm">৳{Number(resolvedEntityData.paidAmount ?? resolvedEntityData.paid ?? 0).toLocaleString()}</span>
+                        </div>
+                      )}
+                      {resolvedEntityData.status && (
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Status</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-200 text-slate-700 inline-block mt-0.5">
+                            {resolvedEntityData.status}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Items List Table (Purchases, Invoices, Orders, Quotations) */}
                   {Array.isArray(resolvedEntityData.items) && resolvedEntityData.items.length > 0 && (
                     <div className="space-y-2">
                       <div className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -2610,14 +2804,16 @@ _Automated Digest from System Audit Trail_`;
                             <tr>
                               <th className="py-2.5 px-3">Product / Item</th>
                               <th className="py-2.5 px-3 text-center">Qty</th>
-                              <th className="py-2.5 px-3 text-right">Unit Price</th>
+                              <th className="py-2.5 px-3 text-right">
+                                {resolvedEntityData.vendorName || resolvedEntityData.entityKind === 'purchase' ? 'Cost / Purchase Price' : 'Unit Price'}
+                              </th>
                               <th className="py-2.5 px-3 text-right">Total (৳)</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {resolvedEntityData.items.map((it: any, idx: number) => {
                               const qty = Number(it.quantity || it.qty || 1);
-                              const price = Number(it.price || it.salesPrice || 0);
+                              const price = Number(it.purchasePrice || it.costPrice || it.price || it.salesPrice || 0);
                               const lineTotal = it.total !== undefined ? Number(it.total) : qty * price;
                               return (
                                 <tr key={idx} className="hover:bg-slate-50 transition-colors">
@@ -2641,55 +2837,69 @@ _Automated Digest from System Audit Trail_`;
                 </div>
               )}
 
-              {/* If newState has items list (e.g. Created Quotation/Order) */}
-              {inspectLog.newState && Array.isArray(inspectLog.newState.items) && inspectLog.newState.items.length > 0 && (
-                <div className="space-y-3 pt-2 border-t border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-700">
-                      <Package size={15} className="text-emerald-600" />
-                      <span>{inspectLog.previousState ? "New / Updated Item List" : "Created Item List"} ({inspectLog.newState.items.length})</span>
-                    </div>
-                    {inspectLog.newState.total !== undefined && (
-                      <span className="px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-black text-xs border border-emerald-200">
-                        Total: ৳{Number(inspectLog.newState.total).toLocaleString()}
-                      </span>
-                    )}
-                  </div>
+              {/* If newState or previousState has items list (e.g. Created Quotation/Order/Purchase) */}
+              {(() => {
+                const stateWithItems = (inspectLog.newState && Array.isArray(inspectLog.newState.items) && inspectLog.newState.items.length > 0)
+                  ? inspectLog.newState
+                  : (inspectLog.previousState && Array.isArray(inspectLog.previousState.items) && inspectLog.previousState.items.length > 0)
+                    ? inspectLog.previousState
+                    : null;
+                
+                if (!stateWithItems) return null;
+                const itemsList = stateWithItems.items as any[];
+                const isPurchase = Boolean(stateWithItems.vendorName || (inspectLog.entityType || '').toLowerCase().includes('purchase'));
 
-                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-slate-100 text-slate-600 font-black uppercase text-[10px] tracking-wider border-b border-slate-200">
-                        <tr>
-                          <th className="py-2.5 px-3">Product / Item</th>
-                          <th className="py-2.5 px-3 text-center">Qty</th>
-                          <th className="py-2.5 px-3 text-right">Price</th>
-                          <th className="py-2.5 px-3 text-right">Total (৳)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {inspectLog.newState.items.map((it: any, idx: number) => {
-                          const qty = Number(it.quantity || it.qty || 1);
-                          const price = Number(it.price || it.salesPrice || 0);
-                          const lineTotal = it.total !== undefined ? Number(it.total) : qty * price;
-                          return (
-                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                              <td className="py-2.5 px-3">
-                                <div className="font-bold text-slate-800">
-                                  {it.name || it.productName || it.title || 'Item'}
-                                </div>
-                                {it.sku && <div className="text-[10px] text-slate-400 font-mono">SKU: {it.sku}</div>}
-                              </td>
-                              <td className="py-2.5 px-3 text-center font-bold text-slate-700">{qty}</td>
-                              <td className="py-2.5 px-3 text-right font-medium text-slate-600">৳{price.toLocaleString()}</td>
-                              <td className="py-2.5 px-3 text-right font-black text-slate-900">৳{lineTotal.toLocaleString()}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                return (
+                  <div className="space-y-3 pt-2 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-700">
+                        <Package size={15} className="text-emerald-600" />
+                        <span>
+                          {inspectLog.previousState && inspectLog.newState ? "Updated Items Payload" : "Recorded Items List"} ({itemsList.length})
+                        </span>
+                      </div>
+                      {stateWithItems.total !== undefined && (
+                        <span className="px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-black text-xs border border-emerald-200">
+                          Total: ৳{Number(stateWithItems.total).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100 text-slate-600 font-black uppercase text-[10px] tracking-wider border-b border-slate-200">
+                          <tr>
+                            <th className="py-2.5 px-3">Product / Item</th>
+                            <th className="py-2.5 px-3 text-center">Qty</th>
+                            <th className="py-2.5 px-3 text-right">{isPurchase ? 'Cost / Purchase Price' : 'Price'}</th>
+                            <th className="py-2.5 px-3 text-right">Total (৳)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {itemsList.map((it: any, idx: number) => {
+                            const qty = Number(it.quantity || it.qty || 1);
+                            const price = Number(it.purchasePrice || it.costPrice || it.price || it.salesPrice || 0);
+                            const lineTotal = it.total !== undefined ? Number(it.total) : qty * price;
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                <td className="py-2.5 px-3">
+                                  <div className="font-bold text-slate-800">
+                                    {it.name || it.productName || it.title || 'Item'}
+                                  </div>
+                                  {it.sku && <div className="text-[10px] text-slate-400 font-mono">SKU: {it.sku}</div>}
+                                </td>
+                                <td className="py-2.5 px-3 text-center font-bold text-slate-700">{qty}</td>
+                                <td className="py-2.5 px-3 text-right font-medium text-slate-600">৳{price.toLocaleString()}</td>
+                                <td className="py-2.5 px-3 text-right font-black text-slate-900">৳{lineTotal.toLocaleString()}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Visual Diff / State Payload */}
               {(inspectLog.previousState || inspectLog.newState) && (() => {

@@ -313,9 +313,29 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
           {
             entityId: editingId,
             previousState: existingProd
-              ? { name: existingProd.name, price: oldPrice, discountPrice: oldDiscount ?? null, stock: existingProd.stock }
+              ? {
+                  name: existingProd.name,
+                  price: oldPrice,
+                  costPrice: (existingProd as any).costPrice ?? null,
+                  discountPrice: oldDiscount ?? null,
+                  stock: existingProd.stock,
+                  category: existingProd.category ?? null,
+                  brand: (existingProd as any).brand ?? null,
+                  sku: (existingProd as any).sku || (existingProd as any).barcode || null,
+                  isOutOfStock: (existingProd as any).isOutOfStock ?? false,
+                }
               : undefined,
-            newState: { name: formData.name, price: newPrice, discountPrice: newDiscount ?? null, stock: formData.stock }
+            newState: {
+              name: formData.name,
+              price: newPrice,
+              costPrice: (formData as any).costPrice ?? null,
+              discountPrice: newDiscount ?? null,
+              stock: formData.stock,
+              category: formData.category ?? null,
+              brand: (formData as any).brand ?? null,
+              sku: (formData as any).sku || (formData as any).barcode || null,
+              isOutOfStock: (formData as any).isOutOfStock ?? false,
+            }
           }
         );
         toast.success('Product updated successfully!');

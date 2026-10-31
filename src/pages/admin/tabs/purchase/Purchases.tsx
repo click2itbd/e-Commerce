@@ -1084,14 +1084,33 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
       toast.success(`Purchase #${docNumber} recorded & inventory restocked successfully!`);
 
       // Log purchase to Audit Trail
+      const isPurchaseEdit = Boolean(purchaseForm.id);
+      const oldPurchaseRecord = isPurchaseEdit ? purchaseHistory.find((p: any) => p.id === purchaseForm.id) : null;
       await logAudit(
-        'CREATE',
+        isPurchaseEdit ? 'EDIT' : 'CREATE',
         'Purchase',
-        `Recorded Purchase #${docNumber} from ${purchaseForm.vendorName} (Total: ৳${billTotal}, Paid: ৳${paid}, Items: ${purchaseForm.items.length})`,
+        `${isPurchaseEdit ? 'Updated' : 'Recorded'} Purchase #${docNumber} from ${purchaseForm.vendorName} (Total: ৳${billTotal}, Paid: ৳${paid}, Items: ${purchaseForm.items.length})`,
         purchaseForm.createdBy || profile?.displayName || profile?.email || 'Admin',
         {
           entityId: purchaseDocRef.id,
-          newState: { documentNumber: docNumber, total: billTotal, paidAmount: paid, vendorName: purchaseForm.vendorName, itemsCount: purchaseForm.items.length }
+          previousState: oldPurchaseRecord ? {
+            documentNumber: oldPurchaseRecord.documentNumber || docNumber,
+            vendorName: oldPurchaseRecord.vendorName,
+            total: oldPurchaseRecord.total,
+            paidAmount: oldPurchaseRecord.paidAmount,
+            dueAmount: oldPurchaseRecord.dueAmount,
+            items: oldPurchaseRecord.items
+          } : undefined,
+          newState: {
+            documentNumber: docNumber,
+            vendorName: purchaseForm.vendorName,
+            total: billTotal,
+            paidAmount: paid,
+            dueAmount: Math.max(0, billTotal - paid),
+            items: purchaseForm.items,
+            paymentMethod: purchaseForm.paymentMethod,
+            createdBy: purchaseForm.createdBy
+          }
         }
       );
 
