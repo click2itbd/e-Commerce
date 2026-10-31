@@ -1213,22 +1213,24 @@ _Automated Digest from System Audit Trail_`;
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
         
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider">
-              <Shield size={14} className="text-blue-400" />
-              Enterprise Audit Engine (Immutable)
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-1" title="Real-time Active" />
+        <div className="relative z-10 space-y-5">
+          {/* Header Title & Details */}
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider w-fit whitespace-nowrap">
+              <Shield size={14} className="text-blue-400 shrink-0" />
+              <span>Enterprise Audit Engine (Immutable)</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0 ml-0.5" title="Real-time Active" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
               System Audit Logs & Security Radar
             </h1>
-            <p className="text-sm text-slate-300 leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-3xl">
               Tamper-proof, append-only record of all administrative activities, product price changes, role updates, and anomaly detection with IP and User-Agent tracking.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {/* Action Ribbon Controls */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-white/10">
             {/* Live Stream Real-time Toggle */}
             <button
               onClick={() => {
@@ -1236,7 +1238,7 @@ _Automated Digest from System Audit Trail_`;
                 toast.success(isLiveStream ? 'Live streaming paused' : 'Live streaming activated');
               }}
               className={cn(
-                "px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm",
+                "px-3.5 py-2 rounded-xl border text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm",
                 isLiveStream
                   ? "bg-emerald-950/60 border-emerald-500/60 text-emerald-300 hover:bg-emerald-900/60"
                   : "bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white"
@@ -1256,7 +1258,7 @@ _Automated Digest from System Audit Trail_`;
             <button
               onClick={toggleSound}
               className={cn(
-                "px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm",
+                "px-3.5 py-2 rounded-xl border text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm",
                 soundEnabled
                   ? "bg-blue-950/60 border-blue-500/60 text-blue-300 hover:bg-blue-900/60"
                   : "bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white"
@@ -1270,47 +1272,47 @@ _Automated Digest from System Audit Trail_`;
             <button
               onClick={() => fetchLogs(true)}
               disabled={refreshing}
-              className="px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+              className="px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
               title="Refresh Logs"
             >
-              <RefreshCw size={16} className={cn("transition-transform", refreshing && "animate-spin text-blue-400")} />
+              <RefreshCw size={15} className={cn("transition-transform", refreshing && "animate-spin text-blue-400")} />
               <span>Refresh</span>
             </button>
 
             <button
               onClick={() => setIsDigestModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-bold flex items-center gap-2 transition-all shadow-md shadow-indigo-950/40"
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-md shadow-indigo-950/40"
               title="Daily Business & Security Digest"
             >
-              <MessageSquare size={16} className="text-purple-200" />
+              <MessageSquare size={15} className="text-purple-200" />
               <span>Daily Digest</span>
             </button>
 
             <button
               onClick={handleExportPDF}
-              className="px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+              className="px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
               title="Export Official Audit Report to PDF"
             >
-              <FileText size={16} className="text-rose-400" />
+              <FileText size={15} className="text-rose-400" />
               <span>Export PDF</span>
             </button>
 
             <button
               onClick={handleExportCSV}
-              className="px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+              className="px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
               title="Export Filtered Logs to CSV"
             >
-              <Download size={16} className="text-emerald-400" />
+              <Download size={15} className="text-emerald-400" />
               <span>Export CSV</span>
             </button>
 
             {isAdmin && (
               <button
                 onClick={() => setIsPurgeModalOpen(true)}
-                className="px-4 py-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-800/60 text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+                className="px-3.5 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-800/60 text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm ml-auto"
                 title="Purge & Retention Settings"
               >
-                <Trash2 size={16} className="text-rose-400" />
+                <Trash2 size={15} className="text-rose-400" />
                 <span>Retention & Purge</span>
               </button>
             )}
