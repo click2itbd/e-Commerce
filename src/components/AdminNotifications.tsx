@@ -122,7 +122,7 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     }
   };
 
-  const [activeFilter, setActiveFilter] = useState<'all' | 'alerts' | 'orders' | 'hosting' | 'support' | 'stock'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'alerts' | 'tasks' | 'orders' | 'hosting' | 'support' | 'stock'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -473,6 +473,9 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
     } else if (notif.category === 'stock') {
       if (currentPath !== '/admin/e-commerce') window.location.href = '/admin/e-commerce?tab=inventory';
       else if (setActiveTab) setActiveTab('inventory');
+    } else if (notif.category === 'tasks' || notif.targetTab === 'tasks') {
+      if (currentPath !== '/admin') window.location.href = '/admin?tab=tasks';
+      else if (setActiveTab) setActiveTab('tasks');
     } else if (setActiveTab && notif.targetTab) {
       setActiveTab(notif.targetTab);
     }
@@ -592,6 +595,18 @@ export const AdminNotifications: React.FC<AdminNotificationsProps> = ({ setActiv
               )}
             >
               <AlertTriangle size={12} /> Alerts ({visibleNotifications.filter(n => n.category === 'alerts').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter('tasks')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all shrink-0 flex items-center gap-1",
+                activeFilter === 'tasks' 
+                  ? "bg-indigo-600 text-white shadow-sm font-black" 
+                  : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200"
+              )}
+            >
+              <CheckSquare size={12} /> Tasks ({visibleNotifications.filter(n => n.category === 'tasks').length})
             </button>
             <button
               type="button"

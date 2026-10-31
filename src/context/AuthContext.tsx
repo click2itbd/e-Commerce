@@ -93,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     if (isAdmin) return true;
+    if ((permission as string) === 'tasks' && (isStaff || isManager)) return true;
     if (!profile?.permissions) return false;
     
     // Exact match

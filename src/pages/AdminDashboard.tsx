@@ -619,9 +619,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     openingBalance: 0,
     status: "active",
   });
-  const [activeTab, setActiveTab] = useState<any>(
-    () => sessionStorage.getItem("adminActiveTab") || "dashboard",
-  );
+  const [activeTab, setActiveTab] = useState<any>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabFromUrl = params.get("tab");
+      if (tabFromUrl) return tabFromUrl;
+    } catch {}
+    return sessionStorage.getItem("adminActiveTab") || "dashboard";
+  });
   const [editingOrderForSales, setEditingOrderForSalesState] = useState<any | null>(() => {
     try {
       const saved = sessionStorage.getItem('adminEditingOrder');
@@ -5312,15 +5317,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </>
           )}
 
-          {/* System & Settings */}
-          {(!isStaff || isAdmin || isManager) && (
-            <div className="px-4 mb-6">
-              {!isSidebarCollapsed && (
-                <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">
-                  System & Settings
-                </div>
-              )}
+          {/* System & Settings (Accessible to Admin, Manager & Staff) */}
+          <div className="px-4 mb-6">
+            {!isSidebarCollapsed && (
+              <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">
+                System & Settings
+              </div>
+            )}
 
+            {(!isStaff || isAdmin || isManager || hasPermission("crm" as any)) && (
               <button
                 onClick={() => setActiveTab("crm")}
                 className={cn(
@@ -5343,82 +5348,82 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <span className="truncate">CRM System</span>
                 )}
               </button>
+            )}
+            <button
+              onClick={() => setActiveTab("tasks")}
+              className={cn(
+                "w-full flex items-center rounded-md text-[13px] transition-colors",
+                isSidebarCollapsed
+                  ? "justify-center py-2"
+                  : "gap-3 px-3 py-2",
+                activeTab === "tasks"
+                  ? "text-blue-600 font-bold bg-blue-50"
+                  : "text-gray-600 hover:bg-gray-50",
+              )}
+            >
+              <CheckCircle
+                size={16}
+                className={
+                  activeTab === "tasks" ? "text-blue-600" : "text-gray-400"
+                }
+              />{" "}
+              {!isSidebarCollapsed && (
+                <span className="truncate">To-Do List</span>
+              )}
+            </button>
+            {isAdmin && (
               <button
-                onClick={() => setActiveTab("tasks")}
+                onClick={() => setActiveTab("audit_logs")}
                 className={cn(
                   "w-full flex items-center rounded-md text-[13px] transition-colors",
                   isSidebarCollapsed
                     ? "justify-center py-2"
                     : "gap-3 px-3 py-2",
-                  activeTab === "tasks"
+                  activeTab === "audit_logs"
+                    ? "text-red-600 font-bold bg-red-50"
+                    : "text-gray-600 hover:bg-gray-50",
+                )}
+              >
+                <ShieldAlert
+                  size={16}
+                  className={
+                    activeTab === "audit_logs"
+                      ? "text-red-600"
+                      : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">Audit Logs</span>
+                )}
+              </button>
+            )}
+            {(!isStaff || isAdmin || isManager) && hasPermission("settings") && (
+              <button
+                onClick={() => setActiveTab("settings")}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed
+                    ? "justify-center py-2"
+                    : "gap-3 px-3 py-2",
+                  activeTab === "settings"
                     ? "text-blue-600 font-bold bg-blue-50"
                     : "text-gray-600 hover:bg-gray-50",
                 )}
               >
-                <CheckCircle
+                <Settings
                   size={16}
                   className={
-                    activeTab === "tasks" ? "text-blue-600" : "text-gray-400"
+                    activeTab === "settings"
+                      ? "text-blue-600"
+                      : "text-gray-400"
                   }
                 />{" "}
                 {!isSidebarCollapsed && (
-                  <span className="truncate">To-Do List</span>
+                  <span className="truncate">Settings</span>
                 )}
               </button>
-              {isAdmin && (
-                <button
-                  onClick={() => setActiveTab("audit_logs")}
-                  className={cn(
-                    "w-full flex items-center rounded-md text-[13px] transition-colors",
-                    isSidebarCollapsed
-                      ? "justify-center py-2"
-                      : "gap-3 px-3 py-2",
-                    activeTab === "audit_logs"
-                      ? "text-red-600 font-bold bg-red-50"
-                      : "text-gray-600 hover:bg-gray-50",
-                  )}
-                >
-                  <ShieldAlert
-                    size={16}
-                    className={
-                      activeTab === "audit_logs"
-                        ? "text-red-600"
-                        : "text-gray-400"
-                    }
-                  />{" "}
-                  {!isSidebarCollapsed && (
-                    <span className="truncate">Audit Logs</span>
-                  )}
-                </button>
-              )}
-              {hasPermission("settings") && (
-                <button
-                  onClick={() => setActiveTab("settings")}
-                  className={cn(
-                    "w-full flex items-center rounded-md text-[13px] transition-colors",
-                    isSidebarCollapsed
-                      ? "justify-center py-2"
-                      : "gap-3 px-3 py-2",
-                    activeTab === "settings"
-                      ? "text-blue-600 font-bold bg-blue-50"
-                      : "text-gray-600 hover:bg-gray-50",
-                  )}
-                >
-                  <Settings
-                    size={16}
-                    className={
-                      activeTab === "settings"
-                        ? "text-blue-600"
-                        : "text-gray-400"
-                    }
-                  />{" "}
-                  {!isSidebarCollapsed && (
-                    <span className="truncate">Settings</span>
-                  )}
-                </button>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
         <div className="p-4 border-t border-gray-100 shrink-0 mt-auto flex flex-col gap-2">
           {(!isStaff || isAdmin || isManager) && (
@@ -5539,12 +5544,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <div className="p-2">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider px-3 py-1.5">Quick Access</p>
                         {[
-                          { icon: '??', label: 'Dashboard', tab: 'dashboard' },
-                          { icon: '??', label: 'New Sale', tab: 'sales' },
-                          { icon: '??', label: 'Inventory', tab: 'inventory' },
-                          { icon: '??', label: 'Customer Due List', tab: 'customer_due_list' },
-                          { icon: '??', label: 'Sales Report', tab: 'reports' },
-                          { icon: '??', label: 'Settings', tab: 'settings' },
+                          { icon: '📊', label: 'Dashboard', tab: 'dashboard' },
+                          { icon: '🛒', label: 'New Sale', tab: 'sales' },
+                          { icon: '✅', label: 'To-Do List (Tasks)', tab: 'tasks' },
+                          { icon: '📦', label: 'Inventory', tab: 'inventory' },
+                          { icon: '📋', label: 'Customer Due List', tab: 'customer_due_list' },
+                          { icon: '📈', label: 'Sales Report', tab: 'reports' },
+                          ...(isAdmin || isManager ? [{ icon: '⚙️', label: 'Settings', tab: 'settings' }] : []),
                         ].map(item => (
                           <button
                             key={item.tab}

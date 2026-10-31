@@ -185,7 +185,7 @@ export default function TaskManager() {
 
   // Format WhatsApp Link
   const getWhatsAppUrl = (task: Task | typeof formData, assigneeUser?: UserProfile | null) => {
-    const phone = assigneeUser?.phoneNumber || (assigneeUser as any)?.phone || '';
+    const phone = (assigneeUser as any)?.phoneNumber || (assigneeUser as any)?.phone || '';
     let cleanPhone = (phone || '').replace(/[^0-9]/g, '');
     if (cleanPhone.length === 11 && cleanPhone.startsWith('01')) {
       cleanPhone = '88' + cleanPhone;
@@ -204,7 +204,7 @@ export default function TaskManager() {
       (task.description ? `📝 *Details:* ${task.description}\n` : '') +
       checklistText +
       `\n━━━━━━━━━━━━━━━━━━━\n` +
-      `👉 *Open Admin Dashboard:* ${typeof window !== 'undefined' ? window.location.origin : ''}/admin`;
+      `👉 *Open Task Manager:* ${typeof window !== 'undefined' ? window.location.origin : ''}/admin?tab=tasks`;
 
     const encoded = encodeURIComponent(message);
     if (cleanPhone) {
