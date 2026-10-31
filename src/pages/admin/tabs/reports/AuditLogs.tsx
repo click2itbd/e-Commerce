@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, query, orderBy, getDocs, limit, deleteDoc, doc, writeBatch, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, limit, deleteDoc, doc, writeBatch, updateDoc, onSnapshot, getDoc, where } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
@@ -47,6 +47,8 @@ export const AuditLogs: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewMode>('logs');
   const [tableDensity, setTableDensity] = useState<'normal' | 'compact'>('normal');
   const [inspectLog, setInspectLog] = useState<AuditLogItem | null>(null);
+  const [resolvedEntityData, setResolvedEntityData] = useState<any | null>(null);
+  const [resolvingEntity, setResolvingEntity] = useState<boolean>(false);
   const [certModalLog, setCertModalLog] = useState<AuditLogItem | null>(null);
   const [isPurgeModalOpen, setIsPurgeModalOpen] = useState(false);
   const [purgeOption, setPurgeOption] = useState<'30' | '60' | '90' | 'all_filtered'>('30');
@@ -145,6 +147,98 @@ export const AuditLogs: React.FC = () => {
 
     return () => unsubscribe();
   }, [isLiveStream, soundEnabled]);
+
+  // Auto-resolve referenced entity details if log has no embedded state
+  useEffect(() => {
+    if (!inspectLog) {
+      setResolvedEntityData(null);
+      setResolvingEntity(false);
+      return;
+    }
+
+    if (inspectLog.previousState || inspectLog.newState) {
+      setResolvedEntityData(null);
+      setResolvingEntity(false);
+      return;
+    }
+
+    let isMounted = true;
+    const resolveEntity = async () => {
+      try {
+        setResolvingEntity(true);
+        const entType = (inspectLog.entityType || '').toLowerCase();
+        const details = inspectLog.details || '';
+        
+        const docMatch = details.match(/#?([A-Z]{2,4}-\d+)/i) || details.match(/#([a-zA-Z0-9_-]+)/);
+        const docNum = docMatch ? docMatch[1].toUpperCase() : null;
+        const entityId = inspectLog.entityId;
+
+        let foundDoc: any = null;
+
+        // 1. Quotation or Order/Sale: search 'orders' collection
+        if (entType.includes('quotation') || entType.includes('order') || entType.includes('sale') || (docNum && (docNum.startsWith('QUO') || docNum.startsWith('INV')))) {
+          if (entityId) {
+            try {
+              const snap = await getDoc(doc(db, 'orders', entityId));
+              if (snap.exists()) foundDoc = { id: snap.id, ...snap.data() };
+            } catch {}
+          }
+          if (!foundDoc && docNum) {
+            try {
+              const q = query(collection(db, 'orders'), where('documentNumber', '==', docNum), limit(1));
+              const snap = await getDocs(q);
+              if (!snap.empty) {
+                foundDoc = { id: snap.docs[0].id, ...snap.docs[0].data() };
+              }
+            } catch {}
+          }
+        }
+
+        // 2. Product: search 'products' collection
+        if (!foundDoc && (entType.includes('product') || details.toLowerCase().includes('product'))) {
+          if (entityId) {
+            try {
+              const snap = await getDoc(doc(db, 'products', entityId));
+              if (snap.exists()) foundDoc = { id: snap.id, ...snap.data() };
+            } catch {}
+          }
+          if (!foundDoc) {
+            const nameMatch = details.match(/["'](.*?)["']/);
+            if (nameMatch) {
+              try {
+                const q = query(collection(db, 'products'), where('name', '==', nameMatch[1]), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) foundDoc = { id: snap.docs[0].id, ...snap.docs[0].data() };
+              } catch {}
+            }
+          }
+        }
+
+        // 3. Customer: search 'customers' collection
+        if (!foundDoc && entType.includes('customer')) {
+          if (entityId) {
+            try {
+              const snap = await getDoc(doc(db, 'customers', entityId));
+              if (snap.exists()) foundDoc = { id: snap.id, ...snap.data() };
+            } catch {}
+          }
+        }
+
+        if (isMounted) {
+          setResolvedEntityData(foundDoc);
+        }
+      } catch (err) {
+        console.error('Failed to resolve audit entity:', err);
+      } finally {
+        if (isMounted) {
+          setResolvingEntity(false);
+        }
+      }
+    };
+
+    resolveEntity();
+    return () => { isMounted = false; };
+  }, [inspectLog]);
 
   const fetchLogs = async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
@@ -2360,7 +2454,7 @@ _Automated Digest from System Audit Trail_`;
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className={cn(
             "bg-white rounded-2xl shadow-2xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200 transition-all",
-            (inspectLog.previousState || inspectLog.newState) ? "max-w-4xl" : "max-w-2xl"
+            (inspectLog.previousState || inspectLog.newState || resolvedEntityData) ? "max-w-4xl" : "max-w-2xl"
           )}>
             <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -2451,6 +2545,148 @@ _Automated Digest from System Audit Trail_`;
                   </label>
                   <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600 font-mono break-all leading-relaxed">
                     {inspectLog.userAgent}
+                  </div>
+                </div>
+              )}
+
+              {/* If Currently Resolving Entity */}
+              {resolvingEntity && (
+                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                  <Loader2 size={24} className="animate-spin text-blue-600 mx-auto" />
+                  <p className="text-xs font-bold text-slate-700">Looking up referenced record details from database...</p>
+                </div>
+              )}
+
+              {/* Live Resolved Entity Snapshot (For Past Quotations/Orders/Products with no inline log payload) */}
+              {!resolvingEntity && resolvedEntityData && (
+                <div className="space-y-4 pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-2 text-xs text-blue-800 font-bold bg-blue-50 px-3.5 py-2 rounded-xl border border-blue-200">
+                    <Info size={16} className="text-blue-600 shrink-0" />
+                    <span>
+                      Live record data retrieved for {resolvedEntityData.documentNumber ? `#${resolvedEntityData.documentNumber}` : 'referenced record'}. Below are the current details in the system.
+                    </span>
+                  </div>
+
+                  {/* Customer / Header Info */}
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    {resolvedEntityData.customerName && (
+                      <div>
+                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Customer</span>
+                        <span className="font-bold text-slate-800">{resolvedEntityData.customerName}</span>
+                      </div>
+                    )}
+                    {resolvedEntityData.customerPhone && (
+                      <div>
+                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Phone</span>
+                        <span className="font-mono font-bold text-slate-700">{resolvedEntityData.customerPhone}</span>
+                      </div>
+                    )}
+                    {resolvedEntityData.total !== undefined && (
+                      <div>
+                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Grand Total</span>
+                        <span className="font-black text-emerald-700 text-sm">৳{Number(resolvedEntityData.total).toLocaleString()}</span>
+                      </div>
+                    )}
+                    {resolvedEntityData.status && (
+                      <div>
+                        <span className="text-slate-400 font-bold uppercase text-[10px] block">Status</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-200 text-slate-700 inline-block mt-0.5">
+                          {resolvedEntityData.status}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Items List Table */}
+                  {Array.isArray(resolvedEntityData.items) && resolvedEntityData.items.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <Package size={14} className="text-blue-500" />
+                        <span>Included Items & Products ({resolvedEntityData.items.length})</span>
+                      </div>
+                      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-slate-100 text-slate-600 font-black uppercase text-[10px] tracking-wider border-b border-slate-200">
+                            <tr>
+                              <th className="py-2.5 px-3">Product / Item</th>
+                              <th className="py-2.5 px-3 text-center">Qty</th>
+                              <th className="py-2.5 px-3 text-right">Unit Price</th>
+                              <th className="py-2.5 px-3 text-right">Total (৳)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {resolvedEntityData.items.map((it: any, idx: number) => {
+                              const qty = Number(it.quantity || it.qty || 1);
+                              const price = Number(it.price || it.salesPrice || 0);
+                              const lineTotal = it.total !== undefined ? Number(it.total) : qty * price;
+                              return (
+                                <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                  <td className="py-2.5 px-3">
+                                    <div className="font-bold text-slate-800">
+                                      {it.name || it.productName || it.title || 'Item'}
+                                    </div>
+                                    {it.sku && <div className="text-[10px] text-slate-400 font-mono">SKU: {it.sku}</div>}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center font-bold text-slate-700">{qty}</td>
+                                  <td className="py-2.5 px-3 text-right font-medium text-slate-600">৳{price.toLocaleString()}</td>
+                                  <td className="py-2.5 px-3 text-right font-black text-slate-900">৳{lineTotal.toLocaleString()}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* If newState has items list (e.g. Created Quotation/Order) */}
+              {inspectLog.newState && Array.isArray(inspectLog.newState.items) && inspectLog.newState.items.length > 0 && (
+                <div className="space-y-3 pt-2 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-700">
+                      <Package size={15} className="text-emerald-600" />
+                      <span>{inspectLog.previousState ? "New / Updated Item List" : "Created Item List"} ({inspectLog.newState.items.length})</span>
+                    </div>
+                    {inspectLog.newState.total !== undefined && (
+                      <span className="px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-black text-xs border border-emerald-200">
+                        Total: ৳{Number(inspectLog.newState.total).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-100 text-slate-600 font-black uppercase text-[10px] tracking-wider border-b border-slate-200">
+                        <tr>
+                          <th className="py-2.5 px-3">Product / Item</th>
+                          <th className="py-2.5 px-3 text-center">Qty</th>
+                          <th className="py-2.5 px-3 text-right">Price</th>
+                          <th className="py-2.5 px-3 text-right">Total (৳)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {inspectLog.newState.items.map((it: any, idx: number) => {
+                          const qty = Number(it.quantity || it.qty || 1);
+                          const price = Number(it.price || it.salesPrice || 0);
+                          const lineTotal = it.total !== undefined ? Number(it.total) : qty * price;
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                              <td className="py-2.5 px-3">
+                                <div className="font-bold text-slate-800">
+                                  {it.name || it.productName || it.title || 'Item'}
+                                </div>
+                                {it.sku && <div className="text-[10px] text-slate-400 font-mono">SKU: {it.sku}</div>}
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-bold text-slate-700">{qty}</td>
+                              <td className="py-2.5 px-3 text-right font-medium text-slate-600">৳{price.toLocaleString()}</td>
+                              <td className="py-2.5 px-3 text-right font-black text-slate-900">৳{lineTotal.toLocaleString()}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
@@ -2634,6 +2870,19 @@ _Automated Digest from System Audit Trail_`;
                   </div>
                 );
               })()}
+
+              {/* If no state data and not found in DB */}
+              {!resolvingEntity && !resolvedEntityData && !inspectLog.previousState && !inspectLog.newState && (
+                <div className="p-5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 space-y-1">
+                  <div className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <Info size={14} className="text-slate-400" />
+                    <span>Historical Log Entry</span>
+                  </div>
+                  <p>
+                    This event was logged before detailed payload tracking was activated or the referenced record is no longer present. All ongoing and future Create/Edit actions now record complete before-and-after item payloads automatically.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">

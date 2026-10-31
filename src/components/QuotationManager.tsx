@@ -253,6 +253,7 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
       const finalTotal = Math.max(0, subtotal - formData.discountAmount);
 
       if (viewMode === 'edit' && editingId) {
+        const prevQuote = quotations.find(q => q.id === editingId);
         const updateData = {
           customerName: formData.customerName,
           workOrderNumber: formData.workOrderNumber,
@@ -268,7 +269,37 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
           preparedBy: (formData as any).preparedBy || ''
         };
         await updateDoc(doc(db, 'orders', editingId), updateData);
-        await logAudit('EDIT', 'Quotation', `Edited quotation #${formData.documentNumber || editingId}`, profile?.displayName || profile?.email || 'Admin');
+        await logAudit(
+          'EDIT',
+          'Quotation',
+          `Edited quotation #${formData.documentNumber || editingId} for ${formData.customerName || 'Customer'} (Total: ৳${finalTotal.toLocaleString()}, Items: ${formData.items.length})`,
+          profile?.displayName || profile?.email || 'Admin',
+          {
+            entityId: editingId,
+            previousState: prevQuote ? {
+              customerName: prevQuote.customerName,
+              customerPhone: prevQuote.customerPhone,
+              customerEmail: prevQuote.customerEmail,
+              total: prevQuote.total,
+              items: prevQuote.items,
+              discountAmount: prevQuote.discountAmount,
+              status: prevQuote.status,
+              validUntil: prevQuote.validUntil,
+              preparedBy: (prevQuote as any).preparedBy || ''
+            } : undefined,
+            newState: {
+              customerName: formData.customerName,
+              customerPhone: formData.customerPhone,
+              customerEmail: formData.customerEmail,
+              total: finalTotal,
+              items: formData.items,
+              discountAmount: formData.discountAmount,
+              status: formData.status,
+              validUntil: formData.validUntil,
+              preparedBy: (formData as any).preparedBy || ''
+            }
+          }
+        );
         setQuotations(quotations.map(q => q.id === editingId ? { ...q, ...updateData } : q));
         toast.success('Quotation updated successfully!');
       } else {
@@ -294,7 +325,27 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
         const docRef = await addDoc(collection(db, 'orders'), newQuotation);
         setQuotations([{ id: docRef.id, ...newQuotation } as Order, ...quotations]);
         toast.success(`Quotation #${docNumber} created!`);
-        await logAudit('CREATE', 'Quotation', `Created quotation #${docNumber}`, profile?.displayName || profile?.email || 'Admin');
+        await logAudit(
+          'CREATE',
+          'Quotation',
+          `Created quotation #${docNumber} for ${formData.customerName || 'Customer'} (Total: ৳${finalTotal.toLocaleString()}, Items: ${formData.items.length})`,
+          profile?.displayName || profile?.email || 'Admin',
+          {
+            entityId: docRef.id,
+            newState: {
+              documentNumber: docNumber,
+              customerName: formData.customerName,
+              customerPhone: formData.customerPhone,
+              customerEmail: formData.customerEmail,
+              total: finalTotal,
+              items: formData.items,
+              discountAmount: formData.discountAmount,
+              status: 'pending',
+              validUntil: formData.validUntil,
+              preparedBy: (formData as any).preparedBy || ''
+            }
+          }
+        );
       }
 
       setViewMode('list');
@@ -309,9 +360,24 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this quotation permanently?')) return;
     try {
-      await deleteDoc(doc(db, 'orders', id));
       const deletedQuote = quotations.find(q => q.id === id);
-      await logAudit('DELETE', 'Quotation', `Deleted quotation #${deletedQuote?.documentNumber || id}`, profile?.displayName || profile?.email || 'Admin');
+      await deleteDoc(doc(db, 'orders', id));
+      await logAudit(
+        'DELETE',
+        'Quotation',
+        `Deleted quotation #${deletedQuote?.documentNumber || id}`,
+        profile?.displayName || profile?.email || 'Admin',
+        {
+          entityId: id,
+          previousState: deletedQuote ? {
+            documentNumber: deletedQuote.documentNumber,
+            customerName: deletedQuote.customerName,
+            customerPhone: deletedQuote.customerPhone,
+            total: deletedQuote.total,
+            items: deletedQuote.items
+          } : undefined
+        }
+      );
       setQuotations(quotations.filter(q => q.id !== id));
       if (editingId === id && viewMode !== 'list') {
         setViewMode('list');
@@ -326,11 +392,22 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
   // Quick Status changer
   const handleQuickStatusChange = async (quotationId: string, newStatus: string) => {
     try {
+      const targetQuote = quotations.find(q => q.id === quotationId);
       setQuotations(prev => prev.map(q => q.id === quotationId ? { ...q, status: newStatus as any } : q));
       await updateDoc(doc(db, 'orders', quotationId), { status: newStatus });
       setActiveStatusDropdownId(null);
       toast.success(`Marked as ${newStatus.toUpperCase()}`);
-      await logAudit('STATUS_CHANGE', 'Quotation', `Updated status of #${quotationId} to ${newStatus}`, profile?.displayName || 'Admin');
+      await logAudit(
+        'STATUS_CHANGE',
+        'Quotation',
+        `Updated status of #${targetQuote?.documentNumber || quotationId} to ${newStatus.toUpperCase()}`,
+        profile?.displayName || 'Admin',
+        {
+          entityId: quotationId,
+          previousState: { status: targetQuote?.status || 'unknown' },
+          newState: { status: newStatus }
+        }
+      );
     } catch (err) {
       console.error(err);
       toast.error('Failed to update status');
