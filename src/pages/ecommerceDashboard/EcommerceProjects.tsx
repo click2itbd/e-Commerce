@@ -23,6 +23,9 @@ import {
   Wifi,
   Building2,
   Award,
+  Globe,
+  Code2,
+  ShoppingBag,
   Trash2,
   Plus,
   Edit2,
@@ -60,6 +63,8 @@ import { useAuth } from '../../context/AuthContext';
 import { logAudit } from '../../lib/audit';
 
 const PROJECT_CATEGORIES = [
+  'Website & Web Development',
+  'E-Commerce & Software',
   'CCTV & Surveillance',
   'Corporate Networking',
   'Workstation & PC Build',
@@ -70,27 +75,32 @@ const PROJECT_CATEGORIES = [
 ];
 
 const AVAILABLE_ICONS: { name: string; label: string; icon: any }[] = [
-  { name: 'Camera', label: 'CCTV / Camera', icon: Camera },
-  { name: 'Briefcase', label: 'Corporate', icon: Briefcase },
-  { name: 'Monitor', label: 'Workstation', icon: Monitor },
-  { name: 'Server', label: 'Server / Rack', icon: Server },
-  { name: 'Shield', label: 'Security', icon: Shield },
-  { name: 'Home', label: 'Smart Home', icon: Home },
-  { name: 'Cpu', label: 'Hardware / PC', icon: Cpu },
+  { name: 'Globe', label: 'Website', icon: Globe },
+  { name: 'Code2', label: 'Software / Dev', icon: Code2 },
+  { name: 'ShoppingBag', label: 'E-Commerce', icon: ShoppingBag },
+  { name: 'Camera', label: 'CCTV', icon: Camera },
   { name: 'Wifi', label: 'Networking', icon: Wifi },
+  { name: 'Monitor', label: 'Workstation', icon: Monitor },
+  { name: 'Server', label: 'Server / Hosting', icon: Server },
+  { name: 'Shield', label: 'Security', icon: Shield },
+  { name: 'Cpu', label: 'Hardware', icon: Cpu },
+  { name: 'Briefcase', label: 'Corporate', icon: Briefcase },
   { name: 'Building2', label: 'Enterprise', icon: Building2 },
+  { name: 'Home', label: 'Smart Home', icon: Home },
   { name: 'Award', label: 'Flagship', icon: Award },
 ];
 
 const QUICK_FEATURE_SUGGESTIONS = [
+  'Responsive Web Design',
+  'Custom Admin Dashboard',
+  'SEO & Speed Optimized',
+  'Payment Gateway Setup',
   '24/7 IP Surveillance',
   'Cat6 Structured Cabling',
   'Biometric Access Control',
   'NVR & Cloud Backup',
   'MikroTik Load Balancing',
-  'Online UPS Power Backup',
-  '1 Year On-Site Warranty',
-  'Zero Downtime Deployment',
+  '1 Year Free Support',
 ];
 
 const SAMPLE_PROJECTS = [
@@ -206,6 +216,7 @@ export const EcommerceProjects = () => {
     completedDate: new Date().toISOString().slice(0, 7),
     projectValue: '',
     duration: '',
+    liveUrl: '',
     description: '',
     image: '',
     gallery: [] as string[],
@@ -325,6 +336,7 @@ export const EcommerceProjects = () => {
       completedDate: p.completedDate || '',
       projectValue: p.projectValue ? String(p.projectValue) : '',
       duration: p.duration || '',
+      liveUrl: p.liveUrl || '',
       description: p.description || '',
       image: p.image || '',
       gallery: Array.isArray(p.gallery) ? p.gallery : [],
@@ -370,6 +382,7 @@ export const EcommerceProjects = () => {
       completedDate: formData.completedDate,
       projectValue: formData.projectValue ? Number(formData.projectValue) : 0,
       duration: formData.duration.trim(),
+      liveUrl: (formData as any).liveUrl ? (formData as any).liveUrl.trim() : '',
       description: formData.description.trim(),
       image: formData.image.trim(),
       gallery: formData.gallery,
@@ -980,6 +993,19 @@ export const EcommerceProjects = () => {
                         onChange={e => setFormData({ ...formData, duration: e.target.value })}
                       />
                     </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
+                        Live Website / Project Demo URL (Optional — for Website Projects)
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://example.com"
+                        className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                        value={(formData as any).liveUrl || ''}
+                        onChange={e => setFormData({ ...formData, liveUrl: e.target.value } as any)}
+                      />
+                    </div>
                   </div>
 
                   {/* Cover Image Upload + URL */}
@@ -1054,20 +1080,21 @@ export const EcommerceProjects = () => {
                     <label className="block text-xs font-black uppercase tracking-wider text-slate-600">
                       Category Badge Icon
                     </label>
-                    <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 gap-2">
                       {AVAILABLE_ICONS.map(item => (
                         <button
                           key={item.name}
                           type="button"
                           title={item.label}
                           onClick={() => setFormData({ ...formData, iconName: item.name })}
-                          className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                          className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
                             formData.iconName === item.name
                               ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                              : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                              : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                           }`}
                         >
                           {renderIcon(item.name, { size: 18 })}
+                          <span className="text-[10px] font-bold leading-none truncate max-w-full">{item.label}</span>
                         </button>
                       ))}
                     </div>

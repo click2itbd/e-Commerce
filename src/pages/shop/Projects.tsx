@@ -15,6 +15,10 @@ import {
   Wifi,
   Building2,
   Award,
+  Globe,
+  Code2,
+  ShoppingBag,
+  ExternalLink,
   MapPin,
   Calendar,
   Clock,
@@ -35,6 +39,9 @@ const Icons: Record<string, any> = {
   Wifi,
   Building2,
   Award,
+  Globe,
+  Code2,
+  ShoppingBag,
 };
 
 const QuoteModal = ({
@@ -212,6 +219,8 @@ const QuoteModal = ({
                 value={formData.projectType}
                 onChange={e => setFormData({ ...formData, projectType: e.target.value })}
               >
+                <option value="Website & Web Development">Website & E-Commerce Development</option>
+                <option value="Custom Software / ERP">Custom Software / Web Application</option>
                 <option value="CCTV Setup">CCTV & Security Surveillance</option>
                 <option value="Office Networking">Corporate Office Networking</option>
                 <option value="Bulk Workstations">Bulk Workstations / PC Build</option>
@@ -377,9 +386,23 @@ export const Projects = () => {
                   <div className="mb-2 text-xs font-bold text-blue-600 uppercase tracking-wider">
                     Client: {project.client}
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-3 leading-snug group-hover:text-blue-600 transition-colors">
-                    {project.title}
-                  </h3>
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <h3 className="text-xl font-bold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors">
+                      {project.title}
+                    </h3>
+                    {project.liveUrl && (
+                      <a
+                        href={project.liveUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white text-[11px] font-bold transition-colors shrink-0"
+                        title="Visit Live Website"
+                      >
+                        <Globe size={12} /> Live Site <ExternalLink size={11} />
+                      </a>
+                    )}
+                  </div>
                   <p className="text-slate-600 text-sm mb-5 flex-grow leading-relaxed line-clamp-3">
                     {project.description}
                   </p>
