@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Facebook, Instagram, Youtube, MapPin, Phone, Mail, Send } from 'lucide-react';
+import {
+  Facebook,
+  Instagram,
+  Youtube,
+  MapPin,
+  Phone,
+  Mail,
+  Send,
+  CheckCircle2,
+  Loader2,
+} from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
@@ -11,35 +21,45 @@ export const Footer: React.FC = () => {
   const { settings } = useSettings();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [subscribedSuccess, setSubscribedSuccess] = useState(false);
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
 
     setLoading(true);
     try {
       await addDoc(collection(db, 'subscribers'), {
-        email,
+        email: trimmedEmail,
+        status: 'active',
+        source: 'footer_newsletter',
         createdAt: new Date().toISOString(),
       });
 
-      await apiPost('/api/send-email', {
-        to: email,
+      // Best-effort welcome email (non-blocking so guest subscriptions always succeed)
+      apiPost('/api/send-email', {
+        to: trimmedEmail,
         subject: `Welcome to ${settings.brandName} Newsletter!`,
         html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
               <h1 style="color: ${settings.primaryColor};">${settings.brandName}</h1>
               <p>Hello!</p>
               <p>Thank you for subscribing to our newsletter. We're excited to have you with us!</p>
-              <p>You'll be the first to know about our latest products, special offers, and tech news.</p>
+              <p>You'll be the first to know about our latest computer hardware, custom PC deals, and special offers.</p>
               <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
               <p style="font-size: 12px; color: #666;">${settings.footerText}</p>
             </div>
           `,
-      });
+      }).catch(() => {});
 
-      toast.success('Subscribed successfully!');
+      setSubscribedSuccess(true);
+      toast.success('Subscribed to newsletter successfully!');
       setEmail('');
+      setTimeout(() => setSubscribedSuccess(false), 5000);
     } catch (error) {
       console.error('Subscription error:', error);
       toast.error('Failed to subscribe. Please try again.');
@@ -47,6 +67,10 @@ export const Footer: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const facebookUrl = (settings as any)?.facebookUrl || 'https://www.facebook.com/CLICK2ITBD';
+  const instagramUrl = (settings as any)?.instagramUrl || 'https://www.instagram.com/click2itbd';
+  const youtubeUrl = (settings as any)?.youtubeUrl || 'https://www.youtube.com/@click2itbd';
 
   return (
     <footer className="text-white pt-12 pb-6 bg-black">
@@ -56,26 +80,34 @@ export const Footer: React.FC = () => {
           <div>
             <h3 className="text-lg font-bold mb-4 uppercase tracking-wider">Support</h3>
             <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors">
-                <div className="h-10 w-10 rounded-full border border-gray-700 flex items-center justify-center">
+              <a
+                href={`tel:${settings.contactPhone || '+8809640887777'}`}
+                className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors"
+              >
+                <div className="h-10 w-10 rounded-full border border-gray-700 flex items-center justify-center shrink-0">
                   <Phone size={18} />
                 </div>
                 <div>
                   <p className="text-xs">Contact Us</p>
-                  <p className="font-bold" style={{ color: settings.accentColor }}>+8809640887777</p>
+                  <p className="font-bold" style={{ color: settings.accentColor }}>
+                    {settings.contactPhone || '+8809640887777'}
+                  </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors">
-                <div className="h-10 w-10 rounded-full border border-gray-700 flex items-center justify-center">
+              </a>
+              <a
+                href={`mailto:${settings.contactEmail || 'info@click2itbd.com'}`}
+                className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors"
+              >
+                <div className="h-10 w-10 rounded-full border border-gray-700 flex items-center justify-center shrink-0">
                   <Mail size={18} />
                 </div>
                 <div>
                   <p className="text-xs">Email Support</p>
-                  <p className="font-bold">{settings.contactEmail}</p>
+                  <p className="font-bold">{settings.contactEmail || 'info@click2itbd.com'}</p>
                 </div>
-              </div>
+              </a>
               <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors">
-                <div className="h-10 w-10 rounded-full border border-gray-700 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-full border border-gray-700 flex items-center justify-center shrink-0">
                   <MapPin size={18} />
                 </div>
                 <div>
@@ -112,36 +144,63 @@ export const Footer: React.FC = () => {
           <div>
             <h3 className="text-lg font-bold mb-4 uppercase tracking-wider">Stay Connected</h3>
             <p className="text-sm text-gray-400 mb-4">{settings.brandName}</p>
-            
+
             <form onSubmit={handleSubscribe} className="mb-6">
               <p className="text-xs font-bold text-gray-300 uppercase mb-2">Newsletter Signup</p>
-              <div className="flex flex-col sm:flex-row">
+              <div className="flex flex-row">
                 <input
                   type="email"
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="bg-gray-800 border-none text-white text-sm px-4 py-2 rounded-t-md sm:rounded-l-md sm:rounded-tr-none focus:ring-1 focus:ring-white outline-none w-full"
+                  className="bg-gray-800 border-none text-white text-sm px-4 py-2.5 rounded-l-md focus:ring-1 focus:ring-white outline-none w-full"
                 />
                 <button
                   type="submit"
                   disabled={loading}
-                  className="bg-white text-black px-4 py-2 rounded-b-md sm:rounded-r-md sm:rounded-bl-none hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  aria-label="Subscribe to newsletter"
+                  className="bg-white text-black px-4 py-2.5 rounded-r-md hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center shrink-0 cursor-pointer"
                 >
-                  <Send size={18} />
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                 </button>
               </div>
+              {subscribedSuccess && (
+                <p className="mt-2 text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                  <CheckCircle2 size={14} /> Subscribed! Thank you for joining us.
+                </p>
+              )}
             </form>
 
             <div className="flex gap-4">
-              <a href="https://web.facebook.com/CLICK2ITBD" className="h-10 w-10 rounded-full flex items-center justify-center hover:opacity-80 transition-all" style={{ backgroundColor: settings.secondaryColor }}>
+              <a
+                href={facebookUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Facebook"
+                className="h-10 w-10 rounded-full flex items-center justify-center hover:opacity-80 hover:scale-105 transition-all"
+                style={{ backgroundColor: settings.secondaryColor }}
+              >
                 <Facebook size={20} />
               </a>
-              <a href="#" className="h-10 w-10 rounded-full flex items-center justify-center hover:opacity-80 transition-all" style={{ backgroundColor: settings.secondaryColor }}>
+              <a
+                href={instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram"
+                className="h-10 w-10 rounded-full flex items-center justify-center hover:opacity-80 hover:scale-105 transition-all"
+                style={{ backgroundColor: settings.secondaryColor }}
+              >
                 <Instagram size={20} />
               </a>
-              <a href="#" className="h-10 w-10 rounded-full flex items-center justify-center hover:opacity-80 transition-all" style={{ backgroundColor: settings.secondaryColor }}>
+              <a
+                href={youtubeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="YouTube"
+                className="h-10 w-10 rounded-full flex items-center justify-center hover:opacity-80 hover:scale-105 transition-all"
+                style={{ backgroundColor: settings.secondaryColor }}
+              >
                 <Youtube size={20} />
               </a>
             </div>
@@ -156,5 +215,3 @@ export const Footer: React.FC = () => {
     </footer>
   );
 };
-
-
