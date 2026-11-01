@@ -463,108 +463,191 @@ export const Projects = () => {
             defaultProjectType={selectedQuoteType}
           />
 
-          {/* Project Detail & Gallery Lightbox Modal */}
+          {/* Project Detail & Gallery Lightbox Modal (Horizontal Split-View) */}
           {activeProjectModal && (
-            <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 sm:p-6">
+            <div className="fixed inset-0 z-[95] flex items-center justify-center p-3 sm:p-6">
               <div
-                className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
+                className="absolute inset-0 bg-slate-950/75 backdrop-blur-md"
                 onClick={() => setActiveProjectModal(null)}
               />
-              <div className="relative bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+              <div className="relative bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden max-h-[92vh] lg:h-[620px] flex flex-col lg:flex-row border border-slate-200/80 animate-in fade-in zoom-in-95 duration-200">
+                {/* Close Button */}
                 <button
                   onClick={() => setActiveProjectModal(null)}
-                  className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center cursor-pointer"
+                  className="absolute top-4 right-4 z-30 w-9 h-9 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white flex items-center justify-center shadow-lg transition-all cursor-pointer"
+                  title="Close"
                 >
                   <X size={18} />
                 </button>
 
-                <div className="overflow-y-auto custom-scrollbar">
-                  <div className="relative h-72 sm:h-96 bg-slate-900">
+                {/* LEFT PANE: Visual Showcase & Gallery (Horizontal Split Left) */}
+                <div className="lg:w-[52%] bg-slate-950 flex flex-col justify-between relative overflow-hidden shrink-0">
+                  {/* Ambient blurred background of the project image */}
+                  <div
+                    className="absolute inset-0 bg-cover bg-center opacity-25 blur-2xl scale-110 pointer-events-none"
+                    style={{ backgroundImage: `url(${activePhotoUrl || activeProjectModal.image})` }}
+                  />
+
+                  {/* Top Badges over image */}
+                  <div className="relative z-10 p-4 sm:p-5 flex items-center justify-between gap-2">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-sm text-slate-900 text-xs font-extrabold shadow-md">
+                      {(() => {
+                        const Icon = Icons[activeProjectModal.iconName] || Briefcase;
+                        return <Icon size={14} className="text-blue-600" />;
+                      })()}
+                      <span>{activeProjectModal.category}</span>
+                    </div>
+
+                    {activeProjectModal.isFeatured && (
+                      <div className="bg-amber-400 text-slate-950 px-3 py-1 rounded-full text-[11px] font-black flex items-center gap-1 shadow-md">
+                        <Star size={12} className="fill-slate-950" /> FEATURED PROJECT
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Main Uncropped / Clean Image Display */}
+                  <div className="relative z-10 flex-1 flex items-center justify-center px-4 sm:px-6 py-2 min-h-[240px] sm:min-h-[340px]">
                     <img
                       src={activePhotoUrl || activeProjectModal.image}
                       alt={activeProjectModal.title}
-                      className="w-full h-full object-cover"
+                      className="max-w-full max-h-[320px] lg:max-h-[420px] w-auto h-auto object-contain rounded-2xl shadow-2xl border border-white/10"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
-                    <div className="absolute bottom-5 left-6 right-6 text-white">
-                      <span className="inline-block px-3 py-1 rounded-full bg-blue-600 text-xs font-bold mb-2">
-                        {activeProjectModal.category}
-                      </span>
-                      <h2 className="text-2xl sm:text-3xl font-black">{activeProjectModal.title}</h2>
-                      <p className="text-xs sm:text-sm text-slate-200 mt-1">
-                        Client: {activeProjectModal.client}
-                        {activeProjectModal.location ? ` • ${activeProjectModal.location}` : ''}
-                      </p>
-                    </div>
                   </div>
 
-                  {/* Gallery Thumbnails if available */}
-                  {Array.isArray(activeProjectModal.gallery) && activeProjectModal.gallery.length > 0 && (
-                    <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2.5 overflow-x-auto">
-                      {[activeProjectModal.image, ...activeProjectModal.gallery].map((imgUrl, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setActivePhotoUrl(imgUrl)}
-                          className={`w-16 h-12 rounded-lg overflow-hidden border-2 shrink-0 cursor-pointer ${
-                            (activePhotoUrl || activeProjectModal.image) === imgUrl
-                              ? 'border-blue-600'
-                              : 'border-transparent opacity-70 hover:opacity-100'
-                          }`}
-                        >
-                          <img src={imgUrl} alt="" className="w-full h-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {/* Bottom Gallery Strip / Live Link Bar */}
+                  <div className="relative z-10 p-4 sm:p-5 bg-slate-900/80 backdrop-blur-md border-t border-white/10 flex items-center justify-between gap-3">
+                    {Array.isArray(activeProjectModal.gallery) && activeProjectModal.gallery.length > 0 ? (
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                        {[activeProjectModal.image, ...activeProjectModal.gallery].map((imgUrl, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setActivePhotoUrl(imgUrl)}
+                            className={`w-14 h-10 rounded-lg overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
+                              (activePhotoUrl || activeProjectModal.image) === imgUrl
+                                ? 'border-blue-400 scale-105 shadow-md'
+                                : 'border-transparent opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-400 font-medium truncate">
+                        {activeProjectModal.client ? `Delivered for ${activeProjectModal.client}` : 'Verified CLICK2IT Deployment'}
+                      </div>
+                    )}
 
+                    {activeProjectModal.liveUrl && (
+                      <a
+                        href={activeProjectModal.liveUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold shadow-lg shadow-blue-600/30 transition-all shrink-0"
+                      >
+                        <Globe size={13} /> Visit Live Site <ExternalLink size={12} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* RIGHT PANE: Clean Structured Project Details (Horizontal Split Right) */}
+                <div className="lg:w-[48%] flex flex-col justify-between overflow-y-auto custom-scrollbar bg-white">
                   <div className="p-6 sm:p-8 space-y-6">
+                    {/* Title & Client Header (Never overlaps image!) */}
+                    <div className="pr-8 border-b border-slate-100 pb-5">
+                      <div className="text-xs font-extrabold uppercase tracking-wider text-blue-600 mb-1.5">
+                        Client: {activeProjectModal.client || 'Corporate Partner'}
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug">
+                        {activeProjectModal.title}
+                      </h2>
+
+                      {/* Metadata Pills */}
+                      <div className="flex flex-wrap items-center gap-2 mt-3.5">
+                        {activeProjectModal.location && (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
+                            <MapPin size={12} className="text-blue-600" /> {activeProjectModal.location}
+                          </span>
+                        )}
+                        {activeProjectModal.duration && (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
+                            <Clock size={12} className="text-emerald-600" /> {activeProjectModal.duration}
+                          </span>
+                        )}
+                        {activeProjectModal.completedDate && (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
+                            <Calendar size={12} className="text-indigo-600" /> {activeProjectModal.completedDate}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Project Overview */}
                     <div>
-                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
+                      <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">
                         Project Overview
                       </h4>
-                      <p className="text-slate-700 text-sm sm:text-base leading-relaxed">
+                      <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">
                         {activeProjectModal.description}
                       </p>
                     </div>
 
+                    {/* Delivered Specifications & Highlights */}
                     {Array.isArray(activeProjectModal.features) && activeProjectModal.features.length > 0 && (
                       <div>
-                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">
+                        <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-3">
                           Delivered Specifications & Highlights
                         </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {activeProjectModal.features.map((f: string, idx: number) => (
                             <div
                               key={idx}
-                              className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs sm:text-sm font-semibold text-slate-800"
+                              className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs font-bold text-slate-800"
                             >
-                              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                              <span>{f}</span>
+                              <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                              <span className="leading-snug">{f}</span>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
 
+                    {/* Client Testimonial */}
                     {activeProjectModal.testimonial && (
-                      <div className="p-5 rounded-2xl bg-blue-50/70 border border-blue-100 text-sm text-slate-700 italic">
-                        "{activeProjectModal.testimonial}" — <strong>{activeProjectModal.client}</strong>
+                      <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-100 text-xs sm:text-sm text-slate-700 italic">
+                        "{activeProjectModal.testimonial}" — <strong className="not-italic text-slate-900">{activeProjectModal.client}</strong>
                       </div>
                     )}
+                  </div>
 
-                    <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-                      <p className="text-xs text-slate-500">
-                        Interested in a similar setup for your organization?
-                      </p>
+                  {/* Sticky Bottom Action Bar */}
+                  <div className="p-5 sm:px-8 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 sticky bottom-0">
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">Want a similar project?</p>
+                      <p className="text-[11px] text-slate-500">Get a custom quotation from our team</p>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      {activeProjectModal.liveUrl && (
+                        <a
+                          href={activeProjectModal.liveUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs font-extrabold flex items-center gap-1.5 transition-colors"
+                        >
+                          <Globe size={13} className="text-blue-600" /> Live Demo
+                        </a>
+                      )}
                       <button
                         onClick={() => {
+                          const cat = activeProjectModal.category || 'CCTV Setup';
                           setActiveProjectModal(null);
-                          setSelectedQuoteType('CCTV Setup');
+                          setSelectedQuoteType(cat);
                           setIsModalOpen(true);
                         }}
-                        className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-black shadow-lg shadow-blue-600/20 cursor-pointer"
+                        className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
                       >
-                        Request a Similar Quote
+                        Request a Quote
                       </button>
                     </div>
                   </div>
