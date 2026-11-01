@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Menu, X, LogOut, ChevronRight, Zap, Target, Server, Loader2, Moon, Sun } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, X, LogOut, ChevronRight, Zap, Home, Server, Loader2, Moon, Sun } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
@@ -122,7 +122,7 @@ export const PCBuildNavbar: React.FC = () => {
           {/* Nav Links (Desktop) */}
           <nav className="hidden lg:flex items-center gap-8">
             <Link to="/shop" className="text-slate-500 hover:text-slate-900 font-semibold transition-colors flex items-center gap-1.5 group">
-              <Target size={16} className="text-slate-500 group-hover:text-cyan-400 transition-colors"/> Shop
+              <Home size={16} className="text-slate-500 group-hover:text-cyan-500 transition-colors"/> Home
             </Link>
             <Link to="/pc-build" className="text-violet-400 font-bold transition-colors flex items-center gap-1.5 relative group">
               <Zap size={16} className="fill-violet-400 animate-pulse"/> PC Builder
@@ -245,7 +245,7 @@ export const PCBuildNavbar: React.FC = () => {
               <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500"><Search size={18}/></button>
             </form>
             <nav className="flex flex-col space-y-1">
-              <Link to="/shop" className="text-slate-600 py-3 px-2 border-b border-slate-200 flex items-center justify-between hover:bg-slate-50 rounded-lg">Shop <ChevronRight size={16}/></Link>
+              <Link to="/shop" className="text-slate-600 py-3 px-2 border-b border-slate-200 flex items-center justify-between hover:bg-slate-50 rounded-lg"><span className="flex items-center gap-2"><Home size={16} /> Home</span> <ChevronRight size={16}/></Link>
               <Link to="/pc-build" className="text-violet-400 py-3 px-2 border-b border-slate-200 flex items-center justify-between font-bold bg-violet-500/10 rounded-lg">PC Builder <ChevronRight size={16}/></Link>
               <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="text-slate-600 py-3 px-2 border-b border-slate-200 flex items-center justify-between hover:bg-slate-50 rounded-lg">Domain & Hosting <ChevronRight size={16}/></a>
               {user ? (
