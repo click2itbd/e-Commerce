@@ -1,7 +1,57 @@
 import { Router, Response } from 'express';
-import { getAdminDocument } from '../firebase/admin.js';
+import { getAdminDb, getAdminDocument } from '../firebase/admin.js';
 
 const publicRouter = Router();
+
+publicRouter.post('/validate-coupon', async (req: any, res: Response) => {
+  try {
+    const rawCode = req.body?.code;
+    if (!rawCode || typeof rawCode !== 'string' || !rawCode.trim()) {
+      return res.status(400).json({ success: false, error: 'Coupon code is required' });
+    }
+
+    const cleanCode = rawCode.trim().toUpperCase();
+    const db = getAdminDb();
+    const snap = await db
+      .collection('couponCodes')
+      .where('code', '==', cleanCode)
+      .where('isActive', '==', true)
+      .limit(1)
+      .get();
+
+    if (snap.empty) {
+      return res.status(404).json({ success: false, error: 'Invalid or inactive discount code' });
+    }
+
+    const docSnap = snap.docs[0];
+    const data = docSnap.data() || {};
+
+    if (data.expiryDate && new Date(data.expiryDate) < new Date()) {
+      return res.status(400).json({ success: false, error: 'This discount code has expired' });
+    }
+
+    if (Number(data.usageLimit) > 0 && Number(data.usedCount || 0) >= Number(data.usageLimit)) {
+      return res.status(400).json({ success: false, error: 'This discount code has reached its usage limit' });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        id: docSnap.id,
+        code: data.code,
+        type: data.type || 'percentage',
+        discountPercentage: Number(data.discountPercentage) || 0,
+        fixedAmount: Number(data.fixedAmount) || 0,
+        minOrderAmount: Number(data.minOrderAmount) || 0,
+        expiryDate: data.expiryDate || '',
+        isActive: true,
+      },
+    });
+  } catch (error: any) {
+    console.error('Validate coupon error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to validate discount code' });
+  }
+});
 
 publicRouter.get('/config', async (req: any, res: Response) => {
   try {

@@ -4,6 +4,7 @@ import { auth, db } from '../../../firebase';
 import toast from 'react-hot-toast';
 import { Product, ProductVariant } from '../../../types';
 import { logAudit } from '../../../lib/audit';
+import { sanitizePublicProductData, saveProductPrivateCost } from '../../../lib/productCosts';
 
 export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, setLoading, fileInputRef }: any) {
 
@@ -60,7 +61,9 @@ export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, se
             const newDiscount = formData.discountPrice;
             const priceChanged = oldPrice !== newPrice || oldDiscount !== newDiscount;
 
-            await updateDoc(doc(db, 'products', editingProduct.id), productData);
+            const { publicData, privateCostData } = sanitizePublicProductData(productData, true);
+            await updateDoc(doc(db, 'products', editingProduct.id), publicData);
+            await saveProductPrivateCost(editingProduct.id, privateCostData);
             await logAudit(
               priceChanged ? 'PRICE_CHANGE' : 'EDIT',
               'Product',
@@ -97,7 +100,9 @@ export function useProductsLogic({ setConfirmModal, checkLowStock, fetchData, se
             toast.success('Product updated successfully');
             checkLowStock(productData.name, productData.stock);
           } else {
-            const docRef = await addDoc(collection(db, 'products'), productData);
+            const { publicData, privateCostData } = sanitizePublicProductData(productData, false);
+            const docRef = await addDoc(collection(db, 'products'), publicData);
+            await saveProductPrivateCost(docRef.id, privateCostData);
             await logAudit(
               'CREATE',
               'Product',

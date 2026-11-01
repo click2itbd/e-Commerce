@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { generateDocumentNumber } from '../../../lib/numbering';
+import { sanitizePublicProductData, saveProductPrivateCost } from '../../../lib/productCosts';
 import { Vendor, PaymentAccount, NavigationMenu } from '../../../types';
 import { cn } from '../../../lib/utils';
 
@@ -139,7 +140,9 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
         vendorId: formData.vendorId,
         createdAt: new Date().toISOString(),
       };
-      const prodRef = await addDoc(collection(db, 'products'), productData);
+      const { publicData, privateCostData } = sanitizePublicProductData(productData, false);
+      const prodRef = await addDoc(collection(db, 'products'), publicData);
+      await saveProductPrivateCost(prodRef.id, privateCostData);
       const newProduct = { id: prodRef.id, ...productData };
 
       // 2. Create Purchase

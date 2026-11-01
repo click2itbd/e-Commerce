@@ -12,6 +12,7 @@ const itemWarrantyMonths = (i: any): number =>
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { logAudit } from '../../../../lib/audit';
+import { sanitizePublicProductData, saveProductPrivateCost } from '../../../../lib/productCosts';
 import { PreparedBySelect } from '../../../../components/common/PreparedBySelect';
 import {
   Edit2,
@@ -245,7 +246,9 @@ const Purchases: React.FC<PurchasesProps> = ({
                   };
                   if (item.purchasePrice) updates.costPrice = Number(item.purchasePrice);
                   if (item.salesPrice) updates.price = Number(item.salesPrice);
-                  await updateDoc(matched.ref, updates);
+                  const { publicData, privateCostData } = sanitizePublicProductData(updates, true);
+                  await updateDoc(matched.ref, publicData);
+                  await saveProductPrivateCost(matched.id, privateCostData);
                   recoveredAny = true;
                } else {
                   const addedSerials = Array.isArray(item.newSerials) ? item.newSerials.filter((s: string) => s.trim()) : [];
@@ -267,7 +270,9 @@ const Purchases: React.FC<PurchasesProps> = ({
                      availableSerials: addedSerials,
                      createdAt: new Date().toISOString()
                   };
-                  const docRef = await addDoc(collection(db, 'products'), newProductData);
+                  const { publicData, privateCostData } = sanitizePublicProductData(newProductData, false);
+                  const docRef = await addDoc(collection(db, 'products'), publicData);
+                  await saveProductPrivateCost(docRef.id, privateCostData);
                   realId = docRef.id;
                   recoveredAny = true;
                }
@@ -572,7 +577,9 @@ const Purchases: React.FC<PurchasesProps> = ({
         images: [],
         createdAt: new Date().toISOString(),
       };
-      const docRef = await addDoc(collection(db, 'products'), productData);
+      const { publicData, privateCostData } = sanitizePublicProductData(productData, false);
+      const docRef = await addDoc(collection(db, 'products'), publicData);
+      await saveProductPrivateCost(docRef.id, privateCostData);
       const newProduct = { id: docRef.id, ...productData } as Product;
       setProducts(prev => [...prev, newProduct]);
       addItemToPurchase(newProduct);
@@ -963,7 +970,9 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
             updates.availableSerials = [...(currentProduct.availableSerials || []), ...addedSerials];
           }
 
-          await updateDoc(productRef, updates);
+          const { publicData, privateCostData } = sanitizePublicProductData(updates, true);
+          await updateDoc(productRef, publicData);
+          await saveProductPrivateCost(currentProduct.id, privateCostData);
           
           currentProduct.stock = totalStock;
           currentProduct.costPrice = averageCostPrice;
@@ -1008,7 +1017,9 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
              }];
           }
           
-          const docRef = await addDoc(collection(db, 'products'), newProductData);
+          const { publicData, privateCostData } = sanitizePublicProductData(newProductData, false);
+          const docRef = await addDoc(collection(db, 'products'), publicData);
+          await saveProductPrivateCost(docRef.id, privateCostData);
           newProductData.id = docRef.id;
           localProductsMap.set(docRef.id, newProductData);
           updatedItems[i].id = docRef.id;

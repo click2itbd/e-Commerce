@@ -45,15 +45,19 @@ rules_version = '2';
 //      cancel a pending order. Full updates restricted to Admin/Staff.
 //
 // 4. Public Storefront & Catalog Collections
-//    - `products`, `categories`, `menus`, `brands`, `store_brands`,
-//      `store_banners`, `banners`, `hostingPlans`, `hosting_plans`,
-//      `hostingServices`, `hosting_features`, `hostingAddonPackages`,
-//      `hostingExtraServices`, `hostingServiceCategories`, `specialPlans`,
-//      `custom_hosting_pricing`, `sslProducts`, `domainPricing`,
-//      `couponCodes`, `coupons`, `ecommerce_blog`, `blog`, `pages`,
+//    - `products` (public fields only; sensitive `costPrice`/`vendorId`
+//      stored separately in `product_costs`), `categories`, `menus`,
+//      `brands`, `store_brands`, `store_banners`, `banners`, `hostingPlans`,
+//      `hosting_plans`, `hostingServices`, `hosting_features`,
+//      `hostingAddonPackages`, `hostingExtraServices`,
+//      `hostingServiceCategories`, `specialPlans`, `custom_hosting_pricing`,
+//      `sslProducts`, `domainPricing`, `ecommerce_blog`, `blog`, `pages`,
 //      `faqs`, `announcements`, `showcase_projects`,
 //      `pc_builder_categories`, `specificationTemplates`, `services`
 //    - Access: Public read (`if true`), Admin/Staff write only.
+//    - `couponCodes` & `coupons`: Full read/write for Admin/Staff; public
+//      queries restricted to active coupons with `request.query.limit <= 1`
+//      to prevent bulk coupon scraping.
 //
 // 5. Customer Service & Account Collections
 //    - `hostingAccounts`, `domainOrders`, `domain_renewals`,
@@ -68,14 +72,15 @@ rules_version = '2';
 //      creation restricted to backend/Admin/Staff).
 //
 // 6. Internal ERP, Accounting, HR & Audit Collections
-//    - `customers`, `vendors`, `transactions`, `transaction_categories`,
-//      `payment_accounts`, `employees`, `employee_leaves`,
-//      `employee_salaries`, `sold_serials`, `service_records`,
-//      `campaigns`, `audiences`, `tasks`, `work_orders`, `internal_notes`,
-//      `cash_register`, `conveyances`, `purchases`, `purchase_returns`,
-//      `sale_returns`, `emailTemplates`, `servers`, `hosting_config`,
-//      `audit_logs`, `auditLogs`, `admin_alerts`, `paymentAuditLog`, `domainAuditLog`,
-//      `fulfillmentAuditLog`, `provisioningLogs`, `apiLogs`, `emailLogs`
+//    - `product_costs`, `customers`, `vendors`, `transactions`,
+//      `transaction_categories`, `payment_accounts`, `employees`,
+//      `employee_leaves`, `employee_salaries`, `sold_serials`,
+//      `service_records`, `campaigns`, `audiences`, `tasks`, `work_orders`,
+//      `internal_notes`, `cash_register`, `conveyances`, `purchases`,
+//      `purchase_returns`, `sale_returns`, `emailTemplates`, `servers`,
+//      `hosting_config`, `audit_logs`, `auditLogs`, `admin_alerts`,
+//      `paymentAuditLog`, `domainAuditLog`, `fulfillmentAuditLog`,
+//      `provisioningLogs`, `apiLogs`, `emailLogs`
 //    - Access: Restricted to Admin/Staff (with `private_config` and
 //      `transferAuthCodes` locked down completely).
 // ===============================================================
@@ -289,6 +294,10 @@ service cloud.firestore {
     match /products/{productId} {
       allow read: if true;
       allow write: if isStaffOrAdmin();
+
+      match /private/{docId} {
+        allow read, write: if isStaffOrAdmin();
+      }
     }
 
     match /categories/{docId} {
@@ -377,12 +386,14 @@ service cloud.firestore {
     }
 
     match /couponCodes/{docId} {
-      allow read: if true;
+      allow get: if isStaffOrAdmin();
+      allow list: if isStaffOrAdmin() || (resource.data.isActive == true && request.query.limit <= 1);
       allow write: if isStaffOrAdmin();
     }
 
     match /coupons/{docId} {
-      allow read: if true;
+      allow get: if isStaffOrAdmin();
+      allow list: if isStaffOrAdmin() || (resource.data.isActive == true && request.query.limit <= 1);
       allow write: if isStaffOrAdmin();
     }
 
@@ -779,6 +790,10 @@ service cloud.firestore {
     // ===============================================================
     // 8. Internal ERP, Accounting, HR & Admin-Only Collections
     // ===============================================================
+
+    match /product_costs/{productId} {
+      allow read, write: if isStaffOrAdmin();
+    }
 
     match /transactions/{txId} {
       allow read, write: if isStaffOrAdmin();

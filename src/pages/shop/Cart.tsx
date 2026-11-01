@@ -5,11 +5,12 @@ import { useAuth } from '../../context/AuthContext';
 import { Layout } from '../../components/Layout';
 import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Ticket, X, Tag } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { toast } from 'react-hot-toast';
 import { DiscountCode, OrderType } from '../../types';
 import { getSiteContext } from '../../hooks/useSiteContext';
+import { apiPost } from '../../services/apiClient';
 
 export const Cart: React.FC = () => {
   const { items, removeFromCart, updateQuantity, subtotal, total, promoDiscount, promoMessage, appliedDiscount, setAppliedDiscount, isShippingFree } = useCart();
@@ -30,31 +31,49 @@ export const Cart: React.FC = () => {
     
     setIsValidatingCode(true);
     try {
-      const q = query(
-        collection(db, 'couponCodes'), 
-        where('code', '==', discountCode.trim().toUpperCase()),
-        where('isActive', '==', true)
-      );
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
+      const cleanCode = discountCode.trim().toUpperCase();
+      let codeData: DiscountCode | null = null;
+
+      try {
+        const res = await apiPost<any>('/api/public/validate-coupon', { code: cleanCode });
+        if (res?.success && res?.data) {
+          codeData = res.data as DiscountCode;
+        }
+      } catch (apiErr: any) {
+        const q = query(
+          collection(db, 'couponCodes'), 
+          where('code', '==', cleanCode),
+          where('isActive', '==', true),
+          limit(1)
+        );
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          codeData = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as DiscountCode;
+        }
+      }
+
+      if (!codeData) {
         toast.error('Invalid or inactive discount code');
         return;
       }
-
-      const codeData = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as DiscountCode;
       
       // Check expiry
-      if (new Date(codeData.expiryDate) < new Date()) {
+      if (codeData.expiryDate && new Date(codeData.expiryDate) < new Date()) {
         toast.error('This discount code has expired');
         return;
       }
 
       setAppliedDiscount(codeData);
-      toast.success(`Discount applied: ${codeData.discountPercentage}% off`);
+      toast.success(
+        codeData.type === 'fixed' && codeData.fixedAmount
+          ? `Discount applied: ৳${codeData.fixedAmount} off`
+          : codeData.type === 'free_shipping'
+          ? 'Free shipping coupon applied!'
+          : `Discount applied: ${codeData.discountPercentage}% off`
+      );
     } catch (error) {
       console.error('Error validating discount code:', error);
-      toast.error('Failed to validate discount code');
+      toast.error('Invalid or inactive discount code');
     } finally {
       setIsValidatingCode(false);
     }

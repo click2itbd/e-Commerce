@@ -1,6 +1,12 @@
 import { generatePDF } from "../lib/pdf";
 import { logoBase64 } from "../lib/logoBase64";
 import { BannersManagerTab } from "./admin/tabs/marketing/BannersManagerTab";
+import {
+  sanitizePublicProductData,
+  saveProductPrivateCost,
+  addProductPrivateCostToBatch,
+  mergeProductsWithPrivateCosts,
+} from "../lib/productCosts";
 import React, {
   useState,
   useEffect,
@@ -1313,6 +1319,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       const [
         productsSnap,
+        productCostsSnap,
         ordersSnap,
         customersSnap,
         transactionsSnap,
@@ -1330,6 +1337,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             limit(500),
           ),
         ),
+        safeGetDocs(query(collection(db, "product_costs"), limit(1000))),
         safeGetDocs(
           query(
             collection(db, "orders"),
@@ -1468,11 +1476,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         
       }
 
+      const costDocsMap = new Map<string, any>();
+      productCostsSnap.docs.forEach((d: any) => costDocsMap.set(d.id, d.data()));
+
       setProducts(
-        productsSnap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Product[],
+        mergeProductsWithPrivateCosts(
+          productsSnap.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Product[],
+          costDocsMap
+        ),
       );
       setOrders(
         (ordersSnap.docs.map((doc) => ({
@@ -1586,8 +1600,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
 
       const batch = writeBatch(db);
+      const { publicData: publicBulkUpdates, privateCostData: privateBulkUpdates } = sanitizePublicProductData(updates, true);
       for (const id of selectedProductIds) {
-        batch.update(doc(db, "products", id), updates);
+        if (Object.keys(publicBulkUpdates).length > 0) {
+          batch.update(doc(db, "products", id), publicBulkUpdates);
+        }
+        addProductPrivateCostToBatch(batch, id, privateBulkUpdates);
       }
       await batch.commit();
 
@@ -1698,10 +1716,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           };
 
           if (editingProduct) {
+            const { publicData, privateCostData } = sanitizePublicProductData(productData, true);
             await updateDoc(
               doc(db, "products", editingProduct.id),
-              productData,
+              publicData,
             );
+            await saveProductPrivateCost(editingProduct.id, privateCostData);
             
             // Detailed changes summary
             const changes: string[] = [];
@@ -1728,7 +1748,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             toast.success("Product updated successfully");
             checkLowStock(productData.name, productData.stock);
           } else {
-            const newProdRef = await addDoc(collection(db, "products"), productData);
+            const { publicData, privateCostData } = sanitizePublicProductData(productData, false);
+            const newProdRef = await addDoc(collection(db, "products"), publicData);
+            await saveProductPrivateCost(newProdRef.id, privateCostData);
             await logAudit(
               'CREATE',
               'Product',
@@ -2782,15 +2804,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             if (existingProduct) {
               // Update existing
+              const { publicData, privateCostData } = sanitizePublicProductData(productData, true);
               await updateDoc(
                 doc(db, "products", existingProduct.id),
-                productData,
+                publicData,
               );
+              await saveProductPrivateCost(existingProduct.id, privateCostData);
               updatedCount++;
             } else {
               // Create new
               productData.createdAt = new Date().toISOString();
-              await addDoc(collection(db, "products"), productData);
+              const { publicData, privateCostData } = sanitizePublicProductData(productData, false);
+              const newProdRef = await addDoc(collection(db, "products"), publicData);
+              await saveProductPrivateCost(newProdRef.id, privateCostData);
               await logAuditAction('CREATE', 'Product', `Created new product: ${formData.name}`);
               addedCount++;
             }

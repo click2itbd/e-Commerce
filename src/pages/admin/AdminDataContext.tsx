@@ -3,6 +3,7 @@ import { db } from '../../firebase';
 import { collection, getDocs, query, orderBy, addDoc, updateDoc, deleteDoc, doc, setDoc, limit } from 'firebase/firestore';
 import { AdminSharedState, AdminRefreshFunctions, AdminTab } from './types';
 import type { DocumentData } from 'firebase/firestore';
+import { mergeProductsWithPrivateCosts } from '../../lib/productCosts';
 
 const mapDocuments = <T,>(documents: { id: string; data: () => DocumentData }[]): T[] =>
   documents.map(document => ({ id: document.id, ...document.data() } as T));
@@ -44,8 +45,9 @@ export const AdminDataProvider: React.FC<{ children: ReactNode }> = ({ children 
   const refreshAll = async () => {
     setSharedState(prev => ({ ...prev, loading: true }));
     try {
-      const [productsSnap, ordersSnap, customersSnap, vendorsSnap, transactionsSnap, menusSnap, usersSnap, campaignsSnap, discountCodesSnap, soldSerialsSnap, serviceRecordsSnap, paymentAccountsSnap, transactionCategoriesSnap] = await Promise.all([
+      const [productsSnap, productCostsSnap, ordersSnap, customersSnap, vendorsSnap, transactionsSnap, menusSnap, usersSnap, campaignsSnap, discountCodesSnap, soldSerialsSnap, serviceRecordsSnap, paymentAccountsSnap, transactionCategoriesSnap] = await Promise.all([
         getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'product_costs'), limit(1000))).catch(() => ({ docs: [] } as any)),
         getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'vendors'), orderBy('createdAt', 'desc'), limit(500))),
@@ -60,6 +62,13 @@ export const AdminDataProvider: React.FC<{ children: ReactNode }> = ({ children 
         getDocs(query(collection(db, 'transaction_categories'), orderBy('createdAt', 'desc'), limit(100))),
       ]);
 
+      const costDocsMap = new Map<string, any>();
+      productCostsSnap.docs.forEach((d: any) => costDocsMap.set(d.id, d.data()));
+      const mergedProducts = mergeProductsWithPrivateCosts(
+        mapDocuments<AdminSharedState['products'][number]>(productsSnap.docs),
+        costDocsMap
+      );
+
       try {
         const [employeesSnap, employeeLeavesSnap, employeeSalariesSnap] = await Promise.all([
           getDocs(query(collection(db, 'employees'), orderBy('createdAt', 'desc'), limit(500))),
@@ -69,7 +78,7 @@ export const AdminDataProvider: React.FC<{ children: ReactNode }> = ({ children 
 
         setSharedState(prev => ({
           ...prev,
-          products: mapDocuments<AdminSharedState['products'][number]>(productsSnap.docs),
+          products: mergedProducts,
           orders: mapDocuments<AdminSharedState['orders'][number]>(ordersSnap.docs),
           customers: mapDocuments<AdminSharedState['customers'][number]>(customersSnap.docs),
           vendors: mapDocuments<AdminSharedState['vendors'][number]>(vendorsSnap.docs),
@@ -93,7 +102,7 @@ export const AdminDataProvider: React.FC<{ children: ReactNode }> = ({ children 
       } catch (e) {
         setSharedState(prev => ({
           ...prev,
-          products: mapDocuments<AdminSharedState['products'][number]>(productsSnap.docs),
+          products: mergedProducts,
           orders: mapDocuments<AdminSharedState['orders'][number]>(ordersSnap.docs),
           customers: mapDocuments<AdminSharedState['customers'][number]>(customersSnap.docs),
           vendors: mapDocuments<AdminSharedState['vendors'][number]>(vendorsSnap.docs),

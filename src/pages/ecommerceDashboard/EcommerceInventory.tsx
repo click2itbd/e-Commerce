@@ -11,6 +11,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useAuth } from '../../context/AuthContext';
 import { logAudit } from '../../lib/audit';
+import { sanitizePublicProductData, saveProductPrivateCost } from '../../lib/productCosts';
 
 interface EcommerceInventoryProps {
   products: Product[];
@@ -302,7 +303,9 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
         const newDiscount = formData.discountPrice;
         const priceChanged = oldPrice !== newPrice || oldDiscount !== newDiscount;
 
-        await updateDoc(doc(db, 'products', editingId), productData);
+        const { publicData, privateCostData } = sanitizePublicProductData(productData, true);
+        await updateDoc(doc(db, 'products', editingId), publicData);
+        await saveProductPrivateCost(editingId, privateCostData);
         await logAudit(
           priceChanged ? 'PRICE_CHANGE' : 'EDIT',
           'Product',
@@ -340,10 +343,12 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
         );
         toast.success('Product updated successfully!');
       } else {
-        const newDocRef = await addDoc(collection(db, 'products'), {
+        const { publicData, privateCostData } = sanitizePublicProductData({
           ...productData,
           createdAt: new Date().toISOString()
-        });
+        }, false);
+        const newDocRef = await addDoc(collection(db, 'products'), publicData);
+        await saveProductPrivateCost(newDocRef.id, privateCostData);
         await logAudit(
           'CREATE',
           'Product',

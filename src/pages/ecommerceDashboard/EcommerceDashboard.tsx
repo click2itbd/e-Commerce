@@ -18,6 +18,7 @@ const NotificationsPage = lazy(() => import('../admin/tabs/notifications/Notific
 const BuildRequestsTab = lazy(() => import('../admin/tabs/sales/BuildRequests').then(m => ({ default: m.BuildRequestsTab })));
 import { toast } from 'react-hot-toast';
 import { logAudit } from '../../lib/audit';
+import { mergeProductsWithPrivateCosts } from '../../lib/productCosts';
 
 // Lazy loaded components
 const EcommerceOverview = lazy(() => import('./EcommerceOverview').then(m => ({ default: m.EcommerceOverview })));
@@ -91,15 +92,24 @@ const EcommerceDashboard: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [productsSnap, ordersSnap, customersSnap, transactionsSnap, menusSnap] = await Promise.all([
+      const [productsSnap, productCostsSnap, ordersSnap, customersSnap, transactionsSnap, menusSnap] = await Promise.all([
         getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'product_costs'), limit(1000))).catch(() => ({ docs: [] } as any)),
         getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'customers'), orderBy('createdAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'menus'), orderBy('order', 'asc'), limit(100)))
       ]);
 
-      setProducts(productsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+      const costDocsMap = new Map<string, any>();
+      productCostsSnap.docs.forEach((d: any) => costDocsMap.set(d.id, d.data()));
+
+      setProducts(
+        mergeProductsWithPrivateCosts(
+          productsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)),
+          costDocsMap
+        )
+      );
       setOrders(ordersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order)));
       setCustomers(customersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
       setTransactions(transactionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
