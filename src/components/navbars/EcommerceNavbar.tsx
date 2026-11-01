@@ -19,6 +19,8 @@ export const EcommerceNavbar: React.FC = () => {
   const { user, canAccessAdmin } = useAuth();
   const { settings } = useSettings();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [isAllCategoriesOpen, setIsAllCategoriesOpen] = useState(false);
+  const [activeMegaCategoryId, setActiveMegaCategoryId] = useState<string | null>(null);
   const [mobileCategorySearch, setMobileCategorySearch] = useState('');
   const [expandedMobileCategories, setExpandedMobileCategories] = useState<string[]>([]);
   const [expandedMobileSubCategories, setExpandedMobileSubCategories] = useState<string[]>([]);
@@ -378,113 +380,310 @@ export const EcommerceNavbar: React.FC = () => {
 
       {/* Desktop Navigation */}
       <nav className="hidden lg:block bg-white border-b border-gray-200">
-          <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
-            <div className="flex items-center justify-between h-12">
-              <ul className="flex items-center gap-4 xl:gap-6 h-full">
-            {menus.filter(m => m.name.toLowerCase() !== 'hosting').map((menu, menuIdx, arr) => {
-              const subs = menu.subCategories || [];
-              const isNearRightEdge = menuIdx >= arr.length - 3;
+        <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
+          {(() => {
+            const visibleMenus = menus.filter(m => m.name.toLowerCase() !== 'hosting');
+            const featuredMenus = visibleMenus.slice(0, 6);
+            const activeMegaMenu =
+              visibleMenus.find(m => m.id === activeMegaCategoryId) || visibleMenus[0] || null;
 
-              // Split subcategories into columns of max 10 items
-              const CHUNK_SIZE = 10;
-              const columns: SubCategory[][] = [];
-              for (let i = 0; i < subs.length; i += CHUNK_SIZE) {
-                columns.push(subs.slice(i, i + CHUNK_SIZE));
-              }
-
-              return (
-              <li key={menu.id} className="relative group h-full">
-                <Link 
-                  to={`/category/${menu.slug}`} 
-                  className="flex items-center gap-1 h-full text-[13px] font-bold transition-colors whitespace-nowrap"
-                  style={{ color: 'inherit' }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = settings.accentColor}
-                  onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
+            return (
+              <div className="flex items-center justify-between h-12 gap-2">
+                {/* LEFT: All Categories Mega-Menu Trigger */}
+                <div
+                  className="relative h-full flex items-center shrink-0 pr-3 border-r border-gray-200"
+                  onMouseEnter={() => {
+                    setIsAllCategoriesOpen(true);
+                    if (!activeMegaCategoryId && visibleMenus.length > 0) {
+                      setActiveMegaCategoryId(visibleMenus[0].id);
+                    }
+                  }}
+                  onMouseLeave={() => setIsAllCategoriesOpen(false)}
                 >
-                  {menu.name}
-                  {subs.length > 0 && <ChevronDown size={14} />}
-                </Link>
-                
-                {subs.length > 0 && (
-                  <div className={`absolute top-full left-0 bg-white shadow-2xl border border-gray-100 rounded-b-md opacity-0 invisible translate-y-2 group-hover:translate-y-0 group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 py-2 flex divide-x divide-gray-100 ${
-                    columns.length === 1 ? 'w-60' : columns.length === 2 ? 'w-[500px]' : 'w-[750px]'
-                  }`}>
-                    {columns.map((colSubs, colIdx) => (
-                      <ul key={colIdx} className="flex-1 flex flex-col min-w-[240px]">
-                        {colSubs.map((sub, rowIdx) => {
-                          const subSubs = sub.subCategories || [];
-                          const hasSubSubs = subSubs.length > 0;
-                          const isLastCol = colIdx === columns.length - 1;
-                          
-                          // Flyout direction: if last column & not near screen right edge -> right, else left
-                          const flyoutToRight = !isNearRightEdge && isLastCol;
-                          // Vertical positioning: flip upwards if near bottom of column so it never cuts off
-                          const flyoutVertical = rowIdx >= 6 ? 'bottom-0' : 'top-0';
+                  <button
+                    type="button"
+                    onClick={() => setIsAllCategoriesOpen(prev => !prev)}
+                    className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#0f172a] hover:bg-[#F97316] text-white text-[13px] font-bold transition-colors whitespace-nowrap shadow-xs cursor-pointer"
+                  >
+                    <Menu size={16} className="shrink-0" />
+                    <span>All Categories</span>
+                    <span className="text-[10px] bg-white/15 px-1.5 py-0.5 rounded-full font-extrabold">
+                      {visibleMenus.length}
+                    </span>
+                    <ChevronDown
+                      size={14}
+                      className={`shrink-0 transition-transform duration-200 ${isAllCategoriesOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
 
+                  {/* Mega-Menu Dropdown */}
+                  {isAllCategoriesOpen && visibleMenus.length > 0 && (
+                    <div className="absolute top-full left-0 w-[760px] bg-white shadow-2xl border border-gray-200 rounded-b-xl z-[70] flex overflow-hidden animate-in fade-in duration-150">
+                      {/* Left Category List */}
+                      <div className="w-64 bg-slate-50/90 border-r border-gray-100 py-2 max-h-[440px] overflow-y-auto custom-scrollbar">
+                        {visibleMenus.map(menu => {
+                          const isActive = activeMegaMenu?.id === menu.id;
+                          const subCount = menu.subCategories?.length || 0;
                           return (
-                            <li key={sub.id} className="relative group/sub">
-                              <Link 
-                                to={`/category/${menu.slug}/${sub.slug}`} 
-                                className="flex items-center justify-between px-4 py-2 hover:bg-orange-50 text-gray-900 hover:text-[#F97316] transition-colors text-[13px] font-medium"
-                              >
-                                <span className="truncate">{sub.name}</span>
-                                {hasSubSubs && (
-                                  <ChevronRight size={13} className="text-gray-400 group-hover/sub:text-[#F97316] shrink-0 ml-2" />
+                            <Link
+                              key={menu.id}
+                              to={`/category/${menu.slug}`}
+                              onMouseEnter={() => setActiveMegaCategoryId(menu.id)}
+                              onClick={() => setIsAllCategoriesOpen(false)}
+                              className={`flex items-center justify-between px-4 py-2.5 text-[13px] transition-all ${
+                                isActive
+                                  ? 'bg-white text-[#F97316] font-bold shadow-2xs border-l-3 border-[#F97316]'
+                                  : 'text-gray-700 font-medium hover:bg-white/70 hover:text-gray-900'
+                              }`}
+                            >
+                              <span className="truncate">{menu.name}</span>
+                              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                {subCount > 0 && (
+                                  <span className="text-[10px] text-gray-400 font-semibold">{subCount}</span>
                                 )}
-                              </Link>
-
-                              {/* Sub-Sub-Category Flyout */}
-                              {hasSubSubs && (
-                                <div className={`absolute ${flyoutVertical} ${flyoutToRight ? 'left-full ml-1' : 'right-full mr-1'} bg-white shadow-2xl border border-gray-100 rounded-md py-1.5 min-w-[210px] opacity-0 invisible group-hover/sub:opacity-100 group-hover/sub:visible transition-all duration-150 z-[60]`}>
-                                  <div className="px-3.5 py-1 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 mb-1">
-                                    {sub.name}
-                                  </div>
-                                  <ul className="flex flex-col py-0.5">
-                                    {subSubs.map(subSub => (
-                                      <li key={subSub.id}>
-                                        <Link 
-                                          to={`/category/${menu.slug}/${sub.slug}/${subSub.slug}`} 
-                                          className="block px-3.5 py-1.5 text-xs text-gray-700 hover:text-[#F97316] hover:bg-orange-50/80 transition-colors"
-                                        >
-                                          {subSub.name}
-                                        </Link>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                  <div className="border-t border-gray-100 mt-1 pt-1 px-3.5">
-                                    <Link 
-                                      to={`/category/${menu.slug}/${sub.slug}`} 
-                                      className="block text-[11px] font-bold text-[#F97316] hover:underline py-1"
-                                    >
-                                      All {sub.name} &rarr;
-                                    </Link>
-                                  </div>
-                                </div>
-                              )}
-                            </li>
+                                <ChevronRight
+                                  size={14}
+                                  className={isActive ? 'text-[#F97316]' : 'text-gray-400'}
+                                />
+                              </div>
+                            </Link>
                           );
                         })}
-                      </ul>
-                    ))}
-                  </div>
-                )}
-              </li>
-            )})}
-            </ul>
-              <div className="flex items-center gap-6 h-full">
-                <Link to="/pc-build" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
-                  <Cpu size={18} /> PC Builder
-                </Link>
-                  <Link to="/projects" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
-                    <Camera size={18} /> Our Projects
+                      </div>
+
+                      {/* Right Subcategories / Quick Browse Panel */}
+                      <div className="flex-1 p-5 bg-white max-h-[440px] overflow-y-auto custom-scrollbar">
+                        {activeMegaMenu && (
+                          <div>
+                            <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-100">
+                              <div>
+                                <h4 className="text-sm font-black text-gray-900">{activeMegaMenu.name}</h4>
+                                <p className="text-[11px] text-gray-400">
+                                  {(activeMegaMenu.subCategories?.length || 0) > 0
+                                    ? `${activeMegaMenu.subCategories!.length} subcategories available`
+                                    : 'Explore products in this category'}
+                                </p>
+                              </div>
+                              <Link
+                                to={`/category/${activeMegaMenu.slug}`}
+                                onClick={() => setIsAllCategoriesOpen(false)}
+                                className="text-xs font-bold text-[#F97316] hover:underline flex items-center gap-1"
+                              >
+                                View All {activeMegaMenu.name} &rarr;
+                              </Link>
+                            </div>
+
+                            {(activeMegaMenu.subCategories?.length || 0) > 0 ? (
+                              <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                                {activeMegaMenu.subCategories!.map(sub => (
+                                  <div key={sub.id} className="space-y-1.5">
+                                    <Link
+                                      to={`/category/${activeMegaMenu.slug}/${sub.slug}`}
+                                      onClick={() => setIsAllCategoriesOpen(false)}
+                                      className="block text-[13px] font-bold text-gray-800 hover:text-[#F97316] transition-colors"
+                                    >
+                                      {sub.name}
+                                    </Link>
+                                    {(sub.subCategories?.length || 0) > 0 && (
+                                      <ul className="space-y-1 pl-2 border-l border-gray-100">
+                                        {sub.subCategories!.map(subSub => (
+                                          <li key={subSub.id}>
+                                            <Link
+                                              to={`/category/${activeMegaMenu.slug}/${sub.slug}/${subSub.slug}`}
+                                              onClick={() => setIsAllCategoriesOpen(false)}
+                                              className="block text-xs text-gray-500 hover:text-[#F97316] transition-colors py-0.5"
+                                            >
+                                              {subSub.name}
+                                            </Link>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="space-y-4">
+                                <Link
+                                  to={`/category/${activeMegaMenu.slug}`}
+                                  onClick={() => setIsAllCategoriesOpen(false)}
+                                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-50 hover:bg-[#F97316] text-[#F97316] hover:text-white text-xs font-bold transition-all"
+                                >
+                                  Browse All {activeMegaMenu.name} Products &rarr;
+                                </Link>
+                                <div className="pt-3 border-t border-gray-100">
+                                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2.5">
+                                    Quick Jump to Any Category
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {visibleMenus.map(m => (
+                                      <Link
+                                        key={m.id}
+                                        to={`/category/${m.slug}`}
+                                        onClick={() => setIsAllCategoriesOpen(false)}
+                                        className="px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-orange-50 text-gray-700 hover:text-[#F97316] text-xs font-semibold border border-gray-200/70 transition-colors"
+                                      >
+                                        {m.name}
+                                      </Link>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* MIDDLE: Featured 6 Categories (Single-Line, Never Wrapping) */}
+                <ul className="flex items-center gap-3.5 xl:gap-5 h-full flex-1 min-w-0 px-2">
+                  {featuredMenus.map((menu, menuIdx, arr) => {
+                    const subs = menu.subCategories || [];
+                    const isNearRightEdge = menuIdx >= arr.length - 2;
+
+                    const CHUNK_SIZE = 10;
+                    const columns: SubCategory[][] = [];
+                    for (let i = 0; i < subs.length; i += CHUNK_SIZE) {
+                      columns.push(subs.slice(i, i + CHUNK_SIZE));
+                    }
+
+                    return (
+                      <li
+                        key={menu.id}
+                        className={`relative group h-full shrink-0 ${menuIdx === 5 ? 'hidden xl:block' : ''}`}
+                      >
+                        <Link
+                          to={`/category/${menu.slug}`}
+                          className="flex items-center gap-1 h-full text-[13px] font-bold text-gray-800 transition-colors whitespace-nowrap"
+                          onMouseEnter={e => (e.currentTarget.style.color = settings.accentColor)}
+                          onMouseLeave={e => (e.currentTarget.style.color = '')}
+                        >
+                          {menu.name}
+                          {subs.length > 0 && <ChevronDown size={13} className="shrink-0" />}
+                        </Link>
+
+                        {subs.length > 0 && (
+                          <div
+                            className={`absolute top-full left-0 bg-white shadow-2xl border border-gray-100 rounded-b-md opacity-0 invisible translate-y-2 group-hover:translate-y-0 group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 py-2 flex divide-x divide-gray-100 ${
+                              columns.length === 1 ? 'w-60' : columns.length === 2 ? 'w-[500px]' : 'w-[750px]'
+                            }`}
+                          >
+                            {columns.map((colSubs, colIdx) => (
+                              <ul key={colIdx} className="flex-1 flex flex-col min-w-[240px]">
+                                {colSubs.map((sub, rowIdx) => {
+                                  const subSubs = sub.subCategories || [];
+                                  const hasSubSubs = subSubs.length > 0;
+                                  const isLastCol = colIdx === columns.length - 1;
+                                  const flyoutToRight = !isNearRightEdge && isLastCol;
+                                  const flyoutVertical = rowIdx >= 6 ? 'bottom-0' : 'top-0';
+
+                                  return (
+                                    <li key={sub.id} className="relative group/sub">
+                                      <Link
+                                        to={`/category/${menu.slug}/${sub.slug}`}
+                                        className="flex items-center justify-between px-4 py-2 hover:bg-orange-50 text-gray-900 hover:text-[#F97316] transition-colors text-[13px] font-medium"
+                                      >
+                                        <span className="truncate">{sub.name}</span>
+                                        {hasSubSubs && (
+                                          <ChevronRight
+                                            size={13}
+                                            className="text-gray-400 group-hover/sub:text-[#F97316] shrink-0 ml-2"
+                                          />
+                                        )}
+                                      </Link>
+
+                                      {hasSubSubs && (
+                                        <div
+                                          className={`absolute ${flyoutVertical} ${
+                                            flyoutToRight ? 'left-full ml-1' : 'right-full mr-1'
+                                          } bg-white shadow-2xl border border-gray-100 rounded-md py-1.5 min-w-[210px] opacity-0 invisible group-hover/sub:opacity-100 group-hover/sub:visible transition-all duration-150 z-[60]`}
+                                        >
+                                          <div className="px-3.5 py-1 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 mb-1">
+                                            {sub.name}
+                                          </div>
+                                          <ul className="flex flex-col py-0.5">
+                                            {subSubs.map(subSub => (
+                                              <li key={subSub.id}>
+                                                <Link
+                                                  to={`/category/${menu.slug}/${sub.slug}/${subSub.slug}`}
+                                                  className="block px-3.5 py-1.5 text-xs text-gray-700 hover:text-[#F97316] hover:bg-orange-50/80 transition-colors"
+                                                >
+                                                  {subSub.name}
+                                                </Link>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                          <div className="border-t border-gray-100 mt-1 pt-1 px-3.5">
+                                            <Link
+                                              to={`/category/${menu.slug}/${sub.slug}`}
+                                              className="block text-[11px] font-bold text-[#F97316] hover:underline py-1"
+                                            >
+                                              All {sub.name} &rarr;
+                                            </Link>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ))}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+
+                  {visibleMenus.length > 6 && (
+                    <li className="h-full flex items-center shrink-0">
+                      <button
+                        type="button"
+                        onMouseEnter={() => {
+                          setIsAllCategoriesOpen(true);
+                          if (visibleMenus[6]) setActiveMegaCategoryId(visibleMenus[6].id);
+                        }}
+                        onClick={() => setIsAllCategoriesOpen(prev => !prev)}
+                        className="text-xs font-bold text-[#F97316] hover:text-[#ea580c] bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-full transition-colors whitespace-nowrap cursor-pointer"
+                      >
+                        +{visibleMenus.length - 6} More
+                      </button>
+                    </li>
+                  )}
+                </ul>
+
+                {/* RIGHT: Fixed Single-Line Action Buttons (Never Wrap or Overlap) */}
+                <div className="flex items-center gap-2 xl:gap-3 h-full shrink-0 pl-3 border-l border-gray-200">
+                  <Link
+                    to="/pc-build"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 hover:bg-[#F97316] text-[#F97316] hover:text-white text-[13px] font-bold transition-all whitespace-nowrap shrink-0 border border-orange-200/80"
+                  >
+                    <Cpu size={15} className="shrink-0" />
+                    <span>PC Builder</span>
                   </Link>
-                <a href="https://click2it.bd" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 h-full text-[14px] text-gray-900 font-bold hover:text-[#F97316] transition-colors">
-                  <Server size={18} /> Domain & Hosting
-                </a>
+                  <Link
+                    to="/projects"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] text-gray-800 hover:text-[#F97316] hover:bg-gray-50 font-bold transition-colors whitespace-nowrap shrink-0"
+                  >
+                    <Camera size={15} className="shrink-0 text-gray-600" />
+                    <span>Our Projects</span>
+                  </Link>
+                  <a
+                    href="https://click2it.bd"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] text-gray-800 hover:text-[#F97316] hover:bg-gray-50 font-bold transition-colors whitespace-nowrap shrink-0"
+                  >
+                    <Server size={15} className="shrink-0 text-gray-600" />
+                    <span>Domain & Hosting</span>
+                  </a>
+                </div>
               </div>
-            </div>
-          </div>
-        </nav>
+            );
+          })()}
+        </div>
+      </nav>
 
       {/* Mobile Menu */}
       {isMenuOpen && (
