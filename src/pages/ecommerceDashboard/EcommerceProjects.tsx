@@ -11,7 +11,8 @@ import {
   query,
   orderBy,
 } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { compressImage } from '../../lib/imageCompressor';
 import {
   Camera,
   Briefcase,
@@ -257,7 +258,60 @@ export const EcommerceProjects = () => {
     return <IconComponent {...props} />;
   };
 
-  // Upload Cover or Gallery Image to Firebase Storage
+  // Upload single file with automatic fallback: cPanel upload.php -> Firebase Storage -> Compressed Data URL
+  const uploadSingleProjectImage = async (rawFile: File, prefix: string): Promise<string> => {
+    const compressedFile = await compressImage(rawFile, 1400, 1400, 0.82);
+
+    // 1. Try cPanel upload.php first (works on live production server)
+    const isLocalhost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    if (!isLocalhost && typeof window !== 'undefined') {
+      try {
+        const formDataUpload = new FormData();
+        formDataUpload.append('image', compressedFile);
+        const res = await fetch(`${window.location.origin}/upload.php`, {
+          method: 'POST',
+          body: formDataUpload,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.success && data?.url) {
+            return data.url;
+          }
+        }
+      } catch {
+        // Fallback to Firebase Storage or Data URL below
+      }
+    }
+
+    // 2. Try Firebase Storage with a 6-second timeout so it never hangs on CORS/network blocks
+    try {
+      const safeName = compressedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storageRef = ref(storage, `showcase_projects/${prefix}_${Date.now()}_${safeName}`);
+      const url = await Promise.race([
+        uploadBytes(storageRef, compressedFile).then(snap => getDownloadURL(snap.ref)),
+        new Promise<string>((_, reject) =>
+          setTimeout(() => reject(new Error('Storage upload timeout')), 6000)
+        ),
+      ]);
+      if (url) return url;
+    } catch {
+      // Fallback to compressed WebP Data URL
+    }
+
+    // 3. Guaranteed fallback: convert compressed WebP image to Data URL (works on localhost & any network)
+    const fallbackFile = await compressImage(rawFile, 1100, 1100, 0.75);
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = err => reject(err);
+      reader.readAsDataURL(fallbackFile);
+    });
+  };
+
+  // Upload Cover or Gallery Image
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'cover' | 'gallery') => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -267,9 +321,7 @@ export const EcommerceProjects = () => {
       setIsUploadingCover(true);
       const toastId = toast.loading('Uploading project cover image...');
       try {
-        const storageRef = ref(storage, `showcase_projects/${Date.now()}_${file.name}`);
-        const uploadTask = await uploadBytesResumable(storageRef, file);
-        const url = await getDownloadURL(uploadTask.ref);
+        const url = await uploadSingleProjectImage(file, 'cover');
         setFormData(prev => ({ ...prev, image: url }));
         toast.success('Cover image uploaded!', { id: toastId });
       } catch (err) {
@@ -277,6 +329,7 @@ export const EcommerceProjects = () => {
         toast.error('Failed to upload image', { id: toastId });
       } finally {
         setIsUploadingCover(false);
+        e.target.value = '';
       }
     } else {
       setIsUploadingGallery(true);
@@ -284,9 +337,7 @@ export const EcommerceProjects = () => {
       try {
         const uploadedUrls: string[] = [];
         for (const file of Array.from(files)) {
-          const storageRef = ref(storage, `showcase_projects/gallery_${Date.now()}_${file.name}`);
-          const uploadTask = await uploadBytesResumable(storageRef, file);
-          const url = await getDownloadURL(uploadTask.ref);
+          const url = await uploadSingleProjectImage(file, 'gallery');
           uploadedUrls.push(url);
         }
         setFormData(prev => ({ ...prev, gallery: [...prev.gallery, ...uploadedUrls] }));
@@ -296,6 +347,7 @@ export const EcommerceProjects = () => {
         toast.error('Failed to upload gallery images', { id: toastId });
       } finally {
         setIsUploadingGallery(false);
+        e.target.value = '';
       }
     }
   };
