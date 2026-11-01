@@ -74,13 +74,9 @@ if [ -n "$NVENV" ] && [ -f "$NVENV" ]; then
   source "$NVENV"
 fi
 
-# Install backend production dependencies
-npm install --prefix "$BACKEND_DEST" --omit=dev --no-audit --no-fund --no-package-lock 2>/dev/null || true
-
-# Verify backend compiled dist exists
-if [ ! -f "$BACKEND_DEST/dist/server.js" ]; then
-  echo "Warning: $BACKEND_DEST/dist/server.js is missing! Attempting emergency compilation..."
-  npx tsc -p "$BACKEND_DEST/tsconfig.json" 2>/dev/null || true
+# Only install backend production dependencies if node_modules does not exist yet
+if [ ! -d "$BACKEND_DEST/node_modules" ]; then
+  npm install --prefix "$BACKEND_DEST" --omit=dev --no-audit --no-fund --no-package-lock 2>/dev/null || true
 fi
 
 # Signal cPanel Phusion Passenger to automatically restart the Node.js process
