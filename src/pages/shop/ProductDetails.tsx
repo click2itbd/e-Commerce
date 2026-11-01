@@ -407,14 +407,6 @@ export const ProductDetails: React.FC = () => {
               </div>
               <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => setIsPriceAlertOpen(true)}
-                  className="flex items-center gap-1.5 text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full hover:bg-orange-100 transition-colors shadow-2xs"
-                  title="Notify me when price drops"
-                >
-                  <Bell size={14} className="animate-pulse" />
-                  <span>Price Alert</span>
-                </button>
-                <button 
                   onClick={() => addToCompare(product)}
                   className={cn(
                     "flex items-center gap-1 text-sm font-medium transition-colors",
@@ -521,25 +513,6 @@ export const ProductDetails: React.FC = () => {
               >
                 <ShoppingCart size={18} />
                 Add To Cart
-              </button>
-            </div>
-
-            {/* Price Drop Alert Banner */}
-            <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-orange-200/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-orange-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <Bell size={18} />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-900">Subscribe to Price Drop Alert</h4>
-                  <p className="text-[11px] text-gray-600">Get an instant email when this item reaches your target price.</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsPriceAlertOpen(true)}
-                className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold py-2 px-3.5 rounded-xl transition-colors shrink-0 shadow-2xs active:scale-95"
-              >
-                Set Alert
               </button>
             </div>
 
