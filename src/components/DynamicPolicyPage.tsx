@@ -7,10 +7,22 @@ import { db } from '../firebase';
 import { Loader2 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 
-export const DynamicPolicyPage: React.FC<{ pageId: string, defaultTitle: string, defaultContent: string }> = ({ pageId, defaultTitle, defaultContent }) => {
+interface DynamicPolicyPageProps {
+  pageId: string;
+  defaultTitle: string;
+  defaultContent?: string;
+  children?: React.ReactNode;
+}
+
+export const DynamicPolicyPage: React.FC<DynamicPolicyPageProps> = ({
+  pageId,
+  defaultTitle,
+  defaultContent = '',
+  children,
+}) => {
   const { settings } = useSettings();
   const brandName = settings?.brandName || 'Click2IT BD';
-  const [content, setContent] = useState(defaultContent);
+  const [customContent, setCustomContent] = useState<string | null>(null);
   const [title, setTitle] = useState(defaultTitle);
   const [loading, setLoading] = useState(true);
 
@@ -20,17 +32,29 @@ export const DynamicPolicyPage: React.FC<{ pageId: string, defaultTitle: string,
         const pageDoc = await getDoc(doc(db, 'pages', pageId));
         if (pageDoc.exists()) {
           const data = pageDoc.data();
-          if (data.content) setContent(data.content);
+          const saved = (data.content || '').trim();
+          if (
+            saved &&
+            saved !== 'Please update this page content from the Admin Dashboard.'
+          ) {
+            setCustomContent(saved);
+          }
           if (data.title) setTitle(data.title);
         }
       } catch (error) {
-        console.error("Failed to load policy page:", error);
+        console.error('Failed to load policy page:', error);
       } finally {
         setLoading(false);
       }
     };
     fetchPage();
   }, [pageId]);
+
+  if (!loading && !customContent && children) {
+    return <>{children}</>;
+  }
+
+  const htmlToRender = customContent || defaultContent;
 
   return (
     <Layout fullWidth>
@@ -39,14 +63,21 @@ export const DynamicPolicyPage: React.FC<{ pageId: string, defaultTitle: string,
         <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-4xl">
           <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-gray-100">
             {loading ? (
-               <div className="flex justify-center items-center h-64 text-gray-400">
-                 <Loader2 className="animate-spin w-10 h-10" />
-               </div>
+              <div className="flex justify-center items-center h-64 text-gray-400">
+                <Loader2 className="animate-spin w-10 h-10" />
+              </div>
             ) : (
-               <>
-                 <h1 className="text-4xl font-bold text-gray-900 mb-6">{title}</h1>
-                 <div className="prose prose-blue max-w-none text-gray-700 space-y-6" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content.replace(/{brandName}/g, brandName)) }} />
-               </>
+              <>
+                <h1 className="text-4xl font-bold text-gray-900 mb-6">{title}</h1>
+                <div
+                  className="prose prose-blue max-w-none text-gray-700 space-y-6"
+                  dangerouslySetInnerHTML={{
+                    __html: DOMPurify.sanitize(
+                      htmlToRender.replace(/{brandName}/g, brandName)
+                    ),
+                  }}
+                />
+              </>
             )}
           </div>
         </div>
