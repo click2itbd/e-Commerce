@@ -150,7 +150,7 @@ export const Footer: React.FC = () => {
 
         <div className="border-t border-gray-800 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-500">
           <p>{settings.footerText}</p>
-          <p>Powered By: AI Studio</p>
+          <p>Powered By: CLICK2IT BD</p>
         </div>
       </div>
     </footer>
