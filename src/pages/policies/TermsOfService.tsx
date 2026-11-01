@@ -1,76 +1,103 @@
 import React from 'react';
 import { Layout } from '../../components/Layout';
 import { SEO } from '../../components/SEO';
+import { FileText, Phone, Mail } from 'lucide-react';
+import { useSettings } from '../../context/SettingsContext';
 
 const TermsOfService = () => {
+  const { settings } = useSettings();
+  const brandName = settings?.brandName || 'Click2IT BD';
+  const contactEmail = settings?.contactEmail || 'info@click2itbd.com';
+  const contactPhone = settings?.contactPhone || '+8809640887777';
+
   return (
     <Layout fullWidth>
-      <SEO title="Terms of Service - Click2IT BD" description="Terms of Service for Click2IT BD hosting and domain services." />
-      <div className="bg-gray-50 py-16">
-        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-4xl">
-          <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-gray-100">
-            <h1 className="text-4xl font-bold text-gray-900 mb-6">Terms of Service</h1>
-            <p className="text-gray-500 mb-8">Last Updated: {new Date().toLocaleDateString()}</p>
-            
-            <div className="prose prose-blue max-w-none text-gray-700 space-y-6">
+      <SEO
+        title={`Terms & Conditions - ${brandName}`}
+        description={`Terms and Conditions for purchasing computer hardware, gadgets, and custom PC builds at ${brandName}.`}
+      />
+      <div className="bg-slate-50/80 py-10 md:py-16 min-h-screen">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
+          <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-slate-200/80">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3.5 bg-slate-100 text-slate-800 rounded-2xl border border-slate-200">
+                <FileText className="w-8 h-8" />
+              </div>
+              <div>
+                <h1 className="text-3xl md:text-4xl font-black text-slate-900">
+                  Terms &amp; Conditions
+                </h1>
+                <p className="text-slate-500 text-sm mt-1">
+                  Official terms governing online orders, retail purchases, and custom PC builds
+                </p>
+              </div>
+            </div>
+
+            <div className="h-px bg-slate-100 my-6" />
+
+            <div className="space-y-8 text-slate-700 leading-relaxed text-sm md:text-base">
               <section>
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">1. Acceptance of Terms</h2>
-                <p>
-                  By accessing and using the services provided by Click2IT BD ("we," "us," or "our"), you agree to comply with and be bound by these Terms of Service. If you do not agree with these terms, please do not use our services.
+                <h2 className="text-xl font-bold text-slate-900 mb-2">1. Acceptance of Terms</h2>
+                <p className="text-slate-600">
+                  By accessing and placing an order on <strong>{brandName}</strong>, you agree to abide by these Terms &amp; Conditions. These terms apply to all online e-commerce orders, Custom PC Builder quotations, and retail showroom purchases.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">2. Service Provision</h2>
-                <p>
-                  Click2IT BD provides web hosting, domain registration, and related digital services. We reserve the right to modify, suspend, or discontinue any part of our services at any time with or without notice.
-                </p>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">3. User Responsibilities</h2>
-                <ul className="list-disc pl-6 space-y-2">
-                  <li>You must provide accurate and complete information during registration.</li>
-                  <li>You are responsible for maintaining the security of your account credentials.</li>
-                  <li>You agree not to use our servers for spamming, malware distribution, or any illegal activities.</li>
-                  <li>You must not host copyrighted material without permission.</li>
+                <h2 className="text-xl font-bold text-slate-900 mb-2">2. Product Pricing &amp; Stock Availability</h2>
+                <ul className="list-disc pl-6 space-y-2 text-slate-600">
+                  <li>
+                    All prices listed on our website are in <strong>Bangladeshi Taka (BDT / ৳)</strong>.
+                  </li>
+                  <li>
+                    Due to global hardware market fluctuations, component prices and stock availability are subject to change without prior notice.
+                  </li>
+                  <li>
+                    In the rare event of a typographical pricing error or sudden stock-out after an order is placed, our team will contact you immediately to offer an alternative model or a 100% full refund.
+                  </li>
                 </ul>
               </section>
 
               <section>
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">4. Payment and Billing</h2>
-                <p>
-                  All services are billed on a prepaid basis. Failure to pay for services by the due date will result in suspension or termination of your account. Prices are subject to change with 30 days prior notice.
+                <h2 className="text-xl font-bold text-slate-900 mb-2">3. Custom PC Builder Orders</h2>
+                <ul className="list-disc pl-6 space-y-2 text-slate-600">
+                  <li>
+                    When ordering a full rig through our <strong>PC Builder</strong>, our engineering team performs a complete hardware compatibility and BIOS check before unboxing the parts.
+                  </li>
+                  <li>
+                    For Cash on Delivery (COD) orders of custom-assembled PCs or outside-Dhaka shipments, a partial advance booking amount may be required before component seals are broken for assembly.
+                  </li>
+                </ul>
+              </section>
+
+              <section>
+                <h2 className="text-xl font-bold text-slate-900 mb-2">4. Order Verification &amp; Cancellation</h2>
+                <p className="text-slate-600">
+                  We reserve the right to verify customer orders via phone call before dispatch. Orders with unreachable phone numbers, incomplete shipping addresses, or suspected fraudulent payment references may be placed on hold or cancelled automatically.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">5. Domain Registration</h2>
-                <p>
-                  Domain registrations are subject to the terms and conditions of ICANN and the respective domain registries. Click2IT BD acts only as a reseller. Registered domains are non-refundable once activated.
+                <h2 className="text-xl font-bold text-slate-900 mb-2">5. Warranty &amp; Returns</h2>
+                <p className="text-slate-600">
+                  All products are covered by their respective official manufacturer warranty or service warranty as printed on the invoice. Please review our dedicated <strong>Warranty Policy</strong> and <strong>Return &amp; Refund Policy</strong> pages for complete RMA and 3-day replacement terms.
                 </p>
               </section>
 
-              <section>
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">6. Account Termination</h2>
-                <p>
-                  We reserve the right to suspend or terminate accounts that violate these Terms of Service. In cases of severe violations (e.g., phishing, malware hosting), termination will be immediate without prior notice or refund.
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
+                <h3 className="font-bold text-slate-900 mb-2">Questions About Our Terms?</h3>
+                <p className="text-sm text-slate-600 mb-3">
+                  Reach out to our customer support team for any clarification before placing your order:
                 </p>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">7. Limitation of Liability</h2>
-                <p>
-                  Click2IT BD shall not be liable for any data loss, downtime, or business interruption. It is the customer's responsibility to maintain off-site backups of their data. Our total liability is limited to the amount paid for the service during the previous billing cycle.
-                </p>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">8. Contact Information</h2>
-                <p>
-                  If you have any questions about these Terms of Service, please contact us at <strong>info@click2itbd.com</strong>.
-                </p>
-              </section>
+                <div className="flex flex-wrap gap-6 text-sm font-semibold">
+                  <a href={`tel:${contactPhone}`} className="text-blue-600 hover:underline inline-flex items-center gap-1.5">
+                    <Phone className="w-4 h-4" /> {contactPhone}
+                  </a>
+                  <a href={`mailto:${contactEmail}`} className="text-blue-600 hover:underline inline-flex items-center gap-1.5">
+                    <Mail className="w-4 h-4" /> {contactEmail}
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         </div>

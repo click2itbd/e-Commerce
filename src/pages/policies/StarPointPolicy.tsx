@@ -25,7 +25,7 @@ const StarPointPolicy = () => {
       <Layout fullWidth>
         <SEO
           title={`Star Point & Loyalty Rewards Policy - ${brandName}`}
-          description={`Learn how to earn, redeem, and maximize your Star Points on electronics, computer components, and IT services at ${brandName}.`}
+          description={`Learn how to earn, redeem, and maximize your Star Points on electronics, computer components, and custom PC builds at ${brandName}.`}
         />
         <div className="bg-slate-50/80 py-10 md:py-16 min-h-screen">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
@@ -43,7 +43,7 @@ const StarPointPolicy = () => {
                     Star Point <span className="text-amber-400">Rewards Policy</span>
                   </h1>
                   <p className="text-slate-300 text-sm md:text-base leading-relaxed">
-                    Shop smarter at <strong>{brandName}</strong>. Earn reward points on every purchase of PC components, laptops, gadgets, and IT services—and redeem them for instant cash discounts at checkout.
+                    Shop smarter at <strong>{brandName}</strong>. Earn reward points on every purchase of PC components, laptops, gadgets, and custom PC builds—and redeem them for instant cash discounts at checkout.
                   </p>
                 </div>
 
@@ -76,7 +76,7 @@ const StarPointPolicy = () => {
                 </div>
                 <h3 className="font-bold text-slate-900 text-lg mb-1.5">Earn on Orders</h3>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  Receive <strong>1 Star Point</strong> for every <strong>৳100 BDT</strong> spent on eligible tech products, custom PC builds, and services.
+                  Receive <strong>1 Star Point</strong> for every <strong>৳100 BDT</strong> spent on eligible tech products, custom PC builds, and accessories.
                 </p>
               </div>
 
@@ -118,7 +118,7 @@ const StarPointPolicy = () => {
                   1. What is the Star Points Program?
                 </h2>
                 <p className="text-sm md:text-base text-slate-600">
-                  <strong>Star Points</strong> is {brandName}&apos;s official customer loyalty and reward system designed to give back to our regular customers. Whenever you purchase computer hardware, laptops, monitors, gaming accessories, networking gear, or web services through our online store or retail outlet, you earn reward points linked directly to your account.
+                  <strong>Star Points</strong> is {brandName}&apos;s official customer loyalty and reward system designed to give back to our regular customers. Whenever you purchase computer hardware, laptops, monitors, gaming accessories, networking gear, or custom PC builds through our online store or retail outlet, you earn reward points linked directly to your account.
                 </p>
               </section>
 

@@ -1,10 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Layout } from './Layout';
 import { SEO } from './SEO';
 import { useSettings } from '../context/SettingsContext';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-import { Loader2 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 
 interface DynamicPolicyPageProps {
@@ -15,70 +12,32 @@ interface DynamicPolicyPageProps {
 }
 
 export const DynamicPolicyPage: React.FC<DynamicPolicyPageProps> = ({
-  pageId,
   defaultTitle,
   defaultContent = '',
   children,
 }) => {
   const { settings } = useSettings();
   const brandName = settings?.brandName || 'Click2IT BD';
-  const [customContent, setCustomContent] = useState<string | null>(null);
-  const [title, setTitle] = useState(defaultTitle);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchPage = async () => {
-      try {
-        const pageDoc = await getDoc(doc(db, 'pages', pageId));
-        if (pageDoc.exists()) {
-          const data = pageDoc.data();
-          const saved = (data.content || '').trim();
-          if (
-            saved &&
-            saved !== 'Please update this page content from the Admin Dashboard.'
-          ) {
-            setCustomContent(saved);
-          }
-          if (data.title) setTitle(data.title);
-        }
-      } catch (error) {
-        console.error('Failed to load policy page:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPage();
-  }, [pageId]);
-
-  if (!loading && !customContent && children) {
+  if (children) {
     return <>{children}</>;
   }
 
-  const htmlToRender = customContent || defaultContent;
-
   return (
     <Layout fullWidth>
-      <SEO title={`${title} - ${brandName}`} description={`${title} for ${brandName}.`} />
-      <div className="bg-gray-50 py-16 min-h-screen">
-        <div className="container mx-auto px-2 sm:px-4 sm:px-6 lg:px-8 max-w-4xl">
-          <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-gray-100">
-            {loading ? (
-              <div className="flex justify-center items-center h-64 text-gray-400">
-                <Loader2 className="animate-spin w-10 h-10" />
-              </div>
-            ) : (
-              <>
-                <h1 className="text-4xl font-bold text-gray-900 mb-6">{title}</h1>
-                <div
-                  className="prose prose-blue max-w-none text-gray-700 space-y-6"
-                  dangerouslySetInnerHTML={{
-                    __html: DOMPurify.sanitize(
-                      htmlToRender.replace(/{brandName}/g, brandName)
-                    ),
-                  }}
-                />
-              </>
-            )}
+      <SEO title={`${defaultTitle} - ${brandName}`} description={`${defaultTitle} for ${brandName}.`} />
+      <div className="bg-slate-50/80 py-16 min-h-screen">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+          <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-slate-200/80">
+            <h1 className="text-4xl font-bold text-slate-900 mb-6">{defaultTitle}</h1>
+            <div
+              className="prose prose-blue max-w-none text-slate-700 space-y-6"
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(
+                  defaultContent.replace(/{brandName}/g, brandName)
+                ),
+              }}
+            />
           </div>
         </div>
       </div>
