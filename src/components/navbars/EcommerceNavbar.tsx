@@ -383,7 +383,7 @@ export const EcommerceNavbar: React.FC = () => {
         <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
           {(() => {
             const visibleMenus = menus.filter(m => m.name.toLowerCase() !== 'hosting');
-            const featuredMenus = visibleMenus.slice(0, 6);
+            const featuredMenus = visibleMenus.slice(0, 7);
             const activeMegaMenu =
               visibleMenus.find(m => m.id === activeMegaCategoryId) || visibleMenus[0] || null;
 
@@ -552,7 +552,7 @@ export const EcommerceNavbar: React.FC = () => {
                     return (
                       <li
                         key={menu.id}
-                        className={`relative group h-full shrink-0 ${menuIdx === 5 ? 'hidden xl:block' : ''}`}
+                        className={`relative group h-full shrink-0 ${menuIdx >= 6 ? 'hidden xl:block' : ''}`}
                       >
                         <Link
                           to={`/category/${menu.slug}`}
@@ -636,21 +636,7 @@ export const EcommerceNavbar: React.FC = () => {
                     );
                   })}
 
-                  {visibleMenus.length > 6 && (
-                    <li className="h-full flex items-center shrink-0">
-                      <button
-                        type="button"
-                        onMouseEnter={() => {
-                          setIsAllCategoriesOpen(true);
-                          if (visibleMenus[6]) setActiveMegaCategoryId(visibleMenus[6].id);
-                        }}
-                        onClick={() => setIsAllCategoriesOpen(prev => !prev)}
-                        className="text-xs font-bold text-[#F97316] hover:text-[#ea580c] bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-full transition-colors whitespace-nowrap cursor-pointer"
-                      >
-                        +{visibleMenus.length - 6} More
-                      </button>
-                    </li>
-                  )}
+
                 </ul>
 
                 {/* RIGHT: Fixed Single-Line Action Buttons (Never Wrap or Overlap) */}
