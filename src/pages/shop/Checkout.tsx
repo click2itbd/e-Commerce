@@ -6,24 +6,19 @@ import { useCart } from '../../context/CartContext';
 import { useSettings } from '../../context/SettingsContext';
 import { Layout } from '../../components/Layout';
 import { toast } from 'react-hot-toast';
-import { Lock, ArrowRight } from 'lucide-react';
+import { Lock, ArrowRight, ShieldCheck } from 'lucide-react';
 import { auth, db } from '../../firebase';
-import { collection, addDoc, doc, writeBatch, getDoc, increment } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { generateDocumentNumber } from '../../lib/numbering';
 import { generatePDF } from '../../lib/pdf';
-import { initiateBkashPayment, initiateSSLCommerzPayment, initiateNagadPayment } from '../../services/paymentApi';
+import { initiateEpsPayment } from '../../services/paymentApi';
 import { apiPost } from '../../services/apiClient';
-
-
 
 export const Checkout: React.FC = () => {
   const { user } = useAuth();
-  const { items, subtotal, total, promoDiscount, appliedDiscount, clearCart, isShippingFree, addToCart } = useCart();
+  const { items, subtotal, total, appliedDiscount, clearCart, isShippingFree, addToCart } = useCart();
   const { settings } = useSettings();
   const navigate = useNavigate();
-
-  
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -41,12 +36,11 @@ export const Checkout: React.FC = () => {
     domainContact: 'default',
     password: '',
     confirmPassword: '',
-    paymentMethod: 'bkash',
+    paymentMethod: 'eps',
     notes: '',
     termsAccepted: false
   });
 
-  
   const [shippingConfig, setShippingConfig] = useState({
     insideDhaka: 80,
     outsideDhaka: 120,
@@ -92,11 +86,11 @@ export const Checkout: React.FC = () => {
         toast.success(`${bdDomain} added to cart`);
       }
     }
-  }, []); // Only run once on mount to prevent infinite re-renders if items change
+  }, []);
 
   let shippingCost = 0;
   if (formData.state && formData.city) {
-    if (formData.state === 'Dhaka' && formData.city === 'Dhaka' || formData.state === 'Dhaka') {
+    if ((formData.state === 'Dhaka' && formData.city === 'Dhaka') || formData.state === 'Dhaka') {
       shippingCost = shippingConfig.insideDhaka;
     } else {
       shippingCost = shippingConfig.outsideDhaka;
@@ -110,10 +104,7 @@ export const Checkout: React.FC = () => {
   const [paymentType, setPaymentType] = useState<'cod' | 'pay_now'>('cod');
   const [advanceDelivery, setAdvanceDelivery] = useState(false);
 
-  // If payment is COD and advance delivery is checked, the customer only pays the delivery charge right now
   const isAdvanceCOD = paymentType === 'cod' && advanceDelivery && shippingCost > 0;
-  const payNowAmount = isAdvanceCOD ? shippingCost : (total + shippingCost);
-  const dueOnDelivery = isAdvanceCOD ? total : 0;
   const grandTotal = total + shippingCost;
 
   const [geoData, setGeoData] = useState({ divisions: [], districts: [], upazilas: [], unions: [] });
@@ -152,7 +143,6 @@ export const Checkout: React.FC = () => {
 
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // If cart is empty, redirect to cart
   if (items.length === 0) {
     navigate('/cart');
     return null;
@@ -197,9 +187,9 @@ export const Checkout: React.FC = () => {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
     let pwd = "";
     for (let i = 0; i < 12; i++) {
-        pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    setFormData(prev => ({...prev, password: pwd, confirmPassword: pwd}));
+    setFormData(prev => ({ ...prev, password: pwd, confirmPassword: pwd }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -212,8 +202,6 @@ export const Checkout: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      let currentUserId = user?.uid;
-
       if (!user && formData.password) {
         if (formData.password !== formData.confirmPassword) {
           toast.error("Passwords do not match");
@@ -221,8 +209,7 @@ export const Checkout: React.FC = () => {
           return;
         }
         try {
-          const newUserCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-          currentUserId = newUserCred.user.uid;
+          await createUserWithEmailAndPassword(auth, formData.email, formData.password);
         } catch (error: any) {
           toast.error(error.message);
           setIsProcessing(false);
@@ -254,7 +241,7 @@ export const Checkout: React.FC = () => {
             localStorage.removeItem('affiliate_ref');
           }
         }
-      } catch(e) {}
+      } catch (e) {}
 
       const currentAuthUser = auth.currentUser || user;
       if (!currentAuthUser) {
@@ -264,7 +251,6 @@ export const Checkout: React.FC = () => {
       }
       const token = await currentAuthUser.getIdToken();
 
-      // Send only item identifiers, quantities, and couponCode to backend for server-side price & stock verification
       const minimalItems = items.map((item: any) => ({
         id: item.id,
         productId: item.productId || item.id,
@@ -294,7 +280,7 @@ export const Checkout: React.FC = () => {
         company: formData.company,
         paymentType,
         advanceDelivery,
-        paymentMethod: formData.paymentMethod,
+        paymentMethod: paymentType === 'cod' ? (isAdvanceCOD ? 'cod_advance_paid' : 'cod') : 'eps',
         notes: formData.notes,
         affiliateRefId,
       }, token);
@@ -305,17 +291,14 @@ export const Checkout: React.FC = () => {
 
       const createdOrderId = createRes.orderId;
       const serverOrderData = createRes.orderData;
-      const verifiedPayNowAmount = typeof createRes.payNowAmount === 'number' ? createRes.payNowAmount : payNowAmount;
 
       // Notify Admin and Customer
       try {
         await apiPost('/api/send-email/notify-admin-new-order', { orderId: createdOrderId, orderData: serverOrderData }, token);
 
-        // Generate PDF for customer using server-verified order data
         const pdfDoc = await generatePDF({ id: createdOrderId, ...serverOrderData } as any, 'invoice', settings, 'doc');
         const pdfBase64 = pdfDoc.output('datauristring');
 
-        // Send Order Confirmation to Customer
         await apiPost('/api/send-email/order-confirmation', {
           orderId: createdOrderId,
           customerName: `${formData.firstName} ${formData.lastName}`,
@@ -333,55 +316,22 @@ export const Checkout: React.FC = () => {
         console.error('Failed to send order emails:', err);
       }
 
-      // Only clear cart and show success if not redirecting to a payment gateway
-      const selectedPayment = paymentType === 'cod' ? 'cod' : formData.paymentMethod;
-      if (selectedPayment === 'bkash' || selectedPayment === 'card' || selectedPayment === 'nagad' || isAdvanceCOD) {
-        // Online payments or Advance COD route to a gateway
-        const gateway = isAdvanceCOD ? (formData.paymentMethod || 'bkash') : selectedPayment;
-
-        if (gateway === 'bkash') {
-          const res = await initiateBkashPayment(createdOrderId, verifiedPayNowAmount, formData.email, `${formData.firstName} ${formData.lastName}`, fullPhone);
-          if (res.success && res.paymentUrl) {
-            window.location.href = res.paymentUrl;
-            return;
-          } else {
-            throw new Error(res.errorMessage || 'Failed to initiate bKash payment');
-          }
-        } else if (gateway === 'card') {
-          const res = await initiateSSLCommerzPayment(
-            createdOrderId,
-            verifiedPayNowAmount,
-            formData.email,
-            `${formData.firstName} ${formData.lastName}`,
-            fullPhone
-          );
-          if (res.success && res.paymentUrl) {
-            window.location.href = res.paymentUrl;
-            return;
-          } else {
-            throw new Error(res.errorMessage || 'Failed to initiate Card payment');
-          }
-        } else if (gateway === 'nagad') {
-          const res = await initiateNagadPayment(createdOrderId, verifiedPayNowAmount, fullPhone);
-          if (res.success && res.paymentUrl) {
-            window.location.href = res.paymentUrl;
-            return;
-          } else {
-            throw new Error(res.errorMessage || 'Failed to initiate Nagad payment');
-          }
+      // Online payment ("Pay Now" or Advance COD delivery fee) strictly routes through EPS Payment Gateway
+      if (paymentType === 'pay_now' || isAdvanceCOD) {
+        const epsRes = await initiateEpsPayment(createdOrderId, token);
+        const redirectUrl = epsRes.paymentUrl || epsRes.redirectUrl;
+        if (epsRes.success && redirectUrl) {
+          window.location.href = redirectUrl;
+          return;
+        } else {
+          throw new Error(epsRes.error || 'Failed to initiate EPS Payment Gateway.');
         }
-      } else {
-        // Pure COD without advance
-        clearCart();
-        navigate(`/order-success/${createdOrderId}`);
-        toast.success('Order placed successfully!');
-        return;
       }
 
-      // For manual methods (bank transfer, etc), proceed directly
-      toast.success('Order placed successfully!');
+      // Pure Cash on Delivery (without advance online payment)
       clearCart();
       navigate(`/order-success/${createdOrderId}`);
+      toast.success('Order placed successfully!');
     } catch (error: any) {
       console.error('Checkout error:', error);
       toast.error(error.message || 'Failed to place order');
@@ -443,44 +393,44 @@ export const Checkout: React.FC = () => {
               <input type="text" name="address1" value={formData.address1} onChange={handleChange} placeholder="Street Address *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
               <input type="text" name="address2" value={formData.address2} onChange={handleChange} placeholder="Apartment, suite, etc. (Optional)" className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                  <select name="state" value={formData.state} onChange={handleGeoChange} required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700">
-                    <option value="" disabled>Select Division *</option>
-                    {geoData.divisions.map(d => (
-                      <option key={d.id} value={d.name}>{d.name}</option>
-                    ))}
-                  </select>
-                  
-                  <select name="city" value={formData.city} onChange={handleGeoChange} required disabled={!formData.state} className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed">
-                    <option value="" disabled>Select District/City *</option>
-                    {activeGeo.districts.map(d => (
-                      <option key={d.id} value={d.name}>{d.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <select name="state" value={formData.state} onChange={handleGeoChange} required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700">
+                  <option value="" disabled>Select Division *</option>
+                  {geoData.divisions.map(d => (
+                    <option key={d.id} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                  <select name="thana" value={formData.thana} onChange={handleGeoChange} required disabled={!formData.city} className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed">
-                    <option value="" disabled>Select Thana / Upazila *</option>
-                    {activeGeo.upazilas.map(u => (
-                      <option key={u.id} value={u.name}>{u.name}</option>
-                    ))}
-                  </select>
-                  
-                  <select name="union" value={formData.union} onChange={handleGeoChange} disabled={!formData.thana || activeGeo.unions.length === 0} className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed">
-                    <option value="" disabled>{activeGeo.unions.length === 0 ? "No Union (Optional)" : "Select Union / Area (Optional)"}</option>
-                    {activeGeo.unions.map(u => (
-                      <option key={u.id} value={u.name}>{u.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <select name="city" value={formData.city} onChange={handleGeoChange} required disabled={!formData.state} className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed">
+                  <option value="" disabled>Select District/City *</option>
+                  {activeGeo.districts.map(d => (
+                    <option key={d.id} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                <select name="thana" value={formData.thana} onChange={handleGeoChange} required disabled={!formData.city} className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed">
+                  <option value="" disabled>Select Thana / Upazila *</option>
+                  {activeGeo.upazilas.map(u => (
+                    <option key={u.id} value={u.name}>{u.name}</option>
+                  ))}
+                </select>
+                
+                <select name="union" value={formData.union} onChange={handleGeoChange} disabled={!formData.thana || activeGeo.unions.length === 0} className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed">
+                  <option value="" disabled>{activeGeo.unions.length === 0 ? "No Union (Optional)" : "Select Union / Area (Optional)"}</option>
+                  {activeGeo.unions.map(u => (
+                    <option key={u.id} value={u.name}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <input type="text" name="postcode" value={formData.postcode} onChange={handleChange} placeholder="Postcode / ZIP *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
-                  
-                  <select name="country" value={formData.country} onChange={handleChange} className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all">
-                    <option value="Bangladesh">Bangladesh</option>
-                  </select>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <input type="text" name="postcode" value={formData.postcode} onChange={handleChange} placeholder="Postcode / ZIP *" required className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all" />
+                
+                <select name="country" value={formData.country} onChange={handleChange} className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all">
+                  <option value="Bangladesh">Bangladesh</option>
+                </select>
+              </div>
 
           <div className="mb-12 relative border-t border-slate-200 pt-8">
             <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">Additional Information</span>
@@ -571,7 +521,7 @@ export const Checkout: React.FC = () => {
                       <div className="relative flex items-start pt-0.5">
                         <input type="checkbox" checked={advanceDelivery} onChange={(e) => setAdvanceDelivery(e.target.checked)} className="w-4 h-4 text-[#6EC72A] border-gray-300 rounded focus:ring-[#6EC72A]" />
                       </div>
-                      <span className="text-xs text-slate-700 leading-tight">Pay only delivery charge (৳{shippingCost}) in advance. Remaining amount on delivery.</span>
+                      <span className="text-xs text-slate-700 leading-tight">Pay only delivery charge (৳{shippingCost}) online via EPS Gateway. Remaining amount on delivery.</span>
                     </label>
                   </div>
                 )}
@@ -586,26 +536,20 @@ export const Checkout: React.FC = () => {
               </label>
             </div>
 
-            {paymentType === 'pay_now' && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto animate-in fade-in slide-in-from-top-4 duration-300">
-                {[
-                  { id: 'bkash', label: 'bKash', img: 'https://freelogopng.com/images/all_img/1656234745bkash-app-logo-png.png' },
-                  { id: 'nagad', label: 'Nagad', img: 'https://download.logo.wine/logo/Nagad/Nagad-Logo.wine.png' },
-                  { id: 'card', label: 'Cards (Visa/Master)', img: 'https://cdn-icons-png.flaticon.com/512/196/196578.png' },
-                  { id: 'bank', label: 'Bank Transfer', img: 'https://cdn-icons-png.flaticon.com/512/2830/2830284.png' }
-                ].map(method => (
-                  <label key={method.id} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-3 transition-all ${formData.paymentMethod === method.id ? 'border-[#6EC72A] bg-[#6EC72A]/5' : 'border-slate-100 hover:border-slate-300'}`}>
-                    <input type="radio" name="paymentMethod" value={method.id} checked={formData.paymentMethod === method.id} onChange={handleChange} className="hidden" />
-                    <div className="h-10 flex items-center justify-center">
-                      <img src={method.img} alt={method.label} className="max-h-full object-contain mix-blend-multiply opacity-90" />
-                    </div>
-                    <span className={`text-xs font-semibold text-center ${formData.paymentMethod === method.id ? 'text-[#6EC72A]' : 'text-slate-500'}`}>{method.label}</span>
-                  </label>
-                ))}
+            {(paymentType === 'pay_now' || isAdvanceCOD) && (
+              <div className="max-w-xl mx-auto bg-emerald-50/70 border-2 border-[#6EC72A] rounded-2xl p-5 flex items-start gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="bg-[#6EC72A]/15 text-[#6EC72A] p-3 rounded-xl shrink-0">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm">EPS Official Payment Gateway (eps.com.bd)</h4>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    You will be securely redirected to the <strong>EPS Payment Gateway</strong> to complete your payment using <strong>bKash, Nagad, Rocket, Upay, Visa, MasterCard, or AMEX</strong>. Manual payment is disabled; your order will be verified automatically upon payment completion.
+                  </p>
+                </div>
               </div>
             )}
           </div>
-          
           
           {items.some(item => item.itemType === 'domain' && (item.id.endsWith('.bd') || (item.domainTld && item.domainTld.endsWith('bd')))) && (
             <div className="mb-12 relative border border-blue-200 bg-blue-50/50 rounded-2xl p-6 md:p-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -651,7 +595,7 @@ export const Checkout: React.FC = () => {
             </label>
 
             <button type="submit" disabled={isProcessing} className="bg-gradient-to-r from-[#0E2A47] to-[#1a426e] hover:shadow-xl hover:shadow-[#0E2A47]/20 hover:-translate-y-0.5 text-white font-bold py-4 px-10 rounded-xl text-lg flex items-center gap-3 disabled:opacity-50 disabled:hover:translate-y-0 transition-all min-w-[300px] justify-center group">
-              {isProcessing ? 'Processing Order...' : 'Complete Order'}
+              {isProcessing ? 'Processing Order...' : (paymentType === 'pay_now' || isAdvanceCOD) ? 'Proceed to EPS Payment' : 'Complete Order'}
               {!isProcessing && (
                 <span className="bg-white/20 p-1.5 rounded-full group-hover:bg-white/30 transition-colors">
                   <ArrowRight size={20} />
@@ -664,7 +608,3 @@ export const Checkout: React.FC = () => {
     </Layout>
   );
 };
-
-
-
-
