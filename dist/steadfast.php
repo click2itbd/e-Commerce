@@ -1,8 +1,21 @@
 <?php
-header("Access-Control-Allow-Origin: *");
+$allowed_origins = [
+    'https://click2itbd.com',
+    'https://www.click2itbd.com',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:3000'
+];
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if (in_array($origin, $allowed_origins, true)) {
+    header("Access-Control-Allow-Origin: " . $origin);
+} else {
+    header("Access-Control-Allow-Origin: https://click2itbd.com");
+}
 header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Api-Key, Secret-Key");
-header("Content-Type: application/json");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, Api-Key, Secret-Key");
+header("Content-Type: application/json; charset=UTF-8");
+header("X-Content-Type-Options: nosniff");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -43,8 +56,8 @@ if ($action === 'status' && $tracking_code) {
 
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 curl_setopt($ch, CURLOPT_TIMEOUT, 25);
 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
