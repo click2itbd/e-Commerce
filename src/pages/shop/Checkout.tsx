@@ -210,6 +210,14 @@ export const Checkout: React.FC = () => {
           )
         : [];
 
+      let matchedUnion: any = null;
+      const addrUnion = addr.union || "";
+      if (addrUnion && filteredUnions.length > 0) {
+        matchedUnion = filteredUnions.find(
+          (un: any) => un.name.toLowerCase() === addrUnion.toLowerCase()
+        );
+      }
+
       setActiveGeo({
         districts: filteredDistricts,
         upazilas: filteredUpazilas,
@@ -225,6 +233,7 @@ export const Checkout: React.FC = () => {
         state: matchedDiv?.name || addrState || prev.state,
         city: matchedDist?.name || addrCity || prev.city,
         thana: matchedUpz?.name || addrThana || prev.thana,
+        union: matchedUnion?.name || addrUnion || prev.union,
       }));
     } else {
       setFormData((prev) => ({
@@ -236,6 +245,7 @@ export const Checkout: React.FC = () => {
         state: addrState || prev.state,
         city: addrCity || prev.city,
         thana: addrThana || prev.thana,
+        union: addr.union || prev.union,
       }));
     }
   };
@@ -493,7 +503,7 @@ export const Checkout: React.FC = () => {
           customerName: `${formData.firstName} ${formData.lastName}`.trim(),
           customerEmail: formData.email,
           customerPhone: fullPhone,
-          shippingAddress: `${formData.address1}, ${formData.address2 ? formData.address2 + ", " : ""}${formData.union ? formData.union + ", " : ""}${formData.thana ? formData.thana + ", " : ""}${formData.city}, ${formData.state} - ${formData.postcode}, ${formData.country}`,
+          shippingAddress: `${formData.address1}, ${formData.address2 ? formData.address2 + ", " : ""}${formData.union ? formData.union + ", " : ""}${formData.thana ? formData.thana + ", " : ""}${formData.city}, ${formData.state}${formData.postcode ? ' - ' + formData.postcode : ''}, ${formData.country}`,
           city: formData.city,
           state: formData.state,
           company: formData.company,
@@ -729,7 +739,7 @@ export const Checkout: React.FC = () => {
                         <p className="font-bold text-slate-900 text-sm">{addr.name}</p>
                         <p className="text-xs text-slate-500 mb-1">{addr.phone}</p>
                         <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                          {addr.address}{addr.thana ? `, ${addr.thana}` : ''}{addr.city ? `, ${addr.city}` : ''}{addr.state ? `, ${addr.state}` : ''}
+                          {addr.address}{addr.union ? `, ${addr.union}` : ''}{addr.thana ? `, ${addr.thana}` : ''}{addr.city ? `, ${addr.city}` : ''}{addr.state ? `, ${addr.state}` : ''}
                         </p>
                       </div>
                     </div>
@@ -941,17 +951,7 @@ export const Checkout: React.FC = () => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <input
-                  type="text"
-                  name="postcode"
-                  value={formData.postcode}
-                  onChange={handleChange}
-                  placeholder="Postcode / ZIP *"
-                  required
-                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all"
-                />
-
+              <div>
                 <select
                   name="country"
                   value={formData.country}

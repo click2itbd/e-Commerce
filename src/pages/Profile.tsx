@@ -50,14 +50,16 @@ export const Profile: React.FC = () => {
   const [preBooks, setPreBooks] = useState<any[]>([]);
   const [preBooksLoading, setPreBooksLoading] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
-  const [geoData, setGeoData] = useState<{ divisions: any[]; districts: any[]; upazilas: any[] }>({
+  const [geoData, setGeoData] = useState<{ divisions: any[]; districts: any[]; upazilas: any[]; unions: any[] }>({
     divisions: [],
     districts: [],
     upazilas: [],
+    unions: [],
   });
   const [modalDivision, setModalDivision] = useState('');
   const [modalDistrict, setModalDistrict] = useState('');
   const [modalUpazila, setModalUpazila] = useState('');
+  const [modalUnion, setModalUnion] = useState('');
   const [returnModalOrderId, setReturnModalOrderId] = useState<string | null>(null);
   const [returnReason, setReturnReason] = useState('');
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
@@ -523,7 +525,7 @@ export const Profile: React.FC = () => {
                               </div>
                               <p className="text-sm text-gray-500 mb-1">{addr.phone}</p>
                               <p className="text-sm text-gray-700 leading-relaxed">
-                                {addr.address}{addr.thana ? `, ${addr.thana}` : ''}{addr.city ? `, ${addr.city}` : ''}{addr.state ? `, ${addr.state}` : ''}
+                                {addr.address}{addr.union ? `, ${addr.union}` : ''}{addr.thana ? `, ${addr.thana}` : ''}{addr.city ? `, ${addr.city}` : ''}{addr.state ? `, ${addr.state}` : ''}
                               </p>
                               <div className="mt-4 flex gap-3 text-sm">
                                  <button onClick={() => handleDeleteAddress(idx)} className="text-red-500 font-semibold hover:underline">Delete</button>
@@ -875,6 +877,7 @@ export const Profile: React.FC = () => {
                 state: modalDivision || fd.get('state') || '',
                 city: modalDistrict || fd.get('city') || '',
                 thana: modalUpazila || fd.get('thana') || '',
+                union: modalUnion || fd.get('union') || '',
                 address: fd.get('address') || '',
                 isDefault: isDefaultVal,
               };
@@ -892,6 +895,7 @@ export const Profile: React.FC = () => {
               setModalDivision('');
               setModalDistrict('');
               setModalUpazila('');
+              setModalUnion('');
             }} className="space-y-4">
                <div>
                   <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">Address Label</label>
@@ -922,6 +926,7 @@ export const Profile: React.FC = () => {
                           setModalDivision(e.target.value);
                           setModalDistrict('');
                           setModalUpazila('');
+                          setModalUnion('');
                         }}
                         className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm"
                         required
@@ -944,6 +949,7 @@ export const Profile: React.FC = () => {
                         onChange={(e) => {
                           setModalDistrict(e.target.value);
                           setModalUpazila('');
+                          setModalUnion('');
                         }}
                         disabled={!modalDivision && geoData.divisions?.length > 0}
                         className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm disabled:opacity-60"
@@ -963,27 +969,72 @@ export const Profile: React.FC = () => {
                     )}
                   </div>
                </div>
-               <div>
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">Thana / Upazila (Optional)</label>
-                  {geoData.upazilas && geoData.upazilas.length > 0 && modalDistrict ? (
-                    <select
-                      name="thana"
-                      value={modalUpazila}
-                      onChange={(e) => setModalUpazila(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm"
-                    >
-                      <option value="">Select Thana / Upazila</option>
-                      {(() => {
-                        const selDist = geoData.districts?.find((d: any) => d.name === modalDistrict);
-                        const upzs = selDist ? geoData.upazilas.filter((u: any) => u.dist_id === selDist.id) : [];
-                        return upzs.map((u: any) => (
-                          <option key={u.id} value={u.name}>{u.name}</option>
-                        ));
-                      })()}
-                    </select>
-                  ) : (
-                    <input name="thana" type="text" placeholder="Thana / Upazila (e.g. Mirpur, Dhanmondi)" className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm" />
-                  )}
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">Thana / Upazila (Optional)</label>
+                    {geoData.upazilas && geoData.upazilas.length > 0 && modalDistrict ? (
+                      <select
+                        name="thana"
+                        value={modalUpazila}
+                        onChange={(e) => {
+                          setModalUpazila(e.target.value);
+                          setModalUnion('');
+                        }}
+                        className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm"
+                      >
+                        <option value="">Select Thana / Upazila</option>
+                        {(() => {
+                          const selDist = geoData.districts?.find((d: any) => d.name === modalDistrict);
+                          const upzs = selDist ? geoData.upazilas.filter((u: any) => u.dist_id === selDist.id) : [];
+                          return upzs.map((u: any) => (
+                            <option key={u.id} value={u.name}>{u.name}</option>
+                          ));
+                        })()}
+                      </select>
+                    ) : (
+                      <input
+                        name="thana"
+                        type="text"
+                        value={modalUpazila}
+                        onChange={(e) => {
+                          setModalUpazila(e.target.value);
+                          setModalUnion('');
+                        }}
+                        placeholder="Thana / Upazila"
+                        className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm"
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">Union / Area (Optional)</label>
+                    {geoData.unions && geoData.unions.length > 0 && modalUpazila ? (
+                      <select
+                        name="union"
+                        value={modalUnion}
+                        onChange={(e) => setModalUnion(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm"
+                      >
+                        <option value="">Select Union / Area</option>
+                        {(() => {
+                          const selDist = geoData.districts?.find((d: any) => d.name === modalDistrict);
+                          const selUpz = geoData.upazilas?.find((u: any) => u.name === modalUpazila && (!selDist || u.dist_id === selDist.id));
+                          const uns = selUpz ? geoData.unions.filter((un: any) => un.upz_id === selUpz.id) : [];
+                          return uns.map((un: any) => (
+                            <option key={un.id} value={un.name}>{un.name}</option>
+                          ));
+                        })()}
+                      </select>
+                    ) : (
+                      <input
+                        name="union"
+                        type="text"
+                        value={modalUnion}
+                        onChange={(e) => setModalUnion(e.target.value)}
+                        placeholder="Union / Area (Optional)"
+                        className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm"
+                      />
+                    )}
+                  </div>
                </div>
                <div>
                   <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">Full Address</label>
@@ -1000,6 +1051,7 @@ export const Profile: React.FC = () => {
                    setModalDivision('');
                    setModalDistrict('');
                    setModalUpazila('');
+                   setModalUnion('');
                  }} className="px-5 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl text-sm">Cancel</button>
                  <button type="submit" className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-sm shadow-md shadow-orange-500/20">Save Address</button>
                </div>
