@@ -25,7 +25,7 @@ export default function PaymentReturn() {
     '';
 
   const [paymentState, setPaymentState] = useState<'processing' | 'success' | 'failed' | 'cancelled'>('processing');
-  const [message, setMessage] = useState('Verifying your payment with EPS Gateway...');
+  const [message, setMessage] = useState('Verifying your payment...');
   const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function PaymentReturn() {
         }
       } catch (err: any) {
         setPaymentState('failed');
-        setMessage(err.message || 'An error occurred while verifying your payment with EPS Gateway.');
+        setMessage(err.message || 'An error occurred while verifying your payment.');
         await cancelEpsPayment(orderId, 'failed', err.message).catch(() => {});
       }
     };
@@ -138,7 +138,7 @@ export default function PaymentReturn() {
                 className="w-full py-3 px-4 bg-[#0E2A47] hover:bg-[#1a426e] text-white font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
               >
                 <RotateCw size={18} className={retrying ? 'animate-spin' : ''} />
-                {retrying ? 'Connecting to EPS...' : 'পেমেন্ট পুনরায় চেষ্টা করুন'}
+                {retrying ? 'Connecting...' : 'পেমেন্ট পুনরায় চেষ্টা করুন'}
               </button>
               <button
                 onClick={() => navigate('/checkout')}
@@ -164,7 +164,7 @@ export default function PaymentReturn() {
                 className="w-full py-3 px-4 bg-[#0E2A47] hover:bg-[#1a426e] text-white font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
               >
                 <RotateCw size={18} className={retrying ? 'animate-spin' : ''} />
-                {retrying ? 'Connecting to EPS...' : 'পেমেন্ট সম্পন্ন করুন'}
+                {retrying ? 'Connecting...' : 'পেমেন্ট সম্পন্ন করুন'}
               </button>
               <button
                 onClick={() => navigate('/')}

@@ -106,7 +106,7 @@ export const OrderSuccess: React.FC = () => {
                     className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-sm font-bold rounded-lg shadow-sm text-white bg-red-600 hover:bg-red-700 transition"
                   >
                     <ShieldCheck className="mr-2 h-5 w-5" />
-                    {initiatingEps ? 'Connecting to EPS...' : 'পেমেন্ট পুনরায় চেষ্টা করুন'}
+                    {initiatingEps ? 'Connecting to Payment...' : 'পেমেন্ট পুনরায় চেষ্টা করুন'}
                   </button>
                   <Link
                     to="/"
@@ -151,12 +151,12 @@ export const OrderSuccess: React.FC = () => {
                   <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
                     <h3 className="text-lg font-bold text-emerald-950">
-                      {order.paymentMethod === 'cod_advance_paid' ? 'Pay Advance Delivery Fee via EPS Gateway' : 'Complete Payment via EPS Gateway'}
+                      {order.paymentMethod === 'cod_advance_paid' ? 'Pay Advance Delivery Fee' : 'Complete Online Payment'}
                     </h3>
                     <p className="text-emerald-800 text-sm mt-1">
                       {order.paymentMethod === 'cod_advance_paid'
                         ? 'ক্যাশ অন ডেলিভারিতে অর্ডার কনফার্ম করতে অগ্রিম ডেলিভারি চার্জ অনলাইনে পরিশোধ করতে হবে।'
-                        : 'Your order is awaiting online payment verification. Click below to pay securely via EPS Payment Gateway.'}
+                        : 'Your order is awaiting online payment. Click below to complete your payment securely.'}
                     </p>
                   </div>
                 </div>
@@ -188,12 +188,12 @@ export const OrderSuccess: React.FC = () => {
                   {initiatingEps ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Redirecting to EPS Gateway...
+                      Redirecting to Payment Gateway...
                     </>
                   ) : (
                     <>
                       <ShieldCheck className="w-5 h-5" />
-                      {order.paymentMethod === 'cod_advance_paid' ? 'Pay Advance Delivery Fee with EPS' : 'Pay Online Now with EPS'}
+                      {order.paymentMethod === 'cod_advance_paid' ? 'Pay Advance Delivery Fee' : 'Pay Online Now'}
                     </>
                   )}
                 </button>
@@ -209,7 +209,7 @@ export const OrderSuccess: React.FC = () => {
                 <p className="text-blue-800 text-sm">
                   {order.paymentMethod === 'cod_advance_paid'
                     ? `অগ্রিম ডেলিভারি চার্জ (${formatCurrency(advancePaid, settings)}) সফলভাবে গৃহীত হয়েছে। অবশিষ্ট ৳${remainingDue} ডেলিভারির সময় ক্যাশ পরিশোধ করতে হবে।`
-                    : 'Your payment has been verified via EPS Payment Gateway. Your order is now being processed.'}
+                    : 'Your payment has been verified successfully. Your order is now being processed.'}
                 </p>
                 {(order as any).transactionId && (
                   <p className="text-sm text-blue-700 mt-2">
@@ -301,7 +301,7 @@ export const OrderSuccess: React.FC = () => {
                         <>
                           <tr className="bg-emerald-50/60 text-emerald-800">
                             <th scope="row" colSpan={2} className="px-6 py-2.5 text-right text-sm font-semibold">
-                              Advance Delivery Fee (EPS Gateway)
+                              Advance Delivery Fee (Paid Online)
                             </th>
                             <td className="px-6 py-2.5 text-right text-sm font-bold text-emerald-700">
                               - {formatCurrency(advancePaid, settings)}
