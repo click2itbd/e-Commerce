@@ -6,7 +6,7 @@ import { useCart } from '../../context/CartContext';
 import { useSettings } from '../../context/SettingsContext';
 import { Layout } from '../../components/Layout';
 import { toast } from 'react-hot-toast';
-import { Lock, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Lock, ArrowRight, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { auth, db } from '../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -142,6 +142,7 @@ export const Checkout: React.FC = () => {
   };
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (items.length === 0) {
     navigate('/cart');
@@ -194,6 +195,7 @@ export const Checkout: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
     if (!formData.termsAccepted) {
       toast.error('You must agree to the Terms of Service.');
       return;
@@ -292,7 +294,20 @@ export const Checkout: React.FC = () => {
       const createdOrderId = createRes.orderId;
       const serverOrderData = createRes.orderData;
 
-      // Notify Admin and Customer
+      // Online payment ("Pay Now" or Advance COD delivery fee) strictly routes through EPS Payment Gateway
+      // Do NOT send order confirmation emails until EPS payment is verified!
+      if (paymentType === 'pay_now' || isAdvanceCOD) {
+        const epsRes = await initiateEpsPayment(createdOrderId, token);
+        const redirectUrl = epsRes.paymentUrl || epsRes.redirectUrl;
+        if (epsRes.success && redirectUrl) {
+          window.location.href = redirectUrl;
+          return;
+        } else {
+          throw new Error(epsRes.error || 'Failed to initiate EPS Payment Gateway.');
+        }
+      }
+
+      // Pure Cash on Delivery (no online payment required)
       try {
         await apiPost('/api/send-email/notify-admin-new-order', { orderId: createdOrderId, orderData: serverOrderData }, token);
 
@@ -316,25 +331,15 @@ export const Checkout: React.FC = () => {
         console.error('Failed to send order emails:', err);
       }
 
-      // Online payment ("Pay Now" or Advance COD delivery fee) strictly routes through EPS Payment Gateway
-      if (paymentType === 'pay_now' || isAdvanceCOD) {
-        const epsRes = await initiateEpsPayment(createdOrderId, token);
-        const redirectUrl = epsRes.paymentUrl || epsRes.redirectUrl;
-        if (epsRes.success && redirectUrl) {
-          window.location.href = redirectUrl;
-          return;
-        } else {
-          throw new Error(epsRes.error || 'Failed to initiate EPS Payment Gateway.');
-        }
-      }
-
-      // Pure Cash on Delivery (without advance online payment)
       clearCart();
       navigate(`/order-success/${createdOrderId}`);
       toast.success('Order placed successfully!');
     } catch (error: any) {
       console.error('Checkout error:', error);
-      toast.error(error.message || 'Failed to place order');
+      const msg = error.message || 'Failed to place order';
+      toast.error(msg);
+      setSubmitError(msg);
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -609,6 +614,16 @@ export const Checkout: React.FC = () => {
           </div>
 
           <div className="flex flex-col items-center justify-center gap-6 pt-4 border-t border-slate-100">
+            {submitError && (
+              <div className="w-full max-w-xl p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-sm shadow-sm animate-in fade-in duration-200">
+                <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-bold text-rose-900">Order could not be placed</p>
+                  <p className="text-rose-700 mt-0.5 font-medium">{submitError}</p>
+                </div>
+              </div>
+            )}
+
             <label className="flex items-center gap-3 text-sm text-slate-600 cursor-pointer group">
               <div className="relative flex items-center">
                 <input type="checkbox" name="termsAccepted" checked={formData.termsAccepted} onChange={handleChange} className="w-5 h-5 border-2 border-slate-300 rounded text-[#0E2A47] focus:ring-[#0E2A47] cursor-pointer transition-colors" />

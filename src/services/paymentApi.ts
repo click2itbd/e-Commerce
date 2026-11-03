@@ -80,6 +80,28 @@ export const verifyEpsPayment = async (
   return data;
 };
 
+/**
+ * Cancel an order if EPS payment is failed or cancelled by user.
+ */
+export const cancelEpsPayment = async (
+  orderId: string,
+  status: 'failed' | 'cancelled',
+  reason?: string,
+  token?: string
+): Promise<PaymentResponse> => {
+  const apiUrl = getApiBaseUrl();
+  const headers = await getAuthHeaders(token);
+
+  const response = await fetch(`${apiUrl}/api/orders/${encodeURIComponent(orderId)}/payment/eps/fail-or-cancel`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ status, reason }),
+  });
+
+  const data = await response.json().catch(() => ({ success: false }));
+  return data;
+};
+
 // Backwards-compatible aliases that strictly route through EPS Gateway
 export const initiateBkashPayment = async (orderId: string, _amount?: number, token?: string): Promise<PaymentResponse> => {
   return initiateEpsPayment(orderId, token);

@@ -575,6 +575,8 @@ export async function calculateAndCreateServerOrder(userId: string, payload: Cre
   let promoDiscount = 0;
   let verifiedCouponCode: string | null = null;
   let couponFreeShipping = false;
+  let usedCouponRef: any = null;
+  let nextCouponUsedCount = 0;
 
   if (payload.couponCode && typeof payload.couponCode === 'string' && payload.couponCode.trim()) {
     const cleanCode = payload.couponCode.trim().toUpperCase();
@@ -605,6 +607,8 @@ export async function calculateAndCreateServerOrder(userId: string, payload: Cre
     }
 
     verifiedCouponCode = cleanCode;
+    usedCouponRef = couponDoc.ref;
+    nextCouponUsedCount = Number(couponData.usedCount || 0) + 1;
 
     if (couponData.type === 'fixed' && Number(couponData.fixedAmount) > 0) {
       promoDiscount = Math.min(Number(couponData.fixedAmount), discountableSubtotal);
@@ -647,23 +651,37 @@ export async function calculateAndCreateServerOrder(userId: string, payload: Cre
   const now = new Date().toISOString();
 
   const isAdvanceCOD = payload.paymentType === 'cod' && Boolean(payload.advanceDelivery) && shippingCost > 0;
-  const hasManualBkashTx =
-    (payload.paymentMethod === 'bkash' || payload.paymentMethod === 'manual_bkash' || payload.paymentMethod === 'bank') &&
-    Boolean(payload.transactionId && payload.transactionId.trim().length >= 3);
+
+  // Security: Strip plaintext rootPassword from vpsConfig before persisting to Firestore
+  const safeVpsConfig = payload.vpsConfig
+    ? {
+        hostname: payload.vpsConfig.hostname?.trim() || '',
+        os: payload.vpsConfig.os || 'Ubuntu 22.04 LTS',
+        serverLocation: payload.vpsConfig.serverLocation || 'Dhaka, Bangladesh',
+        sshKey: payload.vpsConfig.sshKey?.trim() || '',
+        notes: payload.vpsConfig.notes?.trim() || '',
+        rootPasswordConfigured: Boolean(payload.vpsConfig.rootPassword),
+      }
+    : null;
 
   const newOrderRef = db.collection('orders').doc();
   const orderId = newOrderRef.id;
 
+  const isOnlinePaymentRequired = payload.paymentType === 'pay_now' || isAdvanceCOD;
+
   const orderData: Record<string, any> = {
     userId,
+    customerId: userId,
     platform: payload.platform || (hasPhysicalProduct ? 'ecommerce' : 'hosting'),
     items: verifiedItems,
     subtotal,
     total: grandTotal,
+    paidAmount: 0,
+    dueAmount: grandTotal,
     shippingCost,
-    status: 'pending',
-    paymentStatus: hasManualBkashTx ? 'submitted' : 'pending',
-    paymentSubmittedAt: hasManualBkashTx ? now : null,
+    status: isOnlinePaymentRequired ? 'pending_payment' : 'pending',
+    paymentStatus: 'pending',
+    paymentSubmittedAt: null,
     type: 'invoice',
     documentNumber: docNumber,
     customerName: String(payload.customerName || '').trim(),
@@ -679,17 +697,55 @@ export async function calculateAndCreateServerOrder(userId: string, payload: Cre
         ? isAdvanceCOD
           ? 'cod_advance_paid'
           : 'cod'
-        : payload.paymentMethod || 'bkash',
-    transactionId: hasManualBkashTx ? payload.transactionId!.trim() : null,
+        : 'eps',
+    transactionId: null,
     advancePaidAmount: isAdvanceCOD ? shippingCost : 0,
     notes: String(payload.notes || '').trim(),
-    vpsConfig: payload.vpsConfig || null,
+    vpsConfig: safeVpsConfig,
     createdAt: now,
     updatedAt: now,
   };
 
   const batch = db.batch();
   batch.set(newOrderRef, orderData);
+
+  // Sync / upsert customer profile into `customers` collection for accounting & due tracking
+  try {
+    const customerRef = db.collection('customers').doc(userId);
+    const custSnap = await customerRef.get();
+    if (!custSnap.exists) {
+      batch.set(customerRef, {
+        id: userId,
+        name: String(payload.customerName || '').trim(),
+        email: String(payload.customerEmail || '').trim(),
+        phone: String(payload.customerPhone || '').trim(),
+        address: String(payload.shippingAddress || '').trim(),
+        city: String(payload.city || '').trim(),
+        state: String(payload.state || '').trim(),
+        company: String(payload.company || '').trim(),
+        createdAt: now,
+        updatedAt: now,
+        source: 'online_store',
+      });
+    } else {
+      batch.update(customerRef, {
+        name: String(payload.customerName || '').trim() || custSnap.data()?.name,
+        phone: String(payload.customerPhone || '').trim() || custSnap.data()?.phone,
+        address: String(payload.shippingAddress || '').trim() || custSnap.data()?.address,
+        updatedAt: now,
+      });
+    }
+  } catch (custErr) {
+    console.warn('[Orders] Could not sync customer profile:', custErr);
+  }
+
+  // Increment coupon usedCount atomically in batch when a coupon was applied
+  if (usedCouponRef) {
+    batch.update(usedCouponRef, {
+      usedCount: nextCouponUsedCount,
+      updatedAt: now,
+    });
+  }
 
   // Decrement product stocks atomically in batch
   for (const stockUpd of productStockUpdates) {
@@ -716,29 +772,12 @@ export async function calculateAndCreateServerOrder(userId: string, payload: Cre
       referenceId: orderId,
       documentNumber: docNumber,
       paymentAccountId: '',
-      paymentMethod: payload.paymentType === 'cod' ? 'cod' : payload.paymentMethod || 'online',
+      paymentMethod: payload.paymentType === 'cod' ? (isAdvanceCOD ? 'cod_advance_paid' : 'cod') : payload.paymentMethod || 'online',
       createdAt: now,
       createdBy: 'Online Customer',
     });
-
-    if (isAdvanceCOD && shippingCost > 0) {
-      const advTxRef = db.collection('transactions').doc();
-      batch.set(advTxRef, {
-        type: 'payment_received',
-        amount: shippingCost,
-        date: now,
-        description: `Advance Delivery Fee for Order #${docNumber}`,
-        entityId: userId,
-        entityName: orderData.customerName,
-        entityType: 'customer',
-        referenceId: orderId,
-        documentNumber: docNumber,
-        paymentAccountId: '',
-        paymentMethod: 'online',
-        createdAt: now,
-        createdBy: 'Online Customer',
-      });
-    }
+    // Note: payment_received is NOT recorded here for online payments!
+    // It is recorded ONLY when payment verification from EPS succeeds.
   }
 
   // Create linked SSL Orders
@@ -820,7 +859,7 @@ export async function calculateAndCreateServerOrder(userId: string, payload: Cre
               hostname: payload.vpsConfig.hostname?.trim() || '',
               os: payload.vpsConfig.os || 'Ubuntu 22.04 LTS',
               serverLocation: payload.vpsConfig.serverLocation || 'Dhaka, Bangladesh',
-              rootPassword: payload.vpsConfig.rootPassword || '',
+              rootPasswordConfigured: Boolean(payload.vpsConfig.rootPassword),
               sshKey: payload.vpsConfig.sshKey?.trim() || '',
               notes: payload.vpsConfig.notes?.trim() || '',
               cores: hItem.details?.cores || '2 vCPU',

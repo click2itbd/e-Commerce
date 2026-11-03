@@ -216,12 +216,59 @@ export default function CustomerDueList() {
       }
     });
 
-    const dueList = customers
+    // Build a unified customer list: from `customers` collection + any online order/transaction entity
+    const customerMap = new Map<string, any>();
+    customers.forEach(c => customerMap.set(c.id, c));
+
+    // Also include any customer from transactions who has an outstanding debit balance
+    Object.keys(balances).forEach(entityId => {
+      if (!customerMap.has(entityId) && balances[entityId] > 0.01) {
+        const tx = transactions.find(t => t.entityId === entityId);
+        const ord = orders.find(o => o.userId === entityId || (o as any).customerId === entityId);
+        customerMap.set(entityId, {
+          id: entityId,
+          name: ord?.customerName || tx?.entityName || 'Online Customer',
+          phone: ord?.customerPhone || '',
+          email: ord?.customerEmail || '',
+          address: ord?.shippingAddress || '',
+          createdAt: tx?.date || ord?.createdAt || new Date().toISOString(),
+          isOnlineCustomer: true,
+        });
+      }
+    });
+
+    // Also include any online COD order customer whose due is outstanding
+    orders.forEach(o => {
+      if (o.status !== 'cancelled' && (o.paymentMethod === 'cod' || o.paymentMethod === 'cod_advance_paid')) {
+        const cId = (o as any).customerId || o.userId;
+        if (cId) {
+          const tot = Number(o.total || 0);
+          const pd = Number(o.paidAmount || (o as any).advancePaidAmount || 0);
+          const rem = Math.max(0, tot - pd);
+          if (rem > 0.01 && (!balances[cId] || balances[cId] <= 0)) {
+            balances[cId] = rem;
+          }
+          if (!customerMap.has(cId) && rem > 0.01) {
+            customerMap.set(cId, {
+              id: cId,
+              name: o.customerName || 'Online Customer',
+              phone: o.customerPhone || '',
+              email: o.customerEmail || '',
+              address: o.shippingAddress || '',
+              createdAt: o.createdAt || new Date().toISOString(),
+              isOnlineCustomer: true,
+            });
+          }
+        }
+      }
+    });
+
+    const dueList = Array.from(customerMap.values())
       .map(c => {
         const due = balances[c.id] || 0;
         const aging = customerDebits[c.id] || {
-          oldestDate: new Date().toISOString(),
-          daysOld: 0,
+          oldestDate: c.createdAt || new Date().toISOString(),
+          daysOld: Math.max(0, Math.floor((now - new Date(c.createdAt || now).getTime()) / (1000 * 60 * 60 * 24))),
           bucket: '0_30' as const,
         };
         return {
@@ -498,11 +545,12 @@ export default function CustomerDueList() {
     if (!selectedCustomer) return [];
     return orders.filter(o => {
       if (o.status === 'cancelled' || o.type === 'quotation') return false;
-      const matchesId = o.customerId === selectedCustomer.id;
+      const matchesId = (o as any).customerId === selectedCustomer.id || o.userId === selectedCustomer.id;
       const matchesName = o.customerName && selectedCustomer.name && o.customerName.toLowerCase().trim() === selectedCustomer.name.toLowerCase().trim();
-      if (!matchesId && !matchesName) return false;
+      const matchesPhone = o.customerPhone && (selectedCustomer as any).phone && o.customerPhone.replace(/\D/g, '') === (selectedCustomer as any).phone.replace(/\D/g, '');
+      if (!matchesId && !matchesName && !matchesPhone) return false;
       const total = Number(o.total || 0);
-      const paid = Number(o.paidAmount || (o as any).amountPaid || 0);
+      const paid = Number(o.paidAmount || (o as any).amountPaid || (o as any).advancePaidAmount || 0);
       return (total - paid) > 0.01;
     }).sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
   }, [selectedCustomer, orders]);
@@ -534,11 +582,12 @@ export default function CustomerDueList() {
 
     const unpaid = orders.filter(o => {
       if (o.status === 'cancelled') return false;
-      const matchesId = o.customerId === customer.id;
+      const matchesId = (o as any).customerId === customer.id || o.userId === customer.id;
       const matchesName = o.customerName && customer.name && o.customerName.toLowerCase().trim() === customer.name.toLowerCase().trim();
-      if (!matchesId && !matchesName) return false;
+      const matchesPhone = o.customerPhone && (customer as any).phone && o.customerPhone.replace(/\D/g, '') === (customer as any).phone.replace(/\D/g, '');
+      if (!matchesId && !matchesName && !matchesPhone) return false;
       const total = Number(o.total || 0);
-      const paid = Number(o.paidAmount || (o as any).amountPaid || 0);
+      const paid = Number(o.paidAmount || (o as any).amountPaid || (o as any).advancePaidAmount || 0);
       return (total - paid) > 0.01;
     });
 
