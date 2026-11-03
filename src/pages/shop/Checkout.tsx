@@ -6,7 +6,7 @@ import { useCart } from "../../context/CartContext";
 import { useSettings } from "../../context/SettingsContext";
 import { Layout } from "../../components/Layout";
 import { toast } from "react-hot-toast";
-import { Lock, ArrowRight, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Lock, ArrowRight, ShieldCheck, AlertTriangle, Loader2 } from "lucide-react";
 import { auth, db } from "../../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import {
@@ -372,15 +372,16 @@ export const Checkout: React.FC = () => {
       // Online payment ("Pay Now" or Advance COD delivery fee) strictly routes through EPS Payment Gateway
       // Do NOT send order confirmation emails until EPS payment is verified!
       if (paymentType === "pay_now" || isAdvanceCOD) {
-        const epsRes = await initiateEpsPayment(createdOrderId, token);
-        const redirectUrl = epsRes.paymentUrl || epsRes.redirectUrl;
-        if (epsRes.success && redirectUrl) {
+        let redirectUrl = createRes.paymentUrl || createRes.redirectUrl;
+        if (!redirectUrl) {
+          const epsRes = await initiateEpsPayment(createdOrderId, token);
+          redirectUrl = epsRes.paymentUrl || epsRes.redirectUrl;
+        }
+        if (redirectUrl) {
           window.location.href = redirectUrl;
           return;
         } else {
-          throw new Error(
-            epsRes.error || "Failed to initiate EPS Payment Gateway.",
-          );
+          throw new Error("Failed to initiate EPS Payment Gateway.");
         }
       }
 
@@ -960,25 +961,81 @@ export const Checkout: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isProcessing}
-                  className="bg-gradient-to-r from-[#0E2A47] to-[#1a426e] hover:shadow-xl hover:shadow-[#0E2A47]/20 hover:-translate-y-0.5 text-white font-bold py-4 px-10 rounded-xl text-lg flex items-center gap-3 disabled:opacity-50 disabled:hover:translate-y-0 transition-all min-w-[320px] justify-center group"
+                  className="bg-gradient-to-r from-[#0E2A47] to-[#1a426e] hover:shadow-xl hover:shadow-[#0E2A47]/20 hover:-translate-y-0.5 active:scale-95 text-white font-bold py-4 px-10 rounded-xl text-lg flex items-center gap-3 disabled:opacity-75 disabled:hover:translate-y-0 disabled:active:scale-100 transition-all min-w-[320px] justify-center group cursor-pointer shadow-md"
                 >
-                  {isProcessing
-                    ? "Processing..."
-                    : paymentType === "cod"
-                      ? shippingCost > 0
-                        ? `Pay Advance Delivery Fee (৳${shippingCost.toFixed(2)})`
-                        : "Confirm Cash on Delivery Order"
-                      : `Pay Full Amount (৳${grandTotal.toFixed(2)})`}
-                  {!isProcessing && (
-                    <span className="bg-white/20 p-1.5 rounded-full group-hover:bg-white/30 transition-colors">
-                      <ArrowRight size={20} />
-                    </span>
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin text-white" />
+                      <span>
+                        {paymentType === "pay_now" || isAdvanceCOD
+                          ? "Connecting to Gateway..."
+                          : "Processing Order..."}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        {paymentType === "cod"
+                          ? shippingCost > 0
+                            ? `Pay Advance Delivery Fee (৳${shippingCost.toFixed(2)})`
+                            : "Confirm Cash on Delivery Order"
+                          : `Pay Full Amount (৳${grandTotal.toFixed(2)})`}
+                      </span>
+                      <span className="bg-white/20 p-1.5 rounded-full group-hover:bg-white/30 transition-colors">
+                        <ArrowRight size={20} />
+                      </span>
+                    </>
                   )}
                 </button>
               </div>
             </div>
           </div>
         </form>
+
+        {/* High-end Gateway Redirection & Processing Animation Overlay */}
+        {isProcessing && (
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl p-8 md:p-10 max-w-md w-full shadow-2xl border border-slate-100 text-center flex flex-col items-center animate-in zoom-in-95 duration-200 relative overflow-hidden">
+              {/* Background gradient decorative glow */}
+              <div className="absolute -top-20 -left-20 w-44 h-44 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-20 -right-20 w-44 h-44 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Pulsing radar ring with security lock */}
+              <div className="relative mb-6 flex items-center justify-center">
+                <div className="absolute w-20 h-20 rounded-full bg-blue-500/20 animate-ping opacity-75" />
+                <div className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-[#0E2A47] to-blue-600 flex items-center justify-center text-white shadow-xl shadow-[#0E2A47]/30 ring-4 ring-blue-50">
+                  <Lock className="w-9 h-9 animate-pulse text-white" />
+                </div>
+              </div>
+
+              <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                {paymentType === "pay_now" || isAdvanceCOD
+                  ? "Connecting to EPS Payment Gateway"
+                  : "Finalizing Your Order"}
+              </h3>
+
+              <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                {paymentType === "pay_now" || isAdvanceCOD
+                  ? "Please wait a moment while we establish a secure session for bKash, Nagad, Rocket or Card payment..."
+                  : "Please wait a moment while your order invoice is being generated..."}
+              </p>
+
+              {/* Animated Progress Bar */}
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-6 relative">
+                <div className="h-full bg-gradient-to-r from-blue-600 via-[#0E2A47] to-emerald-500 rounded-full animate-pulse w-full" />
+              </div>
+
+              <div className="flex items-center gap-2 mt-4 text-xs font-semibold text-slate-400">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <span>256-bit SSL Encrypted • Safe & Secure</span>
+              </div>
+
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200/60 rounded-xl px-3.5 py-2 mt-5 font-medium">
+                ⚠️ Do not refresh or close this browser window.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

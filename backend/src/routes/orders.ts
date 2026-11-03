@@ -16,6 +16,64 @@ ordersRouter.post('/create', requireFirebaseAuth, async (req: any, res: Response
 
   try {
     const result = await calculateAndCreateServerOrder(userId, req.body);
+
+    let paymentUrl: string | null = null;
+    let redirectUrl: string | null = null;
+    let paymentId: string | null = null;
+
+    const isAdvanceCOD = req.body.paymentType === 'cod' && Boolean(req.body.advanceDelivery) && result.shippingCost > 0;
+    const isOnlineRequired = req.body.paymentType === 'pay_now' || isAdvanceCOD;
+
+    if (isOnlineRequired) {
+      const payableAmount = isAdvanceCOD ? result.shippingCost : result.grandTotal;
+      if (payableAmount > 0) {
+        const orderInfo = (result.orderData || {}) as any;
+        const originHeader = String(req.headers.origin || process.env.FRONTEND_URL || 'https://click2itbd.com').replace(
+          /\/+$/,
+          ''
+        );
+        const baseReturnUrl = `${originHeader}/payment/return?orderId=${encodeURIComponent(result.orderId)}&method=eps`;
+        const firstItemName =
+          Array.isArray(orderInfo.items) && orderInfo.items[0]?.name
+            ? String(orderInfo.items[0].name)
+            : `Order #${result.orderId.slice(0, 8)}`;
+
+        try {
+          const epsResult = await epsInitializePayment({
+            orderId: result.orderId,
+            amount: payableAmount,
+            customerName: String(orderInfo.customerName || req.user?.name || 'Customer'),
+            customerEmail: String(orderInfo.customerEmail || req.user?.email || 'customer@click2itbd.com'),
+            customerPhone: String(orderInfo.customerPhone || '01700000000'),
+            customerAddress: String(orderInfo.shippingAddress || 'Dhaka, Bangladesh'),
+            productName: firstItemName,
+            productCategory: req.body.platform === 'hosting' ? 'Hosting & Domain' : 'Ecommerce',
+            ipAddress: String(req.ip || req.socket?.remoteAddress || '127.0.0.1'),
+            successUrl: `${baseReturnUrl}&status=success`,
+            failUrl: `${baseReturnUrl}&status=failed`,
+            cancelUrl: `${baseReturnUrl}&status=cancelled`,
+          });
+
+          const now = new Date().toISOString();
+          const db = getAdminDb();
+          await db.collection('orders').doc(result.orderId).update({
+            epsMerchantTransactionId: epsResult.merchantTransactionId,
+            epsTransactionId: epsResult.transactionId,
+            epsPayableAmount: payableAmount,
+            paymentMethod: isAdvanceCOD ? 'cod_advance_paid' : 'eps',
+            epsInitiatedAt: now,
+            updatedAt: now,
+          });
+
+          paymentUrl = epsResult.redirectUrl;
+          redirectUrl = epsResult.redirectUrl;
+          paymentId = epsResult.merchantTransactionId;
+        } catch (epsErr: any) {
+          console.warn('[Orders] In-flight EPS init in /create failed, client can retry via /payment/eps/init:', epsErr?.message);
+        }
+      }
+    }
+
     return res.status(201).json({
       success: true,
       orderId: result.orderId,
@@ -25,6 +83,9 @@ ordersRouter.post('/create', requireFirebaseAuth, async (req: any, res: Response
       shippingCost: result.shippingCost,
       grandTotal: result.grandTotal,
       payNowAmount: result.payNowAmount,
+      paymentUrl,
+      redirectUrl,
+      paymentId,
     });
   } catch (error: any) {
     console.error('[Orders] Server-side order creation failed:', error);

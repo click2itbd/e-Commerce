@@ -48,10 +48,15 @@ export const EPS_ALL_FIELDS = [
   'epsLiveBaseUrl',
 ] as const;
 
-export async function loadEpsConfig(): Promise<EpsConfig> {
+let cachedEpsConfig: { cfg: EpsConfig; expiresAt: number } | null = null;
+
+export async function loadEpsConfig(forceRefresh = false): Promise<EpsConfig> {
+  if (!forceRefresh && cachedEpsConfig && Date.now() < cachedEpsConfig.expiresAt) {
+    return cachedEpsConfig.cfg;
+  }
   const result = await getAdminDocument('settings', 'api_keys');
   const d: Record<string, any> = result.data || {};
-  return {
+  const cfg: EpsConfig = {
     epsEnabled: d.epsEnabled === true,
     epsMode: d.epsMode === 'live' ? 'live' : 'sandbox',
     epsMerchantId: String(d.epsMerchantId || ''),
@@ -62,6 +67,11 @@ export async function loadEpsConfig(): Promise<EpsConfig> {
     epsSandboxBaseUrl: String(d.epsSandboxBaseUrl || EPS_DEFAULT_SANDBOX_URL),
     epsLiveBaseUrl: String(d.epsLiveBaseUrl || EPS_DEFAULT_LIVE_URL),
   };
+  cachedEpsConfig = {
+    cfg,
+    expiresAt: Date.now() + 60 * 1000, // cache for 60 seconds
+  };
+  return cfg;
 }
 
 /** Browser-safe view: secrets replaced by a boolean "is set" flag. */
@@ -129,6 +139,7 @@ export async function saveEpsConfig(body: Record<string, any>): Promise<void> {
   }
 
   await setAdminDocument('settings', 'api_keys', next);
+  cachedEpsConfig = null;
 }
 
 export function epsBaseUrl(cfg: EpsConfig): string {
