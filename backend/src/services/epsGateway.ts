@@ -140,10 +140,34 @@ export function epsHash(value: string, hashKey: string): string {
   return crypto.createHmac('sha512', hashKey).update(value, 'utf8').digest('base64');
 }
 
-export async function epsGetToken(cfg: EpsConfig): Promise<string> {
+/**
+ * Generate a 17-digit numeric merchant transaction ID as recommended by EPS SDK.
+ * Format: YYYYMMDDHHmmssSSS (numeric 17 digits, guaranteed unique and compliant with MFS switches)
+ */
+export function generateMerchantTransactionId(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  const ms = String(d.getMilliseconds()).padStart(3, '0');
+  return `${yyyy}${mm}${dd}${hh}${min}${ss}${ms}`;
+}
+
+let cachedTokenState: { token: string; cacheKey: string; expiresAt: number } | null = null;
+
+export async function epsGetToken(cfg: EpsConfig, forceRefresh = false): Promise<string> {
   if (!cfg.epsUsername || !cfg.epsPassword || !cfg.epsHashKey) {
     throw new Error('EPS username, password and hash key are required.');
   }
+
+  const cacheKey = `${cfg.epsMode}:${cfg.epsUsername}`;
+  if (!forceRefresh && cachedTokenState && cachedTokenState.cacheKey === cacheKey && Date.now() < cachedTokenState.expiresAt) {
+    return cachedTokenState.token;
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
@@ -169,7 +193,14 @@ export async function epsGetToken(cfg: EpsConfig): Promise<string> {
     if (!token) {
       throw new Error(json?.errorMessage || json?.message || 'EPS did not return a token.');
     }
-    return String(token);
+    const tokenStr = String(token);
+    // Cache for 10 minutes
+    cachedTokenState = {
+      token: tokenStr,
+      cacheKey,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    };
+    return tokenStr;
   } catch (err: any) {
     if (err?.name === 'AbortError') throw new Error('EPS request timed out.');
     throw err;
@@ -177,3 +208,225 @@ export async function epsGetToken(cfg: EpsConfig): Promise<string> {
     clearTimeout(timer);
   }
 }
+
+export interface EpsInitParams {
+  orderId: string;
+  amount: number;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  customerAddress?: string;
+  customerCity?: string;
+  customerState?: string;
+  customerPostcode?: string;
+  productName?: string;
+  productCategory?: string;
+  ipAddress?: string;
+  successUrl: string;
+  failUrl: string;
+  cancelUrl: string;
+}
+
+export interface EpsInitResult {
+  redirectUrl: string;
+  transactionId: string;
+  merchantTransactionId: string;
+}
+
+/**
+ * Initialize an EPS payment session on the EPS Gateway server.
+ */
+export async function epsInitializePayment(params: EpsInitParams): Promise<EpsInitResult> {
+  const cfg = await loadEpsConfig();
+  if (!cfg.epsEnabled) {
+    throw new Error('EPS Payment Gateway is currently disabled by the administrator.');
+  }
+  if (!cfg.epsMerchantId || !cfg.epsStoreId || !cfg.epsHashKey) {
+    throw new Error('EPS Merchant credentials are not fully configured.');
+  }
+  if (!params.amount || Number(params.amount) <= 0) {
+    throw new Error('Invalid payment amount for EPS initialization.');
+  }
+
+  const token = await epsGetToken(cfg);
+  const merchantTransactionId = generateMerchantTransactionId();
+
+  let formattedPhone = String(params.customerPhone || '').replace(/\D/g, '');
+  if (formattedPhone.startsWith('880')) formattedPhone = formattedPhone.slice(2);
+  else if (formattedPhone.startsWith('88')) formattedPhone = formattedPhone.slice(2);
+  if (!formattedPhone.startsWith('01') || formattedPhone.length !== 11) {
+    formattedPhone = formattedPhone.length === 10 && formattedPhone.startsWith('1') ? `0${formattedPhone}` : (formattedPhone || '01700000000');
+  }
+
+  const payload = {
+    merchantId: cfg.epsMerchantId,
+    storeId: cfg.epsStoreId,
+    CustomerOrderId: params.orderId,
+    merchantTransactionId,
+    transactionTypeId: 1, // 1 = Web
+    financialEntityId: 0,
+    transitionStatusId: 0,
+    totalAmount: Number(Number(params.amount).toFixed(2)),
+    ipAddress: params.ipAddress || '127.0.0.1',
+    version: '1',
+    successUrl: params.successUrl,
+    failUrl: params.failUrl,
+    cancelUrl: params.cancelUrl,
+    customerName: params.customerName || 'Customer',
+    customerEmail: params.customerEmail || 'customer@click2itbd.com',
+    customerAddress: params.customerAddress || 'Dhaka, Bangladesh',
+    customerAddress2: '',
+    customerCity: params.customerCity || 'Dhaka',
+    customerState: params.customerState || 'Dhaka',
+    customerPostcode: params.customerPostcode || '1000',
+    customerCountry: 'BD',
+    customerPhone: formattedPhone,
+    shipmentName: params.customerName || 'Customer',
+    shipmentAddress: params.customerAddress || 'Dhaka, Bangladesh',
+    shipmentAddress2: '',
+    shipmentCity: params.customerCity || 'Dhaka',
+    shipmentState: params.customerState || 'Dhaka',
+    shipmentPostcode: params.customerPostcode || '1000',
+    shipmentCountry: 'BD',
+    valueA: params.orderId,
+    valueB: '',
+    valueC: '',
+    valueD: '',
+    shippingMethod: 'NO',
+    noOfItem: '1',
+    productName: (params.productName || `Order #${params.orderId.slice(0, 8)}`).slice(0, 100),
+    productProfile: 'general',
+    productCategory: params.productCategory || 'Ecommerce',
+  };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(`${epsBaseUrl(cfg)}/EPSEngine/InitializeEPS`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-hash': epsHash(merchantTransactionId, cfg.epsHashKey),
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    let json: any = null;
+    try {
+      json = await res.json();
+    } catch {
+      // non-JSON response
+    }
+
+    const redirectUrl = json?.RedirectURL || json?.redirectUrl || json?.data?.RedirectURL;
+    const transactionId =
+      json?.TransactionId || json?.transactionId || json?.data?.TransactionId || merchantTransactionId;
+
+    if (!res.ok || !redirectUrl) {
+      throw new Error(
+        json?.ErrorMessage ||
+          json?.errorMessage ||
+          json?.message ||
+          `EPS InitializeEPS failed (HTTP ${res.status})`
+      );
+    }
+
+    return {
+      redirectUrl: String(redirectUrl),
+      transactionId: String(transactionId),
+      merchantTransactionId,
+    };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') throw new Error('EPS initialization timed out.');
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export interface EpsVerifyResult {
+  verified: boolean;
+  status: string;
+  totalAmount: number;
+  epsTransactionId: string;
+  merchantTransactionId: string;
+  financialEntity: string;
+  customerOrderId: string;
+  raw: any;
+}
+
+/**
+ * Verify a transaction directly against the EPS server using merchantTransactionId.
+ */
+export async function epsVerifyTransaction(merchantTransactionId: string): Promise<EpsVerifyResult> {
+  const cleanMtx = String(merchantTransactionId || '').trim();
+  if (!cleanMtx) {
+    throw new Error('merchantTransactionId is required for EPS verification.');
+  }
+
+  const cfg = await loadEpsConfig();
+  if (!cfg.epsHashKey) {
+    throw new Error('EPS Hash Key is not configured.');
+  }
+
+  const token = await epsGetToken(cfg);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const url = `${epsBaseUrl(cfg)}/EPSEngine/CheckMerchantTransactionStatus?merchantTransactionId=${encodeURIComponent(cleanMtx)}`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-hash': epsHash(cleanMtx, cfg.epsHashKey),
+      },
+      signal: controller.signal,
+    });
+
+    let json: any = null;
+    try {
+      json = await res.json();
+    } catch {
+      // non-JSON response
+    }
+
+    if (!res.ok) {
+      throw new Error(
+        json?.ErrorMessage ||
+          json?.errorMessage ||
+          json?.message ||
+          `EPS verification failed (HTTP ${res.status})`
+      );
+    }
+
+    const status = String(json?.Status || json?.status || '').trim();
+    const verified = status.toLowerCase() === 'success';
+    const totalAmount = Number(json?.TotalAmount ?? json?.totalAmount ?? 0);
+    const epsTransactionId = String(
+      json?.EPSTransactionId || json?.epsTransactionId || json?.MerchantTransactionId || cleanMtx
+    );
+    const financialEntity = String(json?.FinancialEntity || json?.financialEntity || 'EPS');
+    const customerOrderId = String(json?.CustomerOrderId || json?.ValueA || '');
+
+    return {
+      verified,
+      status,
+      totalAmount,
+      epsTransactionId,
+      merchantTransactionId: cleanMtx,
+      financialEntity,
+      customerOrderId,
+      raw: json,
+    };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') throw new Error('EPS verification request timed out.');
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
