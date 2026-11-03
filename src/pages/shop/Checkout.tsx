@@ -537,14 +537,36 @@ export const Checkout: React.FC = () => {
             </div>
 
             {(paymentType === 'pay_now' || isAdvanceCOD) && (
-              <div className="max-w-xl mx-auto bg-emerald-50/70 border-2 border-[#6EC72A] rounded-2xl p-5 flex items-start gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
-                <div className="bg-[#6EC72A]/15 text-[#6EC72A] p-3 rounded-xl shrink-0">
-                  <ShieldCheck className="w-6 h-6" />
+              <div className="max-w-xl mx-auto bg-emerald-50/80 border-2 border-[#6EC72A] rounded-2xl p-5 flex flex-col gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="bg-[#6EC72A]/15 text-[#6EC72A] p-2.5 rounded-xl shrink-0">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">EPS Official Payment Gateway (eps.com.bd)</h4>
+                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                      You will be securely redirected to the <strong>EPS Payment Gateway</strong> to complete your payment. Manual sending is disabled; your order is verified automatically.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">EPS Official Payment Gateway (eps.com.bd)</h4>
-                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                    You will be securely redirected to the <strong>EPS Payment Gateway</strong> to complete your payment using <strong>bKash, Nagad, Rocket, Upay, Visa, MasterCard, or AMEX</strong>. Manual payment is disabled; your order will be verified automatically upon payment completion.
+
+                {/* Supported Payment Channels Badges */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="text-[11px] font-semibold text-slate-500 mr-1">Supported:</span>
+                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#E2136E] text-white shadow-xs">bKash</span>
+                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#F7941D] text-white shadow-xs">Nagad</span>
+                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#8C3494] text-white shadow-xs">Rocket</span>
+                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#005BAC] text-white shadow-xs">Upay</span>
+                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#1A1F71] text-white shadow-xs">Visa / Master</span>
+                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-700 text-white shadow-xs">Internet Banking</span>
+                </div>
+
+                <div className="mt-1 p-3 bg-white/90 rounded-xl border border-emerald-200 text-xs text-slate-700">
+                  <div className="font-semibold text-emerald-900 mb-1 flex items-center gap-1.5">
+                    <span>💡 পেমেন্ট করার নিয়ম:</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    নিচে <strong>"Terms of Service"</strong> চেকবক্সে টিক দিয়ে <strong>"Proceed to EPS Payment"</strong> বাটনে ক্লিক করুন। সাথে সাথে EPS-এর সিকিউর গেটওয়ে পেজ ওপেন হবে, যেখান থেকে বিকাশ/নগদ/কার্ড সিলেক্ট করে পেমেন্ট করতে পারবেন।
                   </p>
                 </div>
               </div>
@@ -594,8 +616,8 @@ export const Checkout: React.FC = () => {
               <span>I have read and agree to the <Link to="/terms" className="text-[#0E2A47] font-semibold hover:underline" target="_blank">Terms of Service</Link> & Privacy Policy</span>
             </label>
 
-            <button type="submit" disabled={isProcessing} className="bg-gradient-to-r from-[#0E2A47] to-[#1a426e] hover:shadow-xl hover:shadow-[#0E2A47]/20 hover:-translate-y-0.5 text-white font-bold py-4 px-10 rounded-xl text-lg flex items-center gap-3 disabled:opacity-50 disabled:hover:translate-y-0 transition-all min-w-[300px] justify-center group">
-              {isProcessing ? 'Processing Order...' : (paymentType === 'pay_now' || isAdvanceCOD) ? 'Proceed to EPS Payment' : 'Complete Order'}
+            <button type="submit" disabled={isProcessing} className="bg-gradient-to-r from-[#0E2A47] to-[#1a426e] hover:shadow-xl hover:shadow-[#0E2A47]/20 hover:-translate-y-0.5 text-white font-bold py-4 px-10 rounded-xl text-lg flex items-center gap-3 disabled:opacity-50 disabled:hover:translate-y-0 transition-all min-w-[320px] justify-center group">
+              {isProcessing ? 'Processing Order...' : (paymentType === 'pay_now' || isAdvanceCOD) ? 'Proceed to Pay with EPS (bKash / Nagad / Cards)' : 'Complete Order'}
               {!isProcessing && (
                 <span className="bg-white/20 p-1.5 rounded-full group-hover:bg-white/30 transition-colors">
                   <ArrowRight size={20} />
