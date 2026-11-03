@@ -102,9 +102,7 @@ export const Checkout: React.FC = () => {
   }
   
   const [paymentType, setPaymentType] = useState<'cod' | 'pay_now'>('cod');
-  const [advanceDelivery, setAdvanceDelivery] = useState(false);
-
-  const isAdvanceCOD = paymentType === 'cod' && advanceDelivery && shippingCost > 0;
+  const isAdvanceCOD = paymentType === 'cod' && shippingCost > 0;
   const grandTotal = total + shippingCost;
 
   const [geoData, setGeoData] = useState({ divisions: [], districts: [], upazilas: [], unions: [] });
@@ -511,71 +509,55 @@ export const Checkout: React.FC = () => {
             
             <p className="text-center text-slate-600 font-medium mb-6">Select Payment Method</p>
             
-            <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-lg mx-auto mb-8">
-              <div className={`flex-1 border-2 rounded-xl p-5 flex flex-col gap-3 transition-all ${paymentType === 'cod' ? 'border-[#6EC72A] bg-[#6EC72A]/5' : 'border-slate-200 hover:border-slate-300'}`}>
-                <label className="cursor-pointer flex items-center justify-center gap-3" onClick={() => setPaymentType('cod')}>
-                  <input type="radio" name="paymentType" value="cod" checked={paymentType === 'cod'} onChange={() => {}} className="hidden" />
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${paymentType === 'cod' ? 'border-[#6EC72A]' : 'border-slate-400'}`}>
-                    {paymentType === 'cod' && <div className="w-2.5 h-2.5 rounded-full bg-[#6EC72A]" />}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
+              {/* Option 1: Cash on Delivery */}
+              <div
+                onClick={() => setPaymentType('cod')}
+                className={`cursor-pointer rounded-2xl p-5 border-2 transition-all flex flex-col justify-between ${
+                  paymentType === 'cod'
+                    ? 'border-[#0E2A47] bg-[#0E2A47]/5 shadow-sm ring-1 ring-[#0E2A47]'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${paymentType === 'cod' ? 'border-[#0E2A47]' : 'border-slate-400'}`}>
+                    {paymentType === 'cod' && <div className="w-2.5 h-2.5 rounded-full bg-[#0E2A47]" />}
                   </div>
-                  <span className={`font-bold ${paymentType === 'cod' ? 'text-[#6EC72A]' : 'text-slate-600'}`}>Cash on Delivery</span>
-                </label>
-                {paymentType === 'cod' && shippingCost > 0 && (
-                  <div className="mt-2 pt-3 border-t border-[#6EC72A]/20">
-                    <label className="flex items-start gap-2 cursor-pointer group">
-                      <div className="relative flex items-start pt-0.5">
-                        <input type="checkbox" checked={advanceDelivery} onChange={(e) => setAdvanceDelivery(e.target.checked)} className="w-4 h-4 text-[#6EC72A] border-gray-300 rounded focus:ring-[#6EC72A]" />
-                      </div>
-                      <span className="text-xs text-slate-700 leading-tight">Pay only delivery charge (৳{shippingCost}) online via EPS Gateway. Remaining amount on delivery.</span>
-                    </label>
-                  </div>
-                )}
+                  <span className="font-bold text-slate-900 text-base">Cash on Delivery</span>
+                </div>
+                <p className="text-xs text-slate-600 pl-8 leading-relaxed">
+                  {shippingCost > 0 ? (
+                    <>
+                      Pay courier fee <strong className="text-slate-900">৳{shippingCost.toFixed(2)}</strong> now via EPS Gateway. The remaining <strong className="text-slate-900">৳{total.toFixed(2)}</strong> will be collected in cash upon delivery.
+                    </>
+                  ) : (
+                    <>
+                      Full amount of <strong className="text-slate-900">৳{total.toFixed(2)}</strong> will be collected in cash upon delivery. Free shipping applies.
+                    </>
+                  )}
+                </p>
               </div>
 
-              <label className={`flex-1 cursor-pointer border-2 rounded-xl p-5 flex items-center justify-center gap-3 transition-all ${paymentType === 'pay_now' ? 'border-[#6EC72A] bg-[#6EC72A]/5 text-[#6EC72A]' : 'border-slate-200 hover:border-slate-300 text-slate-600'}`}>
-                <input type="radio" name="paymentType" value="pay_now" checked={paymentType === 'pay_now'} onChange={() => setPaymentType('pay_now')} className="hidden" />
-                <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center border-current">
-                  {paymentType === 'pay_now' && <div className="w-2.5 h-2.5 rounded-full bg-current" />}
+              {/* Option 2: Pay Now */}
+              <div
+                onClick={() => setPaymentType('pay_now')}
+                className={`cursor-pointer rounded-2xl p-5 border-2 transition-all flex flex-col justify-between ${
+                  paymentType === 'pay_now'
+                    ? 'border-[#0E2A47] bg-[#0E2A47]/5 shadow-sm ring-1 ring-[#0E2A47]'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${paymentType === 'pay_now' ? 'border-[#0E2A47]' : 'border-slate-400'}`}>
+                    {paymentType === 'pay_now' && <div className="w-2.5 h-2.5 rounded-full bg-[#0E2A47]" />}
+                  </div>
+                  <span className="font-bold text-slate-900 text-base">Pay Now (Full Online)</span>
                 </div>
-                <span className="font-bold">Pay Now</span>
-              </label>
+                <p className="text-xs text-slate-600 pl-8 leading-relaxed">
+                  Pay full amount <strong className="text-slate-900">৳{grandTotal.toFixed(2)}</strong> securely via EPS (bKash, Nagad, Rocket, Cards). No payment on delivery.
+                </p>
+              </div>
             </div>
-
-            {(paymentType === 'pay_now' || isAdvanceCOD) && (
-              <div className="max-w-xl mx-auto bg-emerald-50/80 border-2 border-[#6EC72A] rounded-2xl p-5 flex flex-col gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
-                <div className="flex items-start gap-3">
-                  <div className="bg-[#6EC72A]/15 text-[#6EC72A] p-2.5 rounded-xl shrink-0">
-                    <ShieldCheck className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-sm">EPS Official Payment Gateway (eps.com.bd)</h4>
-                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                      You will be securely redirected to the <strong>EPS Payment Gateway</strong> to complete your payment. Manual sending is disabled; your order is verified automatically.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Supported Payment Channels Badges */}
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <span className="text-[11px] font-semibold text-slate-500 mr-1">Supported:</span>
-                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#E2136E] text-white shadow-xs">bKash</span>
-                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#F7941D] text-white shadow-xs">Nagad</span>
-                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#8C3494] text-white shadow-xs">Rocket</span>
-                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#005BAC] text-white shadow-xs">Upay</span>
-                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#1A1F71] text-white shadow-xs">Visa / Master</span>
-                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-700 text-white shadow-xs">Internet Banking</span>
-                </div>
-
-                <div className="mt-1 p-3 bg-white/90 rounded-xl border border-emerald-200 text-xs text-slate-700">
-                  <div className="font-semibold text-emerald-900 mb-1 flex items-center gap-1.5">
-                    <span>💡 পেমেন্ট করার নিয়ম:</span>
-                  </div>
-                  <p className="leading-relaxed">
-                    নিচে <strong>"Terms of Service"</strong> চেকবক্সে টিক দিয়ে <strong>"Proceed to EPS Payment"</strong> বাটনে ক্লিক করুন। সাথে সাথে EPS-এর সিকিউর গেটওয়ে পেজ ওপেন হবে, যেখান থেকে বিকাশ/নগদ/কার্ড সিলেক্ট করে পেমেন্ট করতে পারবেন।
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
           
           {items.some(item => item.itemType === 'domain' && (item.id.endsWith('.bd') || (item.domainTld && item.domainTld.endsWith('bd')))) && (
@@ -632,7 +614,13 @@ export const Checkout: React.FC = () => {
             </label>
 
             <button type="submit" disabled={isProcessing} className="bg-gradient-to-r from-[#0E2A47] to-[#1a426e] hover:shadow-xl hover:shadow-[#0E2A47]/20 hover:-translate-y-0.5 text-white font-bold py-4 px-10 rounded-xl text-lg flex items-center gap-3 disabled:opacity-50 disabled:hover:translate-y-0 transition-all min-w-[320px] justify-center group">
-              {isProcessing ? 'Processing Order...' : (paymentType === 'pay_now' || isAdvanceCOD) ? 'Proceed to Pay with EPS (bKash / Nagad / Cards)' : 'Complete Order'}
+              {isProcessing
+                ? 'Processing...'
+                : paymentType === 'cod'
+                ? shippingCost > 0
+                  ? `Pay Advance Delivery Fee (৳${shippingCost.toFixed(2)})`
+                  : 'Confirm Cash on Delivery Order'
+                : `Pay Full Amount (৳${grandTotal.toFixed(2)})`}
               {!isProcessing && (
                 <span className="bg-white/20 p-1.5 rounded-full group-hover:bg-white/30 transition-colors">
                   <ArrowRight size={20} />

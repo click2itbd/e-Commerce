@@ -94,6 +94,8 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
 
   const actualOrders = orders.filter(o => {
     if (o.type === 'quotation') return false;
+    // Do not show orders awaiting online payment completion until payment is verified
+    if (o.status === 'pending_payment') return false;
     return true;
   });
   

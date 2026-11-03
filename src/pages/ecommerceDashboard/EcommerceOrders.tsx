@@ -4,6 +4,7 @@ import { formatCurrency } from '../../lib/utils';
 import { useSettings } from '../../context/SettingsContext';
 import { Search, Filter, Download, ExternalLink, Printer, Edit2, Trash2, Eye, X, Database, ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { fetchCourierRisk, CourierRiskReport } from '../../utils/courierRisk';
+import { apiPost } from '../../services/apiClient';
 import { generatePDF } from '../../lib/pdf';
 import { getOrderCategory } from '../admin/tabs/sales/Orders'; // Reuse classification logic
 import { toast } from 'react-hot-toast';
@@ -68,6 +69,8 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
 
   const storeOrders = useMemo(() => {
     return orders.filter(o => {
+      // Do not show orders awaiting online payment completion until payment is verified
+      if (o.status === 'pending_payment') return false;
       const isERP = o.saleSource === 'in_store' || o.type === 'pos_sale' || o.type === 'invoice' || o.type === 'challan';
       if (sourceFilter === 'online') {
         const cat = getOrderCategory(o);
@@ -161,11 +164,6 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
 
 
   const handleSendToSteadfast = async (order: Order) => {
-    if (!settings?.steadfastApiKey || !settings?.steadfastSecretKey) {
-      toast.error('Steadfast API keys are missing in Settings!');
-      return;
-    }
-    
     const tid = toast.loading('Sending to Steadfast...');
     try {
       const payload = {
@@ -177,18 +175,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
         note: `Order ${order.id.slice(0, 8)}`
       };
 
-      const baseUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : '';
-      const res = await fetch(`${baseUrl}/steadfast.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Api-Key': settings.steadfastApiKey,
-          'Secret-Key': settings.steadfastSecretKey
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      const data = await res.json();
+      const data = await apiPost<any>('/api/courier/create_order', payload);
       
       if (data.status === 200) {
         await updateDoc(doc(db, 'orders', order.id), { 
@@ -201,7 +188,7 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
         toast.error(data.message || 'Failed to send to Steadfast', { id: tid });
       }
     } catch (err: any) {
-      toast.error('Network Error: ' + err.message, { id: tid });
+      toast.error('Error: ' + (err.message || 'Failed to send to Steadfast'), { id: tid });
     }
   };
 
