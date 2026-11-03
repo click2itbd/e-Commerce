@@ -10,7 +10,7 @@ import { doc, getDoc, addDoc, updateDoc, setDoc, collection, query, where, order
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { compressImage } from '../lib/imageCompressor';
 import { toast } from 'react-hot-toast';
-import { User, Mail, Globe, Phone, MapPin, Building, Save, Camera, Loader2, ShoppingBag, Heart, Package, Clock, CheckCircle2, XCircle, ChevronRight, Tag, MessageSquare, Image as ImageIcon, CalendarPlus, Lock, Shield, RotateCcw, Truck, Box, Check, Star, Plus, Bell, Wallet } from 'lucide-react';
+import { User, Mail, Globe, Phone, MapPin, Building, Save, Camera, Loader2, ShoppingBag, Heart, Package, Clock, CheckCircle2, XCircle, ChevronRight, Tag, MessageSquare, Image as ImageIcon, CalendarPlus, Lock, Shield, RotateCcw, Truck, Box, Check, Star, Plus, Bell, Wallet, Download } from 'lucide-react';
 import { PriceAlertsTab } from '../components/PriceAlertsTab';
 import { CustomerWalletTab } from '../components/CustomerWalletTab';
 import { SEO } from '../components/SEO';
@@ -52,6 +52,20 @@ export const Profile: React.FC = () => {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [returnModalOrderId, setReturnModalOrderId] = useState<string | null>(null);
   const [returnReason, setReturnReason] = useState('');
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+
+  const handleDownloadInvoice = async (order: any) => {
+    try {
+      setDownloadingInvoiceId(order.id);
+      await generatePDF(order, 'invoice', settings, 'download');
+      toast.success('Invoice downloaded successfully');
+    } catch (err: any) {
+      console.error('Failed to download invoice:', err);
+      toast.error('Failed to generate invoice PDF.');
+    } finally {
+      setDownloadingInvoiceId(null);
+    }
+  };
 
   const [formData, setFormData] = useState<UserProfileData>({
     name: '',
@@ -643,8 +657,22 @@ export const Profile: React.FC = () => {
                                  </div>
 
                                  <div className="flex flex-wrap gap-3 justify-end">
-                                   <button className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 flex items-center gap-2">
-                                     <CheckCircle2 size={16} /> Download Invoice
+                                   <button
+                                     onClick={() => handleDownloadInvoice(order)}
+                                     disabled={downloadingInvoiceId === order.id}
+                                     className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 flex items-center gap-2 cursor-pointer shadow-sm hover:border-gray-300 transition-all disabled:opacity-50"
+                                   >
+                                     {downloadingInvoiceId === order.id ? (
+                                       <>
+                                         <Loader2 size={16} className="animate-spin text-[#0E2A47]" />
+                                         <span>Downloading...</span>
+                                       </>
+                                     ) : (
+                                       <>
+                                         <Download size={16} className="text-[#0E2A47]" />
+                                         <span>Download Invoice</span>
+                                       </>
+                                     )}
                                    </button>
                                    {status === 'delivered' && !isHosting && (
                                      <button onClick={() => setReturnModalOrderId(order.id)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-100 flex items-center gap-2">
