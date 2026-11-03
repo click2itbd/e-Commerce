@@ -191,8 +191,8 @@ const EcommerceDashboard: React.FC = () => {
       const orderRef = doc(db, 'orders', orderId);
       const order = orders.find(o => o.id === orderId);
       
-      // Stock Deduction Logic
-      if (newStatus === 'delivered' && order && order.status !== 'delivered') {
+      // Stock Deduction Logic on Processing
+      if (newStatus === 'processing' && order && !order.stockDeducted && Array.isArray(order.items)) {
         // Deduct stock
         for (const item of order.items) {
           if (item.isBundle && item.bundleItems) {
@@ -207,18 +207,52 @@ const EcommerceDashboard: React.FC = () => {
             }
           } else {
             // Deduct normal product
-            const pRef = doc(db, 'products', item.id);
+            const prodId = item.productId || item.id;
+            const pRef = doc(db, 'products', prodId);
             const pSnap = await getDoc(pRef);
             if (pSnap.exists()) {
               const p = pSnap.data();
-              await updateDoc(pRef, { stock: Math.max(0, (p.stock || 0) - item.quantity) });
+              const qty = Number(item.quantity) || 1;
+              const updates: any = { stock: Math.max(0, (Number(p.stock) || 0) - qty) };
+              if (item.variantId && Array.isArray(p.variants)) {
+                updates.variants = p.variants.map((v: any) =>
+                  (v.id === item.variantId || v.sku === item.variantId)
+                    ? { ...v, stock: Math.max(0, (Number(v.stock) || 0) - qty) }
+                    : v
+                );
+              }
+              await updateDoc(pRef, updates);
             }
           }
         }
+        await updateDoc(orderRef, { status: newStatus, stockDeducted: true });
+        setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus, stockDeducted: true } : o));
+      } else if ((newStatus === 'returned' || newStatus === 'cancelled') && order && order.stockDeducted && Array.isArray(order.items)) {
+        // Restore stock
+        for (const item of order.items) {
+          const prodId = item.productId || item.id;
+          const pRef = doc(db, 'products', prodId);
+          const pSnap = await getDoc(pRef);
+          if (pSnap.exists()) {
+            const p = pSnap.data();
+            const qty = Number(item.quantity) || 1;
+            const updates: any = { stock: (Number(p.stock) || 0) + qty };
+            if (item.variantId && Array.isArray(p.variants)) {
+              updates.variants = p.variants.map((v: any) =>
+                (v.id === item.variantId || v.sku === item.variantId)
+                  ? { ...v, stock: (Number(v.stock) || 0) + qty }
+                  : v
+              );
+            }
+            await updateDoc(pRef, updates);
+          }
+        }
+        await updateDoc(orderRef, { status: newStatus, stockDeducted: false });
+        setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus, stockDeducted: false } : o));
+      } else {
+        await updateDoc(orderRef, { status: newStatus });
+        setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
       }
-
-      await updateDoc(orderRef, { status: newStatus });
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
       toast.success('Status updated', { id: toastId });
 
       await logAudit(

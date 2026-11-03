@@ -76,6 +76,9 @@ export async function fulfillOrder(orderId, actorUid) {
             }
         }
     }
+    const isPhysicalEcommerce = orderData.platform === 'ecommerce' ||
+        (Array.isArray(orderData.items) &&
+            orderData.items.some((i) => i.itemType === 'product' && !i.isDigital));
     let finalStatus;
     if (hasManualReview) {
         finalStatus = 'manual_review';
@@ -89,18 +92,24 @@ export async function fulfillOrder(orderId, actorUid) {
     else {
         finalStatus = 'completed';
     }
+    // E-commerce orders with physical goods must stay in 'processing' status
+    // so that the merchant can pack, ship, and deliver the goods.
+    const orderStatus = isPhysicalEcommerce
+        ? 'processing'
+        : finalStatus === 'pending'
+            ? 'fulfillment_pending'
+            : finalStatus;
     const auditAction = finalStatus === 'pending' ? 'fulfillment_pending' : 'fulfillment_completed';
-    const orderStatus = finalStatus === 'pending' ? 'fulfillment_pending' : finalStatus;
     const auditMessage = finalStatus === 'pending'
         ? 'Openprovider accepted the domain request; registration is not active yet.'
         : finalStatus === 'completed' ? null : 'Some items failed fulfillment';
     await orderRef.update({
         status: orderStatus,
-        providerStatus: finalStatus,
+        providerStatus: isPhysicalEcommerce ? 'processing' : finalStatus,
         updatedAt: now,
     });
     await writeAuditLog(db, orderId, auditAction, actorUid, 'processing', orderStatus, null, auditMessage);
-    if (finalStatus === 'completed' && orderData.customerEmail) {
+    if (!isPhysicalEcommerce && finalStatus === 'completed' && orderData.customerEmail) {
         const subject = `Order Completed - #${orderId.slice(0, 8)}`;
         const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">

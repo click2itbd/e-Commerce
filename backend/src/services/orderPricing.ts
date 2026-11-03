@@ -175,7 +175,6 @@ export async function calculateAndCreateServerOrder(userId: string, payload: Cre
   }
 
   const verifiedItems: any[] = [];
-  const productStockUpdates: { prodId: string; quantity: number; variantId?: string; currentStock: number; variants?: any[] }[] = [];
 
   for (const rawItem of rawItems) {
     const qty = Math.max(1, Math.floor(Number(rawItem.quantity) || 1));
@@ -476,35 +475,8 @@ export async function calculateAndCreateServerOrder(userId: string, payload: Cre
       if (!matchedVariant) {
         throw new Error(`Selected variant for "${pData.name}" does not exist.`);
       }
-      if (Number(matchedVariant.stock) < qty && !pData.isCustomService && !pData.isDigital) {
-        throw new Error(`Insufficient stock for "${pData.name} (${matchedVariant.name})". Available: ${matchedVariant.stock}`);
-      }
       if (Number(matchedVariant.price) > 0) {
         unitPrice = Number(matchedVariant.price);
-      }
-      if (!pData.isCustomService && !pData.isDigital) {
-        const updatedVariants = pData.variants.map((v: any) =>
-          v.id === matchedVariant.id ? { ...v, stock: Math.max(0, Number(v.stock) - qty) } : v
-        );
-        productStockUpdates.push({
-          prodId: realProductId,
-          quantity: qty,
-          variantId: matchedVariant.id,
-          currentStock: Number(pData.stock) || 0,
-          variants: updatedVariants,
-        });
-      }
-    } else {
-      const currentStock = Number(pData.stock) ?? 0;
-      if (!pData.isCustomService && !pData.isDigital && currentStock < qty) {
-        throw new Error(`Insufficient stock for "${pData.name}". Available: ${currentStock}`);
-      }
-      if (!pData.isCustomService && !pData.isDigital) {
-        productStockUpdates.push({
-          prodId: realProductId,
-          quantity: qty,
-          currentStock,
-        });
       }
     }
 
@@ -700,6 +672,7 @@ export async function calculateAndCreateServerOrder(userId: string, payload: Cre
         : 'eps',
     transactionId: null,
     advancePaidAmount: isAdvanceCOD ? shippingCost : 0,
+    stockDeducted: false,
     notes: String(payload.notes || '').trim(),
     vpsConfig: safeVpsConfig,
     createdAt: now,
@@ -745,17 +718,6 @@ export async function calculateAndCreateServerOrder(userId: string, payload: Cre
       usedCount: nextCouponUsedCount,
       updatedAt: now,
     });
-  }
-
-  // Decrement product stocks atomically in batch
-  for (const stockUpd of productStockUpdates) {
-    const prodRef = db.collection('products').doc(stockUpd.prodId);
-    const newStock = Math.max(0, stockUpd.currentStock - stockUpd.quantity);
-    if (stockUpd.variants) {
-      batch.update(prodRef, { stock: newStock, variants: stockUpd.variants, updatedAt: now });
-    } else {
-      batch.update(prodRef, { stock: newStock, updatedAt: now });
-    }
   }
 
   // Record accounting ledger entry for ecommerce orders

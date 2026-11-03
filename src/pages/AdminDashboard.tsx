@@ -2114,20 +2114,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
       }
 
+      const orderRef = doc(db, "orders", orderId);
+      const updateData: any = { status };
+
+      // Deduct product stock when status transitions to 'processing'
+      if (status === "processing" && !order.stockDeducted && Array.isArray(order.items)) {
+        for (const item of order.items) {
+          const prodId = item.productId || item.id;
+          if (!prodId) continue;
+          const productRef = doc(db, "products", prodId);
+          const currentProduct = products.find((p) => p.id === prodId);
+          if (currentProduct) {
+            const currentStock = typeof currentProduct.stock === "number" ? currentProduct.stock : 0;
+            const qty = Number(item.quantity) || 1;
+            const newStock = Math.max(0, currentStock - qty);
+            const updates: any = { stock: newStock };
+
+            if (item.variantId && Array.isArray(currentProduct.variants)) {
+              updates.variants = currentProduct.variants.map((v: any) =>
+                v.id === item.variantId || v.sku === item.variantId
+                  ? { ...v, stock: Math.max(0, (Number(v.stock) || 0) - qty) }
+                  : v
+              );
+            }
+            try {
+              await updateDoc(productRef, updates);
+            } catch (stkErr) {
+              console.error("Failed to deduct product stock:", stkErr);
+            }
+          }
+        }
+        updateData.stockDeducted = true;
+      }
+
       // Handle stock and serial restorations if status is returned or cancelled
       if (
         (status === "returned" || status === "cancelled") &&
         order.status !== "returned" &&
-        order.status !== "cancelled"
+        order.status !== "cancelled" &&
+        order.stockDeducted
       ) {
         for (const item of order.items) {
-          const productRef = doc(db, "products", item.id);
-          const currentProduct = products.find((p) => p.id === item.id);
+          const prodId = item.productId || item.id;
+          if (!prodId) continue;
+          const productRef = doc(db, "products", prodId);
+          const currentProduct = products.find((p) => p.id === prodId);
 
           if (currentProduct) {
+            const qty = Number(item.quantity) || 1;
             const updates: any = {
-              stock: currentProduct.stock + item.quantity,
+              stock: (Number(currentProduct.stock) || 0) + qty,
             };
+
+            if (item.variantId && Array.isArray(currentProduct.variants)) {
+              updates.variants = currentProduct.variants.map((v: any) =>
+                v.id === item.variantId || v.sku === item.variantId
+                  ? { ...v, stock: (Number(v.stock) || 0) + qty }
+                  : v
+              );
+            }
 
             if (currentProduct.hasSerialTracking && item.selectedSerials) {
               updates.availableSerials = [
@@ -2148,11 +2193,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             await updateDoc(productRef, updates);
           }
         }
+        updateData.stockDeducted = false;
       }
-
-      const orderRef = doc(db, "orders", orderId);
-
-      const updateData: any = { status };
 
       // If the order is being cancelled and payment was pending, mark payment as cancelled
       if (status === "cancelled" && order.paymentStatus === "pending") {
@@ -2581,29 +2623,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onConfirm: async () => {
         try {
           await Promise.all(
-            selectedOrderIds.map(async (id) => {
-              await updateDoc(doc(db, "orders", id), { status });
-              const order = orders.find((o) => o.id === id);
-              if (order && order.customerEmail) {
-                try {
-                  await fetch(
-                    getApiUrl("/api/send-email/order-status-update"),
-                    {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        orderId: order.documentNumber || order.id,
-                        customerName: order.customerName,
-                        customerEmail: order.customerEmail,
-                        status: status,
-                      }),
-                    },
-                  );
-                } catch (e) {
-                  console.error("Failed to send status update email", e);
-                }
-              }
-            }),
+            selectedOrderIds.map((id) => updateOrderStatus(id, status, true))
           );
           toast.success(
             `${selectedOrderIds.length} orders updated to ${status}`,

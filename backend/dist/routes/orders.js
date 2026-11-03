@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getAdminDb, isUserAdmin } from '../firebase/admin.js';
 import { sendEmail } from '../services/email.js';
-import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
+import { requireFirebaseAuth, optionalFirebaseAuth } from '../middleware/firebaseAuth.js';
 import { fulfillOrder } from '../services/fulfillment.js';
 import { calculateAndCreateServerOrder } from '../services/orderPricing.js';
 import { epsInitializePayment, epsVerifyTransaction } from '../services/epsGateway.js';
@@ -13,6 +13,54 @@ ordersRouter.post('/create', requireFirebaseAuth, async (req, res) => {
     }
     try {
         const result = await calculateAndCreateServerOrder(userId, req.body);
+        let paymentUrl = null;
+        let redirectUrl = null;
+        let paymentId = null;
+        const isAdvanceCOD = req.body.paymentType === 'cod' && Boolean(req.body.advanceDelivery) && result.shippingCost > 0;
+        const isOnlineRequired = req.body.paymentType === 'pay_now' || isAdvanceCOD;
+        if (isOnlineRequired) {
+            const payableAmount = isAdvanceCOD ? result.shippingCost : result.grandTotal;
+            if (payableAmount > 0) {
+                const orderInfo = (result.orderData || {});
+                const originHeader = String(req.headers.origin || process.env.FRONTEND_URL || 'https://click2itbd.com').replace(/\/+$/, '');
+                const baseReturnUrl = `${originHeader}/payment/return?orderId=${encodeURIComponent(result.orderId)}&method=eps`;
+                const firstItemName = Array.isArray(orderInfo.items) && orderInfo.items[0]?.name
+                    ? String(orderInfo.items[0].name)
+                    : `Order #${result.orderId.slice(0, 8)}`;
+                try {
+                    const epsResult = await epsInitializePayment({
+                        orderId: result.orderId,
+                        amount: payableAmount,
+                        customerName: String(orderInfo.customerName || req.user?.name || 'Customer'),
+                        customerEmail: String(orderInfo.customerEmail || req.user?.email || 'customer@click2itbd.com'),
+                        customerPhone: String(orderInfo.customerPhone || '01700000000'),
+                        customerAddress: String(orderInfo.shippingAddress || 'Dhaka, Bangladesh'),
+                        productName: firstItemName,
+                        productCategory: req.body.platform === 'hosting' ? 'Hosting & Domain' : 'Ecommerce',
+                        ipAddress: String(req.ip || req.socket?.remoteAddress || '127.0.0.1'),
+                        successUrl: `${baseReturnUrl}&status=success`,
+                        failUrl: `${baseReturnUrl}&status=failed`,
+                        cancelUrl: `${baseReturnUrl}&status=cancelled`,
+                    });
+                    const now = new Date().toISOString();
+                    const db = getAdminDb();
+                    await db.collection('orders').doc(result.orderId).update({
+                        epsMerchantTransactionId: epsResult.merchantTransactionId,
+                        epsTransactionId: epsResult.transactionId,
+                        epsPayableAmount: payableAmount,
+                        paymentMethod: isAdvanceCOD ? 'cod_advance_paid' : 'eps',
+                        epsInitiatedAt: now,
+                        updatedAt: now,
+                    });
+                    paymentUrl = epsResult.redirectUrl;
+                    redirectUrl = epsResult.redirectUrl;
+                    paymentId = epsResult.merchantTransactionId;
+                }
+                catch (epsErr) {
+                    console.warn('[Orders] In-flight EPS init in /create failed, client can retry via /payment/eps/init:', epsErr?.message);
+                }
+            }
+        }
         return res.status(201).json({
             success: true,
             orderId: result.orderId,
@@ -22,6 +70,9 @@ ordersRouter.post('/create', requireFirebaseAuth, async (req, res) => {
             shippingCost: result.shippingCost,
             grandTotal: result.grandTotal,
             payNowAmount: result.payNowAmount,
+            paymentUrl,
+            redirectUrl,
+            paymentId,
         });
     }
     catch (error) {
@@ -118,12 +169,9 @@ ordersRouter.post('/:orderId/payment/eps/init', requireFirebaseAuth, async (req,
  * POST /api/orders/:orderId/payment/eps/verify
  * Verifies an EPS transaction server-to-server via CheckMerchantTransactionStatus.
  */
-ordersRouter.post('/:orderId/payment/eps/verify', requireFirebaseAuth, async (req, res) => {
+ordersRouter.post('/:orderId/payment/eps/verify', optionalFirebaseAuth, async (req, res) => {
     const userId = req.user?.uid;
     const { orderId } = req.params;
-    if (!userId) {
-        return res.status(401).json({ success: false, error: 'Authentication required.' });
-    }
     try {
         const db = getAdminDb();
         const orderRef = db.collection('orders').doc(orderId);
@@ -132,8 +180,16 @@ ordersRouter.post('/:orderId/payment/eps/verify', requireFirebaseAuth, async (re
             return res.status(404).json({ success: false, error: 'Order not found.' });
         }
         const orderData = orderSnap.data() || {};
-        const adminCheck = await isUserAdmin(userId).catch(() => false);
-        if (orderData.userId !== userId && !adminCheck) {
+        const merchantTransactionId = String(req.body?.merchantTransactionId || req.body?.paymentId || orderData.epsMerchantTransactionId || '').trim();
+        // Security Authorization:
+        // Allow if authenticated as order owner or admin, OR if the merchantTransactionId
+        // matches the order's epsMerchantTransactionId (browser return callback handshake).
+        const isOwner = Boolean(userId && orderData.userId === userId);
+        const isAdmin = Boolean(userId && (await isUserAdmin(userId).catch(() => false)));
+        const isMatchingMerchantTx = Boolean(merchantTransactionId &&
+            orderData.epsMerchantTransactionId &&
+            merchantTransactionId === orderData.epsMerchantTransactionId);
+        if (!isOwner && !isAdmin && !isMatchingMerchantTx) {
             return res.status(403).json({ success: false, error: 'You are not authorized to verify this order.' });
         }
         if (orderData.paymentStatus === 'verified') {
@@ -145,7 +201,6 @@ ordersRouter.post('/:orderId/payment/eps/verify', requireFirebaseAuth, async (re
                 merchantTransactionId: orderData.epsMerchantTransactionId,
             });
         }
-        const merchantTransactionId = String(req.body?.merchantTransactionId || req.body?.paymentId || orderData.epsMerchantTransactionId || '').trim();
         if (!merchantTransactionId) {
             return res.status(400).json({
                 success: false,
@@ -179,18 +234,70 @@ ordersRouter.post('/:orderId/payment/eps/verify', requireFirebaseAuth, async (re
             });
         }
         const now = new Date().toISOString();
+        const grandTotal = Number(orderData.total || 0);
+        const isAdvance = orderData.paymentMethod === 'cod_advance_paid';
+        const actualPaid = Number(verifyRes.totalAmount > 0 ? verifyRes.totalAmount : expectedAmount);
+        const dueAmount = isAdvance ? Math.max(0, grandTotal - actualPaid) : 0;
         await orderRef.update({
+            status: 'processing',
             paymentStatus: 'verified',
             paymentVerificationStatus: 'verified',
             providerStatus: 'processing',
-            paymentMethod: orderData.paymentMethod === 'cod_advance_paid' ? 'cod_advance_paid' : 'eps',
+            paymentMethod: isAdvance ? 'cod_advance_paid' : 'eps',
             transactionId: verifyRes.epsTransactionId || merchantTransactionId,
             epsMerchantTransactionId: merchantTransactionId,
             epsFinancialEntity: verifyRes.financialEntity,
+            paidAmount: actualPaid,
+            dueAmount,
+            advancePaidAmount: isAdvance ? actualPaid : 0,
             paymentVerifiedAt: now,
             paidAt: now,
             updatedAt: now,
         });
+        // Record verified payment in transactions accounting ledger
+        try {
+            await db.collection('transactions').add({
+                type: 'payment_received',
+                amount: actualPaid,
+                date: now,
+                description: isAdvance
+                    ? `Advance Delivery Fee for Order #${orderData.documentNumber || orderId.slice(0, 8)} (${verifyRes.financialEntity})`
+                    : `EPS Payment for Order #${orderData.documentNumber || orderId.slice(0, 8)} (${verifyRes.financialEntity})`,
+                entityId: orderData.customerId || orderData.userId || userId,
+                entityName: orderData.customerName || 'Online Customer',
+                entityType: 'customer',
+                referenceId: orderId,
+                documentNumber: orderData.documentNumber || orderId.slice(0, 8),
+                paymentAccountId: '',
+                paymentMethod: verifyRes.financialEntity || 'eps',
+                createdAt: now,
+                createdBy: 'EPS Payment Gateway',
+            });
+        }
+        catch (txErr) {
+            console.warn('[EPS Verify] Failed to write payment_received transaction:', txErr);
+        }
+        // Ensure customer is in `customers` collection for accounting due tracking
+        try {
+            const custId = orderData.customerId || orderData.userId || userId;
+            const custRef = db.collection('customers').doc(custId);
+            const custSnap = await custRef.get();
+            if (!custSnap.exists) {
+                await custRef.set({
+                    id: custId,
+                    name: orderData.customerName || 'Customer',
+                    email: orderData.customerEmail || '',
+                    phone: orderData.customerPhone || '',
+                    address: orderData.shippingAddress || '',
+                    createdAt: now,
+                    updatedAt: now,
+                    source: 'online_store',
+                });
+            }
+        }
+        catch (cErr) {
+            console.warn('[EPS Verify] Customer sync error:', cErr);
+        }
         const hostingOrderRef = db.collection('hostingOrders').doc(orderId);
         const hostingOrderSnap = await hostingOrderRef.get();
         if (hostingOrderSnap.exists) {
@@ -209,6 +316,33 @@ ordersRouter.post('/:orderId/payment/eps/verify', requireFirebaseAuth, async (re
         catch (fErr) {
             console.warn('[EPS Verify] Auto-fulfillment warning:', fErr);
         }
+        // Send order confirmation email upon verified payment
+        if (orderData.customerEmail) {
+            try {
+                const docNum = orderData.documentNumber || `#${orderId.slice(0, 8)}`;
+                await sendEmail({
+                    to: orderData.customerEmail,
+                    subject: isAdvance
+                        ? `Advance Delivery Paid & Order Confirmed - ${docNum}`
+                        : `Payment Confirmed & Order Placed - ${docNum}`,
+                    html: `
+            <div style="font-family: sans-serif; padding: 24px; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; rounded: 12px;">
+              <h2 style="color: #0E2A47; margin-bottom: 8px;">Click2IT BD</h2>
+              <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 12px 16px; margin: 16px 0;">
+                <p style="margin: 0; font-weight: bold; color: #166534;">Payment Verified via EPS Gateway!</p>
+                <p style="margin: 4px 0 0; font-size: 13px; color: #15803d;">Transaction ID: ${verifyRes.epsTransactionId || merchantTransactionId} (${verifyRes.financialEntity})</p>
+              </div>
+              <p>Dear ${orderData.customerName || 'Customer'},</p>
+              <p>Your order <strong>${docNum}</strong> has been confirmed. ${isAdvance ? `You have paid the advance delivery charge of ৳${actualPaid}. Remaining due of ৳${dueAmount} will be collected upon delivery.` : `Total paid: ৳${actualPaid}.`}</p>
+              <p style="margin-top: 24px; font-size: 12px; color: #64748b;">Thank you for shopping with Click2IT BD.</p>
+            </div>
+          `,
+                });
+            }
+            catch (mailErr) {
+                console.warn('[EPS Verify] Failed to send confirmation email:', mailErr);
+            }
+        }
         return res.json({
             success: true,
             status: verifyRes.status,
@@ -223,6 +357,81 @@ ordersRouter.post('/:orderId/payment/eps/verify', requireFirebaseAuth, async (re
             success: false,
             error: error.message || 'EPS payment verification failed.',
         });
+    }
+});
+/**
+ * POST /api/orders/:orderId/payment/eps/fail-or-cancel
+ * Cancels an order when the customer cancels payment or when EPS declines it.
+ * Releases reserved stock and removes pending accounting transactions.
+ */
+ordersRouter.post('/:orderId/payment/eps/fail-or-cancel', optionalFirebaseAuth, async (req, res) => {
+    const userId = req.user?.uid;
+    const { orderId } = req.params;
+    const { reason, status, merchantTransactionId } = req.body || {};
+    try {
+        const db = getAdminDb();
+        const orderRef = db.collection('orders').doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) {
+            return res.status(404).json({ success: false, error: 'Order not found.' });
+        }
+        const orderData = orderSnap.data() || {};
+        const isOwner = Boolean(userId && orderData.userId === userId);
+        const isAdmin = Boolean(userId && (await isUserAdmin(userId).catch(() => false)));
+        const isMatchingTx = Boolean((merchantTransactionId && merchantTransactionId === orderData.epsMerchantTransactionId) ||
+            (!userId && orderData.status === 'pending_payment'));
+        if (!isOwner && !isAdmin && !isMatchingTx) {
+            return res.status(403).json({ success: false, error: 'Unauthorized.' });
+        }
+        // If order was already paid, do not cancel
+        if (orderData.paymentStatus === 'verified') {
+            return res.status(400).json({ success: false, error: 'Cannot cancel an order with verified payment.' });
+        }
+        const now = new Date().toISOString();
+        const targetStatus = status === 'failed' ? 'payment_failed' : 'cancelled';
+        await orderRef.update({
+            status: targetStatus,
+            paymentStatus: status === 'failed' ? 'failed' : 'cancelled',
+            cancellationReason: reason || 'Customer cancelled payment or transaction failed on EPS Gateway.',
+            cancelledAt: now,
+            updatedAt: now,
+        });
+        // Remove pending sale transaction so customer doesn't owe money for a cancelled order
+        try {
+            const txSnap = await db.collection('transactions').where('referenceId', '==', orderId).get();
+            for (const tDoc of txSnap.docs) {
+                await tDoc.ref.delete();
+            }
+        }
+        catch (txErr) {
+            console.warn('[EPS Cancel] Failed to cleanup pending transaction:', txErr);
+        }
+        // Restore stock
+        try {
+            const rawItems = Array.isArray(orderData.items) ? orderData.items : [];
+            for (const item of rawItems) {
+                const prodId = item.productId || item.id;
+                if (prodId && item.quantity) {
+                    const pRef = db.collection('products').doc(prodId);
+                    const pSnap = await pRef.get();
+                    if (pSnap.exists) {
+                        const curr = Number(pSnap.data()?.stock || 0);
+                        await pRef.update({ stock: curr + Number(item.quantity), updatedAt: now });
+                    }
+                }
+            }
+        }
+        catch (stockErr) {
+            console.warn('[EPS Cancel] Failed to restore product stock:', stockErr);
+        }
+        return res.json({
+            success: true,
+            message: `Order marked as ${targetStatus}.`,
+        });
+    }
+    catch (error) {
+        console.error('[EPS Cancel] Error cancelling order:', error);
+        return res.status(500).json({ success: false, error: error.message || 'Failed to cancel order.' });
     }
 });
 ordersRouter.post('/admin/:orderId/payment/verify', requireFirebaseAuth, async (req, res) => {

@@ -23,6 +23,27 @@ export async function requireFirebaseAuth(req, res, next) {
         return res.status(401).json({ error: 'Invalid or expired token' });
     }
 }
+export async function optionalFirebaseAuth(req, _res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return next();
+    }
+    const idToken = authHeader.split('Bearer ')[1]?.trim();
+    if (!idToken) {
+        return next();
+    }
+    try {
+        const adminAuth = getAdminAuth();
+        if (adminAuth) {
+            const decodedToken = await adminAuth.verifyIdToken(idToken);
+            req.user = decodedToken;
+        }
+    }
+    catch {
+        // Optional auth: continue without user if token is invalid or expired
+    }
+    return next();
+}
 export async function requireAdmin(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

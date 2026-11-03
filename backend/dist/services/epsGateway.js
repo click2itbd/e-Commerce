@@ -29,10 +29,14 @@ export const EPS_ALL_FIELDS = [
     'epsSandboxBaseUrl',
     'epsLiveBaseUrl',
 ];
-export async function loadEpsConfig() {
+let cachedEpsConfig = null;
+export async function loadEpsConfig(forceRefresh = false) {
+    if (!forceRefresh && cachedEpsConfig && Date.now() < cachedEpsConfig.expiresAt) {
+        return cachedEpsConfig.cfg;
+    }
     const result = await getAdminDocument('settings', 'api_keys');
     const d = result.data || {};
-    return {
+    const cfg = {
         epsEnabled: d.epsEnabled === true,
         epsMode: d.epsMode === 'live' ? 'live' : 'sandbox',
         epsMerchantId: String(d.epsMerchantId || ''),
@@ -43,6 +47,11 @@ export async function loadEpsConfig() {
         epsSandboxBaseUrl: String(d.epsSandboxBaseUrl || EPS_DEFAULT_SANDBOX_URL),
         epsLiveBaseUrl: String(d.epsLiveBaseUrl || EPS_DEFAULT_LIVE_URL),
     };
+    cachedEpsConfig = {
+        cfg,
+        expiresAt: Date.now() + 60 * 1000, // cache for 60 seconds
+    };
+    return cfg;
 }
 /** Browser-safe view: secrets replaced by a boolean "is set" flag. */
 export function toPublicEpsConfig(cfg) {
@@ -107,6 +116,7 @@ export async function saveEpsConfig(body) {
         }
     }
     await setAdminDocument('settings', 'api_keys', next);
+    cachedEpsConfig = null;
 }
 export function epsBaseUrl(cfg) {
     return cfg.epsMode === 'live' ? cfg.epsLiveBaseUrl : cfg.epsSandboxBaseUrl;
@@ -115,9 +125,29 @@ export function epsBaseUrl(cfg) {
 export function epsHash(value, hashKey) {
     return crypto.createHmac('sha512', hashKey).update(value, 'utf8').digest('base64');
 }
-export async function epsGetToken(cfg) {
+/**
+ * Generate a 17-digit numeric merchant transaction ID as recommended by EPS SDK.
+ * Format: YYYYMMDDHHmmssSSS (numeric 17 digits, guaranteed unique and compliant with MFS switches)
+ */
+export function generateMerchantTransactionId() {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    const ms = String(d.getMilliseconds()).padStart(3, '0');
+    return `${yyyy}${mm}${dd}${hh}${min}${ss}${ms}`;
+}
+let cachedTokenState = null;
+export async function epsGetToken(cfg, forceRefresh = false) {
     if (!cfg.epsUsername || !cfg.epsPassword || !cfg.epsHashKey) {
         throw new Error('EPS username, password and hash key are required.');
+    }
+    const cacheKey = `${cfg.epsMode}:${cfg.epsUsername}`;
+    if (!forceRefresh && cachedTokenState && cachedTokenState.cacheKey === cacheKey && Date.now() < cachedTokenState.expiresAt) {
+        return cachedTokenState.token;
     }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
@@ -145,7 +175,14 @@ export async function epsGetToken(cfg) {
         if (!token) {
             throw new Error(json?.errorMessage || json?.message || 'EPS did not return a token.');
         }
-        return String(token);
+        const tokenStr = String(token);
+        // Cache for 10 minutes
+        cachedTokenState = {
+            token: tokenStr,
+            cacheKey,
+            expiresAt: Date.now() + 10 * 60 * 1000,
+        };
+        return tokenStr;
     }
     catch (err) {
         if (err?.name === 'AbortError')
@@ -171,8 +208,15 @@ export async function epsInitializePayment(params) {
         throw new Error('Invalid payment amount for EPS initialization.');
     }
     const token = await epsGetToken(cfg);
-    const cleanOrderPrefix = params.orderId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12) || 'ORD';
-    const merchantTransactionId = `EPS-${cleanOrderPrefix}-${Date.now()}`;
+    const merchantTransactionId = generateMerchantTransactionId();
+    let formattedPhone = String(params.customerPhone || '').replace(/\D/g, '');
+    if (formattedPhone.startsWith('880'))
+        formattedPhone = formattedPhone.slice(2);
+    else if (formattedPhone.startsWith('88'))
+        formattedPhone = formattedPhone.slice(2);
+    if (!formattedPhone.startsWith('01') || formattedPhone.length !== 11) {
+        formattedPhone = formattedPhone.length === 10 && formattedPhone.startsWith('1') ? `0${formattedPhone}` : (formattedPhone || '01700000000');
+    }
     const payload = {
         merchantId: cfg.epsMerchantId,
         storeId: cfg.epsStoreId,
@@ -182,36 +226,37 @@ export async function epsInitializePayment(params) {
         financialEntityId: 0,
         transitionStatusId: 0,
         totalAmount: Number(Number(params.amount).toFixed(2)),
-        ipAddress: params.ipAddress || '127.0.0.1',
+        ipAddress: params.ipAddress || '0.0.0.0',
         version: '1',
         successUrl: params.successUrl,
         failUrl: params.failUrl,
         cancelUrl: params.cancelUrl,
         customerName: params.customerName || 'Customer',
         customerEmail: params.customerEmail || 'customer@click2itbd.com',
-        customerAddress: params.customerAddress || 'Dhaka, Bangladesh',
-        customerAddress2: '',
-        customerCity: params.customerCity || 'Dhaka',
-        customerState: params.customerState || 'Dhaka',
-        customerPostcode: params.customerPostcode || '1000',
-        customerCountry: 'BD',
-        customerPhone: params.customerPhone || '01700000000',
-        shipmentName: params.customerName || 'Customer',
-        shipmentAddress: params.customerAddress || 'Dhaka, Bangladesh',
-        shipmentAddress2: '',
-        shipmentCity: params.customerCity || 'Dhaka',
-        shipmentState: params.customerState || 'Dhaka',
-        shipmentPostcode: params.customerPostcode || '1000',
-        shipmentCountry: 'BD',
-        valueA: params.orderId,
-        valueB: '',
-        valueC: '',
-        valueD: '',
-        shippingMethod: 'NO',
-        noOfItem: '1',
-        productName: (params.productName || `Order #${params.orderId.slice(0, 8)}`).slice(0, 100),
-        productProfile: 'general',
-        productCategory: params.productCategory || 'Ecommerce',
+        CustomerAddress: params.customerAddress || 'Dhaka, Bangladesh',
+        CustomerAddress2: '',
+        CustomerCity: params.customerCity || 'Dhaka',
+        CustomerState: params.customerState || 'Dhaka',
+        CustomerPostcode: params.customerPostcode || '1000',
+        CustomerCountry: 'BD',
+        CustomerPhone: formattedPhone,
+        ShipmentName: params.customerName || 'Customer',
+        ShipmentAddress: params.customerAddress || 'Dhaka, Bangladesh',
+        ShipmentAddress2: '',
+        ShipmentCity: params.customerCity || 'Dhaka',
+        ShipmentState: params.customerState || 'Dhaka',
+        ShipmentPostcode: params.customerPostcode || '1000',
+        ShipmentCountry: 'BD',
+        ValueA: params.orderId,
+        ValueB: '',
+        ValueC: '',
+        ValueD: '',
+        ShippingMethod: 'NO',
+        NoOfItem: '1',
+        ProductName: (params.productName || `Order #${params.orderId.slice(0, 8)}`).slice(0, 100),
+        ProductProfile: 'general',
+        ProductCategory: params.productCategory || 'Ecommerce',
+        ProductList: [],
     };
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);

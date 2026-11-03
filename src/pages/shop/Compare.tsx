@@ -21,7 +21,7 @@ export const ComparePage: React.FC = () => {
     if (compareItems.length <= 1) return false;
     const values = compareItems.map(p => {
       if (isBasic) {
-        if (key === 'stock') return p.stock > 0 ? 'instock' : 'outofstock';
+        if (key === 'stock') return !p.isOutOfStock ? 'instock' : 'outofstock';
         if (key === 'warrantyMonths') return formatWarranty(p.warrantyMonths, p.warrantyUnit).toLowerCase();
         return String(p[key] || '').toLowerCase();
       }
@@ -149,7 +149,7 @@ export const ComparePage: React.FC = () => {
                     key: spec.key,
                     label: spec.label,
                     value: spec.key === 'stock'
-                      ? product.stock > 0 ? 'In Stock' : 'Out of Stock'
+                      ? !product.isOutOfStock ? 'In Stock' : 'Out of Stock'
                       : spec.key === 'warrantyMonths'
                         ? product.warrantyMonths ? formatWarranty(product.warrantyMonths, product.warrantyUnit) : 'No Warranty'
                         : product[spec.key] || '-',
@@ -359,7 +359,7 @@ export const ComparePage: React.FC = () => {
                   )}
                   {(!hideSimilar || isDifferent('stock', true)) && (
                     <div className={cn("p-4 border-b border-gray-200 min-h-[64px] flex items-center justify-center text-sm text-center transition-colors", isDifferent('stock', true) && highlightDiff ? "bg-yellow-50/50" : "bg-white")}>
-                      {product.stock > 0 
+                      {!product.isOutOfStock 
                         ? <span className="text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full">In Stock</span> 
                         : <span className="text-red-500 font-bold bg-red-50 px-3 py-1 rounded-full">Out of Stock</span>
                       }

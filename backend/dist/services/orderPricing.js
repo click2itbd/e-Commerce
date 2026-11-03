@@ -105,7 +105,6 @@ export async function calculateAndCreateServerOrder(userId, payload) {
         catch { }
     }
     const verifiedItems = [];
-    const productStockUpdates = [];
     for (const rawItem of rawItems) {
         const qty = Math.max(1, Math.floor(Number(rawItem.quantity) || 1));
         const itemId = String(rawItem.id || rawItem.productId || '').trim();
@@ -384,34 +383,8 @@ export async function calculateAndCreateServerOrder(userId, payload) {
             if (!matchedVariant) {
                 throw new Error(`Selected variant for "${pData.name}" does not exist.`);
             }
-            if (Number(matchedVariant.stock) < qty && !pData.isCustomService && !pData.isDigital) {
-                throw new Error(`Insufficient stock for "${pData.name} (${matchedVariant.name})". Available: ${matchedVariant.stock}`);
-            }
             if (Number(matchedVariant.price) > 0) {
                 unitPrice = Number(matchedVariant.price);
-            }
-            if (!pData.isCustomService && !pData.isDigital) {
-                const updatedVariants = pData.variants.map((v) => v.id === matchedVariant.id ? { ...v, stock: Math.max(0, Number(v.stock) - qty) } : v);
-                productStockUpdates.push({
-                    prodId: realProductId,
-                    quantity: qty,
-                    variantId: matchedVariant.id,
-                    currentStock: Number(pData.stock) || 0,
-                    variants: updatedVariants,
-                });
-            }
-        }
-        else {
-            const currentStock = Number(pData.stock) ?? 0;
-            if (!pData.isCustomService && !pData.isDigital && currentStock < qty) {
-                throw new Error(`Insufficient stock for "${pData.name}". Available: ${currentStock}`);
-            }
-            if (!pData.isCustomService && !pData.isDigital) {
-                productStockUpdates.push({
-                    prodId: realProductId,
-                    quantity: qty,
-                    currentStock,
-                });
             }
         }
         if (unitPrice <= 0) {
@@ -546,14 +519,18 @@ export async function calculateAndCreateServerOrder(userId, payload) {
         : null;
     const newOrderRef = db.collection('orders').doc();
     const orderId = newOrderRef.id;
+    const isOnlinePaymentRequired = payload.paymentType === 'pay_now' || isAdvanceCOD;
     const orderData = {
         userId,
+        customerId: userId,
         platform: payload.platform || (hasPhysicalProduct ? 'ecommerce' : 'hosting'),
         items: verifiedItems,
         subtotal,
         total: grandTotal,
+        paidAmount: 0,
+        dueAmount: grandTotal,
         shippingCost,
-        status: 'pending',
+        status: isOnlinePaymentRequired ? 'pending_payment' : 'pending',
         paymentStatus: 'pending',
         paymentSubmittedAt: null,
         type: 'invoice',
@@ -573,6 +550,7 @@ export async function calculateAndCreateServerOrder(userId, payload) {
             : 'eps',
         transactionId: null,
         advancePaidAmount: isAdvanceCOD ? shippingCost : 0,
+        stockDeducted: false,
         notes: String(payload.notes || '').trim(),
         vpsConfig: safeVpsConfig,
         createdAt: now,
@@ -580,23 +558,43 @@ export async function calculateAndCreateServerOrder(userId, payload) {
     };
     const batch = db.batch();
     batch.set(newOrderRef, orderData);
+    // Sync / upsert customer profile into `customers` collection for accounting & due tracking
+    try {
+        const customerRef = db.collection('customers').doc(userId);
+        const custSnap = await customerRef.get();
+        if (!custSnap.exists) {
+            batch.set(customerRef, {
+                id: userId,
+                name: String(payload.customerName || '').trim(),
+                email: String(payload.customerEmail || '').trim(),
+                phone: String(payload.customerPhone || '').trim(),
+                address: String(payload.shippingAddress || '').trim(),
+                city: String(payload.city || '').trim(),
+                state: String(payload.state || '').trim(),
+                company: String(payload.company || '').trim(),
+                createdAt: now,
+                updatedAt: now,
+                source: 'online_store',
+            });
+        }
+        else {
+            batch.update(customerRef, {
+                name: String(payload.customerName || '').trim() || custSnap.data()?.name,
+                phone: String(payload.customerPhone || '').trim() || custSnap.data()?.phone,
+                address: String(payload.shippingAddress || '').trim() || custSnap.data()?.address,
+                updatedAt: now,
+            });
+        }
+    }
+    catch (custErr) {
+        console.warn('[Orders] Could not sync customer profile:', custErr);
+    }
     // Increment coupon usedCount atomically in batch when a coupon was applied
     if (usedCouponRef) {
         batch.update(usedCouponRef, {
             usedCount: nextCouponUsedCount,
             updatedAt: now,
         });
-    }
-    // Decrement product stocks atomically in batch
-    for (const stockUpd of productStockUpdates) {
-        const prodRef = db.collection('products').doc(stockUpd.prodId);
-        const newStock = Math.max(0, stockUpd.currentStock - stockUpd.quantity);
-        if (stockUpd.variants) {
-            batch.update(prodRef, { stock: newStock, variants: stockUpd.variants, updatedAt: now });
-        }
-        else {
-            batch.update(prodRef, { stock: newStock, updatedAt: now });
-        }
     }
     // Record accounting ledger entry for ecommerce orders
     if (orderData.platform === 'ecommerce') {
@@ -612,28 +610,12 @@ export async function calculateAndCreateServerOrder(userId, payload) {
             referenceId: orderId,
             documentNumber: docNumber,
             paymentAccountId: '',
-            paymentMethod: payload.paymentType === 'cod' ? 'cod' : payload.paymentMethod || 'online',
+            paymentMethod: payload.paymentType === 'cod' ? (isAdvanceCOD ? 'cod_advance_paid' : 'cod') : payload.paymentMethod || 'online',
             createdAt: now,
             createdBy: 'Online Customer',
         });
-        if (isAdvanceCOD && shippingCost > 0) {
-            const advTxRef = db.collection('transactions').doc();
-            batch.set(advTxRef, {
-                type: 'payment_received',
-                amount: shippingCost,
-                date: now,
-                description: `Advance Delivery Fee for Order #${docNumber}`,
-                entityId: userId,
-                entityName: orderData.customerName,
-                entityType: 'customer',
-                referenceId: orderId,
-                documentNumber: docNumber,
-                paymentAccountId: '',
-                paymentMethod: 'online',
-                createdAt: now,
-                createdBy: 'Online Customer',
-            });
-        }
+        // Note: payment_received is NOT recorded here for online payments!
+        // It is recorded ONLY when payment verification from EPS succeeds.
     }
     // Create linked SSL Orders
     const sslItems = verifiedItems.filter(i => i.itemType === 'ssl');
