@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2, ShieldAlert, RotateCw, ShoppingBag } from 'lucide-react';
 import { verifyEpsPayment, cancelEpsPayment, initiateEpsPayment } from '../services/paymentApi';
 import { useCart } from '../context/CartContext';
+import { auth } from '../firebase';
 import { toast } from 'react-hot-toast';
 
 export default function PaymentReturn() {
@@ -56,23 +57,35 @@ export default function PaymentReturn() {
 
       // Status is success or needs server verification
       try {
-        const res = await verifyEpsPayment(orderId, merchantTransactionId || undefined);
+        let token: string | undefined = undefined;
+        try {
+          if (auth.currentUser) {
+            token = await auth.currentUser.getIdToken();
+          } else if (typeof (auth as any).authStateReady === 'function') {
+            await (auth as any).authStateReady();
+            if (auth.currentUser) {
+              token = await auth.currentUser.getIdToken();
+            }
+          }
+        } catch {
+          // Token resolution fallback
+        }
+
+        const res = await verifyEpsPayment(orderId, merchantTransactionId || undefined, token);
         if (res.success) {
           setPaymentState('success');
           setMessage('পেমেন্ট সফলভাবে ভেরিফাইড হয়েছে! আপনার অর্ডারে রিডাইরেক্ট করা হচ্ছে...');
           clearCart();
           setTimeout(() => {
             navigate(`/order-success/${orderId}`);
-          }, 2000);
+          }, 1500);
         } else {
           setPaymentState('failed');
           setMessage(res.error || 'Payment verification failed on the server.');
-          await cancelEpsPayment(orderId, 'failed', res.error).catch(() => {});
         }
       } catch (err: any) {
         setPaymentState('failed');
         setMessage(err.message || 'An error occurred while verifying your payment.');
-        await cancelEpsPayment(orderId, 'failed', err.message).catch(() => {});
       }
     };
 

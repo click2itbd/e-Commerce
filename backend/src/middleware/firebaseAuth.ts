@@ -28,6 +28,29 @@ export async function requireFirebaseAuth(req: Request, res: Response, next: Nex
   }
 }
 
+export async function optionalFirebaseAuth(req: Request, _res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return next();
+  }
+
+  const idToken = authHeader.split('Bearer ')[1]?.trim();
+  if (!idToken) {
+    return next();
+  }
+
+  try {
+    const adminAuth = getAdminAuth();
+    if (adminAuth) {
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      (req as any).user = decodedToken;
+    }
+  } catch {
+    // Optional auth: continue without user if token is invalid or expired
+  }
+  return next();
+}
+
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {

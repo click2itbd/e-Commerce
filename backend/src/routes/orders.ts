@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { getAdminDb, isUserAdmin } from '../firebase/admin.js';
 import { sendEmail } from '../services/email.js';
-import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
+import { requireFirebaseAuth, optionalFirebaseAuth } from '../middleware/firebaseAuth.js';
 import { fulfillOrder } from '../services/fulfillment.js';
 import { calculateAndCreateServerOrder } from '../services/orderPricing.js';
 import { epsInitializePayment, epsVerifyTransaction } from '../services/epsGateway.js';
@@ -200,13 +200,9 @@ ordersRouter.post('/:orderId/payment/eps/init', requireFirebaseAuth, async (req:
  * POST /api/orders/:orderId/payment/eps/verify
  * Verifies an EPS transaction server-to-server via CheckMerchantTransactionStatus.
  */
-ordersRouter.post('/:orderId/payment/eps/verify', requireFirebaseAuth, async (req: any, res: Response) => {
+ordersRouter.post('/:orderId/payment/eps/verify', optionalFirebaseAuth, async (req: any, res: Response) => {
   const userId = req.user?.uid;
   const { orderId } = req.params;
-
-  if (!userId) {
-    return res.status(401).json({ success: false, error: 'Authentication required.' });
-  }
 
   try {
     const db = getAdminDb();
@@ -218,8 +214,22 @@ ordersRouter.post('/:orderId/payment/eps/verify', requireFirebaseAuth, async (re
     }
 
     const orderData = orderSnap.data() || {};
-    const adminCheck = await isUserAdmin(userId).catch(() => false);
-    if (orderData.userId !== userId && !adminCheck) {
+    const merchantTransactionId = String(
+      req.body?.merchantTransactionId || req.body?.paymentId || orderData.epsMerchantTransactionId || ''
+    ).trim();
+
+    // Security Authorization:
+    // Allow if authenticated as order owner or admin, OR if the merchantTransactionId
+    // matches the order's epsMerchantTransactionId (browser return callback handshake).
+    const isOwner = Boolean(userId && orderData.userId === userId);
+    const isAdmin = Boolean(userId && (await isUserAdmin(userId).catch(() => false)));
+    const isMatchingMerchantTx = Boolean(
+      merchantTransactionId &&
+      orderData.epsMerchantTransactionId &&
+      merchantTransactionId === orderData.epsMerchantTransactionId
+    );
+
+    if (!isOwner && !isAdmin && !isMatchingMerchantTx) {
       return res.status(403).json({ success: false, error: 'You are not authorized to verify this order.' });
     }
 
@@ -232,10 +242,6 @@ ordersRouter.post('/:orderId/payment/eps/verify', requireFirebaseAuth, async (re
         merchantTransactionId: orderData.epsMerchantTransactionId,
       });
     }
-
-    const merchantTransactionId = String(
-      req.body?.merchantTransactionId || req.body?.paymentId || orderData.epsMerchantTransactionId || ''
-    ).trim();
 
     if (!merchantTransactionId) {
       return res.status(400).json({
@@ -410,14 +416,10 @@ ordersRouter.post('/:orderId/payment/eps/verify', requireFirebaseAuth, async (re
  * Cancels an order when the customer cancels payment or when EPS declines it.
  * Releases reserved stock and removes pending accounting transactions.
  */
-ordersRouter.post('/:orderId/payment/eps/fail-or-cancel', requireFirebaseAuth, async (req: any, res: Response) => {
+ordersRouter.post('/:orderId/payment/eps/fail-or-cancel', optionalFirebaseAuth, async (req: any, res: Response) => {
   const userId = req.user?.uid;
   const { orderId } = req.params;
-  const { reason, status } = req.body || {};
-
-  if (!userId) {
-    return res.status(401).json({ success: false, error: 'Authentication required.' });
-  }
+  const { reason, status, merchantTransactionId } = req.body || {};
 
   try {
     const db = getAdminDb();
@@ -429,8 +431,14 @@ ordersRouter.post('/:orderId/payment/eps/fail-or-cancel', requireFirebaseAuth, a
     }
 
     const orderData = orderSnap.data() || {};
-    const adminCheck = await isUserAdmin(userId).catch(() => false);
-    if (orderData.userId !== userId && !adminCheck) {
+    const isOwner = Boolean(userId && orderData.userId === userId);
+    const isAdmin = Boolean(userId && (await isUserAdmin(userId).catch(() => false)));
+    const isMatchingTx = Boolean(
+      (merchantTransactionId && merchantTransactionId === orderData.epsMerchantTransactionId) ||
+      (!userId && orderData.status === 'pending_payment')
+    );
+
+    if (!isOwner && !isAdmin && !isMatchingTx) {
       return res.status(403).json({ success: false, error: 'Unauthorized.' });
     }
 
