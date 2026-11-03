@@ -50,6 +50,14 @@ export const Profile: React.FC = () => {
   const [preBooks, setPreBooks] = useState<any[]>([]);
   const [preBooksLoading, setPreBooksLoading] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
+  const [geoData, setGeoData] = useState<{ divisions: any[]; districts: any[]; upazilas: any[] }>({
+    divisions: [],
+    districts: [],
+    upazilas: [],
+  });
+  const [modalDivision, setModalDivision] = useState('');
+  const [modalDistrict, setModalDistrict] = useState('');
+  const [modalUpazila, setModalUpazila] = useState('');
   const [returnModalOrderId, setReturnModalOrderId] = useState<string | null>(null);
   const [returnReason, setReturnReason] = useState('');
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
@@ -88,6 +96,13 @@ export const Profile: React.FC = () => {
   }, [searchParams]);
 
   useEffect(() => {
+    fetch('/data/bd-geo.json')
+      .then(res => res.json())
+      .then(data => setGeoData(data))
+      .catch(err => console.error('Failed to load geo data', err));
+  }, []);
+
+  useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
 
@@ -104,14 +119,16 @@ export const Profile: React.FC = () => {
             address: data.address || '',
             city: data.city || '',
             company: data.company || '',
-            photoURL: data.photoURL || user.photoURL || ''
+            photoURL: data.photoURL || user.photoURL || '',
+            addresses: Array.isArray(data.addresses) ? data.addresses : [],
           });
         } else {
           setFormData(prev => ({
             ...prev,
             name: user.displayName || '',
             email: user.email || '',
-            photoURL: user.photoURL || ''
+            photoURL: user.photoURL || '',
+            addresses: [],
           }));
         }
       } catch (error) {
@@ -124,6 +141,32 @@ export const Profile: React.FC = () => {
 
     fetchProfile();
   }, [user]);
+
+  const syncAddressesToFirestore = async (newAddresses: any[]) => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'users', user.uid);
+      await setDoc(docRef, { addresses: newAddresses, updatedAt: new Date().toISOString() }, { merge: true });
+    } catch (err) {
+      console.error('Failed to sync addresses:', err);
+      toast.error('Failed to save address to cloud');
+    }
+  };
+
+  const handleDeleteAddress = async (idx: number) => {
+    const newAddrs = [...(formData.addresses || [])];
+    newAddrs.splice(idx, 1);
+    setFormData({ ...formData, addresses: newAddrs });
+    await syncAddressesToFirestore(newAddrs);
+    toast.success('Address removed');
+  };
+
+  const handleSetDefaultAddress = async (idx: number) => {
+    const newAddrs = (formData.addresses || []).map((a, i) => ({ ...a, isDefault: i === idx }));
+    setFormData({ ...formData, addresses: newAddrs });
+    await syncAddressesToFirestore(newAddrs);
+    toast.success('Default address updated');
+  };
   
   useEffect(() => {
     if (!user) return;
@@ -184,14 +227,6 @@ export const Profile: React.FC = () => {
 
     setSaving(true);
 
-    // DEV MODE: Simulate save
-    if (import.meta.env.DEV) {
-      await new Promise(r => setTimeout(r, 800));
-      toast.success('[DEV] Profile updated! (Simulated)');
-      setSaving(false);
-      return;
-    }
-
     try {
       const docRef = doc(db, 'users', user.uid);
       await setDoc(docRef, {
@@ -201,6 +236,8 @@ export const Profile: React.FC = () => {
         city: formData.city,
         company: formData.company,
         photoURL: formData.photoURL,
+        addresses: formData.addresses || [],
+        email: user.email,
         updatedAt: new Date().toISOString()
       }, { merge: true });
       toast.success('Profile updated successfully!');
@@ -485,18 +522,13 @@ export const Profile: React.FC = () => {
                                  <span className="font-bold text-gray-900">{addr.name}</span>
                               </div>
                               <p className="text-sm text-gray-500 mb-1">{addr.phone}</p>
-                              <p className="text-sm text-gray-700 leading-relaxed">{addr.address}, {addr.city}</p>
+                              <p className="text-sm text-gray-700 leading-relaxed">
+                                {addr.address}{addr.thana ? `, ${addr.thana}` : ''}{addr.city ? `, ${addr.city}` : ''}{addr.state ? `, ${addr.state}` : ''}
+                              </p>
                               <div className="mt-4 flex gap-3 text-sm">
-                                 <button onClick={() => {
-                                   const newAddrs = [...formData.addresses];
-                                   newAddrs.splice(idx, 1);
-                                   setFormData({...formData, addresses: newAddrs});
-                                 }} className="text-red-500 font-semibold hover:underline">Delete</button>
+                                 <button onClick={() => handleDeleteAddress(idx)} className="text-red-500 font-semibold hover:underline">Delete</button>
                                  {!addr.isDefault && (
-                                   <button onClick={() => {
-                                     const newAddrs = formData.addresses.map((a, i) => ({...a, isDefault: i === idx}));
-                                     setFormData({...formData, addresses: newAddrs});
-                                   }} className="text-orange-500 font-semibold hover:underline">Set as Default</button>
+                                   <button onClick={() => handleSetDefaultAddress(idx)} className="text-orange-500 font-semibold hover:underline">Set as Default</button>
                                  )}
                               </div>
                             </div>
@@ -826,55 +858,150 @@ export const Profile: React.FC = () => {
       {/* Address Modal */}
       {showAddressModal && (
         <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scale-up">
-            <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-scale-up max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-gray-900 mb-5 flex items-center gap-2">
               <MapPin className="text-orange-500" /> Add New Address
             </h3>
             
-            <form onSubmit={e => {
+            <form onSubmit={async (e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
+              const isDefaultVal = fd.get('isDefault') === 'on' || !formData.addresses || formData.addresses.length === 0;
               const newAddr = {
-                type: fd.get('type'),
-                name: fd.get('name'),
-                phone: fd.get('phone'),
-                address: fd.get('address'),
-                city: fd.get('city'),
-                isDefault: formData.addresses?.length === 0 || !formData.addresses
+                id: Date.now().toString(),
+                type: fd.get('type') || 'Home',
+                name: fd.get('name') || '',
+                phone: fd.get('phone') || '',
+                state: modalDivision || fd.get('state') || '',
+                city: modalDistrict || fd.get('city') || '',
+                thana: modalUpazila || fd.get('thana') || '',
+                address: fd.get('address') || '',
+                isDefault: isDefaultVal,
               };
-              setFormData({ ...formData, addresses: [...(formData.addresses || []), newAddr] });
+
+              let updated = [...(formData.addresses || [])];
+              if (isDefaultVal) {
+                updated = updated.map(a => ({ ...a, isDefault: false }));
+              }
+              updated.push(newAddr);
+
+              setFormData({ ...formData, addresses: updated });
+              await syncAddressesToFirestore(updated);
+              toast.success('Address saved successfully!');
               setShowAddressModal(false);
+              setModalDivision('');
+              setModalDistrict('');
+              setModalUpazila('');
             }} className="space-y-4">
                <div>
                   <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">Address Label</label>
-                  <select name="type" className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20" required>
+                  <select name="type" className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm" required>
                     <option value="Home">Home</option>
                     <option value="Office">Office</option>
                     <option value="Other">Other</option>
                   </select>
                </div>
-               <div className="grid grid-cols-2 gap-4">
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">Full Name</label>
-                    <input name="name" type="text" defaultValue={formData.name} className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20" required />
+                    <input name="name" type="text" defaultValue={formData.name} className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm" required />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">Phone</label>
-                    <input name="phone" type="tel" defaultValue={formData.phone} className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20" required />
+                    <input name="phone" type="tel" defaultValue={formData.phone} className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm" required placeholder="01XXXXXXXXX" />
+                  </div>
+               </div>
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">Division / State</label>
+                    {geoData.divisions && geoData.divisions.length > 0 ? (
+                      <select
+                        name="state"
+                        value={modalDivision}
+                        onChange={(e) => {
+                          setModalDivision(e.target.value);
+                          setModalDistrict('');
+                          setModalUpazila('');
+                        }}
+                        className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm"
+                        required
+                      >
+                        <option value="">Select Division</option>
+                        {geoData.divisions.map((d: any) => (
+                          <option key={d.id} value={d.name}>{d.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input name="state" type="text" placeholder="Division (e.g. Dhaka)" className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm" required />
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">City / District</label>
+                    {geoData.districts && geoData.districts.length > 0 ? (
+                      <select
+                        name="city"
+                        value={modalDistrict}
+                        onChange={(e) => {
+                          setModalDistrict(e.target.value);
+                          setModalUpazila('');
+                        }}
+                        disabled={!modalDivision && geoData.divisions?.length > 0}
+                        className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm disabled:opacity-60"
+                        required
+                      >
+                        <option value="">Select District</option>
+                        {(() => {
+                          const selDiv = geoData.divisions?.find((d: any) => d.name === modalDivision);
+                          const dists = selDiv ? geoData.districts.filter((d: any) => d.div_id === selDiv.id) : geoData.districts;
+                          return dists.map((d: any) => (
+                            <option key={d.id} value={d.name}>{d.name}</option>
+                          ));
+                        })()}
+                      </select>
+                    ) : (
+                      <input name="city" type="text" placeholder="District / City" className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm" required />
+                    )}
                   </div>
                </div>
                <div>
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">City / District</label>
-                  <input name="city" type="text" className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20" required />
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">Thana / Upazila (Optional)</label>
+                  {geoData.upazilas && geoData.upazilas.length > 0 && modalDistrict ? (
+                    <select
+                      name="thana"
+                      value={modalUpazila}
+                      onChange={(e) => setModalUpazila(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm"
+                    >
+                      <option value="">Select Thana / Upazila</option>
+                      {(() => {
+                        const selDist = geoData.districts?.find((d: any) => d.name === modalDistrict);
+                        const upzs = selDist ? geoData.upazilas.filter((u: any) => u.dist_id === selDist.id) : [];
+                        return upzs.map((u: any) => (
+                          <option key={u.id} value={u.name}>{u.name}</option>
+                        ));
+                      })()}
+                    </select>
+                  ) : (
+                    <input name="thana" type="text" placeholder="Thana / Upazila (e.g. Mirpur, Dhanmondi)" className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm" />
+                  )}
                </div>
                <div>
                   <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 block">Full Address</label>
-                  <textarea name="address" className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 min-h-[80px]" required placeholder="Street, House No, Area..." />
+                  <textarea name="address" className="w-full border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 min-h-[75px] text-sm" required placeholder="House No, Road No, Area, Landmark..." />
+               </div>
+               <div className="flex items-center gap-2 pt-1">
+                  <input type="checkbox" id="isDefaultAddr" name="isDefault" defaultChecked={!formData.addresses || formData.addresses.length === 0} className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-500" />
+                  <label htmlFor="isDefaultAddr" className="text-xs font-bold text-gray-700 cursor-pointer">Set as default delivery address</label>
                </div>
                
                <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
-                 <button type="button" onClick={() => setShowAddressModal(false)} className="px-5 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl">Cancel</button>
-                 <button type="submit" className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl">Save Address</button>
+                 <button type="button" onClick={() => {
+                   setShowAddressModal(false);
+                   setModalDivision('');
+                   setModalDistrict('');
+                   setModalUpazila('');
+                 }} className="px-5 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl text-sm">Cancel</button>
+                 <button type="submit" className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-sm shadow-md shadow-orange-500/20">Save Address</button>
                </div>
             </form>
           </div>

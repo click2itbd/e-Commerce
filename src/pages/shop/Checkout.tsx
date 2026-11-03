@@ -6,9 +6,9 @@ import { useCart } from "../../context/CartContext";
 import { useSettings } from "../../context/SettingsContext";
 import { Layout } from "../../components/Layout";
 import { toast } from "react-hot-toast";
-import { Lock, ArrowRight, ShieldCheck, AlertTriangle, Loader2 } from "lucide-react";
+import { Lock, ArrowRight, ShieldCheck, AlertTriangle, Loader2, MapPin, CheckCircle2, Plus } from "lucide-react";
 import { auth, db } from "../../firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
   signInWithPopup,
@@ -142,6 +142,155 @@ export const Checkout: React.FC = () => {
       .then((data) => setGeoData(data))
       .catch((err) => console.error("Failed to load geo data", err));
   }, []);
+
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | null>(null);
+  const [isAddressesLoaded, setIsAddressesLoaded] = useState(false);
+  const [saveAddressToBook, setSaveAddressToBook] = useState(true);
+
+  const applyAddressToForm = (addr: any, currentGeoData = geoData) => {
+    if (!addr) return;
+
+    let fName = "";
+    let lName = "";
+    if (addr.name) {
+      const parts = String(addr.name).trim().split(/\s+/);
+      if (parts.length > 1) {
+        fName = parts.slice(0, -1).join(" ");
+        lName = parts.slice(-1).join(" ");
+      } else {
+        fName = parts[0] || "";
+      }
+    }
+
+    let rawPhone = String(addr.phone || "").replace(/\D/g, "");
+    if (rawPhone.startsWith("880")) rawPhone = rawPhone.slice(3);
+    else if (rawPhone.startsWith("88")) rawPhone = rawPhone.slice(2);
+    rawPhone = rawPhone.replace(/^0+/, "");
+    const cleanPhone = rawPhone.slice(0, 10);
+
+    const addrState = addr.state || "";
+    const addrCity = addr.city || "";
+    const addrThana = addr.thana || "";
+
+    if (currentGeoData?.divisions && currentGeoData.divisions.length > 0) {
+      let matchedDiv = currentGeoData.divisions.find(
+        (d: any) => d.name.toLowerCase() === addrState.toLowerCase()
+      );
+
+      let matchedDist: any = null;
+      if (addrCity && currentGeoData.districts) {
+        matchedDist = currentGeoData.districts.find(
+          (d: any) => d.name.toLowerCase() === addrCity.toLowerCase()
+        );
+        if (!matchedDiv && matchedDist) {
+          matchedDiv = currentGeoData.divisions.find(
+            (div: any) => div.id === matchedDist.div_id
+          );
+        }
+      }
+
+      const filteredDistricts = matchedDiv
+        ? currentGeoData.districts.filter((d: any) => d.div_id === matchedDiv.id)
+        : [];
+
+      const filteredUpazilas = matchedDist
+        ? currentGeoData.upazilas.filter((u: any) => u.dist_id === matchedDist.id)
+        : [];
+
+      let matchedUpz: any = null;
+      if (addrThana && filteredUpazilas.length > 0) {
+        matchedUpz = filteredUpazilas.find(
+          (u: any) => u.name.toLowerCase() === addrThana.toLowerCase()
+        );
+      }
+      const filteredUnions = matchedUpz
+        ? (currentGeoData.unions || []).filter(
+            (un: any) => un.upz_id === matchedUpz.id
+          )
+        : [];
+
+      setActiveGeo({
+        districts: filteredDistricts,
+        upazilas: filteredUpazilas,
+        unions: filteredUnions,
+      });
+
+      setFormData((prev) => ({
+        ...prev,
+        firstName: fName || prev.firstName,
+        lastName: lName || prev.lastName,
+        phone: cleanPhone || prev.phone,
+        address1: addr.address || prev.address1,
+        state: matchedDiv?.name || addrState || prev.state,
+        city: matchedDist?.name || addrCity || prev.city,
+        thana: matchedUpz?.name || addrThana || prev.thana,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        firstName: fName || prev.firstName,
+        lastName: lName || prev.lastName,
+        phone: cleanPhone || prev.phone,
+        address1: addr.address || prev.address1,
+        state: addrState || prev.state,
+        city: addrCity || prev.city,
+        thana: addrThana || prev.thana,
+      }));
+    }
+  };
+
+  React.useEffect(() => {
+    const loadUserAddresses = async () => {
+      if (!user) {
+        setIsAddressesLoaded(true);
+        return;
+      }
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          const uData = userDoc.data();
+          const addrs = Array.isArray(uData.addresses) ? uData.addresses : [];
+          setSavedAddresses(addrs);
+
+          if (addrs.length > 0) {
+            const defIdx = addrs.findIndex((a: any) => a.isDefault);
+            const activeIdx = defIdx >= 0 ? defIdx : 0;
+            setSelectedAddressIndex(activeIdx);
+            applyAddressToForm(addrs[activeIdx]);
+          } else if (uData.address || uData.phone || uData.name) {
+            const singleAddr = {
+              type: "Home",
+              name: uData.name || user.displayName || "",
+              phone: uData.phone || "",
+              address: uData.address || "",
+              city: uData.city || "",
+              isDefault: true,
+            };
+            setSavedAddresses([singleAddr]);
+            setSelectedAddressIndex(0);
+            applyAddressToForm(singleAddr);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to load user saved addresses", e);
+      } finally {
+        setIsAddressesLoaded(true);
+      }
+    };
+
+    loadUserAddresses();
+  }, [user]);
+
+  React.useEffect(() => {
+    if (
+      selectedAddressIndex !== null &&
+      savedAddresses[selectedAddressIndex] &&
+      geoData.divisions.length > 0
+    ) {
+      applyAddressToForm(savedAddresses[selectedAddressIndex], geoData);
+    }
+  }, [geoData, selectedAddressIndex]);
 
   const handleGeoChange = (
     e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>,
@@ -369,6 +518,36 @@ export const Checkout: React.FC = () => {
       const createdOrderId = createRes.orderId;
       const serverOrderData = createRes.orderData;
 
+      if (user && saveAddressToBook) {
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+          const newAddrItem = {
+            id: Date.now().toString(),
+            type: "Home",
+            name: fullName,
+            phone: fullPhone,
+            state: formData.state,
+            city: formData.city,
+            thana: formData.thana,
+            address: formData.address1,
+            isDefault: savedAddresses.length === 0,
+          };
+
+          const exists = savedAddresses.some(
+            (a) =>
+              a.address?.toLowerCase() === formData.address1?.toLowerCase() &&
+              a.city?.toLowerCase() === formData.city?.toLowerCase()
+          );
+          if (!exists) {
+            const updatedAddrs = [...savedAddresses, newAddrItem];
+            await setDoc(userDocRef, { addresses: updatedAddrs }, { merge: true });
+          }
+        } catch (e) {
+          console.warn("Could not save address to user profile:", e);
+        }
+      }
+
       // Online payment ("Pay Now" or Advance COD delivery fee) strictly routes through EPS Payment Gateway
       // Do NOT send order confirmation emails until EPS payment is verified!
       if (paymentType === "pay_now" || isAdvanceCOD) {
@@ -484,6 +663,120 @@ export const Checkout: React.FC = () => {
                   Sign in with Google
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Saved Addresses Section */}
+          {user && savedAddresses.length >= 2 && (
+            <div className="mb-10 bg-slate-50/70 rounded-2xl border-2 border-slate-200 p-5 md:p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-[#0E2A47] text-white flex items-center justify-center text-sm shadow-sm">
+                    <MapPin size={16} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">Select Delivery Address</h3>
+                    <p className="text-xs text-slate-500">Choose from your saved addresses to autofill</p>
+                  </div>
+                </div>
+                <Link
+                  to="/profile?tab=profile"
+                  target="_blank"
+                  className="text-xs font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                >
+                  <Plus size={14} /> Address Book
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {savedAddresses.map((addr, idx) => {
+                  const isSelected = selectedAddressIndex === idx;
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => {
+                        setSelectedAddressIndex(idx);
+                        applyAddressToForm(addr, geoData);
+                        toast.success(`Selected "${addr.type || 'Address ' + (idx + 1)}"`);
+                      }}
+                      className={`cursor-pointer rounded-xl p-4 border-2 transition-all relative flex flex-col justify-between ${
+                        isSelected
+                          ? "border-[#0E2A47] bg-[#0E2A47]/5 shadow-sm ring-2 ring-[#0E2A47]/20"
+                          : "border-slate-200 hover:border-slate-300 bg-white"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-[11px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
+                            isSelected ? "bg-[#0E2A47] text-white" : "bg-slate-100 text-slate-700"
+                          }`}>
+                            {addr.type || "Address"}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {addr.isDefault && (
+                              <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                                Default
+                              </span>
+                            )}
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                              isSelected ? "border-[#0E2A47]" : "border-slate-300"
+                            }`}>
+                              {isSelected && <div className="w-2 h-2 rounded-full bg-[#0E2A47]" />}
+                            </div>
+                          </div>
+                        </div>
+
+                        <p className="font-bold text-slate-900 text-sm">{addr.name}</p>
+                        <p className="text-xs text-slate-500 mb-1">{addr.phone}</p>
+                        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                          {addr.address}{addr.thana ? `, ${addr.thana}` : ''}{addr.city ? `, ${addr.city}` : ''}{addr.state ? `, ${addr.state}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div
+                  onClick={() => {
+                    setSelectedAddressIndex(-1);
+                    setFormData((prev) => ({
+                      ...prev,
+                      firstName: "",
+                      lastName: "",
+                      phone: "",
+                      address1: "",
+                      address2: "",
+                      state: "",
+                      city: "",
+                      thana: "",
+                      union: "",
+                    }));
+                    setActiveGeo({ districts: [], upazilas: [], unions: [] });
+                    toast("Please enter your new address below", { icon: "✏️" });
+                  }}
+                  className={`cursor-pointer rounded-xl p-4 border-2 border-dashed transition-all flex flex-col items-center justify-center text-center py-6 ${
+                    selectedAddressIndex === -1
+                      ? "border-[#0E2A47] bg-[#0E2A47]/5 ring-2 ring-[#0E2A47]/20"
+                      : "border-slate-300 hover:border-slate-400 bg-white"
+                  }`}
+                >
+                  <Plus size={20} className="text-slate-400 mb-1" />
+                  <span className="text-xs font-bold text-slate-700">Enter a Different Address</span>
+                  <span className="text-[11px] text-slate-400">Fill in new details manually</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {user && savedAddresses.length === 1 && (
+            <div className="mb-6 flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-xs text-emerald-800">
+              <span className="flex items-center gap-2 font-medium">
+                <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                Autofilled from your saved <strong>{savedAddresses[0].type || "Home"}</strong> address ({savedAddresses[0].name}).
+              </span>
+              <Link to="/profile?tab=profile" target="_blank" className="font-bold text-emerald-700 hover:underline shrink-0 ml-2">
+                Manage Address Book →
+              </Link>
             </div>
           )}
 
@@ -668,6 +961,22 @@ export const Checkout: React.FC = () => {
                   <option value="Bangladesh">Bangladesh</option>
                 </select>
               </div>
+
+              {user && (
+                <div className="flex items-center gap-2.5 pt-2">
+                  <input
+                    type="checkbox"
+                    id="saveAddressToBook"
+                    name="saveAddressToBook"
+                    checked={saveAddressToBook}
+                    onChange={(e) => setSaveAddressToBook(e.target.checked)}
+                    className="w-4 h-4 text-[#0E2A47] rounded border-slate-300 focus:ring-[#0E2A47]"
+                  />
+                  <label htmlFor="saveAddressToBook" className="text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                    Save / update this address in my Address Book for future checkouts
+                  </label>
+                </div>
+              )}
 
               <div className="mb-12 relative border-t border-slate-200 pt-8">
                 <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">
