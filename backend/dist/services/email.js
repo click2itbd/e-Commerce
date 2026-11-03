@@ -10,27 +10,30 @@ export async function getSmtpProvider(forceReload = false) {
     let password = '';
     let fromName = 'Click2IT';
     let fromEmail = 'noreply@click2itbd.com';
-    // 1. Check Firestore settings/site first (allows runtime admin configuration from UI)
+    // 1. Check Firestore settings/site (non-secret fields) + settings/api_keys (secret password)
     try {
         const db = getAdminDb();
         if (db) {
-            const snap = await db.collection('settings').doc('site').get();
-            if (snap.exists) {
-                const data = snap.data() || {};
-                if (data.mailUsername && data.mailPassword) {
-                    user = data.mailUsername.trim();
-                    password = data.mailPassword.trim();
-                    const isGmailUser = user.toLowerCase().endsWith('@gmail.com');
-                    host = data.mailHost ? data.mailHost.trim() : (isGmailUser ? 'smtp.gmail.com' : '');
-                    port = parseInt(data.mailPort) || (isGmailUser ? 465 : 587);
-                    secure = data.mailEncryption === 'ssl' || String(port) === '465';
-                    if (data.mailFromName)
-                        fromName = data.mailFromName.trim();
-                    if (data.mailFromAddress)
-                        fromEmail = data.mailFromAddress.trim();
-                    else if (user.includes('@'))
-                        fromEmail = user;
-                }
+            const [siteSnap, apiKeysSnap] = await Promise.all([
+                db.collection('settings').doc('site').get().catch(() => null),
+                db.collection('settings').doc('api_keys').get().catch(() => null),
+            ]);
+            const data = siteSnap?.exists ? (siteSnap.data() || {}) : {};
+            const apiKeys = apiKeysSnap?.exists ? (apiKeysSnap.data() || {}) : {};
+            const resolvedPassword = String(apiKeys.mailPassword || apiKeys.smtpPassword || data.mailPassword || '').trim();
+            if (data.mailUsername && resolvedPassword) {
+                user = data.mailUsername.trim();
+                password = resolvedPassword;
+                const isGmailUser = user.toLowerCase().endsWith('@gmail.com');
+                host = data.mailHost ? data.mailHost.trim() : (isGmailUser ? 'smtp.gmail.com' : '');
+                port = parseInt(data.mailPort) || (isGmailUser ? 465 : 587);
+                secure = data.mailEncryption === 'ssl' || String(port) === '465';
+                if (data.mailFromName)
+                    fromName = data.mailFromName.trim();
+                if (data.mailFromAddress)
+                    fromEmail = data.mailFromAddress.trim();
+                else if (user.includes('@'))
+                    fromEmail = user;
             }
         }
     }
@@ -105,8 +108,23 @@ export async function isEmailDuplicate(options) {
         return false;
     }
 }
+function sanitizeEmailAttachments(attachments) {
+    if (!Array.isArray(attachments) || attachments.length === 0)
+        return undefined;
+    return attachments
+        .filter((att) => att && typeof att === 'object' && typeof att.content === 'string')
+        .slice(0, 5)
+        .map((att) => ({
+        filename: String(att.filename || 'attachment.pdf').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100),
+        content: att.content,
+        ...(typeof att.encoding === 'string' ? { encoding: att.encoding } : {}),
+        ...(typeof att.contentType === 'string' ? { contentType: att.contentType } : {}),
+        ...(typeof att.cid === 'string' ? { cid: att.cid } : {}),
+    }));
+}
 export async function sendEmail(options, retries = 2) {
-    const { to, subject, html, attachments } = options;
+    const { to, subject, html } = options;
+    const attachments = sanitizeEmailAttachments(options.attachments);
     if (await isEmailDuplicate(options)) {
         console.log(`Duplicate email prevented: ${subject} to ${to}`);
         return { success: true };

@@ -1,8 +1,16 @@
 import { Router } from 'express';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
+import { isUserAdmin } from '../firebase/admin.js';
 const campaignRouter = Router();
 campaignRouter.post('/send-sms-campaign', requireFirebaseAuth, async (req, res) => {
+    const isAdmin = await isUserAdmin(req.user?.uid, req.user?.email);
+    if (!isAdmin) {
+        return res.status(403).json({ success: false, error: 'Administrator access required to send SMS campaigns.' });
+    }
     const { leads, message } = req.body;
+    if (!Array.isArray(leads) || leads.length === 0 || typeof message !== 'string' || !message.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid leads array and message are required.' });
+    }
     const smsApiKey = process.env.SMS_API_KEY;
     if (!smsApiKey) {
         return res.status(500).json({ success: false, error: 'SMS API is not configured in environment.' });
@@ -10,8 +18,8 @@ campaignRouter.post('/send-sms-campaign', requireFirebaseAuth, async (req, res) 
     try {
         let successCount = 0;
         let failCount = 0;
-        for (const lead of leads) {
-            if (!lead.phone)
+        for (const lead of leads.slice(0, 500)) {
+            if (!lead?.phone)
                 continue;
             try {
                 const response = await fetch('https://api.sms-gateway.example/send', {
@@ -20,7 +28,7 @@ campaignRouter.post('/send-sms-campaign', requireFirebaseAuth, async (req, res) 
                     body: JSON.stringify({
                         api_key: smsApiKey,
                         number: lead.phone,
-                        message: message
+                        message: message.slice(0, 1000)
                     })
                 });
                 const data = await response.json();
@@ -41,7 +49,14 @@ campaignRouter.post('/send-sms-campaign', requireFirebaseAuth, async (req, res) 
     }
 });
 campaignRouter.post('/send-whatsapp-campaign', requireFirebaseAuth, async (req, res) => {
+    const isAdmin = await isUserAdmin(req.user?.uid, req.user?.email);
+    if (!isAdmin) {
+        return res.status(403).json({ success: false, error: 'Administrator access required to send WhatsApp campaigns.' });
+    }
     const { leads, message } = req.body;
+    if (!Array.isArray(leads) || leads.length === 0 || typeof message !== 'string' || !message.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid leads array and message are required.' });
+    }
     const token = process.env.WHATSAPP_ACCESS_TOKEN;
     const phoneId = process.env.WHATSAPP_PHONE_ID;
     if (!token || !phoneId) {
@@ -50,10 +65,10 @@ campaignRouter.post('/send-whatsapp-campaign', requireFirebaseAuth, async (req, 
     try {
         let successCount = 0;
         let failCount = 0;
-        for (const lead of leads) {
-            if (!lead.phone)
+        for (const lead of leads.slice(0, 500)) {
+            if (!lead?.phone)
                 continue;
-            let waNumber = lead.phone.replace(/\D/g, '');
+            let waNumber = String(lead.phone).replace(/\D/g, '');
             if (waNumber.startsWith('01'))
                 waNumber = '88' + waNumber;
             try {
@@ -67,7 +82,7 @@ campaignRouter.post('/send-whatsapp-campaign', requireFirebaseAuth, async (req, 
                         messaging_product: 'whatsapp',
                         to: waNumber,
                         type: 'text',
-                        text: { body: message }
+                        text: { body: message.slice(0, 2000) }
                     })
                 });
                 const data = await response.json();

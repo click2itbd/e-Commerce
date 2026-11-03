@@ -4,6 +4,7 @@ import { sendEmail } from '../services/email.js';
 import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
 import { fulfillOrder } from '../services/fulfillment.js';
 import { calculateAndCreateServerOrder } from '../services/orderPricing.js';
+import { epsInitializePayment, epsVerifyTransaction } from '../services/epsGateway.js';
 const ordersRouter = Router();
 ordersRouter.post('/create', requireFirebaseAuth, async (req, res) => {
     const userId = req.user?.uid;
@@ -31,71 +32,197 @@ ordersRouter.post('/create', requireFirebaseAuth, async (req, res) => {
         });
     }
 });
-ordersRouter.post('/:orderId/payment/manual-bkash', requireFirebaseAuth, async (req, res) => {
+ordersRouter.post('/:orderId/payment/manual-bkash', requireFirebaseAuth, async (_req, res) => {
+    return res.status(410).json({
+        success: false,
+        error: 'Manual payment is disabled. All online payments must be completed through the EPS Payment Gateway.',
+    });
+});
+/**
+ * POST /api/orders/:orderId/payment/eps/init
+ * Initializes an EPS payment session using the server-calculated order total.
+ */
+ordersRouter.post('/:orderId/payment/eps/init', requireFirebaseAuth, async (req, res) => {
     const userId = req.user?.uid;
     const { orderId } = req.params;
-    const { transactionId } = req.body;
-    if (!transactionId || typeof transactionId !== 'string' || transactionId.trim().length < 3) {
-        return res.status(400).json({ error: 'Valid transaction ID is required.' });
+    if (!userId) {
+        return res.status(401).json({ success: false, error: 'Authentication required.' });
     }
     try {
         const db = getAdminDb();
         const orderRef = db.collection('orders').doc(orderId);
         const orderSnap = await orderRef.get();
         if (!orderSnap.exists) {
-            return res.status(404).json({ error: 'Order not found.' });
+            return res.status(404).json({ success: false, error: 'Order not found.' });
         }
-        const orderData = orderSnap.data();
-        if (!orderData) {
-            return res.status(404).json({ error: 'Order not found.' });
-        }
-        if (orderData.userId !== userId) {
-            return res.status(403).json({ error: 'You are not authorized to update this order.' });
+        const orderData = orderSnap.data() || {};
+        const adminCheck = await isUserAdmin(userId).catch(() => false);
+        if (orderData.userId !== userId && !adminCheck) {
+            return res.status(403).json({ success: false, error: 'You are not authorized to pay for this order.' });
         }
         if (orderData.paymentStatus === 'verified') {
-            return res.status(400).json({ error: 'Payment has already been verified.' });
+            return res.status(400).json({ success: false, error: 'Payment has already been verified for this order.' });
         }
-        if (orderData.paymentStatus === 'submitted') {
-            return res.status(400).json({ error: 'Payment is already submitted for verification.' });
+        const expectedAmount = orderData.paymentMethod === 'cod_advance_paid' && Number(orderData.advancePaidAmount) > 0
+            ? Number(orderData.advancePaidAmount)
+            : Number(orderData.total || 0);
+        if (expectedAmount <= 0) {
+            return res.status(400).json({ success: false, error: 'Invalid payable amount for this order.' });
         }
-        const trimmedTx = transactionId.trim();
+        const originHeader = String(req.headers.origin || process.env.FRONTEND_URL || 'https://click2itbd.com').replace(/\/+$/, '');
+        const baseReturnUrl = `${originHeader}/payment/return?orderId=${encodeURIComponent(orderId)}&method=eps`;
+        const firstItemName = Array.isArray(orderData.items) && orderData.items[0]?.name
+            ? String(orderData.items[0].name)
+            : `Order #${orderId.slice(0, 8)}`;
+        const epsResult = await epsInitializePayment({
+            orderId,
+            amount: expectedAmount,
+            customerName: String(orderData.customerName || 'Customer'),
+            customerEmail: String(orderData.customerEmail || req.user?.email || 'customer@click2itbd.com'),
+            customerPhone: String(orderData.customerPhone || '01700000000'),
+            customerAddress: String(orderData.shippingAddress || 'Dhaka, Bangladesh'),
+            productName: firstItemName,
+            productCategory: orderData.platform === 'hosting' ? 'Hosting & Domain' : 'Ecommerce',
+            ipAddress: String(req.ip || req.socket?.remoteAddress || '127.0.0.1'),
+            successUrl: `${baseReturnUrl}&status=success`,
+            failUrl: `${baseReturnUrl}&status=failed`,
+            cancelUrl: `${baseReturnUrl}&status=cancelled`,
+        });
         const now = new Date().toISOString();
         await orderRef.update({
-            paymentStatus: 'submitted',
-            paymentVerificationStatus: 'review',
-            providerStatus: 'pending',
-            transactionId: trimmedTx,
-            paymentMethod: 'manual_bkash',
-            paymentSubmittedAt: now,
+            epsMerchantTransactionId: epsResult.merchantTransactionId,
+            epsTransactionId: epsResult.transactionId,
+            epsPayableAmount: expectedAmount,
+            paymentMethod: orderData.paymentMethod === 'cod_advance_paid' ? 'cod_advance_paid' : 'eps',
+            epsInitiatedAt: now,
             updatedAt: now,
-        });
-        const emailResult = await sendEmail({
-            to: orderData.customerEmail,
-            subject: `Order Received - #${orderId.slice(0, 8)}`,
-            html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2563eb;">Order Received!</h2>
-          <p>Dear ${orderData.customerName || 'Customer'},</p>
-          <p>We have received your order <strong>#${orderId.slice(0, 8)}</strong> with manual bKash payment instruction.</p>
-          <p><strong>Transaction ID:</strong> ${trimmedTx}</p>
-          <p><strong>Amount:</strong> ৳${orderData.total}</p>
-          <p>Your payment is pending verification. We will notify you once it is confirmed.</p>
-          <p>Thank you for choosing Click2IT!</p>
-        </div>
-      `,
-            orderId,
-            customerEmail: orderData.customerEmail,
-            category: 'payment',
         });
         return res.json({
             success: true,
-            message: 'Transaction ID submitted successfully. Payment is pending verification.',
-            emailSent: emailResult.success,
+            paymentUrl: epsResult.redirectUrl,
+            redirectUrl: epsResult.redirectUrl,
+            paymentId: epsResult.merchantTransactionId,
+            merchantTransactionId: epsResult.merchantTransactionId,
+            transactionId: epsResult.transactionId,
         });
     }
     catch (error) {
-        console.error('Manual bKash submission error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to submit payment.' });
+        console.error('[EPS Init] Failed to initialize EPS payment:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to initialize EPS payment.',
+        });
+    }
+});
+/**
+ * POST /api/orders/:orderId/payment/eps/verify
+ * Verifies an EPS transaction server-to-server via CheckMerchantTransactionStatus.
+ */
+ordersRouter.post('/:orderId/payment/eps/verify', requireFirebaseAuth, async (req, res) => {
+    const userId = req.user?.uid;
+    const { orderId } = req.params;
+    if (!userId) {
+        return res.status(401).json({ success: false, error: 'Authentication required.' });
+    }
+    try {
+        const db = getAdminDb();
+        const orderRef = db.collection('orders').doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) {
+            return res.status(404).json({ success: false, error: 'Order not found.' });
+        }
+        const orderData = orderSnap.data() || {};
+        const adminCheck = await isUserAdmin(userId).catch(() => false);
+        if (orderData.userId !== userId && !adminCheck) {
+            return res.status(403).json({ success: false, error: 'You are not authorized to verify this order.' });
+        }
+        if (orderData.paymentStatus === 'verified') {
+            return res.json({
+                success: true,
+                alreadyVerified: true,
+                status: 'Success',
+                transactionId: orderData.transactionId || orderData.epsTransactionId,
+                merchantTransactionId: orderData.epsMerchantTransactionId,
+            });
+        }
+        const merchantTransactionId = String(req.body?.merchantTransactionId || req.body?.paymentId || orderData.epsMerchantTransactionId || '').trim();
+        if (!merchantTransactionId) {
+            return res.status(400).json({
+                success: false,
+                error: 'merchantTransactionId is required to verify EPS payment.',
+            });
+        }
+        // Security check: if order already recorded an epsMerchantTransactionId, ensure it matches or CustomerOrderId matches
+        const verifyRes = await epsVerifyTransaction(merchantTransactionId);
+        if (!verifyRes.verified) {
+            return res.status(400).json({
+                success: false,
+                status: verifyRes.status || 'Failed',
+                error: `EPS payment is not verified (Status: ${verifyRes.status || 'Failed'}).`,
+            });
+        }
+        if (verifyRes.customerOrderId && verifyRes.customerOrderId !== orderId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Transaction Order ID mismatch.',
+            });
+        }
+        const expectedAmount = Number(orderData.epsPayableAmount ||
+            (orderData.paymentMethod === 'cod_advance_paid' && Number(orderData.advancePaidAmount) > 0
+                ? orderData.advancePaidAmount
+                : orderData.total) ||
+            0);
+        if (verifyRes.totalAmount > 0 && expectedAmount > 0 && Math.abs(verifyRes.totalAmount - expectedAmount) > 1) {
+            return res.status(400).json({
+                success: false,
+                error: `Payment amount mismatch. Expected ৳${expectedAmount}, received ৳${verifyRes.totalAmount}.`,
+            });
+        }
+        const now = new Date().toISOString();
+        await orderRef.update({
+            paymentStatus: 'verified',
+            paymentVerificationStatus: 'verified',
+            providerStatus: 'processing',
+            paymentMethod: orderData.paymentMethod === 'cod_advance_paid' ? 'cod_advance_paid' : 'eps',
+            transactionId: verifyRes.epsTransactionId || merchantTransactionId,
+            epsMerchantTransactionId: merchantTransactionId,
+            epsFinancialEntity: verifyRes.financialEntity,
+            paymentVerifiedAt: now,
+            paidAt: now,
+            updatedAt: now,
+        });
+        const hostingOrderRef = db.collection('hostingOrders').doc(orderId);
+        const hostingOrderSnap = await hostingOrderRef.get();
+        if (hostingOrderSnap.exists) {
+            await hostingOrderRef.update({
+                paymentStatus: 'verified',
+                paymentVerificationStatus: 'verified',
+                transactionId: verifyRes.epsTransactionId || merchantTransactionId,
+                paymentVerifiedAt: now,
+                updatedAt: now,
+            });
+        }
+        let fulfillmentResult = null;
+        try {
+            fulfillmentResult = await fulfillOrder(orderId, 'eps-gateway');
+        }
+        catch (fErr) {
+            console.warn('[EPS Verify] Auto-fulfillment warning:', fErr);
+        }
+        return res.json({
+            success: true,
+            status: verifyRes.status,
+            transactionId: verifyRes.epsTransactionId || merchantTransactionId,
+            merchantTransactionId,
+            fulfillment: fulfillmentResult,
+        });
+    }
+    catch (error) {
+        console.error('[EPS Verify] Payment verification error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'EPS payment verification failed.',
+        });
     }
 });
 ordersRouter.post('/admin/:orderId/payment/verify', requireFirebaseAuth, async (req, res) => {
@@ -436,6 +563,7 @@ ordersRouter.post('/admin/:orderId/retry-fulfillment', requireFirebaseAuth, asyn
 });
 ordersRouter.get('/:orderId/payment/query-bkash', requireFirebaseAuth, async (req, res) => {
     try {
+        const userId = req.user?.uid;
         const { orderId } = req.params;
         const { paymentId } = req.query;
         if (!paymentId) {
@@ -451,6 +579,10 @@ ordersRouter.get('/:orderId/payment/query-bkash', requireFirebaseAuth, async (re
         if (!orderData) {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }
+        const adminCheck = await isUserAdmin(userId).catch(() => false);
+        if (orderData.userId !== userId && !adminCheck) {
+            return res.status(403).json({ success: false, error: 'Not authorized to query this order' });
+        }
         return res.json({
             success: true,
             status: orderData.paymentStatus === 'verified' ? 'Completed' : 'Pending',
@@ -465,10 +597,11 @@ ordersRouter.get('/:orderId/payment/query-bkash', requireFirebaseAuth, async (re
 });
 ordersRouter.post('/:orderId/payment/execute-bkash', requireFirebaseAuth, async (req, res) => {
     try {
+        const userId = req.user?.uid;
         const { orderId } = req.params;
-        const { paymentId } = req.body;
-        if (!paymentId) {
-            return res.status(400).json({ success: false, error: 'paymentId is required' });
+        const { paymentId, merchantTransactionId } = req.body;
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
         }
         const db = getAdminDb();
         const orderRef = db.collection('orders').doc(orderId);
@@ -480,18 +613,70 @@ ordersRouter.post('/:orderId/payment/execute-bkash', requireFirebaseAuth, async 
         if (!orderData) {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }
+        // Security: Verify order ownership
+        const adminCheck = await isUserAdmin(userId).catch(() => false);
+        if (orderData.userId !== userId && !adminCheck) {
+            return res.status(403).json({ success: false, error: 'You are not authorized to verify payment for this order' });
+        }
         if (orderData.paymentStatus === 'verified') {
             return res.json({ success: true, message: 'Payment already verified' });
         }
+        // Security: Require server-side EPS gateway verification; never trust client paymentId blindly
+        const mtx = String(merchantTransactionId || paymentId || orderData.epsMerchantTransactionId || '').trim();
+        if (!mtx) {
+            return res.status(400).json({
+                success: false,
+                error: 'Server-side EPS merchantTransactionId is required for payment verification.',
+            });
+        }
+        const verifyRes = await epsVerifyTransaction(mtx);
+        if (!verifyRes.verified) {
+            return res.status(400).json({
+                success: false,
+                error: `Gateway payment verification failed (Status: ${verifyRes.status || 'Unverified'}).`,
+            });
+        }
+        if (verifyRes.customerOrderId && verifyRes.customerOrderId !== orderId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Transaction does not belong to this order.',
+            });
+        }
+        const expectedAmount = Number(orderData.epsPayableAmount ||
+            (orderData.paymentMethod === 'cod_advance_paid' && Number(orderData.advancePaidAmount) > 0
+                ? orderData.advancePaidAmount
+                : orderData.total) ||
+            0);
+        if (verifyRes.totalAmount > 0 && expectedAmount > 0 && Math.abs(verifyRes.totalAmount - expectedAmount) > 1) {
+            return res.status(400).json({
+                success: false,
+                error: 'Verified gateway amount does not match the order total.',
+            });
+        }
+        const now = new Date().toISOString();
         await orderRef.update({
             paymentStatus: 'verified',
-            bkashPaymentId: paymentId,
-            updatedAt: new Date().toISOString(),
+            paymentVerificationStatus: 'verified',
+            paymentMethod: orderData.paymentMethod === 'cod_advance_paid' ? 'cod_advance_paid' : 'eps',
+            transactionId: verifyRes.epsTransactionId || mtx,
+            epsMerchantTransactionId: mtx,
+            paidAt: now,
+            updatedAt: now,
         });
-        return res.json({ success: true, message: 'Payment executed successfully' });
+        try {
+            await fulfillOrder(orderId, 'eps-gateway');
+        }
+        catch (fErr) {
+            console.warn('[Execute Payment] Auto-fulfillment warning:', fErr);
+        }
+        return res.json({
+            success: true,
+            message: 'Payment verified with EPS Gateway and executed successfully',
+            transactionId: verifyRes.epsTransactionId || mtx,
+        });
     }
     catch (error) {
-        console.error('bKash execute payment error:', error);
+        console.error('Payment execution error:', error);
         return res.status(500).json({ success: false, error: error?.message || 'Payment execution failed' });
     }
 });

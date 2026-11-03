@@ -4,10 +4,10 @@ const aiRouter = Router();
 aiRouter.post('/chat', async (req, res) => {
     try {
         const { message } = req.body;
-        if (!message || typeof message !== 'string' || message.length > 100000) {
-            return res.status(400).json({ error: 'Message is required and must be under 2000 characters' });
+        if (!message || typeof message !== 'string' || message.trim().length === 0 || message.length > 1000) {
+            return res.status(400).json({ error: 'Message is required and must be under 1000 characters' });
         }
-        const reply = await generateChatResponse(message);
+        const reply = await generateChatResponse(message.trim());
         return res.json({ reply });
     }
     catch (error) {

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 const webhookRouter = Router();
 webhookRouter.get('/whatsapp', (req, res) => {
     const verify_token = process.env.WHATSAPP_VERIFY_TOKEN;
@@ -21,6 +22,21 @@ webhookRouter.get('/whatsapp', (req, res) => {
     }
 });
 webhookRouter.post('/whatsapp', async (req, res) => {
+    const appSecret = process.env.WHATSAPP_APP_SECRET;
+    const signature = String(req.headers['x-hub-signature-256'] || '');
+    // Meta App Secret configured থাকলে সিগনেচার যাচাই করা আবশ্যক
+    if (appSecret) {
+        if (!signature.startsWith('sha256=')) {
+            return res.status(401).json({ error: 'Missing or invalid signature header' });
+        }
+        const payload = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+        const expectedHash = 'sha256=' + crypto.createHmac('sha256', appSecret).update(payload).digest('hex');
+        const sigBuffer = Buffer.from(signature);
+        const expBuffer = Buffer.from(expectedHash);
+        if (sigBuffer.length !== expBuffer.length || !crypto.timingSafeEqual(sigBuffer, expBuffer)) {
+            return res.status(403).json({ error: 'Invalid webhook signature' });
+        }
+    }
     const body = req.body;
     if (!body.object) {
         return res.sendStatus(404);

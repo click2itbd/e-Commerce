@@ -16,6 +16,7 @@ import { WishlistProvider } from './context/WishlistContext';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { Toaster } from 'react-hot-toast';
 
 const Home = lazy(() => import('./pages/shop/Home').then(m => ({ default: m.Home })));
 const ProductDetails = lazy(() => import('./pages/shop/ProductDetails').then(m => ({ default: m.ProductDetails })));
@@ -87,6 +88,7 @@ export default function App() {
               <CompareProvider>
                 <CartProvider>
                   <Router>
+                <Toaster position="top-right" />
                 <TrackingScripts />
             <ReferralTracker />
                 <WebsitePopup />
@@ -107,7 +109,7 @@ export default function App() {
                   <Route path="/about-us" element={<Navigate to="/about" replace />} />
                   <Route path="/contact" element={<LazyWrapper><ContactUs /></LazyWrapper>} />
                   <Route path="/contact-us" element={<Navigate to="/contact" replace />} />
-                  <Route path="/payment/simulate" element={<LazyWrapper><PaymentSimulation /></LazyWrapper>} />
+                  {import.meta.env.DEV && <Route path="/payment/simulate" element={<LazyWrapper><PaymentSimulation /></LazyWrapper>} />}
                   <Route path="/payment/callback" element={<LazyWrapper><PaymentCallback /></LazyWrapper>} />
                   <Route path="/payment/return" element={<LazyWrapper><PaymentReturn /></LazyWrapper>} />
                   <Route path="/blog" element={<LazyWrapper><Blog /></LazyWrapper>} />

@@ -275,11 +275,20 @@ export async function setAdminDocument(collectionName, docId, data) {
     const docRef = db.collection(collectionName).doc(docId);
     await docRef.set(data);
 }
+const OFFICIAL_SUPER_ADMIN_EMAILS = new Set([
+    'click2itbd@gmail.com',
+    'admin@click2itbd.com',
+    'info@click2itbd.com',
+]);
+/**
+ * Checks whether the user is a primary/super Administrator (`role === 'admin'` or `isAdmin === true`).
+ * General `staff` accounts do NOT pass this check unless they explicitly hold `manage_settings`.
+ */
 export async function isUserAdmin(uid, email) {
     if (!uid && !email)
         return false;
     const cleanEmail = (email || '').toLowerCase().trim();
-    if (cleanEmail === 'click2itbd@gmail.com' || cleanEmail === 'clcik2itbd@gmail.com')
+    if (OFFICIAL_SUPER_ADMIN_EMAILS.has(cleanEmail))
         return true;
     try {
         const db = getAdminDb();
@@ -289,24 +298,20 @@ export async function isUserAdmin(uid, email) {
             if (snap.exists) {
                 const data = snap.data();
                 const role = data?.role;
-                if (role === 'admin' || role === 'manager' || role === 'staff' || data?.isAdmin === true) {
+                if (role === 'admin' || data?.isAdmin === true) {
                     return true;
                 }
-                if (Array.isArray(data?.permissions) && (data.permissions.includes('manage_services') ||
-                    data.permissions.includes('manage_settings') ||
-                    data.permissions.includes('manage_finances') ||
-                    data.permissions.includes('manage_orders'))) {
+                if (Array.isArray(data?.permissions) && data.permissions.includes('manage_settings')) {
                     return true;
                 }
             }
         }
-        // Check if email matches any admin user in users collection
         if (email) {
-            const userSnap = await db.collection('users').where('email', '==', email.toLowerCase()).limit(1).get();
+            const userSnap = await db.collection('users').where('email', '==', cleanEmail).limit(1).get();
             if (!userSnap.empty) {
                 const data = userSnap.docs[0].data();
                 const role = data?.role;
-                if (role === 'admin' || role === 'manager' || role === 'staff' || data?.isAdmin === true) {
+                if (role === 'admin' || data?.isAdmin === true) {
                     return true;
                 }
             }
@@ -315,6 +320,48 @@ export async function isUserAdmin(uid, email) {
     }
     catch (error) {
         console.error('[Firebase Admin] Failed to check admin status:', error);
+        return false;
+    }
+}
+/**
+ * Checks whether the user is an Admin OR an authorized Staff/Manager member.
+ * Optional `requiredPermission` enforces granular staff permission (e.g. 'manage_orders', 'manage_services', 'manage_finances').
+ */
+export async function isStaffOrAdmin(uid, email, requiredPermission) {
+    if (await isUserAdmin(uid, email))
+        return true;
+    if (!uid && !email)
+        return false;
+    try {
+        const db = getAdminDb();
+        let data = null;
+        if (uid) {
+            const snap = await db.collection('users').doc(uid).get();
+            if (snap.exists)
+                data = snap.data();
+        }
+        if (!data && email) {
+            const userSnap = await db.collection('users').where('email', '==', email.toLowerCase().trim()).limit(1).get();
+            if (!userSnap.empty)
+                data = userSnap.docs[0].data();
+        }
+        if (!data)
+            return false;
+        const role = data.role;
+        const perms = Array.isArray(data.permissions) ? data.permissions : [];
+        if (requiredPermission) {
+            return (role === 'manager' || role === 'staff') && perms.includes(requiredPermission);
+        }
+        if (role === 'manager' || role === 'staff') {
+            return true;
+        }
+        return (perms.includes('manage_services') ||
+            perms.includes('manage_settings') ||
+            perms.includes('manage_finances') ||
+            perms.includes('manage_orders'));
+    }
+    catch (error) {
+        console.error('[Firebase Admin] Failed to check staff/admin status:', error);
         return false;
     }
 }

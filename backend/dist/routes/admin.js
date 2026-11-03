@@ -40,6 +40,13 @@ adminRouter.post('/audit-log', async (req, res) => {
         return res.status(500).json({ error: 'Failed to record admin activity log' });
     }
 });
+const MASKED_SECRET_PLACEHOLDER = '••••••••••••••••';
+const ADMIN_CONFIGURABLE_SECRET_FIELDS = new Set([
+    'mailPassword',
+    'smtpPassword',
+    'steadfastSecretKey',
+    'externalStoreKey',
+]);
 const FORBIDDEN_SECRET_FIELDS = new Set([
     'bkashAppKey',
     'bkashAppSecret',
@@ -78,12 +85,18 @@ adminRouter.get('/api-config', async (req, res) => {
         const data = result.data || {};
         const sanitized = {};
         for (const [key, value] of Object.entries(data)) {
-            if (FORBIDDEN_SECRET_FIELDS.has(key)) {
+            if (ADMIN_CONFIGURABLE_SECRET_FIELDS.has(key)) {
+                sanitized[key] = typeof value === 'string' && value.length > 0 ? MASKED_SECRET_PLACEHOLDER : '';
+            }
+            else if (FORBIDDEN_SECRET_FIELDS.has(key)) {
                 sanitized[key] = typeof value === 'string' && value.length > 0;
             }
             else {
                 sanitized[key] = value;
             }
+        }
+        if (!sanitized.mailPassword && typeof data.smtpPassword === 'string' && data.smtpPassword.length > 0) {
+            sanitized.mailPassword = MASKED_SECRET_PLACEHOLDER;
         }
         return res.json({ success: true, data: sanitized });
     }
@@ -155,7 +168,20 @@ adminRouter.post('/api-config', async (req, res) => {
         const result = await getAdminDocument('settings', 'api_keys');
         const existing = result.data || {};
         const payload = { ...existing };
-        for (const [key, value] of Object.entries(req.body)) {
+        for (const [key, value] of Object.entries(req.body || {})) {
+            if (ADMIN_CONFIGURABLE_SECRET_FIELDS.has(key)) {
+                if (typeof value === 'string') {
+                    const trimmed = value.trim();
+                    if (trimmed.length > 0 && !trimmed.startsWith('••••') && !trimmed.startsWith('****')) {
+                        payload[key] = trimmed;
+                        if (key === 'mailPassword')
+                            payload.smtpPassword = trimmed;
+                        if (key === 'smtpPassword')
+                            payload.mailPassword = trimmed;
+                    }
+                }
+                continue;
+            }
             if (FORBIDDEN_SECRET_FIELDS.has(key)) {
                 continue;
             }
@@ -221,9 +247,24 @@ adminRouter.post('/payment/eps/test-connection', async (req, res) => {
         if (!isAdmin) {
             return res.status(403).json({ error: 'Admin access required' });
         }
-        const cfg = await loadEpsConfig();
+        const savedCfg = await loadEpsConfig();
+        const cfg = {
+            ...savedCfg,
+            epsMode: (req.body?.epsMode === 'live' || req.body?.epsMode === 'sandbox') ? req.body.epsMode : savedCfg.epsMode,
+            epsSandboxBaseUrl: req.body?.epsSandboxBaseUrl ? String(req.body.epsSandboxBaseUrl).trim() : savedCfg.epsSandboxBaseUrl,
+            epsLiveBaseUrl: req.body?.epsLiveBaseUrl ? String(req.body.epsLiveBaseUrl).trim() : savedCfg.epsLiveBaseUrl,
+            epsUsername: req.body?.epsUsername ? String(req.body.epsUsername).trim() : savedCfg.epsUsername,
+            epsPassword: req.body?.epsPassword ? String(req.body.epsPassword).trim() : savedCfg.epsPassword,
+            epsHashKey: req.body?.epsHashKey ? String(req.body.epsHashKey).trim() : savedCfg.epsHashKey,
+        };
+        if (!cfg.epsUsername || !cfg.epsPassword || !cfg.epsHashKey) {
+            return res.status(200).json({
+                success: false,
+                message: 'Username, Password and Hash Key are required to test connection. Please fill them in.',
+            });
+        }
         await epsGetToken(cfg);
-        return res.json({ success: true, message: `EPS ${cfg.epsMode} authentication succeeded.` });
+        return res.json({ success: true, message: `EPS ${cfg.epsMode.toUpperCase()} authentication succeeded! Token generated successfully.` });
     }
     catch (error) {
         return res.status(200).json({ success: false, message: error?.message || 'EPS connection failed' });

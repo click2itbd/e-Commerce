@@ -470,6 +470,8 @@ export async function calculateAndCreateServerOrder(userId, payload) {
     let promoDiscount = 0;
     let verifiedCouponCode = null;
     let couponFreeShipping = false;
+    let usedCouponRef = null;
+    let nextCouponUsedCount = 0;
     if (payload.couponCode && typeof payload.couponCode === 'string' && payload.couponCode.trim()) {
         const cleanCode = payload.couponCode.trim().toUpperCase();
         const couponSnap = await db
@@ -493,6 +495,8 @@ export async function calculateAndCreateServerOrder(userId, payload) {
             throw new Error(`Coupon "${cleanCode}" has reached its usage limit.`);
         }
         verifiedCouponCode = cleanCode;
+        usedCouponRef = couponDoc.ref;
+        nextCouponUsedCount = Number(couponData.usedCount || 0) + 1;
         if (couponData.type === 'fixed' && Number(couponData.fixedAmount) > 0) {
             promoDiscount = Math.min(Number(couponData.fixedAmount), discountableSubtotal);
         }
@@ -529,8 +533,17 @@ export async function calculateAndCreateServerOrder(userId, payload) {
     const docNumber = await generateServerDocumentNumber('INV');
     const now = new Date().toISOString();
     const isAdvanceCOD = payload.paymentType === 'cod' && Boolean(payload.advanceDelivery) && shippingCost > 0;
-    const hasManualBkashTx = (payload.paymentMethod === 'bkash' || payload.paymentMethod === 'manual_bkash' || payload.paymentMethod === 'bank') &&
-        Boolean(payload.transactionId && payload.transactionId.trim().length >= 3);
+    // Security: Strip plaintext rootPassword from vpsConfig before persisting to Firestore
+    const safeVpsConfig = payload.vpsConfig
+        ? {
+            hostname: payload.vpsConfig.hostname?.trim() || '',
+            os: payload.vpsConfig.os || 'Ubuntu 22.04 LTS',
+            serverLocation: payload.vpsConfig.serverLocation || 'Dhaka, Bangladesh',
+            sshKey: payload.vpsConfig.sshKey?.trim() || '',
+            notes: payload.vpsConfig.notes?.trim() || '',
+            rootPasswordConfigured: Boolean(payload.vpsConfig.rootPassword),
+        }
+        : null;
     const newOrderRef = db.collection('orders').doc();
     const orderId = newOrderRef.id;
     const orderData = {
@@ -541,8 +554,8 @@ export async function calculateAndCreateServerOrder(userId, payload) {
         total: grandTotal,
         shippingCost,
         status: 'pending',
-        paymentStatus: hasManualBkashTx ? 'submitted' : 'pending',
-        paymentSubmittedAt: hasManualBkashTx ? now : null,
+        paymentStatus: 'pending',
+        paymentSubmittedAt: null,
         type: 'invoice',
         documentNumber: docNumber,
         customerName: String(payload.customerName || '').trim(),
@@ -557,16 +570,23 @@ export async function calculateAndCreateServerOrder(userId, payload) {
             ? isAdvanceCOD
                 ? 'cod_advance_paid'
                 : 'cod'
-            : payload.paymentMethod || 'bkash',
-        transactionId: hasManualBkashTx ? payload.transactionId.trim() : null,
+            : 'eps',
+        transactionId: null,
         advancePaidAmount: isAdvanceCOD ? shippingCost : 0,
         notes: String(payload.notes || '').trim(),
-        vpsConfig: payload.vpsConfig || null,
+        vpsConfig: safeVpsConfig,
         createdAt: now,
         updatedAt: now,
     };
     const batch = db.batch();
     batch.set(newOrderRef, orderData);
+    // Increment coupon usedCount atomically in batch when a coupon was applied
+    if (usedCouponRef) {
+        batch.update(usedCouponRef, {
+            usedCount: nextCouponUsedCount,
+            updatedAt: now,
+        });
+    }
     // Decrement product stocks atomically in batch
     for (const stockUpd of productStockUpdates) {
         const prodRef = db.collection('products').doc(stockUpd.prodId);
@@ -689,7 +709,7 @@ export async function calculateAndCreateServerOrder(userId, payload) {
                         hostname: payload.vpsConfig.hostname?.trim() || '',
                         os: payload.vpsConfig.os || 'Ubuntu 22.04 LTS',
                         serverLocation: payload.vpsConfig.serverLocation || 'Dhaka, Bangladesh',
-                        rootPassword: payload.vpsConfig.rootPassword || '',
+                        rootPasswordConfigured: Boolean(payload.vpsConfig.rootPassword),
                         sshKey: payload.vpsConfig.sshKey?.trim() || '',
                         notes: payload.vpsConfig.notes?.trim() || '',
                         cores: hItem.details?.cores || '2 vCPU',
