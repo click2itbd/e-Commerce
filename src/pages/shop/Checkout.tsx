@@ -349,7 +349,7 @@ export const Checkout: React.FC = () => {
           state: formData.state,
           company: formData.company,
           paymentType,
-          advanceDelivery,
+          advanceDelivery: isAdvanceCOD,
           paymentMethod:
             paymentType === "cod"
               ? isAdvanceCOD
