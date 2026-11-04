@@ -498,9 +498,15 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
 
                           <td className="px-5 py-4 whitespace-nowrap">
                             <div className="flex flex-col">
-                              <span className="font-bold text-slate-800 text-[13px]">{order.customerName}</span>
-                              <span className="text-[11px] text-slate-500 font-semibold mt-0.5">{order.customerPhone}</span>
-
+                              <span className="font-bold text-slate-800 text-[13px]">{order.customerName || order.shippingName || order.name || 'Walk-in Customer'}</span>
+                              {(order.customerPhone || order.phone || order.shippingPhone) && (
+                                <span className="text-[11px] text-slate-500 font-semibold mt-0.5">{order.customerPhone || order.phone || order.shippingPhone}</span>
+                              )}
+                              {(order.shippingAddress || order.customerAddress || order.address) && (
+                                <span className="text-[10px] text-slate-400 font-medium max-w-[220px] truncate mt-0.5" title={order.shippingAddress || order.customerAddress || order.address}>
+                                  📍 {order.shippingAddress || order.customerAddress || order.address}
+                                </span>
+                              )}
                             </div>
                           </td>
 
@@ -751,22 +757,121 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
             
             <div className="p-6 md:p-8 overflow-y-auto flex-1 bg-white">
               <div className="flex flex-col md:flex-row justify-between gap-8 mb-8">
-                <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 flex-1 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-2xl"></div>
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Billed To</h3>
-                  <div className="text-slate-900 font-black text-xl mb-1">{viewingOrder.customerName || 'Walk-in Customer'}</div>
-                  {getValidProjectName(viewingOrder) && (
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold my-1.5">
-                      <span className="text-slate-500 font-medium">Project Name:</span>
-                      <span className="text-blue-900 font-black">{getValidProjectName(viewingOrder)}</span>
+                {(() => {
+                  const resolvedCustomer = customers?.find((c: any) =>
+                    (viewingOrder.customerId && c.id === viewingOrder.customerId) ||
+                    (viewingOrder.customerPhone && c.phone && String(c.phone).trim() === String(viewingOrder.customerPhone).trim()) ||
+                    (viewingOrder.customerName && c.name && c.name.trim().toLowerCase() === viewingOrder.customerName.trim().toLowerCase())
+                  );
+
+                  const displayName =
+                    viewingOrder.customerName ||
+                    viewingOrder.shippingName ||
+                    viewingOrder.name ||
+                    resolvedCustomer?.name ||
+                    'Walk-in Customer';
+
+                  const displayPhone =
+                    viewingOrder.customerPhone ||
+                    viewingOrder.phone ||
+                    viewingOrder.shippingPhone ||
+                    viewingOrder.contactPhone ||
+                    resolvedCustomer?.phone ||
+                    '';
+
+                  const displayEmail =
+                    viewingOrder.customerEmail ||
+                    viewingOrder.email ||
+                    resolvedCustomer?.email ||
+                    '';
+
+                  const rawAddress =
+                    viewingOrder.shippingAddress ||
+                    viewingOrder.customerAddress ||
+                    viewingOrder.address ||
+                    viewingOrder.deliveryAddress ||
+                    viewingOrder.billingAddress ||
+                    resolvedCustomer?.address ||
+                    '';
+
+                  const displayAddress = rawAddress || (
+                    (viewingOrder.city || viewingOrder.state)
+                      ? [viewingOrder.address1, viewingOrder.address2, viewingOrder.thana, viewingOrder.city, viewingOrder.state, viewingOrder.country].filter(Boolean).join(', ')
+                      : ''
+                  );
+
+                  const isOnlineOrder =
+                    viewingOrder.saleSource === 'online' ||
+                    viewingOrder.platform === 'ecommerce' ||
+                    Boolean(viewingOrder.shippingAddress);
+
+                  return (
+                    <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 flex-1 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-2xl"></div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          Billed To
+                        </h3>
+                        {isOnlineOrder && (
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                            Website / Online Order
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-slate-900 font-black text-xl mb-1">
+                        {displayName}
+                      </div>
+
+                      {getValidProjectName(viewingOrder) && (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold my-1.5">
+                          <span className="text-slate-500 font-medium">Project Name:</span>
+                          <span className="text-blue-900 font-black">{getValidProjectName(viewingOrder)}</span>
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5 mt-2.5 text-sm">
+                        {displayPhone && (
+                          <div className="text-slate-700 flex items-center gap-2 font-semibold">
+                            <Phone size={14} className="text-blue-500 shrink-0" />
+                            <a href={`tel:${displayPhone}`} className="hover:text-blue-600 transition-colors">
+                              {displayPhone}
+                            </a>
+                          </div>
+                        )}
+
+                        {displayEmail && (
+                          <div className="text-slate-600 flex items-center gap-2">
+                            <Mail size={14} className="text-slate-400 shrink-0" />
+                            <a href={`mailto:${displayEmail}`} className="hover:text-blue-600 transition-colors">
+                              {displayEmail}
+                            </a>
+                          </div>
+                        )}
+
+                        {displayAddress && (
+                          <div className="text-slate-700 flex items-start gap-2 bg-white/90 p-3 rounded-xl border border-slate-200/80 mt-2">
+                            <MapPin size={15} className="text-rose-500 shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">
+                                Delivery Address:
+                              </span>
+                              <span className="leading-snug font-medium text-slate-800 break-words block">
+                                {displayAddress}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {viewingOrder.notes && (
+                          <div className="text-xs text-slate-600 bg-amber-50/70 border border-amber-200/60 p-2.5 rounded-xl mt-2">
+                            <span className="font-bold text-amber-900">Delivery Notes:</span> {viewingOrder.notes}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  <div className="space-y-1.5 mt-2">
-                    {viewingOrder.customerPhone && <div className="text-sm text-slate-600 flex items-center gap-2"><Phone size={14} className="text-slate-400"/> {viewingOrder.customerPhone}</div>}
-                    {viewingOrder.customerEmail && <div className="text-sm text-slate-600 flex items-center gap-2"><Mail size={14} className="text-slate-400"/> {viewingOrder.customerEmail}</div>}
-                    {viewingOrder.customerAddress && <div className="text-sm text-slate-600 flex items-start gap-2"><MapPin size={14} className="text-slate-400 shrink-0 mt-0.5"/> <span className="max-w-[250px] leading-snug">{viewingOrder.customerAddress}</span></div>}
-                  </div>
-                </div>
+                  );
+                })()}
                 
                 <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 flex-1 md:max-w-xs relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-1 h-full bg-indigo-500 rounded-r-2xl"></div>
