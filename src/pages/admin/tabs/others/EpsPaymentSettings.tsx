@@ -34,20 +34,32 @@ const inputCls =
 const labelCls = 'block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wider';
 
 export const EpsPaymentSettings: React.FC = () => {
-  const [loading, setLoading] = useState(true);
+  // Try loading instantly from sessionStorage so there is ZERO delay when switching tabs
+  const getInitialCachedConfig = (): EpsPublicConfig | null => {
+    try {
+      const c = sessionStorage.getItem('eps_cached_public_config');
+      return c ? JSON.parse(c) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const initialCached = getInitialCachedConfig();
+
+  const [loading, setLoading] = useState(!initialCached);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [checkingHealth, setCheckingHealth] = useState(false);
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [showSecrets, setShowSecrets] = useState(false);
-  const [saved, setSaved] = useState<EpsPublicConfig | null>(null);
+  const [saved, setSaved] = useState<EpsPublicConfig | null>(initialCached);
 
-  const [enabled, setEnabled] = useState(false);
-  const [mode, setMode] = useState<'sandbox' | 'live'>('sandbox');
-  const [merchantId, setMerchantId] = useState('');
-  const [storeId, setStoreId] = useState('');
-  const [sandboxUrl, setSandboxUrl] = useState('');
-  const [liveUrl, setLiveUrl] = useState('');
+  const [enabled, setEnabled] = useState(initialCached?.epsEnabled || false);
+  const [mode, setMode] = useState<'sandbox' | 'live'>(initialCached?.epsMode || 'sandbox');
+  const [merchantId, setMerchantId] = useState(initialCached?.epsMerchantId || '');
+  const [storeId, setStoreId] = useState(initialCached?.epsStoreId || '');
+  const [sandboxUrl, setSandboxUrl] = useState(initialCached?.epsSandboxBaseUrl || 'https://sandboxpgapi.eps.com.bd/v1');
+  const [liveUrl, setLiveUrl] = useState(initialCached?.epsLiveBaseUrl || 'https://pgapi.eps.com.bd/v1');
   // Secrets are write-only: blank = keep existing value on the server.
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -72,16 +84,26 @@ export const EpsPaymentSettings: React.FC = () => {
     setUsername('');
     setPassword('');
     setHashKey('');
+    try {
+      sessionStorage.setItem('eps_cached_public_config', JSON.stringify(c));
+    } catch {
+      // ignore
+    }
   };
 
   const checkHealth = useCallback(async (showToast = false) => {
     setCheckingHealth(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
     try {
-      const res = await fetch('/api/health', { method: 'GET', cache: 'no-store' });
+      const res = await fetch('/api/health', {
+        method: 'GET',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
       if (res.ok) {
         setServerStatus('online');
         if (showToast) toast.success('Node.js ব্যাকএন্ড সার্ভার সচল ও অনলাইন আছে!');
-        // Reload settings if online
         try {
           const json = await apiGet<{ success: boolean; data?: EpsPublicConfig }>(
             '/api/admin/payment/eps'
@@ -94,27 +116,31 @@ export const EpsPaymentSettings: React.FC = () => {
       } else {
         setServerStatus('offline');
         if (showToast) {
-          toast.error('সার্ভার অফলাইন (503 Service Unavailable)! cPanel থেকে Node.js অ্যাপটি Restart করুন।', {
-            duration: 5000,
-          });
+          toast.error('সার্ভার অফলাইন (503 Service Unavailable)!', { duration: 5000 });
         }
         return false;
       }
     } catch {
       setServerStatus('offline');
       if (showToast) {
-        toast.error('সার্ভারে সংযোগ পাওয়া যায়নি। cPanel থেকে Node.js অ্যাপটি চালু করুন।', {
-          duration: 5000,
-        });
+        toast.error('সার্ভারে সংযোগ পাওয়া যায়নি। cPanel থেকে Node.js অ্যাপটি রিস্টার্ট করুন।', { duration: 5000 });
       }
       return false;
     } finally {
+      clearTimeout(timeout);
       setCheckingHealth(false);
     }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+    // Fast fetch with strict 6s timeout so it never hangs
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) {
+        setLoading(false);
+      }
+    }, 6000);
+
     (async () => {
       try {
         const json = await apiGet<{ success: boolean; data?: EpsPublicConfig }>(
@@ -131,16 +157,19 @@ export const EpsPaymentSettings: React.FC = () => {
             err?.message?.toLowerCase().includes('service unavailable');
           if (is503) {
             setServerStatus('offline');
-          } else {
-            toast.error(err?.message || 'Failed to load EPS settings');
           }
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          clearTimeout(timeoutId);
+          setLoading(false);
+        }
       }
     })();
+
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
     };
   }, []);
 
@@ -194,8 +223,21 @@ export const EpsPaymentSettings: React.FC = () => {
     setTesting(true);
     setTestResult(null);
     const id = toast.loading('Testing EPS connection...');
+
+    // Strict 15-second client timeout so it never hangs for 2 minutes
+    const testTimeout = setTimeout(() => {
+      if (testing) {
+        setTesting(false);
+        toast.error('EPS Connection timed out after 15 seconds. Please check network/credentials.', { id });
+        setTestResult({
+          success: false,
+          message: 'Connection timed out (15s): The EPS payment gateway did not respond in time.',
+          timestamp: new Date().toLocaleTimeString(),
+        });
+      }
+    }, 15000);
+
     try {
-      // Send both saved & currently typed values so the user can test before or after saving
       const json = await apiPost<{ success: boolean; message?: string }>(
         '/api/admin/payment/eps/test-connection',
         {
@@ -208,6 +250,7 @@ export const EpsPaymentSettings: React.FC = () => {
         }
       );
 
+      clearTimeout(testTimeout);
       const msg = json.message || (json.success ? 'Connection OK' : 'Connection failed');
       setTestResult({
         success: Boolean(json.success),
@@ -222,6 +265,7 @@ export const EpsPaymentSettings: React.FC = () => {
         toast.error(msg, { id });
       }
     } catch (err: any) {
+      clearTimeout(testTimeout);
       const is503 =
         err?.message?.includes('503') ||
         err?.message?.toLowerCase().includes('service unavailable');
@@ -249,17 +293,10 @@ export const EpsPaymentSettings: React.FC = () => {
         toast.error(errText, { id });
       }
     } finally {
+      clearTimeout(testTimeout);
       setTesting(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-xl border border-gray-200 p-12 flex justify-center">
-        <Loader2 className="animate-spin text-indigo-600" />
-      </div>
-    );
-  }
 
   const secretPlaceholder = (isSet: boolean) =>
     isSet ? '•••••••• (saved - leave blank to keep)' : 'Enter value';
