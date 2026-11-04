@@ -3,22 +3,48 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { Layout } from '../../components/Layout';
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Ticket, X, Tag } from 'lucide-react';
+import {
+  Trash2,
+  Plus,
+  Minus,
+  ShoppingBag,
+  ArrowRight,
+  Ticket,
+  X,
+  Tag,
+  PartyPopper,
+  Sparkles,
+  CheckCircle2,
+  BadgePercent,
+} from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { toast } from 'react-hot-toast';
-import { DiscountCode, OrderType } from '../../types';
+import { DiscountCode } from '../../types';
 import { getSiteContext } from '../../hooks/useSiteContext';
 import { apiPost } from '../../services/apiClient';
 
 export const Cart: React.FC = () => {
-  const { items, removeFromCart, updateQuantity, subtotal, total, promoDiscount, promoMessage, appliedDiscount, setAppliedDiscount, isShippingFree } = useCart();
+  const {
+    items,
+    removeFromCart,
+    updateQuantity,
+    subtotal,
+    total,
+    promoDiscount,
+    promoMessage,
+    appliedDiscount,
+    setAppliedDiscount,
+  } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [discountCode, setDiscountCode] = useState('');
-  
   const [isValidatingCode, setIsValidatingCode] = useState(false);
+
+  // Popup state when coupon is applied
+  const [showCouponModal, setShowCouponModal] = useState(false);
+  const [justAppliedCoupon, setJustAppliedCoupon] = useState<DiscountCode | null>(null);
 
   const discountAmount = promoDiscount;
   const finalTotal = total;
@@ -64,6 +90,9 @@ export const Cart: React.FC = () => {
       }
 
       setAppliedDiscount(codeData);
+      setJustAppliedCoupon(codeData);
+      setShowCouponModal(true);
+
       toast.success(
         codeData.type === 'fixed' && codeData.fixedAmount
           ? `Discount applied: ৳${codeData.fixedAmount} off`
@@ -82,6 +111,22 @@ export const Cart: React.FC = () => {
   const handleRemoveDiscount = () => {
     setAppliedDiscount(null);
     setDiscountCode('');
+    setShowCouponModal(false);
+  };
+
+  // Helper to compute display savings in the modal
+  const getCouponSavingsText = (coupon: DiscountCode) => {
+    if (coupon.type === 'fixed' && coupon.fixedAmount) {
+      return `৳${coupon.fixedAmount} OFF`;
+    }
+    if (coupon.type === 'free_shipping') {
+      return '100% Free Shipping';
+    }
+    if (coupon.discountPercentage) {
+      const estimatedAmt = Math.round((subtotal * coupon.discountPercentage) / 100);
+      return `${coupon.discountPercentage}% OFF (Save ~৳${estimatedAmt})`;
+    }
+    return 'Special Discount Applied';
   };
 
   if (items.length === 0) {
@@ -260,6 +305,95 @@ export const Cart: React.FC = () => {
         </div>
       </div>
       </div>
+
+      {/* 🎉 Beautiful Celebration Coupon Applied Modal */}
+      {showCouponModal && justAppliedCoupon && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            className="bg-white w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 relative overflow-hidden text-center animate-in zoom-in-95 duration-300"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Top decorative gradient glow */}
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-[#6EC72A] via-emerald-400 to-[#0E2A47]" />
+
+            {/* Close Button */}
+            <button
+              onClick={() => setShowCouponModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Celebration Icon with pulsing glow */}
+            <div className="relative mb-5 mx-auto w-20 h-20 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping" />
+              <div className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-[#6EC72A] to-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                <PartyPopper size={36} className="animate-bounce" />
+              </div>
+            </div>
+
+            {/* Heading */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-black uppercase tracking-wider mb-2">
+              <Sparkles size={13} className="text-amber-500" /> Coupon Applied!
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-1">
+              Congratulations! 🎉
+            </h3>
+            <p className="text-sm text-slate-500 font-medium mb-6">
+              Your coupon has been successfully unlocked and applied to your order.
+            </p>
+
+            {/* Voucher Ticket Card */}
+            <div className="relative bg-gradient-to-br from-emerald-50/80 to-teal-50/50 rounded-2xl p-4 sm:p-5 border-2 border-dashed border-emerald-300/80 mb-6 text-left shadow-xs">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-600 mb-1">
+                    <Ticket size={14} /> Voucher Code
+                  </div>
+                  <span className="font-mono text-xl sm:text-2xl font-black text-slate-900 tracking-wider">
+                    {justAppliedCoupon.code}
+                  </span>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="inline-block bg-[#6EC72A] text-white px-3 py-1 rounded-lg text-sm sm:text-base font-black shadow-sm">
+                    {getCouponSavingsText(justAppliedCoupon)}
+                  </span>
+                </div>
+              </div>
+
+              {justAppliedCoupon.description && (
+                <p className="text-xs text-slate-600 mt-2.5 pt-2.5 border-t border-emerald-200/60 font-medium line-clamp-2">
+                  {justAppliedCoupon.description}
+                </p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCouponModal(false);
+                  navigate('/checkout');
+                }}
+                className="w-full py-3.5 px-6 rounded-xl font-extrabold text-sm text-white bg-gradient-to-r from-[#0E2A47] to-[#1a426e] hover:from-[#13355b] hover:to-[#234e7e] shadow-md shadow-[#0E2A47]/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 group"
+              >
+                <span>Proceed to Checkout</span>
+                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowCouponModal(false)}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              >
+                View Cart Summary
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
