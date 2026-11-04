@@ -181,8 +181,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
   useEffect(() => {
     if (editingOrder) {
-      setSaleData({
-        ...saleData,
+      const existingAccId = editingOrder.paymentAccountId || (paymentAccounts[0]?.id || '');
+      const matchedAcc = paymentAccounts.find(a => a.id === existingAccId);
+      setSaleData(prev => ({
+        ...prev,
         type: editingOrder.type || 'invoice',
         customerId: editingOrder.customerId || '',
         customerName: editingOrder.customerName || '',
@@ -191,16 +193,23 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         shippingAddress: editingOrder.shippingAddress || editingOrder.customerAddress || '',
         company: editingOrder.company || 'main',
         workOrderNumber: editingOrder.workOrderNumber || '',
-        items: editingOrder.items || [],
+        items: (editingOrder.items || []).map((it: any) => {
+          const id = it.id || it.productId || '';
+          return {
+            ...it,
+            id,
+            productId: it.productId || id,
+          };
+        }),
         discountType: 'flat',
         discountValue: editingOrder.discountAmount || 0,
         taxRate: editingOrder.taxAmount ? (editingOrder.taxAmount / (editingOrder.subtotal || 1) * 100) : 0,
         shippingCost: editingOrder.shippingCost || 0,
         paidAmount: editingOrder.paidAmount || editingOrder.amountPaid || 0,
-        paymentMethod: editingOrder.paymentMethod || '',
-        paymentAccountId: '',
+        paymentMethod: editingOrder.paymentMethod || matchedAcc?.type || 'cash',
+        paymentAccountId: existingAccId,
         notes: editingOrder.notes || '',
-      });
+      }));
     }
   }, [editingOrder]);
 
@@ -310,6 +319,20 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
       const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(accs);
+      setSaleData(prev => {
+        if (!prev.paymentAccountId && accs.length > 0) {
+          const matchedAcc = editingOrder?.paymentAccountId 
+            ? accs.find(a => a.id === editingOrder.paymentAccountId) 
+            : accs[0];
+          const accToUse = matchedAcc || accs[0];
+          return {
+            ...prev,
+            paymentAccountId: accToUse.id,
+            paymentMethod: accToUse.type || prev.paymentMethod || 'cash'
+          };
+        }
+        return prev;
+      });
       
     } catch (err) {
       console.error(err);
@@ -703,7 +726,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
     setSaleData(prev => ({
       ...prev,
-      items: prev.items.map(i => i.id === productId ? { 
+      items: prev.items.map(i => (i.id === productId || i.productId === productId) ? { 
         ...i, 
         quantity: newQty,
         // Trim selected serials if qty decreases
@@ -718,7 +741,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     if (newPrice < 0) return;
     setSaleData(prev => ({
       ...prev,
-      items: prev.items.map(i => i.id === productId ? { ...i, price: newPrice } : i),
+      items: prev.items.map(i => (i.id === productId || i.productId === productId) ? { ...i, price: newPrice } : i),
     }));
   };
 
@@ -726,14 +749,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     if (newCostPrice < 0) return;
     setSaleData(prev => ({
       ...prev,
-      items: prev.items.map(i => i.id === productId ? { ...i, costPrice: newCostPrice } : i),
+      items: prev.items.map(i => (i.id === productId || i.productId === productId) ? { ...i, costPrice: newCostPrice } : i),
     }));
   };
 
   const updateItemName = (productId: string, newName: string) => {
     setSaleData(prev => ({
       ...prev,
-      items: prev.items.map(i => i.id === productId ? { ...i, name: newName } : i),
+      items: prev.items.map(i => (i.id === productId || i.productId === productId) ? { ...i, name: newName } : i),
     }));
   };
 
@@ -826,14 +849,16 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const docNumber = effectiveEditingOrder ? (effectiveEditingOrder.documentNumber || effectiveEditingOrder.id) : await generateDocumentNumber(docType);
 
       const processedItems = saleData.items.map(item => {
-          const currentProduct = products.find(p => p.id === item.id);
+        const prodId = item.id || item.productId;
+        const currentProduct = products.find(p => p.id === prodId);
         if (item.isCustomService) {
           return {
-            productId: item.id,
+            ...item,
+            productId: prodId || item.name,
             name: item.name,
-            price: Number(item.price),
+            price: Number(item.price) || 0,
             costPrice: 0,
-            quantity: Number(item.quantity),
+            quantity: Number(item.quantity) || 1,
             unit: (item as any).unit || currentProduct?.unit || 'pcs',
             hasWarranty: false,
             warrantyMonths: 0,
@@ -841,21 +866,21 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             itemType: 'service',
           };
         }
-        
 
         const wMonths = item.hasWarranty ? (item.warrantyMonths || currentProduct?.warrantyMonths || 0) : (currentProduct?.warrantyMonths || 0);
         return {
-          productId: item.id,
+          ...item,
+          productId: prodId || '',
           name: item.name,
-          price: Number(item.price),
-          costPrice: Number(currentProduct?.costPrice) || 0,
-          quantity: Number(item.quantity),
-            unit: (item as any).unit || currentProduct?.unit || 'pcs',
+          price: Number(item.price) || 0,
+          costPrice: Number(item.costPrice !== undefined ? item.costPrice : currentProduct?.costPrice) || 0,
+          quantity: Number(item.quantity) || 1,
+          unit: (item as any).unit || currentProduct?.unit || 'pcs',
           hasWarranty: Boolean(item.hasWarranty),
-            warrantyMonths: wMonths,
-            warrantyUnit: currentProduct?.warrantyUnit || 'months',
-            brand: currentProduct?.brand || (item as any).brand || '',
-            warranty: wMonths > 0 ? formatWarranty(wMonths, currentProduct?.warrantyUnit) : '',
+          warrantyMonths: wMonths,
+          warrantyUnit: currentProduct?.warrantyUnit || 'months',
+          brand: currentProduct?.brand || (item as any).brand || '',
+          warranty: wMonths > 0 ? formatWarranty(wMonths, currentProduct?.warrantyUnit) : '',
           selectedSerials: item.selectedSerials || [],
         };
       });
@@ -960,8 +985,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       if (saleData.type === 'invoice' || saleData.type === 'challan') {
         for (const item of saleData.items) {
           if (item.isCustomService) continue;
-          const productRef = doc(db, 'products', item.id);
-          const currentProduct = products.find(p => p.id === item.id);
+          const prodId = item.id || item.productId;
+          if (!prodId) continue;
+          const productRef = doc(db, 'products', prodId);
+          const currentProduct = products.find(p => p.id === prodId);
           if (currentProduct) {
             const updates: any = {};
             updates.stock = increment(-item.quantity);
