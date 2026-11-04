@@ -75,7 +75,7 @@ customersRouter.get('/me/wallet', requireFirebaseAuth, async (req: any, res: Res
 
 /**
  * POST /api/customers/deposit-request
- * Submit a manual deposit request (bKash/Nagad/Bank) to add balance
+ * Submit a deposit request to add balance
  */
 customersRouter.post('/deposit-request', requireFirebaseAuth, async (req: any, res: Response) => {
   const userId = req.user.uid;
@@ -104,7 +104,7 @@ customersRouter.post('/deposit-request', requireFirebaseAuth, async (req: any, r
       customerEmail: req.user.email || userData?.email || '',
       customerName: userData?.displayName || userData?.name || 'Customer',
       amount: numAmount,
-      paymentMethod: paymentMethod || 'manual_bkash',
+      paymentMethod: paymentMethod || 'eps',
       transactionId: transactionId.trim(),
       notes: notes || '',
       status: 'pending', // pending, approved, rejected
@@ -123,7 +123,7 @@ customersRouter.post('/deposit-request', requireFirebaseAuth, async (req: any, r
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 12px;">
             <h2 style="color: #2563eb;">Funds Deposit Request Submitted</h2>
             <p>Dear ${depositData.customerName},</p>
-            <p>We have received your wallet deposit request of <strong>৳${numAmount}</strong> via <strong>${paymentMethod.toUpperCase()}</strong>.</p>
+            <p>We have received your wallet deposit request of <strong>৳${numAmount}</strong> via <strong>${(paymentMethod || 'EPS').toUpperCase()}</strong>.</p>
             <p><strong>Transaction ID:</strong> ${depositData.transactionId}</p>
             <p>Our billing team will verify the payment and credit your account balance shortly.</p>
             <p style="margin-top: 20px; color: #64748b; text-align: center;">Thank you for choosing Click2IT!</p>
@@ -148,85 +148,100 @@ customersRouter.post('/deposit-request', requireFirebaseAuth, async (req: any, r
 /**
  * POST /api/customers/pay-order
  * Pay for an order (Domain registration / renewal / hosting) using Account Balance
+ * Uses Firestore runTransaction() to prevent concurrent double-spend race conditions.
  */
 customersRouter.post('/pay-order', requireFirebaseAuth, async (req: any, res: Response) => {
   const userId = req.user.uid;
   const { orderId } = req.body;
 
-  if (!orderId) {
+  if (!orderId || typeof orderId !== 'string') {
     return res.status(400).json({ error: 'Order ID is required.' });
   }
 
   try {
     const db = getAdminDb();
     const orderRef = db.collection('orders').doc(orderId);
-    const orderSnap = await orderRef.get();
-
-    if (!orderSnap.exists) {
-      return res.status(404).json({ error: 'Order not found.' });
-    }
-
-    const orderData: any = orderSnap.data();
-    if (orderData.userId && orderData.userId !== userId) {
-      return res.status(403).json({ error: 'You do not have permission for this order.' });
-    }
-
-    if (orderData.paymentStatus === 'verified' || orderData.status === 'completed') {
-      return res.status(400).json({ error: 'This order has already been paid and completed.' });
-    }
-
-    const totalAmount = Number(orderData.total || orderData.totalBdt || 0);
-    if (totalAmount <= 0) {
-      return res.status(400).json({ error: 'Invalid order amount.' });
-    }
-
-    // Check customer balance in Firestore
     const userRef = db.collection('users').doc(userId);
-    const userSnap = await userRef.get();
-    const userData: any = userSnap.exists ? userSnap.data() : {};
-    const currentBalance = typeof userData.balance === 'number' ? userData.balance : 0;
-
-    if (currentBalance < totalAmount) {
-      return res.status(400).json({
-        error: `Insufficient account balance. Available: ৳${currentBalance.toLocaleString()}, Required: ৳${totalAmount.toLocaleString()}. Please add funds first.`
-      });
-    }
-
-    // Deduct balance and record transaction
-    const newBalance = currentBalance - totalAmount;
-    const now = new Date().toISOString();
-
-    await userRef.update({
-      balance: newBalance,
-      updatedAt: now
-    });
-
     const txRef = db.collection('wallet_transactions').doc();
-    const txData = {
-      id: txRef.id,
-      userId,
-      customerEmail: req.user.email || userData.email || orderData.customerEmail,
-      customerName: userData.displayName || userData.name || orderData.customerName || 'Customer',
-      type: 'debit',
-      amount: totalAmount,
-      balanceBefore: currentBalance,
-      balanceAfter: newBalance,
-      reason: `Payment for Order #${orderId.slice(0, 8)} (${orderData.items?.[0]?.name || 'Domain/Hosting Services'})`,
-      orderId,
-      createdAt: now
-    };
-    await txRef.set(txData);
 
-    // Update order status to paid / verified
-    await orderRef.update({
-      paymentStatus: 'verified',
-      paymentMethod: 'wallet_balance',
-      paymentVerificationStatus: 'approved',
-      providerStatus: 'processing',
-      paymentSubmittedAt: now,
-      paidAt: now,
-      updatedAt: now
+    const txResult = await db.runTransaction(async (t: any) => {
+      const [orderSnap, userSnap] = await Promise.all([t.get(orderRef), t.get(userRef)]);
+
+      if (!orderSnap.exists) {
+        const err: any = new Error('Order not found.');
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const orderData: any = orderSnap.data() || {};
+      if (orderData.userId && orderData.userId !== userId) {
+        const err: any = new Error('You do not have permission for this order.');
+        err.statusCode = 403;
+        throw err;
+      }
+
+      if (orderData.paymentStatus === 'verified' || orderData.status === 'completed') {
+        const err: any = new Error('This order has already been paid and completed.');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const totalAmount = Number(orderData.total || orderData.totalBdt || 0);
+      if (totalAmount <= 0) {
+        const err: any = new Error('Invalid order amount.');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const userData: any = userSnap.exists ? userSnap.data() : {};
+      const currentBalance = typeof userData.balance === 'number' ? userData.balance : 0;
+
+      if (currentBalance < totalAmount) {
+        const err: any = new Error(
+          `Insufficient account balance. Available: ৳${currentBalance.toLocaleString()}, Required: ৳${totalAmount.toLocaleString()}. Please add funds first.`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const newBalance = currentBalance - totalAmount;
+      const now = new Date().toISOString();
+
+      const txData = {
+        id: txRef.id,
+        userId,
+        customerEmail: req.user.email || userData.email || orderData.customerEmail,
+        customerName: userData.displayName || userData.name || orderData.customerName || 'Customer',
+        type: 'debit',
+        amount: totalAmount,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        reason: `Payment for Order #${orderId.slice(0, 8)} (${orderData.items?.[0]?.name || 'Domain/Hosting Services'})`,
+        orderId,
+        createdAt: now
+      };
+
+      t.update(userRef, {
+        balance: newBalance,
+        updatedAt: now
+      });
+
+      t.set(txRef, txData);
+
+      t.update(orderRef, {
+        paymentStatus: 'verified',
+        paymentMethod: 'wallet_balance',
+        paymentVerificationStatus: 'approved',
+        providerStatus: 'processing',
+        paymentSubmittedAt: now,
+        paidAt: now,
+        updatedAt: now
+      });
+
+      return { newBalance, totalAmount, txData };
     });
+
+    const { newBalance, totalAmount, txData } = txResult;
 
     // Auto trigger fulfillment (domain registration / hosting provisioning)
     let fulfillmentRes: any = null;
@@ -269,13 +284,16 @@ customersRouter.post('/pay-order', requireFirebaseAuth, async (req: any, res: Re
     });
   } catch (error: any) {
     console.error('Wallet payment failed:', error);
-    return res.status(500).json({ error: error.message || 'Payment processing failed.' });
+    const status = error.statusCode || 500;
+    return res.status(status).json({ error: error.message || 'Payment processing failed.' });
   }
 });
 
 /**
  * POST /api/customers/renew-domain
  * Direct 1-Click Domain Renewal using Wallet Balance
+ * Uses Firestore runTransaction() to atomically reserve/deduct balance before calling registrar,
+ * and refunds automatically if the registrar call fails.
  */
 customersRouter.post('/renew-domain', requireFirebaseAuth, async (req: any, res: Response) => {
   const userId = req.user.uid;
@@ -285,6 +303,7 @@ customersRouter.post('/renew-domain', requireFirebaseAuth, async (req: any, res:
     return res.status(400).json({ error: 'Domain name is required for renewal.' });
   }
 
+  const yearsNum = Math.max(1, Math.min(10, Math.floor(Number(periodYears) || 1)));
   const cleanDomain = domainName.trim().toLowerCase();
   const tldMatch = cleanDomain.match(/\.([a-z0-9.-]+)$/i);
   if (!tldMatch) {
@@ -312,68 +331,82 @@ customersRouter.post('/renew-domain', requireFirebaseAuth, async (req: any, res:
         }
       }
     } catch {
-      // check stored domainPricing doc
       const priceDoc = await db.collection('domainPricing').doc(tld).get();
       if (priceDoc.exists && priceDoc.data()?.renewPrice) {
         renewPriceBdt = priceDoc.data()?.renewPrice;
       }
     }
 
-    const totalCost = renewPriceBdt * Number(periodYears);
-
-    // Check user balance
+    const totalCost = renewPriceBdt * yearsNum;
     const userRef = db.collection('users').doc(userId);
-    const userSnap = await userRef.get();
-    const userData: any = userSnap.exists ? userSnap.data() : {};
-    const currentBalance = typeof userData.balance === 'number' ? userData.balance : 0;
+    const txRef = db.collection('wallet_transactions').doc();
 
-    if (currentBalance < totalCost) {
-      return res.status(400).json({
-        error: `Insufficient wallet balance. Renewal cost: ৳${totalCost.toLocaleString()} (${periodYears} yr), Available: ৳${currentBalance.toLocaleString()}. Please top up your wallet balance.`
+    // Step 1: Atomically check and deduct balance in a Firestore transaction
+    const deductedInfo = await db.runTransaction(async (t: any) => {
+      const userSnap = await t.get(userRef);
+      const userData: any = userSnap.exists ? userSnap.data() : {};
+      const currentBalance = typeof userData.balance === 'number' ? userData.balance : 0;
+
+      if (currentBalance < totalCost) {
+        const err: any = new Error(
+          `Insufficient wallet balance. Renewal cost: ৳${totalCost.toLocaleString()} (${yearsNum} yr), Available: ৳${currentBalance.toLocaleString()}. Please top up your wallet balance.`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const newBalance = currentBalance - totalCost;
+      const now = new Date().toISOString();
+
+      t.update(userRef, {
+        balance: newBalance,
+        updatedAt: now
       });
-    }
 
-    // Attempt provider renewal call
+      t.set(txRef, {
+        id: txRef.id,
+        userId,
+        customerEmail: req.user.email || userData.email,
+        customerName: userData.displayName || userData.name || 'Customer',
+        type: 'debit',
+        amount: totalCost,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        reason: `Domain Renewal for ${cleanDomain} (${yearsNum} Year${yearsNum > 1 ? 's' : ''})`,
+        domainName: cleanDomain,
+        createdAt: now
+      });
+
+      return { newBalance, userData, now };
+    });
+
+    // Step 2: Attempt provider renewal call; if it fails, refund the balance in a transaction
     let providerResult: any = null;
     let renewSuccess = false;
     try {
       if (provider.renewDomain) {
-        providerResult = await provider.renewDomain(cleanDomain, Number(periodYears));
+        providerResult = await provider.renewDomain(cleanDomain, yearsNum);
         renewSuccess = true;
       } else {
         renewSuccess = true; // Manual review or fallback
       }
     } catch (pErr: any) {
-      console.error('[Domain Renew] Provider call failed:', pErr);
+      console.error('[Domain Renew] Provider call failed, refunding wallet balance:', pErr);
+      await db.runTransaction(async (t: any) => {
+        const uSnap = await t.get(userRef);
+        const curBal = typeof uSnap.data()?.balance === 'number' ? uSnap.data()!.balance : 0;
+        const refundedBal = curBal + totalCost;
+        const refundNow = new Date().toISOString();
+        t.update(userRef, { balance: refundedBal, updatedAt: refundNow });
+        t.delete(txRef);
+      }).catch((refundErr: any) => console.error('[Domain Renew] CRITICAL refund error:', refundErr));
+
       return res.status(500).json({ error: `Domain provider renewal failed: ${pErr.message}` });
     }
 
-    // Deduct balance
-    const newBalance = currentBalance - totalCost;
-    const now = new Date().toISOString();
+    const { newBalance, userData, now } = deductedInfo;
 
-    await userRef.update({
-      balance: newBalance,
-      updatedAt: now
-    });
-
-    // Log transaction
-    const txRef = db.collection('wallet_transactions').doc();
-    await txRef.set({
-      id: txRef.id,
-      userId,
-      customerEmail: req.user.email || userData.email,
-      customerName: userData.displayName || userData.name || 'Customer',
-      type: 'debit',
-      amount: totalCost,
-      balanceBefore: currentBalance,
-      balanceAfter: newBalance,
-      reason: `Domain Renewal for ${cleanDomain} (${periodYears} Year${periodYears > 1 ? 's' : ''})`,
-      domainName: cleanDomain,
-      createdAt: now
-    });
-
-    // Record renewal order document
+    // Step 3: Record renewal order document
     const renewalOrderRef = db.collection('domainOrders').doc();
     await renewalOrderRef.set({
       id: renewalOrderRef.id,
@@ -382,7 +415,7 @@ customersRouter.post('/renew-domain', requireFirebaseAuth, async (req: any, res:
       customerName: userData.displayName || userData.name || 'Customer',
       domainName: cleanDomain,
       type: 'renewal',
-      periodYears: Number(periodYears),
+      periodYears: yearsNum,
       amount: totalCost,
       paymentStatus: 'verified',
       paymentMethod: 'wallet_balance',
@@ -400,7 +433,7 @@ customersRouter.post('/renew-domain', requireFirebaseAuth, async (req: any, res:
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
             <h2 style="color: #2563eb;">Domain Renewal Successful</h2>
             <p>Dear ${userData.displayName || userData.name || 'Customer'},</p>
-            <p>Your domain <strong>${cleanDomain}</strong> has been successfully renewed for <strong>${periodYears} year(s)</strong>.</p>
+            <p>Your domain <strong>${cleanDomain}</strong> has been successfully renewed for <strong>${yearsNum} year(s)</strong>.</p>
             <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0;">
               <p style="margin: 4px 0;"><strong>Cost:</strong> ৳${totalCost.toLocaleString()}</p>
               <p style="margin: 4px 0;"><strong>New Wallet Balance:</strong> ৳${newBalance.toLocaleString()}</p>
@@ -415,13 +448,14 @@ customersRouter.post('/renew-domain', requireFirebaseAuth, async (req: any, res:
 
     return res.json({
       success: true,
-      message: `Domain ${cleanDomain} renewed successfully for ${periodYears} year(s).`,
+      message: `Domain ${cleanDomain} renewed successfully for ${yearsNum} year(s).`,
       newBalance,
       providerResult
     });
   } catch (error: any) {
     console.error('Domain renewal failed:', error);
-    return res.status(500).json({ error: error.message || 'Failed to renew domain.' });
+    const status = error.statusCode || 500;
+    return res.status(status).json({ error: error.message || 'Failed to renew domain.' });
   }
 });
 
@@ -541,54 +575,61 @@ const handleAdminBalanceAdjust = async (req: any, res: Response) => {
   try {
     const db = getAdminDb();
     const userRef = db.collection('users').doc(userId);
-    const userSnap = await userRef.get();
-
-    if (!userSnap.exists) {
-      return res.status(404).json({ error: 'Customer user account not found.' });
-    }
-
-    const userData: any = userSnap.data();
-    const currentBalance = typeof userData.balance === 'number' ? userData.balance : 0;
-
-    let newBalance = currentBalance;
-    if (action === 'add') {
-      newBalance = currentBalance + numAmount;
-    } else {
-      if (currentBalance < numAmount) {
-        return res.status(400).json({
-          error: `Cannot deduct ৳${numAmount.toLocaleString()}. Customer current balance is only ৳${currentBalance.toLocaleString()}.`
-        });
-      }
-      newBalance = currentBalance - numAmount;
-    }
-
-    const now = new Date().toISOString();
-    await userRef.update({
-      balance: newBalance,
-      updatedAt: now
-    });
-
-    // Record wallet transaction
     const txRef = db.collection('wallet_transactions').doc();
-    const txData = {
-      id: txRef.id,
-      userId,
-      customerEmail: userData.email || '',
-      customerName: userData.displayName || userData.name || 'Customer',
-      type: action === 'add' ? 'credit' : 'debit',
-      amount: numAmount,
-      balanceBefore: currentBalance,
-      balanceAfter: newBalance,
-      reason: reason.trim(),
-      adminNotes: adminNotes || '',
-      createdBy: req.user.email || 'Admin',
-      createdAt: now
-    };
-    await txRef.set(txData);
+
+    const { newBalance, userData, txData } = await db.runTransaction(async (t: any) => {
+      const userSnap = await t.get(userRef);
+      if (!userSnap.exists) {
+        const err: any = new Error('Customer user account not found.');
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const uData: any = userSnap.data() || {};
+      const currentBalance = typeof uData.balance === 'number' ? uData.balance : 0;
+
+      let updatedBalance = currentBalance;
+      if (effectiveAction === 'add') {
+        updatedBalance = currentBalance + numAmount;
+      } else {
+        if (currentBalance < numAmount) {
+          const err: any = new Error(
+            `Cannot deduct ৳${numAmount.toLocaleString()}. Customer current balance is only ৳${currentBalance.toLocaleString()}.`
+          );
+          err.statusCode = 400;
+          throw err;
+        }
+        updatedBalance = currentBalance - numAmount;
+      }
+
+      const now = new Date().toISOString();
+      t.update(userRef, {
+        balance: updatedBalance,
+        updatedAt: now
+      });
+
+      const txPayload = {
+        id: txRef.id,
+        userId,
+        customerEmail: uData.email || '',
+        customerName: uData.displayName || uData.name || 'Customer',
+        type: effectiveAction === 'add' ? 'credit' : 'debit',
+        amount: numAmount,
+        balanceBefore: currentBalance,
+        balanceAfter: updatedBalance,
+        reason: reason.trim(),
+        adminNotes: adminNotes || '',
+        createdBy: req.user.email || 'Admin',
+        createdAt: now
+      };
+      t.set(txRef, txPayload);
+
+      return { newBalance: updatedBalance, userData: uData, txData: txPayload };
+    });
 
     // Send email notification to customer
     if (userData.email) {
-      const subject = action === 'add'
+      const subject = effectiveAction === 'add'
         ? `Account Balance Credited - ৳${numAmount.toLocaleString()}`
         : `Account Balance Debited - ৳${numAmount.toLocaleString()}`;
 
@@ -597,13 +638,13 @@ const handleAdminBalanceAdjust = async (req: any, res: Response) => {
         subject,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-            <h2 style="color: ${action === 'add' ? '#10b981' : '#f59e0b'};">
-              Account Wallet ${action === 'add' ? 'Credited' : 'Debited'}
+            <h2 style="color: ${effectiveAction === 'add' ? '#10b981' : '#f59e0b'};">
+              Account Wallet ${effectiveAction === 'add' ? 'Credited' : 'Debited'}
             </h2>
             <p>Dear ${userData.displayName || userData.name || 'Customer'},</p>
             <p>Your account balance has been updated by administrator.</p>
             <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0;">
-              <p style="margin: 4px 0;"><strong>${action === 'add' ? 'Amount Added' : 'Amount Deducted'}:</strong> ৳${numAmount.toLocaleString()}</p>
+              <p style="margin: 4px 0;"><strong>${effectiveAction === 'add' ? 'Amount Added' : 'Amount Deducted'}:</strong> ৳${numAmount.toLocaleString()}</p>
               <p style="margin: 4px 0;"><strong>Reason:</strong> ${reason.trim()}</p>
               <p style="margin: 4px 0;"><strong>New Balance:</strong> ৳${newBalance.toLocaleString()}</p>
             </div>
@@ -624,7 +665,8 @@ const handleAdminBalanceAdjust = async (req: any, res: Response) => {
     });
   } catch (error: any) {
     console.error('Failed to adjust customer balance:', error);
-    return res.status(500).json({ error: error.message || 'Failed to adjust balance.' });
+    const status = error.statusCode || 500;
+    return res.status(status).json({ error: error.message || 'Failed to adjust balance.' });
   }
 };
 
@@ -722,60 +764,68 @@ customersRouter.post('/admin/deposits/:depositId/verify', requireFirebaseAuth, a
   try {
     const db = getAdminDb();
     const depRef = db.collection('deposit_requests').doc(depositId);
-    const depSnap = await depRef.get();
-
-    if (!depSnap.exists) {
-      return res.status(404).json({ error: 'Deposit request not found.' });
-    }
-
-    const depData: any = depSnap.data();
-    if (depData.status !== 'pending') {
-      return res.status(400).json({ error: `Deposit request is already ${depData.status}.` });
-    }
-
     const now = new Date().toISOString();
 
     if (action === 'approve') {
-      const userRef = db.collection('users').doc(depData.userId);
-      const userSnap = await userRef.get();
-
-      if (!userSnap.exists) {
-        return res.status(404).json({ error: 'Customer user document not found.' });
-      }
-
-      const userData: any = userSnap.data();
-      const currentBalance = typeof userData.balance === 'number' ? userData.balance : 0;
-      const newBalance = currentBalance + depData.amount;
-
-      await userRef.update({
-        balance: newBalance,
-        updatedAt: now
-      });
-
-      // Log wallet transaction
       const txRef = db.collection('wallet_transactions').doc();
-      await txRef.set({
-        id: txRef.id,
-        userId: depData.userId,
-        customerEmail: depData.customerEmail,
-        customerName: depData.customerName,
-        type: 'credit',
-        amount: depData.amount,
-        balanceBefore: currentBalance,
-        balanceAfter: newBalance,
-        reason: `Approved Deposit via ${depData.paymentMethod.toUpperCase()} (TX: ${depData.transactionId})`,
-        depositRequestId: depositId,
-        adminNotes: adminNotes || '',
-        createdBy: req.user.email || 'Admin',
-        createdAt: now
-      });
 
-      await depRef.update({
-        status: 'approved',
-        adminNotes: adminNotes || '',
-        verifiedAt: now,
-        verifiedBy: req.user.email || 'Admin',
-        updatedAt: now
+      const { newBalance, depData } = await db.runTransaction(async (t: any) => {
+        const depSnap = await t.get(depRef);
+        if (!depSnap.exists) {
+          const err: any = new Error('Deposit request not found.');
+          err.statusCode = 404;
+          throw err;
+        }
+
+        const dData: any = depSnap.data() || {};
+        if (dData.status !== 'pending') {
+          const err: any = new Error(`Deposit request is already ${dData.status}.`);
+          err.statusCode = 400;
+          throw err;
+        }
+
+        const userRef = db.collection('users').doc(dData.userId);
+        const userSnap = await t.get(userRef);
+        if (!userSnap.exists) {
+          const err: any = new Error('Customer user document not found.');
+          err.statusCode = 404;
+          throw err;
+        }
+
+        const userData: any = userSnap.data() || {};
+        const currentBalance = typeof userData.balance === 'number' ? userData.balance : 0;
+        const updatedBalance = currentBalance + Number(dData.amount || 0);
+
+        t.update(userRef, {
+          balance: updatedBalance,
+          updatedAt: now
+        });
+
+        t.set(txRef, {
+          id: txRef.id,
+          userId: dData.userId,
+          customerEmail: dData.customerEmail,
+          customerName: dData.customerName,
+          type: 'credit',
+          amount: dData.amount,
+          balanceBefore: currentBalance,
+          balanceAfter: updatedBalance,
+          reason: `Approved Deposit via ${(dData.paymentMethod || 'EPS').toUpperCase()} (TX: ${dData.transactionId})`,
+          depositRequestId: depositId,
+          adminNotes: adminNotes || '',
+          createdBy: req.user.email || 'Admin',
+          createdAt: now
+        });
+
+        t.update(depRef, {
+          status: 'approved',
+          adminNotes: adminNotes || '',
+          verifiedAt: now,
+          verifiedBy: req.user.email || 'Admin',
+          updatedAt: now
+        });
+
+        return { newBalance: updatedBalance, depData: dData };
       });
 
       // Send email
@@ -806,6 +856,15 @@ customersRouter.post('/admin/deposits/:depositId/verify', requireFirebaseAuth, a
 
     } else {
       // Reject
+      const depSnap = await depRef.get();
+      if (!depSnap.exists) {
+        return res.status(404).json({ error: 'Deposit request not found.' });
+      }
+      const depData: any = depSnap.data() || {};
+      if (depData.status !== 'pending') {
+        return res.status(400).json({ error: `Deposit request is already ${depData.status}.` });
+      }
+
       await depRef.update({
         status: 'rejected',
         adminNotes: adminNotes || '',
@@ -840,7 +899,8 @@ customersRouter.post('/admin/deposits/:depositId/verify', requireFirebaseAuth, a
 
   } catch (error: any) {
     console.error('Failed to verify deposit request:', error);
-    return res.status(500).json({ error: error.message || 'Failed to process deposit verification.' });
+    const status = error.statusCode || 500;
+    return res.status(status).json({ error: error.message || 'Failed to process deposit verification.' });
   }
 });
 

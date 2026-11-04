@@ -58,9 +58,24 @@ export async function runDatabaseBackupNow(): Promise<BackupResult> {
       const records: any[] = [];
 
       snap.forEach((doc: any) => {
+        // Exclude secret credential documents from plaintext disk backups
+        if (colName === 'settings' && (doc.id === 'api_keys' || doc.id === 'hostingApiConfig')) {
+          return;
+        }
+
+        const rawData = { ...doc.data() };
+
+        // Strip any accidentally stored secret fields from settings/site in backups
+        if (colName === 'settings' && doc.id === 'site') {
+          delete rawData.mailPassword;
+          delete rawData.steadfastApiKey;
+          delete rawData.steadfastSecretKey;
+          delete rawData.externalStoreKey;
+        }
+
         records.push({
           id: doc.id,
-          ...doc.data(),
+          ...rawData,
         });
       });
 

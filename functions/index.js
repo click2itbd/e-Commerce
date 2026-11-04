@@ -1360,6 +1360,17 @@ exports.bkashCreatePayment = functions.https.onCall(async (data, context) => {
     if (!orderSnap.exists) {
       throw new functions.https.HttpsError('not-found', 'Order not found.');
     }
+    const orderData = orderSnap.data() || {};
+    if (orderData.userId && orderData.userId !== context.auth.uid && !(await isAdminUser(context.auth.uid))) {
+      throw new functions.https.HttpsError('permission-denied', 'You are not authorized to pay for this order.');
+    }
+    const serverAmount =
+      orderData.paymentMethod === 'cod_advance_paid' && Number(orderData.advancePaidAmount) > 0
+        ? Number(orderData.advancePaidAmount)
+        : Number(orderData.total || orderData.grandTotal || 0);
+    if (!serverAmount || serverAmount <= 0) {
+      throw new functions.https.HttpsError('failed-precondition', 'Invalid server order amount.');
+    }
 
     const accessToken = await getBkashAccessToken(db);
     const creds = await getBkashCredentials(db);
@@ -1375,7 +1386,7 @@ exports.bkashCreatePayment = functions.https.onCall(async (data, context) => {
         mode: '0011',
         payerReference: customerPhone || customerEmail,
         callbackURL: `https://e-commerce-chi-six.vercel.app/payment/return`,
-        amount: amount.toString(),
+        amount: serverAmount.toFixed(2),
         currency: 'BDT',
         intent: 'sale',
         merchantInvoiceNumber: orderId
@@ -1464,7 +1475,23 @@ exports.bkashExecutePayment = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('internal', message || 'Failed to execute bKash payment.');
     }
 
-    // Update order with transaction details
+    // Update order with transaction details after verifying order ownership and amount
+    const orderDocSnap = await db.collection('orders').doc(orderId).get();
+    if (!orderDocSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'Order not found.');
+    }
+    const existingOrder = orderDocSnap.data() || {};
+    if (existingOrder.userId && existingOrder.userId !== context.auth.uid && !(await isAdminUser(context.auth.uid))) {
+      throw new functions.https.HttpsError('permission-denied', 'You are not authorized for this order.');
+    }
+    const expectedOrderAmount =
+      existingOrder.paymentMethod === 'cod_advance_paid' && Number(existingOrder.advancePaidAmount) > 0
+        ? Number(existingOrder.advancePaidAmount)
+        : Number(existingOrder.total || existingOrder.grandTotal || 0);
+    const executedAmount = parseFloat(apiData.amount || '0');
+    if (executedAmount > 0 && expectedOrderAmount > 0 && Math.abs(executedAmount - expectedOrderAmount) > 1) {
+      throw new functions.https.HttpsError('failed-precondition', 'Executed payment amount does not match order amount.');
+    }
     await db.collection('orders').doc(orderId).update({
       paymentStatus: 'paid',
       status: 'processing',
@@ -1887,6 +1914,9 @@ exports.adminApiConfig = functions.https.onCall(async (data, context) => {
 });
 
 exports.sendEmail = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !(await isAdminUser(context.auth.uid))) {
+    throw new functions.https.HttpsError('permission-denied', 'Admin authorization required to send emails.');
+  }
   const { to, subject, html } = data;
 
   if (!to || !subject || !html) {
@@ -1935,6 +1965,10 @@ exports.sendWelcomeEmail = functions.https.onCall(async (data, context) => {
   }
 
   const { email, name } = data;
+  const callerEmail = context.auth.token && context.auth.token.email ? context.auth.token.email : '';
+  if (callerEmail && email && callerEmail.toLowerCase() !== String(email).toLowerCase() && !(await isAdminUser(context.auth.uid))) {
+    throw new functions.https.HttpsError('permission-denied', 'Cannot send welcome email to another user address.');
+  }
   if (!email) {
     throw new functions.https.HttpsError('invalid-argument', 'Email is required.');
   }

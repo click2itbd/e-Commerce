@@ -2,16 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { Package, Search, Truck, CheckCircle2, Clock, MapPin, Download, AlertCircle, Activity } from 'lucide-react';
+import { Package, Search, Truck, CheckCircle2, Clock, MapPin, Download, AlertCircle } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import { Layout } from '../../components/Layout';
-import { Player } from '@lottiefiles/react-lottie-player';
 import { generatePDF } from '../../lib/pdf';
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { ChevronRight } from 'lucide-react';
 import { Order } from '../../types';
-
+import { apiPost } from '../../services/apiClient';
 
 const DeliverySequence = () => {
   const [phase, setPhase] = useState(0);
@@ -70,7 +69,7 @@ export default function TrackOrder() {
           // Filter active orders and sort
           const active = orders
             .filter(o => o.status !== 'cancelled' && o.status !== 'delivered')
-            .sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
             .slice(0, 3);
           setRecentOrders(active);
         } catch (err) {}
@@ -83,48 +82,40 @@ export default function TrackOrder() {
     const id = searchParams.get('id');
     if (id) {
       setOrderId(id);
-      // Auto-submit track request
-      const track = async (searchId: string) => {
+      const urlPhone = searchParams.get('phone') || '';
+      if (urlPhone) setPhone(urlPhone);
+
+      const track = async (searchId: string, searchPhone: string) => {
         setLoading(true);
+        setError('');
         try {
-          let q = query(collection(db, 'orders'), where('id', '==', searchId));
-          let snap = await getDocs(q);
-
-          if (snap.empty) {
-            q = query(collection(db, 'orders'), where('invoiceNumber', '==', searchId));
-            snap = await getDocs(q);
-          }
-
-          if (!snap.empty) {
-            setOrder({ id: snap.docs[0].id, ...snap.docs[0].data() } as Order);
+          const res = await apiPost<{ success: boolean; data?: Order; error?: string }>('/api/public/track-order', {
+            orderId: searchId,
+            phone: searchPhone,
+          });
+          if (res.success && res.data) {
+            setOrder(res.data);
           } else {
-            setError('Order not found from link.');
+            setError(res.error || 'Please enter your phone number to verify and track this order.');
           }
-        } catch (err) {
-          console.error(err);
+        } catch (err: any) {
+          setError(err?.message || 'Please enter your phone number to verify and track this order.');
         } finally {
           setLoading(false);
         }
       };
-      track(id);
+      track(id, urlPhone);
     }
-  }, [searchParams]);
-
-  
-  // Dynamic animation based on tracking step
-  const getAnimationUrl = () => {
-    if (!order) return "https://lottie.host/7905d4b8-2dc3-4a18-80f4-cf3d752f9547/d72sC3Wf7e.json"; // Shopping/Search
-    if (step === -1) return "https://lottie.host/c83783a9-e0d0-4ad3-94c5-c2665e771c66/hYQ7Nq6f5i.json"; // Cancelled
-    if (step === 0 || step === 1) return "https://lottie.host/66d039f9-bdbe-42af-ae7a-0fcda11cb93d/L0aR9a2PjO.json"; // Processing/Packing
-    if (step === 2) return "https://lottie.host/8c06ce1d-720a-4a25-a4db-233bb33396f7/D4T358mPOn.json"; // On the way
-    if (step === 3) return "https://lottie.host/b087091f-0e9b-4bd8-9d58-bb1237a28e5c/5YF5lU6mJz.json"; // Delivered
-    return "https://lottie.host/8c06ce1d-720a-4a25-a4db-233bb33396f7/D4T358mPOn.json";
-  };
+  }, [searchParams, user]);
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orderId) {
-      setError('Please enter your Order ID');
+    if (!orderId.trim()) {
+      setError('Please enter your Order ID or Invoice Number');
+      return;
+    }
+    if (!user && !phone.trim()) {
+      setError('Please enter the Phone Number used for this order');
       return;
     }
 
@@ -133,36 +124,17 @@ export default function TrackOrder() {
     setOrder(null);
 
     try {
-      // Allow searching by actual ID (which users might not know easily) or invoiceNumber
-      let q = query(collection(db, 'orders'), where('id', '==', orderId));
-      let snap = await getDocs(q);
-
-      if (snap.empty) {
-        q = query(collection(db, 'orders'), where('invoiceNumber', '==', orderId));
-        snap = await getDocs(q);
-      }
-
-      if (snap.empty) {
-        setError('Order not found. Please check your Order ID.');
+      const res = await apiPost<{ success: boolean; data?: Order; error?: string }>('/api/public/track-order', {
+        orderId: orderId.trim(),
+        phone: phone.trim(),
+      });
+      if (res.success && res.data) {
+        setOrder(res.data);
       } else {
-        const foundOrder = { id: snap.docs[0].id, ...snap.docs[0].data() } as Order;
-        
-        // Optional phone verification
-        if (phone && foundOrder.customerPhone) {
-          const normInput = phone.replace(/\D/g, '').replace(/^(?:880|88)?0?/, '');
-          const normOrder = foundOrder.customerPhone.replace(/\D/g, '').replace(/^(?:880|88)?0?/, '');
-          if (normInput && normOrder && normInput !== normOrder) {
-            setError('Phone number does not match this order.');
-            setOrder(null);
-            return;
-          }
-        }
-
-        setOrder(foundOrder);
+        setError(res.error || 'Order not found or phone number does not match.');
       }
-    } catch (err) {
-      console.error(err);
-      setError('Something went wrong. Please try again.');
+    } catch (err: any) {
+      setError(err?.message || 'Order not found or phone number does not match.');
     } finally {
       setLoading(false);
     }
@@ -209,7 +181,7 @@ export default function TrackOrder() {
               
             </div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Track Your Order</h1>
-            <p className="text-gray-600 text-lg">Enter your Order ID or Invoice Number to see live updates.</p>
+            <p className="text-gray-600 text-lg">Enter your Order ID or Invoice Number and Phone Number to see live updates.</p>
           </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
@@ -228,10 +200,11 @@ export default function TrackOrder() {
               </div>
               <div className="flex-1 relative">
                 <input
-                  type="text"
-                  placeholder="Phone Number (Optional)"
+                  type="tel"
+                  placeholder={user ? "Phone Number (Required for guest orders)" : "Phone Number *"}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  required={!user}
                   className="w-full px-4 py-4 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                 />
               </div>

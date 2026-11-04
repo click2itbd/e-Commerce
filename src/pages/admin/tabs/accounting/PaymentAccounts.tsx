@@ -4,7 +4,7 @@ import { db } from '../../../../firebase';
 import { PaymentAccount, Transaction } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { useAuth } from '../../../../context/AuthContext';
+import { useAuth } from '../../../../context/AuthContext'; import { moveToTrash } from '../../../../lib/trash';
 import { useSettings } from '../../../../context/SettingsContext';
 import {
   CreditCard,
@@ -145,7 +145,7 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
   const handleDeletePaymentAccount = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this payment account?')) return;
     try {
-      await deleteDoc(doc(db, 'payment_accounts', id));
+      const acc = paymentAccounts.find(a => a.id === id); if (acc) { await moveToTrash({ category: 'accounting', subCategory: 'Payment Account', collectionName: 'payment_accounts', entityId: id, title: `${acc.name} (${acc.type})`, subtitle: acc.description || '', amount: Number(acc.openingBalance || 0), data: acc, deletedBy: 'Admin', details: `Deleted payment account: ${acc.name}` }); } await deleteDoc(doc(db, 'payment_accounts', id));
       toast.success('Payment account deleted');
       fetchData();
     } catch (error) {

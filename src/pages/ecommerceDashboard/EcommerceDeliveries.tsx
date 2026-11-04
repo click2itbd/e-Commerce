@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Truck, Search, RefreshCw, CheckCircle, XCircle, AlertCircle, Calendar, RefreshCcw, Package, ShieldAlert, AlertTriangle, CheckCircle2, Key, X, ExternalLink } from 'lucide-react';
 import { fetchCourierRisk, CourierRiskReport } from '../../utils/courierRisk';
+import { apiGet } from '../../services/apiClient';
 import { collection, query, where, getDocs, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Order } from '../../types';
@@ -56,21 +57,10 @@ export const EcommerceDeliveries = () => {
 
   const checkStatus = async (trackingCode: string, orderId: string) => {
     if (!trackingCode) return;
-    if (!settings?.steadfastApiKey || !settings?.steadfastSecretKey) {
-      toast.error('Steadfast API Key কনফিগার করা নেই। Settings > Courier এ গিয়ে সেট করুন।');
-      return;
-    }
     
     setLoadingTracking(prev => ({ ...prev, [orderId]: true }));
     try {
-      const baseUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://click2itbd.com';
-      const res = await fetch(`${baseUrl}/steadfast.php?action=status&tracking_code=${encodeURIComponent(trackingCode)}`, {
-        headers: {
-          'Api-Key': settings.steadfastApiKey,
-          'Secret-Key': settings.steadfastSecretKey
-        }
-      });
-      const data = await res.json();
+      const data = await apiGet<any>(`/api/courier/status/${encodeURIComponent(trackingCode)}`);
       
       if (data.status === 200) {
         setTrackingData(prev => ({ 
@@ -81,9 +71,9 @@ export const EcommerceDeliveries = () => {
       } else {
         toast.error(data.message || 'Failed to fetch status');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error('Network Error');
+      toast.error(error?.message || 'Network Error');
     } finally {
       setLoadingTracking(prev => ({ ...prev, [orderId]: false }));
     }

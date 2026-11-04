@@ -15,6 +15,7 @@ import webhookRouter from "./routes/webhook.js";
 import campaignRouter from "./routes/campaign.js";
 import priceAlertsRouter from "./routes/priceAlerts.js";
 import customersRouter from "./routes/customers.js";
+import courierRouter from "./routes/courier.js";
 
 export function createApp(): Express {
   const app = express();
@@ -180,6 +181,7 @@ export function createApp(): Express {
   apiRouter.use("/send-email", sensitiveLimiter);
   apiRouter.use("/webhook/whatsapp", sensitiveLimiter);
   apiRouter.use("/send-whatsapp-campaign", sensitiveLimiter);
+  apiRouter.use("/price-alerts/subscribe", sensitiveLimiter);
   apiRouter.post("/auth/login", authLimiter);
   apiRouter.post("/auth/register", authLimiter);
   apiRouter.post("/auth/forgot-password", authLimiter);
@@ -195,6 +197,8 @@ export function createApp(): Express {
   apiRouter.use("/webhook", webhookRouter);
   apiRouter.use("/price-alerts", priceAlertsRouter);
   apiRouter.use("/customers", customersRouter);
+  apiRouter.use("/courier", courierRouter);
+  apiRouter.use("/", courierRouter);
   apiRouter.use("/", emailRouter);
   apiRouter.use("/", campaignRouter);
 

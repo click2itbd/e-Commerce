@@ -4,6 +4,7 @@ import { db } from '../../../../firebase';
 import { Vendor } from '../../../../types';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
+import { moveToTrash } from '../../../../lib/trash';
 import { Pagination } from '../../../../components/common/Pagination';
 import {
   Briefcase,
@@ -112,10 +113,24 @@ const Vendors: React.FC<VendorsProps> = ({
   };
 
   const handleDeleteVendor = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this vendor? This action cannot be undone.')) return;
+    if (!window.confirm('Are you sure you want to delete this vendor? You can restore them anytime from the Restore section.')) return;
     try {
+      const vnd = vendors.find((v) => v.id === id);
+      if (vnd) {
+        await moveToTrash({
+          category: 'contacts',
+          subCategory: 'Supplier / Vendor',
+          collectionName: 'vendors',
+          entityId: id,
+          title: `${vnd.name || 'Vendor'} (${vnd.phone || 'N/A'})`,
+          subtitle: vnd.address || vnd.email || '',
+          data: vnd,
+          deletedBy: user?.displayName || user?.email || 'Admin',
+          details: `Deleted vendor: ${vnd.name} (${vnd.phone})`,
+        });
+      }
       await deleteDoc(doc(db, 'vendors', id));
-      toast.success('Vendor deleted');
+      toast.success('Vendor moved to Restore Bin');
       fetchVendors();
     } catch (error) {
       toast.error('Failed to delete vendor');

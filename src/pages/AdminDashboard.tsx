@@ -291,6 +291,11 @@ const AuditLogsTab = lazy(() =>
     default: m.AuditLogs,
   })),
 );
+const RestoreCenterTab = lazy(() =>
+  import("./admin/tabs/restore/RestoreCenter").then((m) => ({
+    default: m.RestoreCenter,
+  })),
+);
 import { useAuth } from "../context/AuthContext";
 import { Trophy, 
   Plus,
@@ -358,6 +363,7 @@ import { Trophy,
   Globe,
   Terminal,
   RefreshCw,
+  RotateCcw,
   DollarSign,
   ExternalLink, Loader2,
   Building2
@@ -368,6 +374,7 @@ import { toast } from "react-hot-toast";
 import { generateDocumentNumber } from "../lib/numbering";
 import { getApiUrl } from "../services/apiClient";
 import { logAudit } from "../lib/audit";
+import { moveToTrash } from "../lib/trash";
 import { recordSensitiveAlert } from "../lib/alerts";
 import { useNavigate } from "react-router-dom";
 
@@ -2049,21 +2056,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       isOpen: true,
       title: "Delete Product",
       message:
-        "Are you sure you want to delete this product? This action cannot be undone.",
+        "Are you sure you want to delete this product? You can restore it anytime from the Restore section.",
       onConfirm: async () => {
         try {
           const prod = products.find(p => p.id === id);
-          if (prod && prod.images && prod.images.length > 0) {
-            for (const imgUrl of prod.images) {
-              try {
-                const imgRef = ref(storage, imgUrl);
-                await deleteObject(imgRef);
-              } catch(e) { console.error("Failed to delete image", e); }
-            }
+          if (prod) {
+            await moveToTrash({
+              category: 'products',
+              subCategory: 'Product',
+              collectionName: 'products',
+              entityId: id,
+              title: prod.name || `Product #${id}`,
+              subtitle: `SKU: ${prod.sku || 'N/A'} • Category: ${prod.category || 'N/A'} • Stock: ${prod.stock ?? 0}`,
+              amount: Number(prod.price || 0),
+              data: prod,
+              relatedData: {
+                privateCost: {
+                  costPrice: prod.costPrice,
+                  vendorId: (prod as any).vendorId,
+                  supplierName: (prod as any).supplierName,
+                },
+              },
+              deletedBy: profile?.displayName || profile?.email || auth.currentUser?.email || 'Admin',
+              details: `Deleted product: ${prod.name || id}`,
+            });
+          } else {
+            await logAuditAction('DELETE', 'Product', `Deleted product: ${id}`);
           }
           await deleteDoc(doc(db, "products", id));
-            await logAuditAction('DELETE', 'Product', `Deleted product: ${prod?.name || id}`);
-          toast.success("Product deleted");
+          toast.success("Product moved to Restore Bin");
           debouncedFetchData();
         } catch (error) {
           toast.error("Failed to delete product");
@@ -2336,13 +2357,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setConfirmModal({
       isOpen: true,
       title: "Bulk Delete Products",
-      message: `Are you sure you want to delete ${selectedProductIds.length} products? This action cannot be undone.`,
+      message: `Are you sure you want to delete ${selectedProductIds.length} products? They will be saved in the Restore section.`,
       onConfirm: async () => {
         try {
-          await Promise.all(
-            selectedProductIds.map((id) => deleteDoc(doc(db, "products", id))),
-          );
-          toast.success(`${selectedProductIds.length} products deleted`);
+          const operator = profile?.displayName || profile?.email || auth.currentUser?.email || 'Admin';
+          for (const id of selectedProductIds) {
+            const prod = products.find((p) => p.id === id);
+            if (prod) {
+              await moveToTrash({
+                category: 'products',
+                subCategory: 'Product',
+                collectionName: 'products',
+                entityId: id,
+                title: prod.name || `Product #${id}`,
+                subtitle: `SKU: ${prod.sku || 'N/A'} • Category: ${prod.category || 'N/A'} • Stock: ${prod.stock ?? 0}`,
+                amount: Number(prod.price || 0),
+                data: prod,
+                relatedData: {
+                  privateCost: {
+                    costPrice: prod.costPrice,
+                    vendorId: (prod as any).vendorId,
+                    supplierName: (prod as any).supplierName,
+                  },
+                },
+                deletedBy: operator,
+                details: `Deleted product: ${prod.name || id}`,
+              });
+            }
+            await deleteDoc(doc(db, "products", id));
+          }
+          toast.success(`${selectedProductIds.length} products moved to Restore Bin`);
           setSelectedProductIds([]);
           debouncedFetchData();
         } catch (error) {
@@ -2445,20 +2489,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setConfirmModal({
       isOpen: true,
       title: "Delete Sale / Order",
-      message: `Are you sure you want to permanently delete ${order.documentNumber || order.id}? This will restore stock, available serials, and remove associated transactions.`,
-      confirmText: "Delete Permanently",
+      message: `Are you sure you want to delete ${order.documentNumber || order.id}? This will revert stock, available serials, and archive the record in the Restore section.`,
+      confirmText: "Delete & Move to Restore",
       confirmColor: "bg-red-600 hover:bg-red-700",
       onConfirm: async () => {
         try {
-          // 1. Delete associated transactions (by referenceId AND by documentNumber)
+          // 1. Collect & Delete associated transactions (by referenceId AND by documentNumber)
           const txDocsToDelete = new Map<string, any>();
+          const archivedTransactions: Record<string, any>[] = [];
           const txSnap1 = await getDocs(
             query(
               collection(db, "transactions"),
               where("referenceId", "==", order.id),
             ),
           );
-          txSnap1.docs.forEach((d) => txDocsToDelete.set(d.id, d.ref));
+          txSnap1.docs.forEach((d) => {
+            txDocsToDelete.set(d.id, d.ref);
+            archivedTransactions.push({ id: d.id, ...d.data() });
+          });
 
           if (order.documentNumber) {
             const txSnap2 = await getDocs(
@@ -2467,19 +2515,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 where("documentNumber", "==", order.documentNumber),
               ),
             );
-            txSnap2.docs.forEach((d) => txDocsToDelete.set(d.id, d.ref));
+            txSnap2.docs.forEach((d) => {
+              if (!txDocsToDelete.has(d.id)) {
+                archivedTransactions.push({ id: d.id, ...d.data() });
+              }
+              txDocsToDelete.set(d.id, d.ref);
+            });
           }
 
           await Promise.all(
             Array.from(txDocsToDelete.values()).map((ref) => deleteDoc(ref)),
           );
 
+          const archivedSoldSerials: Record<string, any>[] = [];
+
           // 2. Revert stock and available serials
           if (
               order.type === "invoice" ||
               order.type === "challan" ||
               order.type === "sale" ||
-              order.type === "pos_sale"
+              order.type === "pos_sale" ||
+              order.type === "wholesale" ||
+              !order.type
             ) {
             for (const item of order.items || []) {
               if (item.productId || item.id) {
@@ -2504,13 +2561,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               }
             }
 
-            // 3. Delete sold_serials records
+            // 3. Collect & Delete sold_serials records
             const serialsSnap = await getDocs(
               query(
                 collection(db, "sold_serials"),
                 where("orderId", "==", order.id),
               ),
             );
+            serialsSnap.docs.forEach((d) => {
+              archivedSoldSerials.push({ id: d.id, ...d.data() });
+            });
             await Promise.all(
               serialsSnap.docs.map((d) =>
                 deleteDoc(doc(db, "sold_serials", d.id)),
@@ -2518,9 +2578,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             );
           }
 
-          // 4. Finally delete the order itself
+          // 4. Archive to Trash & delete the order itself
+          const operator = profile?.displayName || profile?.email || 'Admin';
+          const isQuotation = order.type === 'quotation';
+          await moveToTrash({
+            category: isQuotation ? 'quotations' : 'sales',
+            subCategory:
+              order.type === 'challan'
+                ? 'Delivery Challan'
+                : order.type === 'pos_sale'
+                ? 'POS Sale'
+                : order.type === 'quotation'
+                ? 'Quotation'
+                : 'Sale / Invoice',
+            collectionName: 'orders',
+            entityId: order.id,
+            title: `${order.documentNumber || order.id} — ${order.customerName || 'Walk-in Customer'}`,
+            subtitle: `${order.customerPhone ? order.customerPhone + ' • ' : ''}${(order.items || []).length} item(s) • Status: ${order.status || 'N/A'}`,
+            amount: Number(order.total || 0),
+            data: order,
+            relatedData: {
+              transactions: archivedTransactions,
+              soldSerials: archivedSoldSerials,
+            },
+            deletedBy: operator,
+            details: `Deleted order #${order.documentNumber || order.id}`,
+          });
+
           await deleteDoc(doc(db, 'orders', order.id));
-          await logAudit('DELETE', 'Order', `Deleted order #${order.documentNumber || order.id}`, profile?.displayName || profile?.email || 'Unknown Admin');
           
           // Sensitive Action Alert for deleting an order / bill
           recordSensitiveAlert({
@@ -2535,7 +2620,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             metadata: { customerName: order.customerName, itemsCount: order.items?.length }
           }).catch(() => {});
 
-          toast.success(`Order deleted and reverted successfully`);
+          toast.success(`Order moved to Restore Bin and stock reverted`);
           debouncedFetchData();
         } catch (error) {
           console.error("Error deleting order:", error);
@@ -2554,30 +2639,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setConfirmModal({
       isOpen: true,
       title: "Bulk Delete Orders",
-      message: `Are you sure you want to permanently delete ${selectedOrderIds.length} orders? This will restore stock, available serials, and remove associated transactions.`,
-      confirmText: "Delete Permanently",
+      message: `Are you sure you want to delete ${selectedOrderIds.length} orders? This will revert stock, available serials, and archive them in the Restore section.`,
+      confirmText: "Delete & Move to Restore",
       confirmColor: "bg-red-600 hover:bg-red-700",
       onConfirm: async () => {
         try {
           let count = 0;
+          const operator = profile?.displayName || profile?.email || 'Admin';
           for (const id of selectedOrderIds) {
              const order = orders.find(o => o.id === id);
              if (!order) continue;
              
              // 1. Delete associated transactions (by referenceId AND by documentNumber)
              const txDocsToDelete = new Map<string, any>();
+             const archivedTransactions: Record<string, any>[] = [];
              const txSnap1 = await getDocs(query(collection(db, "transactions"), where("referenceId", "==", order.id)));
-             txSnap1.docs.forEach((d) => txDocsToDelete.set(d.id, d.ref));
+             txSnap1.docs.forEach((d) => {
+               txDocsToDelete.set(d.id, d.ref);
+               archivedTransactions.push({ id: d.id, ...d.data() });
+             });
 
              if (order.documentNumber) {
                const txSnap2 = await getDocs(query(collection(db, "transactions"), where("documentNumber", "==", order.documentNumber)));
-               txSnap2.docs.forEach((d) => txDocsToDelete.set(d.id, d.ref));
+               txSnap2.docs.forEach((d) => {
+                 if (!txDocsToDelete.has(d.id)) {
+                   archivedTransactions.push({ id: d.id, ...d.data() });
+                 }
+                 txDocsToDelete.set(d.id, d.ref);
+               });
              }
 
              await Promise.all(Array.from(txDocsToDelete.values()).map((ref) => deleteDoc(ref)));
              
+             const archivedSoldSerials: Record<string, any>[] = [];
              // 2. Revert stock and available serials
-             if (order.type === "invoice" || order.type === "challan" || order.type === "sale" || order.type === "pos_sale") {
+             if (order.type === "invoice" || order.type === "challan" || order.type === "sale" || order.type === "pos_sale" || (order as any).type === "wholesale" || !order.type) {
                 for (const item of order.items || []) {
                    if (item.productId || item.id) {
                       const prodRef = doc(db, "products", item.productId || item.id);
@@ -2594,15 +2690,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 }
                 // 3. Delete sold_serials records
                 const serialsSnap = await getDocs(query(collection(db, "sold_serials"), where("orderId", "==", order.id)));
+                serialsSnap.docs.forEach((d) => {
+                  archivedSoldSerials.push({ id: d.id, ...d.data() });
+                });
                 await Promise.all(serialsSnap.docs.map(d => deleteDoc(doc(db, "sold_serials", d.id))));
              }
              
-             // 4. Finally delete the order itself
+             // 4. Archive & delete the order itself
+             const isQuotation = order.type === 'quotation';
+             await moveToTrash({
+               category: isQuotation ? 'quotations' : 'sales',
+               subCategory: isQuotation ? 'Quotation' : 'Sale / Invoice',
+               collectionName: 'orders',
+               entityId: order.id,
+               title: `${order.documentNumber || order.id} — ${order.customerName || 'Walk-in Customer'}`,
+               subtitle: `${order.customerPhone ? order.customerPhone + ' • ' : ''}${(order.items || []).length} item(s)`,
+               amount: Number(order.total || 0),
+               data: order,
+               relatedData: {
+                 transactions: archivedTransactions,
+                 soldSerials: archivedSoldSerials,
+               },
+               deletedBy: operator,
+               details: `Deleted order #${order.documentNumber || order.id}`,
+             });
+
              await deleteDoc(doc(db, 'orders', order.id));
              count++;
           }
-          await logAudit('DELETE', 'Order', `Bulk deleted ${count} orders`, profile?.displayName || profile?.email || 'Unknown Admin');
-          toast.success(`${count} orders deleted and stock reverted`);
+          toast.success(`${count} orders moved to Restore Bin and stock reverted`);
           setSelectedOrderIds([]);
           debouncedFetchData();
         } catch (error) {
@@ -2996,11 +3112,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       isOpen: true,
       title: "Delete Customer",
       message:
-        "Are you sure you want to delete this customer? This action cannot be undone.",
+        "Are you sure you want to delete this customer? You can restore them anytime from the Restore section.",
       onConfirm: async () => {
         try {
+          const cust = customers.find((c) => c.id === id);
+          if (cust) {
+            await moveToTrash({
+              category: 'contacts',
+              subCategory: 'Customer',
+              collectionName: 'customers',
+              entityId: id,
+              title: `${cust.name || 'Customer'} (${cust.phone || 'N/A'})`,
+              subtitle: cust.address || cust.email || '',
+              data: cust,
+              deletedBy: profile?.displayName || profile?.email || 'Admin',
+              details: `Deleted customer: ${cust.name} (${cust.phone})`,
+            });
+          }
           await deleteDoc(doc(db, "customers", id));
-          toast.success("Customer deleted");
+          toast.success("Customer moved to Restore Bin");
           debouncedFetchData();
         } catch (error) {
           toast.error("Failed to delete customer");
@@ -3050,11 +3180,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       isOpen: true,
       title: "Delete Vendor",
       message:
-        "Are you sure you want to delete this vendor? This action cannot be undone.",
+        "Are you sure you want to delete this vendor? You can restore them anytime from the Restore section.",
       onConfirm: async () => {
         try {
+          const vnd = vendors.find((v) => v.id === id);
+          if (vnd) {
+            await moveToTrash({
+              category: 'contacts',
+              subCategory: 'Supplier / Vendor',
+              collectionName: 'vendors',
+              entityId: id,
+              title: `${vnd.name || 'Vendor'} (${vnd.phone || 'N/A'})`,
+              subtitle: vnd.address || vnd.email || '',
+              data: vnd,
+              deletedBy: profile?.displayName || profile?.email || 'Admin',
+              details: `Deleted vendor: ${vnd.name} (${vnd.phone})`,
+            });
+          }
           await deleteDoc(doc(db, "vendors", id));
-          toast.success("Vendor deleted");
+          toast.success("Vendor moved to Restore Bin");
           debouncedFetchData();
         } catch (error) {
           toast.error("Failed to delete vendor");
@@ -3134,8 +3278,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         "Are you sure you want to delete this category? All subcategories will also be removed.",
       onConfirm: async () => {
         try {
+          const menuDoc = menus.find((m) => m.id === id);
+          if (menuDoc) {
+            await moveToTrash({
+              category: 'others',
+              subCategory: 'Category / Menu',
+              collectionName: 'menus',
+              entityId: id,
+              title: menuDoc.name || `Category #${id}`,
+              subtitle: `Subcategories: ${(menuDoc.subCategories || []).length}`,
+              data: menuDoc,
+              deletedBy: profile?.displayName || profile?.email || 'Admin',
+              details: `Deleted category menu: ${menuDoc.name}`,
+            });
+          }
           await deleteDoc(doc(db, "menus", id));
-          toast.success("Category deleted");
+          toast.success("Category moved to Restore Bin");
           debouncedFetchData();
         } catch (error) {
           console.error("Error deleting menu:", error);
@@ -5446,6 +5604,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </button>
             )}
+            {(!isStaff || isAdmin || isManager) && (
+              <button
+                onClick={() => setActiveTab("restore")}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed
+                    ? "justify-center py-2"
+                    : "gap-3 px-3 py-2",
+                  activeTab === "restore"
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 hover:bg-gray-50",
+                )}
+                title={isSidebarCollapsed ? "Restore / Recycle Bin" : undefined}
+              >
+                <RotateCcw
+                  size={16}
+                  className={
+                    activeTab === "restore"
+                      ? "text-blue-600"
+                      : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">Restore</span>
+                )}
+              </button>
+            )}
             {(!isStaff || isAdmin || isManager) && hasPermission("settings") && (
               <button
                 onClick={() => setActiveTab("settings")}
@@ -5647,6 +5832,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <NotificationsPage setActiveTab={setActiveTab} />
               ) : activeTab === "audit_logs" ? (
                 <AuditLogsTab />
+              ) : activeTab === "restore" ? (
+                <RestoreCenterTab fetchData={debouncedFetchData} />
               ) : isStaff &&
                 !isAdmin &&
                 !isManager &&
@@ -6094,6 +6281,7 @@ handleReturnOrder={handleReturnOrder}
                       { label: "Ledger", tab: "ledger", icon: Book },
                       { label: "CRM System", tab: "crm", icon: Users },
                       { label: "To-Do Tasks", tab: "tasks", icon: CheckCircle },
+                      { label: "Restore / Recycle Bin", tab: "restore", icon: RotateCcw },
                       { label: "Settings", tab: "settings", icon: Settings },
                     ];
 

@@ -19,6 +19,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
+import { moveToTrash } from '../../../../lib/trash';
 import { Pagination } from '../../../../components/common/Pagination';
 
 interface CustomersProps {
@@ -182,10 +183,24 @@ const Customers: React.FC<CustomersProps> = ({
   };
 
   const handleDeleteCustomer = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this customer?')) return;
+    if (!window.confirm('Are you sure you want to delete this customer? You can restore them anytime from the Restore section.')) return;
     try {
+      const cust = customers.find((c) => c.id === id);
+      if (cust) {
+        await moveToTrash({
+          category: 'contacts',
+          subCategory: 'Customer',
+          collectionName: 'customers',
+          entityId: id,
+          title: `${cust.name || 'Customer'} (${cust.phone || 'N/A'})`,
+          subtitle: cust.address || cust.email || '',
+          data: cust,
+          deletedBy: user?.displayName || user?.email || auth.currentUser?.email || 'Admin',
+          details: `Deleted customer: ${cust.name} (${cust.phone})`,
+        });
+      }
       await deleteDoc(doc(db, 'customers', id));
-      toast.success('Customer deleted');
+      toast.success('Customer moved to Restore Bin');
       fetchCustomers();
       if (fetchData) fetchData();
     } catch (error) {

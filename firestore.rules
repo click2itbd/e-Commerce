@@ -105,15 +105,11 @@ service cloud.firestore {
         request.auth.token.admin == true ||
         request.auth.token.role == 'admin' ||
         (request.auth.token.email != null &&
+         request.auth.token.email_verified == true &&
          request.auth.token.email in [
            'click2itbd@gmail.com',
-           'clcik2itbd@gmail.com',
            'admin@click2itbd.com',
-           'muntasiralamresti@gmail.com',
-           'muntasiralamresti04@gmail.com',
-           'uhsfahad321@gmail.com',
-           'whoismuntasir04@gmail.com',
-           'atikulislamatik144@gmail.com'
+           'info@click2itbd.com'
          ])
       );
     }
@@ -168,7 +164,7 @@ service cloud.firestore {
     // User profile create validator for non-admin self-registration
     function isValidUserCreate(userId, data) {
       return (!('uid' in data) || data.uid == userId) &&
-        (!('role' in data) || data.role == 'user') &&
+        (!('role' in data) || data.role in ['user', 'customer']) &&
         (!('isAdmin' in data) || data.isAdmin == false) &&
         (!('permissions' in data) || (data.permissions is list && data.permissions.size() == 0)) &&
         (!('balance' in data) || data.balance == 0) &&
@@ -255,7 +251,9 @@ service cloud.firestore {
     // `ecommerce_shipping`, `hostingPromos`, `custom_hosting_pricing`)
     match /settings/{docId} {
       allow read: if !(docId in ['api_keys', 'hostingApiConfig']);
-      allow write: if !(docId in ['api_keys', 'hostingApiConfig']) && isStaffOrAdmin();
+      allow write: if !(docId in ['api_keys', 'hostingApiConfig']) &&
+        isStaffOrAdmin() &&
+        (request.resource == null || !request.resource.data.keys().hasAny(['mailPassword', 'smtpPassword', 'steadfastSecretKey', 'externalStoreKey']));
     }
 
     // ===============================================================

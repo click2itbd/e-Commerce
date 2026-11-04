@@ -1,3 +1,5 @@
+import { apiGet } from '../services/apiClient';
+
 export interface CourierRiskReport {
   total_parcels: number;
   total_delivered: number;
@@ -12,16 +14,12 @@ export interface CourierRiskReport {
 
 export async function fetchCourierRisk(
   phone: string,
-  apiKey?: string,
-  secretKey?: string
+  _apiKey?: string,
+  _secretKey?: string
 ): Promise<CourierRiskReport> {
   const cleanPhone = phone.replace(/[^0-9]/g, '');
   if (!cleanPhone || cleanPhone.length < 10) {
     throw new Error('সঠিক ১১ ডিজিটের মোবাইল নম্বর প্রদান করুন');
-  }
-
-  if (!apiKey || !secretKey) {
-    throw new Error('Steadfast API Key অথবা Secret Key কনফিগার করা নেই। Settings > Courier (Steadfast) এ গিয়ে আপনার API Key ও Secret Key সেট করুন।');
   }
 
   let effectivePhone = cleanPhone.length > 11 && cleanPhone.startsWith('88') 
@@ -31,23 +29,8 @@ export async function fetchCourierRisk(
     effectivePhone = '0' + effectivePhone;
   }
 
-  const baseUrl = (typeof window !== 'undefined' && window.location.origin) 
-    ? window.location.origin 
-    : 'https://click2itbd.com';
-
-  const res = await fetch(`${baseUrl}/steadfast.php?action=fraud_check&phone=${encodeURIComponent(effectivePhone)}`, {
-    headers: {
-      'Api-Key': apiKey,
-      'Secret-Key': secretKey
-    }
-  });
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.message || `Steadfast API ত্রুটি (${res.status}: ${res.statusText})`);
-  }
-
-  const data = await res.json();
+  // Call backend proxy (Steadfast API credentials are resolved server-side)
+  const data = await apiGet<any>(`/api/courier/fraud_check/${encodeURIComponent(effectivePhone)}`);
   const total = Number(data.total_parcels ?? data.Total_parcels ?? 0);
   const delivered = Number(data.total_delivered ?? data.Total_delivered ?? 0);
   const cancelled = Number(data.total_cancelled ?? data.Total_cancelled ?? 0);

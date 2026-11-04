@@ -47,7 +47,7 @@ import {
   LifeBuoy,
   Activity,
   BarChart2,
-  Monitor,
+  Monitor, RotateCcw,
   Fan,
   Keyboard,
   Mouse,
@@ -291,7 +291,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               <Users size={16} className={activeTab === 'crm' ? "text-blue-600" : "text-gray-400"} /> CRM System
             </button>
             <button onClick={() => setActiveTab('tasks')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'tasks' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-              <CheckSquare size={16} className={activeTab === 'tasks' ? "text-blue-600" : "text-gray-400"} /> To-Do List
+              <CheckSquare size={16} className={activeTab === 'tasks' ? "text-blue-600" : "text-gray-400"} /> To-Do List</button><button onClick={() => setActiveTab('restore')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'restore' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}><RotateCcw size={16} className={activeTab === 'restore' ? "text-blue-600" : "text-gray-400"} /> Restore
             </button>
             <button onClick={() => setActiveTab('support_tickets')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'support_tickets' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
               <LifeBuoy size={16} className={activeTab === 'support_tickets' ? "text-blue-600" : "text-gray-400"} /> Support Tickets

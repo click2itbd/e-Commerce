@@ -47,6 +47,7 @@ import {
 import { generateDocumentNumber } from '../../../../lib/numbering';
 import { Pagination } from '../../../../components/common/Pagination';
 import { logAudit } from '../../../../lib/audit';
+import { moveToTrash } from '../../../../lib/trash';
 import { PaymentAccount } from '../../../../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -772,7 +773,9 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
       // 3. Delete linked transactions
       const txQ = query(collection(db, 'transactions'), where('referenceId', '==', returnRecord.id));
       const txSnap = await getDocs(txQ);
+      const archivedTxs: Record<string, any>[] = [];
       for (const d of txSnap.docs) {
+        archivedTxs.push({ id: d.id, ...d.data() });
         await deleteDoc(doc(db, 'transactions', d.id));
       }
 
@@ -794,18 +797,26 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
         }
       }
 
-      // 5. Delete sale_returns record
+      // 5. Archive to Trash & Delete sale_returns record
+      await moveToTrash({
+        category: 'returns',
+        subCategory: 'Sale Return',
+        collectionName: 'sale_returns',
+        entityId: returnRecord.id,
+        title: `${returnRecord.referenceNumber || returnRecord.id} — ${returnRecord.customerName || 'Customer'}`,
+        subtitle: `Order #${returnRecord.orderDocumentNumber || returnRecord.orderId || 'N/A'} • ${(returnRecord.items || []).length} item(s)`,
+        amount: Number(returnRecord.refundAmount || returnRecord.grandTotal || 0),
+        data: returnRecord,
+        relatedData: {
+          transactions: archivedTxs,
+        },
+        deletedBy: user?.displayName || user?.email || 'Admin',
+        details: `Reverted & deleted Sale Return #${returnRecord.referenceNumber} for Order #${returnRecord.orderDocumentNumber}`,
+      });
+
       await deleteDoc(doc(db, 'sale_returns', returnRecord.id));
 
-      // 6. Log audit
-      await logAudit(
-        'DELETE',
-        'SaleReturn',
-        `Reverted & deleted Sale Return #${returnRecord.referenceNumber} for Order #${returnRecord.orderDocumentNumber}`,
-        user?.displayName || user?.email || 'admin'
-      );
-
-      toast.success(`Sale return ${returnRecord.referenceNumber} reverted and deleted successfully!`);
+      toast.success(`Sale return ${returnRecord.referenceNumber} moved to Restore Bin and reverted!`);
       fetchReturnsHistory();
       if (fetchData) fetchData();
     } catch (err: any) {

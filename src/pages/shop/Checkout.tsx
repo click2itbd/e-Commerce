@@ -676,104 +676,133 @@ export const Checkout: React.FC = () => {
             </div>
           )}
 
-          {/* Saved Addresses Section */}
+          {/* Saved Addresses Section (Compact & User-Friendly) */}
           {user && savedAddresses.length >= 2 && (
-            <div className="mb-10 bg-slate-50/70 rounded-2xl border-2 border-slate-200 p-5 md:p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-[#0E2A47] text-white flex items-center justify-center text-sm shadow-sm">
-                    <MapPin size={16} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-base">Select Delivery Address</h3>
-                    <p className="text-xs text-slate-500">Choose from your saved addresses to autofill</p>
-                  </div>
+            <div className="mb-7">
+              <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <MapPin size={15} className="text-orange-500 shrink-0" />
+                  <span className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+                    Saved Delivery Addresses
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-400">
+                    ({savedAddresses.length})
+                  </span>
                 </div>
-                <Link
-                  to="/profile?tab=profile"
-                  target="_blank"
-                  className="text-xs font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
-                >
-                  <Plus size={14} /> Address Book
-                </Link>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAddressIndex(-1);
+                      setFormData((prev) => ({
+                        ...prev,
+                        firstName: "",
+                        lastName: "",
+                        phone: "",
+                        address1: "",
+                        address2: "",
+                        state: "",
+                        city: "",
+                        thana: "",
+                        union: "",
+                      }));
+                      setActiveGeo({ districts: [], upazilas: [], unions: [] });
+                      toast("Enter your new address details below", { icon: "✏️" });
+                    }}
+                    className={`cursor-pointer text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
+                      selectedAddressIndex === -1
+                        ? "border-orange-500 bg-orange-50 text-orange-700"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                    }`}
+                  >
+                    <Plus size={12} /> Use Different Address
+                  </button>
+                  <Link
+                    to="/profile?tab=profile"
+                    target="_blank"
+                    className="text-[11px] font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100/80 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+                  >
+                    Address Book →
+                  </Link>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {savedAddresses.map((addr, idx) => {
                   const isSelected = selectedAddressIndex === idx;
+                  const locationParts = [
+                    addr.address,
+                    addr.union,
+                    addr.thana,
+                    addr.city,
+                    addr.state && addr.state !== addr.city ? addr.state : "",
+                  ]
+                    .map((p) => (p || "").trim())
+                    .filter(Boolean);
+                  const fullAddressLine = locationParts.join(", ");
+
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={idx}
                       onClick={() => {
                         setSelectedAddressIndex(idx);
                         applyAddressToForm(addr, geoData);
-                        toast.success(`Selected "${addr.type || 'Address ' + (idx + 1)}"`);
+                        toast.success(`Selected "${addr.type || "Address " + (idx + 1)}"`);
                       }}
-                      className={`cursor-pointer rounded-xl p-4 border-2 transition-all relative flex flex-col justify-between ${
+                      className={`cursor-pointer text-left rounded-xl px-3.5 py-2.5 border transition-all flex flex-col gap-1 ${
                         isSelected
-                          ? "border-[#0E2A47] bg-[#0E2A47]/5 shadow-sm ring-2 ring-[#0E2A47]/20"
-                          : "border-slate-200 hover:border-slate-300 bg-white"
+                          ? "border-orange-500 bg-orange-50/40 shadow-2xs ring-1 ring-orange-500/30"
+                          : "border-slate-200 hover:border-slate-300 bg-slate-50/40 hover:bg-white"
                       }`}
                     >
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className={`text-[11px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
-                            isSelected ? "bg-[#0E2A47] text-white" : "bg-slate-100 text-slate-700"
-                          }`}>
-                            {addr.type || "Address"}
+                      <div className="flex items-center justify-between gap-1.5 w-full">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                              isSelected
+                                ? "bg-orange-500 text-white"
+                                : "bg-slate-200/80 text-slate-600"
+                            }`}
+                          >
+                            {addr.type || "Home"}
                           </span>
-                          <div className="flex items-center gap-1.5">
-                            {addr.isDefault && (
-                              <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
-                                Default
-                              </span>
-                            )}
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                              isSelected ? "border-[#0E2A47]" : "border-slate-300"
-                            }`}>
-                              {isSelected && <div className="w-2 h-2 rounded-full bg-[#0E2A47]" />}
-                            </div>
-                          </div>
+                          {addr.isDefault && (
+                            <span className="text-[9px] font-bold uppercase bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                              Default
+                            </span>
+                          )}
                         </div>
-
-                        <p className="font-bold text-slate-900 text-sm">{addr.name}</p>
-                        <p className="text-xs text-slate-500 mb-1">{addr.phone}</p>
-                        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                          {addr.address}{addr.union ? `, ${addr.union}` : ''}{addr.thana ? `, ${addr.thana}` : ''}{addr.city ? `, ${addr.city}` : ''}{addr.state ? `, ${addr.state}` : ''}
-                        </p>
+                        <div
+                          className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                            isSelected
+                              ? "border-orange-500 bg-orange-500 text-white"
+                              : "border-slate-300 bg-white"
+                          }`}
+                        >
+                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
                       </div>
-                    </div>
+
+                      <div className="flex items-center justify-between gap-2 text-xs mt-0.5">
+                        <span className="font-bold text-slate-900 truncate">
+                          {addr.name}
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium shrink-0">
+                          {addr.phone}
+                        </span>
+                      </div>
+
+                      <p
+                        className="text-[11px] text-slate-500 truncate w-full"
+                        title={fullAddressLine}
+                      >
+                        {fullAddressLine}
+                      </p>
+                    </button>
                   );
                 })}
-
-                <div
-                  onClick={() => {
-                    setSelectedAddressIndex(-1);
-                    setFormData((prev) => ({
-                      ...prev,
-                      firstName: "",
-                      lastName: "",
-                      phone: "",
-                      address1: "",
-                      address2: "",
-                      state: "",
-                      city: "",
-                      thana: "",
-                      union: "",
-                    }));
-                    setActiveGeo({ districts: [], upazilas: [], unions: [] });
-                    toast("Please enter your new address below", { icon: "✏️" });
-                  }}
-                  className={`cursor-pointer rounded-xl p-4 border-2 border-dashed transition-all flex flex-col items-center justify-center text-center py-6 ${
-                    selectedAddressIndex === -1
-                      ? "border-[#0E2A47] bg-[#0E2A47]/5 ring-2 ring-[#0E2A47]/20"
-                      : "border-slate-300 hover:border-slate-400 bg-white"
-                  }`}
-                >
-                  <Plus size={20} className="text-slate-400 mb-1" />
-                  <span className="text-xs font-bold text-slate-700">Enter a Different Address</span>
-                  <span className="text-[11px] text-slate-400">Fill in new details manually</span>
-                </div>
               </div>
             </div>
           )}

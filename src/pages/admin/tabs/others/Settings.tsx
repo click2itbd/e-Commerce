@@ -98,6 +98,13 @@ export const Settings = () => {
         const json = await apiGet<{ success: boolean; data?: any }>('/api/admin/api-config');
         if (json.success && json.data) {
           setApiKeys(json.data as any);
+          setSettingsFormData((prev) => ({
+            ...prev,
+            mailPassword: json.data.mailPassword || prev.mailPassword || '',
+            steadfastApiKey: json.data.steadfastApiKey || prev.steadfastApiKey || '',
+            steadfastSecretKey: json.data.steadfastSecretKey || prev.steadfastSecretKey || '',
+            externalStoreKey: json.data.externalStoreKey || prev.externalStoreKey || '',
+          }));
         }
       } catch (e) {
         console.error("Error fetching api keys", e);
@@ -109,8 +116,14 @@ export const Settings = () => {
   }, [user]);
 
   useEffect(() => {
-    setSettingsFormData(settings);
-  }, [settings]);
+    setSettingsFormData((prev) => ({
+      ...settings,
+      mailPassword: apiKeys.mailPassword || prev.mailPassword || '',
+      steadfastApiKey: apiKeys.steadfastApiKey || prev.steadfastApiKey || '',
+      steadfastSecretKey: apiKeys.steadfastSecretKey || prev.steadfastSecretKey || '',
+      externalStoreKey: apiKeys.externalStoreKey || prev.externalStoreKey || '',
+    }));
+  }, [settings, apiKeys]);
 
   const buildApiKeysPayload = () => {
     const secretFields = [
@@ -175,14 +188,23 @@ export const Settings = () => {
     const currentOperator = user?.displayName || user?.email || 'Admin';
     try {
       await updateSettings(settingsFormData);
+      const stripSecrets = (state: any) => {
+        if (!state || typeof state !== 'object') return state;
+        const copy = { ...state };
+        delete copy.mailPassword;
+        delete copy.steadfastApiKey;
+        delete copy.steadfastSecretKey;
+        delete copy.externalStoreKey;
+        return copy;
+      };
       await logAudit(
         'SETTINGS',
         'Settings',
         `Updated site settings under tab "${settingsTab}"`,
         currentOperator,
         {
-          previousState: settings,
-          newState: settingsFormData,
+          previousState: stripSecrets(settings),
+          newState: stripSecrets(settingsFormData),
         }
       );
         toast.success("Site settings updated successfully");

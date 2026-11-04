@@ -6,4 +6,5 @@ node_modules/
 !.env.example
 *.log
 firebase-service-account.json
+backups/
 package-lock.json

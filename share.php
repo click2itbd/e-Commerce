@@ -5,7 +5,8 @@
  */
 
 // 1. Gather input parameters
-$product_id = isset($_GET['id']) ? trim($_GET['id']) : '';
+$raw_product_id = isset($_GET['id']) ? trim($_GET['id']) : '';
+$product_id = preg_replace('/[^a-zA-Z0-9_.-]/', '', $raw_product_id);
 $title = isset($_GET['title']) ? trim($_GET['title']) : '';
 $price = isset($_GET['price']) ? trim($_GET['price']) : '';
 $raw_image = isset($_GET['img']) ? trim($_GET['img']) : '';
@@ -99,9 +100,11 @@ if (!empty($price) && is_numeric($price)) {
     $display_title .= ' - ৳' . number_format((float)$price);
 }
 
-$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "https://";
-$host = !empty($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'click2itbd.com';
-$target_url = $product_id ? ($protocol . $host . "/product/" . urlencode($product_id)) : ($protocol . $host);
+$raw_host = !empty($_SERVER['HTTP_HOST']) ? strtolower(trim($_SERVER['HTTP_HOST'])) : 'click2itbd.com';
+$allowed_hosts = ['click2itbd.com', 'www.click2itbd.com', 'localhost:3000', 'localhost:5173', 'localhost'];
+$host = in_array($raw_host, $allowed_hosts, true) ? $raw_host : 'click2itbd.com';
+$protocol = (strpos($host, 'localhost') === 0) ? "http://" : "https://";
+$target_url = $product_id ? ($protocol . $host . "/product/" . rawurlencode($product_id)) : ($protocol . $host);
 
 // Detect image mime type
 $image_type = 'image/jpeg';
@@ -151,9 +154,9 @@ if (!$is_crawler && !empty($product_id)) {
     <meta name="twitter:image" content="<?php echo htmlspecialchars($image); ?>">
 
     <!-- Fallback redirect for non-crawler browsers -->
-    <meta http-equiv="refresh" content="0;url=<?php echo htmlspecialchars($target_url); ?>">
+    <meta http-equiv="refresh" content="0;url=<?php echo htmlspecialchars($target_url, ENT_QUOTES, 'UTF-8'); ?>">
     <script>
-        window.location.replace("<?php echo $target_url; ?>");
+        window.location.replace(<?php echo json_encode($target_url, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES); ?>);
     </script>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #1e293b;">

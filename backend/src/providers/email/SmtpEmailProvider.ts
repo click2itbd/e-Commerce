@@ -53,7 +53,7 @@ export class SmtpEmailProvider {
             pass: cleanPassword,
           },
           tls: {
-            rejectUnauthorized: false,
+            rejectUnauthorized: process.env.SMTP_ALLOW_INSECURE_TLS === 'true' ? false : true,
           },
           connectionTimeout: this.requestTimeout,
           greetingTimeout: this.requestTimeout,

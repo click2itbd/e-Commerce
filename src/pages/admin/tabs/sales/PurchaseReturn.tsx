@@ -38,6 +38,7 @@ import {
 import { generateDocumentNumber } from '../../../../lib/numbering';
 import { Pagination } from '../../../../components/common/Pagination';
 import { logAudit } from '../../../../lib/audit';
+import { moveToTrash } from '../../../../lib/trash';
 import { PaymentAccount } from '../../../../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -716,7 +717,9 @@ export const PurchaseReturnTab: React.FC<PurchaseReturnTabProps> = ({ fetchData 
       // 3. Delete linked transactions
       const txQ = query(collection(db, 'transactions'), where('referenceId', '==', returnRecord.id));
       const txSnap = await getDocs(txQ);
+      const archivedTxs: Record<string, any>[] = [];
       for (const d of txSnap.docs) {
+        archivedTxs.push({ id: d.id, ...d.data() });
         await deleteDoc(doc(db, 'transactions', d.id));
       }
 
@@ -741,18 +744,26 @@ export const PurchaseReturnTab: React.FC<PurchaseReturnTabProps> = ({ fetchData 
         }
       }
 
-      // 5. Delete purchase_returns document
+      // 5. Archive to Trash & Delete purchase_returns document
+      await moveToTrash({
+        category: 'returns',
+        subCategory: 'Purchase Return',
+        collectionName: 'purchase_returns',
+        entityId: returnRecord.id,
+        title: `${returnRecord.referenceNumber || returnRecord.id} — ${returnRecord.vendorName || 'Supplier'}`,
+        subtitle: `Purchase #${returnRecord.purchaseDocumentNumber || returnRecord.purchaseId || 'N/A'} • ${(returnRecord.items || []).length} item(s)`,
+        amount: Number(returnRecord.refundAmount || returnRecord.grandTotal || 0),
+        data: returnRecord,
+        relatedData: {
+          transactions: archivedTxs,
+        },
+        deletedBy: user?.displayName || user?.email || 'Admin',
+        details: `Reverted & deleted Purchase Return #${returnRecord.referenceNumber} for Vendor ${returnRecord.vendorName}`,
+      });
+
       await deleteDoc(doc(db, 'purchase_returns', returnRecord.id));
 
-      // 6. Log audit
-      await logAudit(
-        'DELETE',
-        'PurchaseReturn',
-        `Reverted & deleted Purchase Return #${returnRecord.referenceNumber} for Vendor ${returnRecord.vendorName}`,
-        user?.displayName || user?.email || 'admin'
-      );
-
-      toast.success(`Purchase return ${returnRecord.referenceNumber} reverted and deleted successfully!`);
+      toast.success(`Purchase return ${returnRecord.referenceNumber} moved to Restore Bin and reverted!`);
       fetchReturnsHistory();
       fetchInitialData();
       if (fetchData) fetchData();

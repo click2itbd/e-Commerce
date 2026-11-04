@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
-import { getAdminDb, isAdminDbAvailable } from '../firebase/admin.js';
+import { getAdminDb, isAdminDbAvailable, isStaffOrAdmin } from '../firebase/admin.js';
+import { requireFirebaseAuth } from '../middleware/firebaseAuth.js';
 import { sendEmail } from '../services/email.js';
 
 const priceAlertsRouter = Router();
@@ -35,9 +36,9 @@ priceAlertsRouter.post('/subscribe', async (req: any, res: Response) => {
 
     let alertId: string;
     const alertData = {
-      productId,
-      productName,
-      productImage: productImage || '',
+      productId: String(productId),
+      productName: String(productName).slice(0, 200),
+      productImage: String(productImage || '').slice(0, 500),
       currentPrice: Number(currentPrice || 0),
       targetPrice: Number(targetPrice),
       email: cleanEmail,
@@ -59,7 +60,7 @@ priceAlertsRouter.post('/subscribe', async (req: any, res: Response) => {
     }
 
     // Send confirmation email
-    const productUrl = `https://click2itbd.com/product/${productId}`;
+    const productUrl = `https://click2itbd.com/product/${encodeURIComponent(String(productId))}`;
     const formattedTarget = Number(targetPrice).toLocaleString();
     const formattedCurrent = Number(currentPrice || targetPrice).toLocaleString();
 
@@ -75,9 +76,9 @@ priceAlertsRouter.post('/subscribe', async (req: any, res: Response) => {
           <div style="background-color: #fff7ed; border: 1px solid #ffedd5; padding: 18px; border-radius: 10px; margin: 20px 0;">
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
-                ${productImage ? `<td style="width: 80px; vertical-align: top; padding-right: 15px;"><img src="${productImage}" alt="${productName}" style="width: 80px; height: 80px; object-fit: contain; border-radius: 8px; background: #fff; border: 1px solid #eee;" /></td>` : ''}
+                ${alertData.productImage ? `<td style="width: 80px; vertical-align: top; padding-right: 15px;"><img src="${alertData.productImage}" alt="${alertData.productName}" style="width: 80px; height: 80px; object-fit: contain; border-radius: 8px; background: #fff; border: 1px solid #eee;" /></td>` : ''}
                 <td style="vertical-align: top;">
-                  <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #111827;">${productName}</h3>
+                  <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #111827;">${alertData.productName}</h3>
                   <p style="margin: 0 0 4px 0; font-size: 14px; color: #4b5563;">Current Price: <strong>৳${formattedCurrent}</strong></p>
                   <p style="margin: 0; font-size: 14px; color: #c2410c; font-weight: bold;">Target Price Alert: ৳${formattedTarget} or lower</p>
                 </td>
@@ -96,10 +97,9 @@ priceAlertsRouter.post('/subscribe', async (req: any, res: Response) => {
       </div>
     `;
 
-    // Fire & forget or await sending
     sendEmail({
       to: cleanEmail,
-      subject: `🔔 Price Alert Set: ${productName}`,
+      subject: `🔔 Price Alert Set: ${alertData.productName}`,
       html: emailHtml,
       category: 'system',
     }).catch(err => console.error('[PriceAlert] Error sending confirmation email:', err));
@@ -115,10 +115,13 @@ priceAlertsRouter.post('/subscribe', async (req: any, res: Response) => {
   }
 });
 
-// 2. Unsubscribe / Cancel Price Alert
-priceAlertsRouter.post('/unsubscribe', async (req: any, res: Response) => {
+// 2. Unsubscribe / Cancel Price Alert (Authenticated owner or staff/admin)
+priceAlertsRouter.post('/unsubscribe', requireFirebaseAuth, async (req: any, res: Response) => {
   try {
-    const { alertId, productId, email } = req.body;
+    const { alertId, productId } = req.body;
+    const authUid = req.user?.uid;
+    const authEmail = String(req.user?.email || '').trim().toLowerCase();
+    const isStaff = await isStaffOrAdmin(authUid, authEmail);
 
     if (!isAdminDbAvailable()) {
       return res.status(500).json({ success: false, error: 'Database service unavailable' });
@@ -127,18 +130,27 @@ priceAlertsRouter.post('/unsubscribe', async (req: any, res: Response) => {
     const db = getAdminDb();
 
     if (alertId) {
-      await db.collection('price_alerts').doc(alertId).update({
+      const alertRef = db.collection('price_alerts').doc(String(alertId));
+      const alertSnap = await alertRef.get();
+      if (!alertSnap.exists) {
+        return res.status(404).json({ success: false, error: 'Price alert not found' });
+      }
+      const alertData = alertSnap.data() || {};
+      if (!isStaff && alertData.userId !== authUid && String(alertData.email || '').toLowerCase() !== authEmail) {
+        return res.status(403).json({ success: false, error: 'Not authorized to cancel this price alert' });
+      }
+
+      await alertRef.update({
         status: 'cancelled',
         updatedAt: new Date().toISOString(),
       });
       return res.status(200).json({ success: true, message: 'Price alert cancelled successfully' });
     }
 
-    if (productId && email) {
-      const cleanEmail = email.trim().toLowerCase();
+    if (productId && authEmail) {
       const snap = await db.collection('price_alerts')
-        .where('productId', '==', productId)
-        .where('email', '==', cleanEmail)
+        .where('productId', '==', String(productId))
+        .where('email', '==', authEmail)
         .get();
 
       const batch = db.batch();
@@ -150,20 +162,22 @@ priceAlertsRouter.post('/unsubscribe', async (req: any, res: Response) => {
       return res.status(200).json({ success: true, message: 'Price alert cancelled successfully' });
     }
 
-    return res.status(400).json({ success: false, error: 'Provide either alertId or (productId and email)' });
+    return res.status(400).json({ success: false, error: 'Provide alertId or productId' });
   } catch (error: any) {
     console.error('[PriceAlert] Unsubscribe error:', error);
     return res.status(500).json({ success: false, error: 'Failed to cancel price alert' });
   }
 });
 
-// 3. Check status of a price alert for a given product & email/userId
-priceAlertsRouter.get('/check-status', async (req: any, res: Response) => {
+// 3. Check status of a price alert for the authenticated user
+priceAlertsRouter.get('/check-status', requireFirebaseAuth, async (req: any, res: Response) => {
   try {
-    const { productId, email, userId } = req.query;
+    const { productId } = req.query;
+    const authUid = req.user?.uid;
+    const authEmail = String(req.user?.email || '').trim().toLowerCase();
 
-    if (!productId || (!email && !userId)) {
-      return res.status(400).json({ success: false, error: 'productId and email/userId required' });
+    if (!productId) {
+      return res.status(400).json({ success: false, error: 'productId required' });
     }
 
     if (!isAdminDbAvailable()) {
@@ -175,10 +189,10 @@ priceAlertsRouter.get('/check-status', async (req: any, res: Response) => {
       .where('productId', '==', String(productId))
       .where('status', '==', 'active');
 
-    if (email) {
-      queryRef = queryRef.where('email', '==', String(email).trim().toLowerCase());
-    } else if (userId) {
-      queryRef = queryRef.where('userId', '==', String(userId));
+    if (authEmail) {
+      queryRef = queryRef.where('email', '==', authEmail);
+    } else {
+      queryRef = queryRef.where('userId', '==', String(authUid));
     }
 
     const snap = await queryRef.limit(1).get();
@@ -201,14 +215,11 @@ priceAlertsRouter.get('/check-status', async (req: any, res: Response) => {
   }
 });
 
-// 4. Get all active alerts for logged-in user or email
-priceAlertsRouter.get('/user-alerts', async (req: any, res: Response) => {
+// 4. Get all active alerts for the logged-in user
+priceAlertsRouter.get('/user-alerts', requireFirebaseAuth, async (req: any, res: Response) => {
   try {
-    const { email, userId } = req.query;
-
-    if (!email && !userId) {
-      return res.status(400).json({ success: false, error: 'Email or userId required' });
-    }
+    const authUid = req.user?.uid;
+    const authEmail = String(req.user?.email || '').trim().toLowerCase();
 
     if (!isAdminDbAvailable()) {
       return res.status(500).json({ success: false, error: 'Database service unavailable' });
@@ -217,14 +228,14 @@ priceAlertsRouter.get('/user-alerts', async (req: any, res: Response) => {
     const db = getAdminDb();
     let snap;
 
-    if (email) {
+    if (authEmail) {
       snap = await db.collection('price_alerts')
-        .where('email', '==', String(email).trim().toLowerCase())
+        .where('email', '==', authEmail)
         .where('status', '==', 'active')
         .get();
     } else {
       snap = await db.collection('price_alerts')
-        .where('userId', '==', String(userId))
+        .where('userId', '==', String(authUid))
         .where('status', '==', 'active')
         .get();
     }
@@ -241,9 +252,14 @@ priceAlertsRouter.get('/user-alerts', async (req: any, res: Response) => {
   }
 });
 
-// 5. Trigger price drop check and send notifications to subscribers
-priceAlertsRouter.post('/check-price-drop', async (req: any, res: Response) => {
+// 5. Trigger price drop check and send notifications to subscribers (Admin/Staff Only)
+priceAlertsRouter.post('/check-price-drop', requireFirebaseAuth, async (req: any, res: Response) => {
   try {
+    const allowed = await isStaffOrAdmin(req.user?.uid, req.user?.email);
+    if (!allowed) {
+      return res.status(403).json({ success: false, error: 'Admin or staff access required to trigger price drop notifications.' });
+    }
+
     const { productId, newPrice, oldPrice } = req.body;
 
     if (!productId || newPrice === undefined) {
@@ -259,7 +275,6 @@ priceAlertsRouter.post('/check-price-drop', async (req: any, res: Response) => {
 
     const db = getAdminDb();
     
-    // Find all active alerts for this product where targetPrice >= newPrice OR currentPrice > newPrice
     const snap = await db.collection('price_alerts')
       .where('productId', '==', String(productId))
       .where('status', '==', 'active')
@@ -277,13 +292,12 @@ priceAlertsRouter.post('/check-price-drop', async (req: any, res: Response) => {
       const targetPrice = Number(data.targetPrice || 0);
       const originalAlertPrice = Number(data.currentPrice || targetPrice);
 
-      // Trigger if newPrice <= targetPrice or newPrice < originalAlertPrice
       if (numNewPrice <= targetPrice || (numOldPrice && numNewPrice < numOldPrice)) {
         const savings = (numOldPrice || originalAlertPrice) - numNewPrice;
         const formattedNewPrice = numNewPrice.toLocaleString();
         const formattedOldPrice = (numOldPrice || originalAlertPrice).toLocaleString();
         const formattedSavings = savings > 0 ? savings.toLocaleString() : null;
-        const productUrl = `https://click2itbd.com/product/${productId}`;
+        const productUrl = `https://click2itbd.com/product/${encodeURIComponent(String(productId))}`;
 
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; background-color: #ffffff;">
@@ -317,7 +331,6 @@ priceAlertsRouter.post('/check-price-drop', async (req: any, res: Response) => {
           </div>
         `;
 
-        // Send email
         await sendEmail({
           to: data.email,
           subject: `🔥 Price Drop Alert: ${data.productName} is now ৳${formattedNewPrice}!`,
@@ -325,7 +338,6 @@ priceAlertsRouter.post('/check-price-drop', async (req: any, res: Response) => {
           category: 'system',
         });
 
-        // Mark alert as triggered
         batch.update(alertDoc.ref, {
           status: 'triggered',
           lastNotifiedPrice: numNewPrice,

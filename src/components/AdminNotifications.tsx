@@ -9,6 +9,7 @@ import {
   AlertTriangle, 
   CheckCircle2, 
   CheckCheck,
+  CheckSquare,
   ChevronRight,
   ShieldAlert,
   Globe,

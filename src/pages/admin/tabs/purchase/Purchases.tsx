@@ -12,6 +12,7 @@ const itemWarrantyMonths = (i: any): number =>
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { logAudit } from '../../../../lib/audit';
+import { moveToTrash } from '../../../../lib/trash';
 import { sanitizePublicProductData, saveProductPrivateCost } from '../../../../lib/productCosts';
 import { PreparedBySelect } from '../../../../components/common/PreparedBySelect';
 import {
@@ -2383,11 +2384,11 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                          await updateDoc(prodRef, { stock: increment(-(Number(item.quantity) || 0)) });
                                      }
                                  }
-                                 const snap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', pur.id)));
+                                 const snap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', pur.id))); const archivedTxs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                                  for (const d of snap.docs) {
                                      await deleteDoc(doc(db, 'transactions', d.id));
                                  }
-                                 await deleteDoc(doc(db, 'purchases', pur.id));
+                                 const pAny = pur as any; await moveToTrash({ category: 'purchases', subCategory: 'Purchase Bill', collectionName: 'purchases', entityId: pur.id, title: `${pAny.purchaseNumber || pAny.documentNumber || pAny.invoiceNumber || pur.id} — ${pAny.supplierName || pur.vendorName || 'Supplier'}`, subtitle: `${(pur.items || []).length} item(s) • Paid: ৳${Number(pur.paidAmount || 0).toLocaleString()} • Due: ৳${Number(pAny.dueAmount ?? Math.max(0, Number(pur.total || 0) - Number(pur.paidAmount || 0))).toLocaleString()}`, amount: Number(pAny.totalAmount || pur.total || 0), data: pur, relatedData: { transactions: archivedTxs }, deletedBy: auth.currentUser?.displayName || auth.currentUser?.email || 'Admin', details: `Deleted purchase bill #${pAny.purchaseNumber || pAny.documentNumber || pAny.invoiceNumber || pur.id}` }); await deleteDoc(doc(db, 'purchases', pur.id));
                                  toast.success('Purchase deleted!');
                                  fetchData();
                              } catch(err) {

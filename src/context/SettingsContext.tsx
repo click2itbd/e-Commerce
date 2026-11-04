@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, deleteField } from 'firebase/firestore';
 import { db } from '../firebase';
 import { SiteSettings } from '../types';
+import { apiPost } from '../services/apiClient';
 
 interface SettingsContextType {
   settings: SiteSettings;
@@ -48,15 +49,18 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (docSnap.exists()) {
         const data = docSnap.data() as SiteSettings;
         if (data.brandName === 'STAR TECH' || data.brandName === 'Star Tech') {
-          const updated = {
+          const updated: Record<string, any> = {
             ...data,
             brandName: 'CLICK2IT BD',
             primaryColor: '#4F46E5',
             accentColor: '#8B5CF6',
             brandShortName: 'CLICK2IT'
           };
+          delete updated.mailPassword;
+          delete updated.steadfastSecretKey;
+          delete updated.externalStoreKey;
           setDoc(settingsRef, updated);
-          setSettings(updated);
+          setSettings(updated as SiteSettings);
         } else {
           setSettings(data);
         }
@@ -72,12 +76,39 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const updateSettings = async (newSettings: Partial<SiteSettings>) => {
     const settingsRef = doc(db, 'settings', 'site');
-    const updatedData = {
+    const merged: Record<string, any> = {
       ...settings,
       ...newSettings,
       updatedAt: new Date().toISOString(),
     };
-    await setDoc(settingsRef, updatedData);
+
+    // Route secret credentials exclusively to server-side settings/api_keys
+    const secretPayload: Record<string, any> = {};
+    const secretKeys = ['mailPassword', 'steadfastApiKey', 'steadfastSecretKey', 'externalStoreKey'];
+    for (const key of secretKeys) {
+      const val = (newSettings as any)?.[key] ?? merged[key];
+      if (typeof val === 'string' && val.trim().length > 0 && !val.startsWith('••••') && !val.startsWith('****')) {
+        secretPayload[key] = val.trim();
+      }
+      delete merged[key];
+    }
+
+    if (Object.keys(secretPayload).length > 0) {
+      await apiPost('/api/admin/api-config', secretPayload);
+    }
+
+    // Ensure secret fields are never persisted or left behind in public settings/site
+    await setDoc(
+      settingsRef,
+      {
+        ...merged,
+        mailPassword: deleteField(),
+        steadfastApiKey: deleteField(),
+        steadfastSecretKey: deleteField(),
+        externalStoreKey: deleteField(),
+      },
+      { merge: true }
+    );
   };
 
   return (
