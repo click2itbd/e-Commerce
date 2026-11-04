@@ -149,13 +149,9 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
     return customers.find(c => c.id === selectedLedgerEntity.id) || null;
   }, [selectedLedgerEntity, isCorporateCompany, customers]);
 
-  const targetCompany = useMemo(() => {
-    if (isCorporateCompany) return companyKey;
-    if (targetCustomer?.company && targetCustomer.company !== 'main') return targetCustomer.company;
-    return '';
-  }, [isCorporateCompany, companyKey, targetCustomer]);
-
-  const isCorporate = Boolean(targetCompany);
+  // Only treat as corporate company rollup if explicitly chosen as a Corporate Company
+  const isCorporate = isCorporateCompany;
+  const targetCompany = isCorporate ? companyKey : '';
 
   const corporateCustomerIds = useMemo(() => {
     const ids = new Set<string>();
@@ -168,6 +164,22 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
     });
     return ids;
   }, [isCorporate, targetCompany, selectedLedgerEntity, customers]);
+
+  // Distinct corporate companies detected across customers
+  const distinctCompanies = useMemo(() => {
+    const comps = new Map<string, string>();
+    customers.forEach(c => {
+      if (c.company && c.company !== 'main') {
+        const raw = c.company.trim();
+        const key = raw.toLowerCase();
+        if (!comps.has(key)) {
+          const formatted = raw.charAt(0).toUpperCase() + raw.slice(1);
+          comps.set(key, formatted);
+        }
+      }
+    });
+    return Array.from(comps.entries()).map(([key, name]) => ({ key, name }));
+  }, [customers]);
 
   // All available projects for this corporate company or customer
   const availableProjects = useMemo(() => {
@@ -195,8 +207,14 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
       if (targetCustomer.branchName) projs.add(targetCustomer.branchName);
       (targetCustomer.branches || []).forEach(b => b && projs.add(b));
       orders.forEach(o => {
-        if (o.customerId === targetCustomer.id) {
+        if (o.customerId === targetCustomer.id || (o.customerName && o.customerName.trim().toLowerCase() === targetCustomer.name.trim().toLowerCase())) {
           const p = o.projectName || o.branchName;
+          if (p) projs.add(p);
+        }
+      });
+      transactions.forEach(t => {
+        if (t.entityId === targetCustomer.id || (t.entityName && t.entityName.trim().toLowerCase() === targetCustomer.name.trim().toLowerCase())) {
+          const p = (t as any).branchName || (t as any).projectName;
           if (p) projs.add(p);
         }
       });
@@ -221,10 +239,10 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
       let matchesEntity = false;
       if (isCorporate) {
         matchesEntity = corporateCustomerIds.has(t.entityId) || 
-                        (t as any).company === targetCompany || 
-                        (t.entityName && t.entityName.toLowerCase().includes(selectedLedgerEntity.name.toLowerCase()));
+                        (t as any).company === targetCompany;
       } else {
-        matchesEntity = t.entityId === selectedLedgerEntity.id || t.entityName === selectedLedgerEntity.name;
+        matchesEntity = t.entityId === selectedLedgerEntity.id || 
+                        (t.entityName && t.entityName.trim().toLowerCase() === selectedLedgerEntity.name.trim().toLowerCase());
       }
       if (!matchesEntity) return false;
 
@@ -794,6 +812,36 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
                   >
                     -- All (General Ledger) --
                   </div>
+
+                  {distinctCompanies.filter(comp => comp.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).length > 0 && (
+                    <div className="font-black text-[10px] text-blue-600 uppercase mt-2 px-2 mb-1 flex items-center gap-1">
+                      <span>🏢</span> Corporate Companies (All Branches Combined)
+                    </div>
+                  )}
+                  {distinctCompanies.filter(comp => comp.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).map(comp => (
+                    <div 
+                      key={`comp-${comp.key}`} 
+                      className="p-2 hover:bg-blue-50 cursor-pointer rounded flex items-center justify-between gap-2 transition-colors bg-blue-50/30 border border-blue-100/60 mb-1"
+                      onClick={() => {
+                        if (setSelectedLedgerEntity) {
+                          setSelectedLedgerEntity({
+                            id: `comp-${comp.key}`,
+                            name: `${comp.name}`,
+                            type: 'customer',
+                            isCompany: true,
+                            companyKey: comp.key,
+                          });
+                        }
+                        setShowEntityDropdown(false);
+                        setEntitySearchQuery('');
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>🏢</span> <span className="font-bold text-blue-900">{comp.name}</span>
+                      </div>
+                      <span className="text-[9px] font-black uppercase text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">All Projects</span>
+                    </div>
+                  ))}
                   
                   
                   {customers.filter(c => c.name.toLowerCase().includes(entitySearchQuery.toLowerCase())).length > 0 && (
@@ -871,7 +919,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
                 onChange={e => setSelectedProjectFilter(e.target.value)}
                 className="border-none bg-transparent text-xs font-bold text-blue-900 p-0 focus:ring-0 cursor-pointer outline-none"
               >
-                <option value="all">All Branches / Projects (Company Total)</option>
+                <option value="all">{isCorporate ? 'All Branches / Projects (Company Total)' : 'All Branches / Projects (Combined)'}</option>
                 {availableProjects.map((p, idx) => (
                   <option key={idx} value={p}>{p}</option>
                 ))}
@@ -900,9 +948,9 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
                     📁 Branch / Project: {selectedProjectFilter}
                   </span>
                 ) : (
-                  isCorporate && (
+                  (isCorporate || availableProjects.length > 0) && (
                     <span className="text-xs font-bold text-blue-300 bg-blue-950/80 border border-blue-500/40 px-3 py-1 rounded-full shadow-2xs">
-                      🏢 All Branches / Projects (Company Total)
+                      🏢 {isCorporate ? 'All Branches / Projects (Company Total)' : 'All Branches / Projects (Combined)'}
                     </span>
                   )
                 )}

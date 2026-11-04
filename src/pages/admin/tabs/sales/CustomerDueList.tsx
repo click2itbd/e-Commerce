@@ -1575,40 +1575,28 @@ export default function CustomerDueList() {
       {historyCustomer && (() => {
         const targetCustomer = customers.find(c => c.id === historyCustomer.id);
         const targetCompany = (targetCustomer as any)?.company;
-        const isCorporate = targetCompany && targetCompany !== 'main';
+        const isCorporate = false;
 
-        // Gather related customer IDs if corporate
+        // Gather related customer IDs (strictly this customer)
         const relatedCustomerIds = new Set<string>([historyCustomer.id]);
-        if (isCorporate) {
-          customers.forEach(c => {
-            if ((c as any)?.company === targetCompany) {
-              relatedCustomerIds.add(c.id);
-            }
-          });
-        }
 
-        // Available branches for this customer / corporate entity
+        // Available branches for this customer
         const availableBranches = new Set<string>();
         if (targetCustomer?.branchName) availableBranches.add(targetCustomer.branchName);
         (targetCustomer?.branches || []).forEach(b => b && availableBranches.add(b));
 
-        if (isCorporate) {
-          customers.forEach(c => {
-            if ((c as any)?.company === targetCompany) {
-              if (c.branchName) availableBranches.add(c.branchName);
-              (c.branches || []).forEach(b => b && availableBranches.add(b));
-              if (c.name.toLowerCase().startsWith(targetCompany.toLowerCase())) {
-                const stripped = c.name.slice(targetCompany.length).trim();
-                if (stripped) availableBranches.add(stripped);
-              }
-            }
-          });
-        }
-
-        // Also scan transactions for any branchName or projectName
+        // Scan transactions for any branchName or projectName for THIS customer
         transactions.forEach(t => {
-          if (relatedCustomerIds.has(t.entityId) || (isCorporate && (t as any).company === targetCompany)) {
+          if (t.entityId === historyCustomer.id || (t.entityName && t.entityName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase())) {
             const br = (t as any).branchName || (t as any).projectName;
+            if (br) availableBranches.add(br);
+          }
+        });
+
+        // Scan orders for any branchName or projectName for THIS customer
+        orders.forEach(o => {
+          if (o.customerId === historyCustomer.id || (o.customerName && o.customerName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase())) {
+            const br = o.projectName || o.branchName;
             if (br) availableBranches.add(br);
           }
         });
@@ -1622,12 +1610,13 @@ export default function CustomerDueList() {
         
         const allEntityTx = [...transactions]
           .filter(t => {
-            const matchesEntity = relatedCustomerIds.has(t.entityId) || (isCorporate && (t as any).company === targetCompany);
+            const matchesEntity = t.entityId === historyCustomer.id || 
+                                  (t.entityName && t.entityName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase());
             if (!matchesEntity) return false;
 
             if (ledgerBranchFilter !== 'all') {
               const txBranch = (t as any).branchName || (t as any).projectName || '';
-              const matchesBranchName = txBranch === ledgerBranchFilter || (t.entityName && t.entityName.includes(ledgerBranchFilter));
+              const matchesBranchName = txBranch === ledgerBranchFilter || (t.description && t.description.includes(ledgerBranchFilter));
               if (!matchesBranchName) return false;
             }
 
@@ -1681,15 +1670,15 @@ export default function CustomerDueList() {
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-xl font-black tracking-tight">{historyCustomer.name}</h2>
-                    {isCorporate && (
+                    {branchOptions.length > 0 && (
                       <span className="text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
-                        Corporate Client ({targetCompany})
+                        {branchOptions.length} Branch{branchOptions.length > 1 ? 'es' : ''}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[11px] font-semibold bg-white/10 text-slate-300 px-2.5 py-0.5 rounded-full tracking-wide">
-                      {ledgerBranchFilter !== 'all' ? `Branch / Project: ${ledgerBranchFilter}` : (isCorporate ? 'Company Total Ledger' : 'Customer Account')}
+                      {ledgerBranchFilter !== 'all' ? `Branch / Project: ${ledgerBranchFilter}` : (branchOptions.length > 0 ? 'All Branches / Projects (Combined)' : 'Customer Account')}
                     </span>
                   </div>
                 </div>
@@ -1721,7 +1710,7 @@ export default function CustomerDueList() {
                         onChange={e => setLedgerBranchFilter(e.target.value)}
                         className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
                       >
-                        <option value="all">All Branches / Projects (Entire Company)</option>
+                        <option value="all">All Branches / Projects (Combined)</option>
                         {branchOptions.map((br, bi) => (
                           <option key={bi} value={br}>{br}</option>
                         ))}
