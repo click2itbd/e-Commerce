@@ -316,6 +316,7 @@ const OFFICIAL_SUPER_ADMIN_EMAILS = new Set([
   'click2itbd@gmail.com',
   'admin@click2itbd.com',
   'info@click2itbd.com',
+  'muntasiralamresti@gmail.com',
 ]);
 
 /**
