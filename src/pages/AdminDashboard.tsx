@@ -648,6 +648,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
   useEffect(() => {
     sessionStorage.setItem("adminActiveTab", activeTab);
+    if (activeTab !== "sales" && editingOrderForSales) {
+      setEditingOrderForSales(null);
+    }
   }, [activeTab]);
 
   const [serialSelectionModal, setSerialSelectionModal] = useState<{

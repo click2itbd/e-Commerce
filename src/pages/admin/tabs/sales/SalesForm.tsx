@@ -791,8 +791,39 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         }
       }
 
+      // Safeguard: Check if user changed customer while in Edit Mode
+      let effectiveEditingOrder = editingOrder;
+      if (effectiveEditingOrder) {
+        const origCustName = String(effectiveEditingOrder.customerName || '').trim().toLowerCase();
+        const newCustName = String(saleData.customerName || '').trim().toLowerCase();
+        const origCustId = String(effectiveEditingOrder.customerId || '').trim();
+        const newCustId = String(saleData.customerId || '').trim();
+
+        const isCustomerChanged = (origCustId && newCustId && origCustId !== newCustId) ||
+                                  (origCustName && newCustName && origCustName !== newCustName);
+
+        if (isCustomerChanged) {
+          const proceedAsNew = window.confirm(
+            `⚠️ ALERT: You were in Edit Mode for Invoice #${effectiveEditingOrder.documentNumber || effectiveEditingOrder.id} (${effectiveEditingOrder.customerName}).\n\nHowever, you have selected a different customer: "${saleData.customerName}".\n\nClick "OK" to save this as a BRAND NEW invoice for "${saleData.customerName}" (Leaves #${effectiveEditingOrder.documentNumber || effectiveEditingOrder.id} completely intact).\n\nClick "Cancel" to abort and review.`
+          );
+          if (!proceedAsNew) {
+            setSubmitting(false);
+            return;
+          }
+          // Detach editing mode so it creates a brand new invoice safely
+          effectiveEditingOrder = null;
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('adminEditingOrder');
+            localStorage.removeItem('sales_form_draft');
+          }
+          if (onCancelEdit) {
+            onCancelEdit();
+          }
+        }
+      }
+
       const docType = saleData.type === 'quotation' ? 'QUO' : (saleData.type === 'challan' ? 'CHA' : 'INV');
-        const docNumber = editingOrder ? (editingOrder.documentNumber || editingOrder.id) : await generateDocumentNumber(docType);
+      const docNumber = effectiveEditingOrder ? (effectiveEditingOrder.documentNumber || effectiveEditingOrder.id) : await generateDocumentNumber(docType);
 
       const processedItems = saleData.items.map(item => {
           const currentProduct = products.find(p => p.id === item.id);
@@ -873,13 +904,13 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       };
 
       let orderRefId = '';
-        if (editingOrder) {
-          orderRefId = editingOrder.id;
-          await updateDoc(doc(db, 'orders', editingOrder.id), orderData);
+        if (effectiveEditingOrder) {
+          orderRefId = effectiveEditingOrder.id;
+          await updateDoc(doc(db, 'orders', effectiveEditingOrder.id), orderData);
           
           // REVERT OLD STOCK
-          if (editingOrder.type === 'invoice' || editingOrder.type === 'challan') {
-            for (const oldItem of editingOrder.items || []) {
+          if (effectiveEditingOrder.type === 'invoice' || effectiveEditingOrder.type === 'challan') {
+            for (const oldItem of effectiveEditingOrder.items || []) {
               if (oldItem.isCustomService) continue;
               const prodRef = doc(db, 'products', oldItem.productId || oldItem.id);
               const pSnap = await getDoc(prodRef);
@@ -904,18 +935,18 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             }
             
             // DELETE OLD SOLD SERIALS
-            const oldSerialsSnap = await getDocs(query(collection(db, 'sold_serials'), where('orderId', '==', editingOrder.id)));
+            const oldSerialsSnap = await getDocs(query(collection(db, 'sold_serials'), where('orderId', '==', effectiveEditingOrder.id)));
             await Promise.all(oldSerialsSnap.docs.map(d => deleteDoc(doc(db, 'sold_serials', d.id))));
           }
           
           // DELETE OLD TRANSACTIONS (by referenceId AND by documentNumber to ensure complete cleanup)
           const txDocsToDelete = new Map<string, any>();
-          const oldTxSnap1 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', editingOrder.id)));
+          const oldTxSnap1 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', effectiveEditingOrder.id)));
           oldTxSnap1.docs.forEach(d => txDocsToDelete.set(d.id, d.ref));
-          if (editingOrder.documentNumber) {
-            const oldTxSnap2 = await getDocs(query(collection(db, 'transactions'), where('documentNumber', '==', editingOrder.documentNumber)));
+          if (effectiveEditingOrder.documentNumber) {
+            const oldTxSnap2 = await getDocs(query(collection(db, 'transactions'), where('documentNumber', '==', effectiveEditingOrder.documentNumber)));
             oldTxSnap2.docs.forEach(d => txDocsToDelete.set(d.id, d.ref));
-            const oldTxSnap3 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', editingOrder.documentNumber)));
+            const oldTxSnap3 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', effectiveEditingOrder.documentNumber)));
             oldTxSnap3.docs.forEach(d => txDocsToDelete.set(d.id, d.ref));
           }
           await Promise.all(Array.from(txDocsToDelete.values()).map(ref => deleteDoc(ref)));
@@ -1080,7 +1111,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       toast.success(`${typeStr} #${docNumber} created successfully!`);
 
       // Log sale to Audit Trail
-      const isSaleEdit = Boolean(editingOrder);
+      const isSaleEdit = Boolean(effectiveEditingOrder);
       await logAudit(
         isSaleEdit ? 'EDIT' : 'CREATE',
         'Sale',
@@ -1088,15 +1119,15 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         saleData.preparedBy || profile?.displayName || profile?.email || 'Admin',
         {
           entityId: orderRefId,
-          previousState: isSaleEdit && editingOrder ? {
-            documentNumber: editingOrder.documentNumber || docNumber,
-            customerName: editingOrder.customerName,
-            customerPhone: editingOrder.customerPhone,
-            total: editingOrder.total,
-            paidAmount: editingOrder.paidAmount,
-            dueAmount: editingOrder.dueAmount,
-            items: editingOrder.items,
-            status: editingOrder.status
+          previousState: isSaleEdit && effectiveEditingOrder ? {
+            documentNumber: effectiveEditingOrder.documentNumber || docNumber,
+            customerName: effectiveEditingOrder.customerName,
+            customerPhone: effectiveEditingOrder.customerPhone,
+            total: effectiveEditingOrder.total,
+            paidAmount: effectiveEditingOrder.paidAmount,
+            dueAmount: effectiveEditingOrder.dueAmount,
+            items: effectiveEditingOrder.items,
+            status: effectiveEditingOrder.status
           } : undefined,
           newState: {
             documentNumber: docNumber,
@@ -1197,6 +1228,43 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       {/* --- LEFT: SALES ORDER INVOICE FORM (7 COLS) --- */}
       <div className="lg:col-span-7 space-y-5">
+        {/* EDIT MODE PROMINENT ALERT */}
+        {editingOrder && (
+          <div className="bg-amber-500/10 border-2 border-amber-500/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-xs">
+                ⚠️
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-amber-950 flex items-center gap-2 flex-wrap">
+                  <span>EDITING EXISTING BILL: <span className="underline font-black text-blue-700">#{editingOrder.documentNumber || editingOrder.id}</span></span>
+                  <span className="text-[11px] font-bold text-amber-900 bg-amber-200/80 px-2.5 py-0.5 rounded-full border border-amber-300">
+                    Customer: {editingOrder.customerName || 'Customer'}
+                  </span>
+                </h4>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Caution: Changes saved will update this existing document. To make a fresh bill for someone else, click "Exit Edit Mode".
+                </p>
+              </div>
+            </div>
+            {onCancelEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.removeItem('adminEditingOrder');
+                    localStorage.removeItem('sales_form_draft');
+                  }
+                  onCancelEdit();
+                }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap shrink-0 flex items-center gap-1.5"
+              >
+                ✕ Exit Edit & Start Fresh Bill
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl shadow-xs border border-slate-200/90 p-5 md:p-6 space-y-6">
           {/* Header & Quick Action Pills */}
           <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-4 gap-3">
