@@ -814,7 +814,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         }
       }
 
-      // Safeguard: Check if user changed customer while in Edit Mode
+      // Safeguard: Check if user is in Edit Mode
       let effectiveEditingOrder = editingOrder;
       if (effectiveEditingOrder) {
         const origCustName = String(effectiveEditingOrder.customerName || '').trim().toLowerCase();
@@ -833,14 +833,30 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             setSubmitting(false);
             return;
           }
-          // Detach editing mode so it creates a brand new invoice safely
           effectiveEditingOrder = null;
           if (typeof window !== 'undefined') {
             sessionStorage.removeItem('adminEditingOrder');
             localStorage.removeItem('sales_form_draft');
           }
-          if (onCancelEdit) {
-            onCancelEdit();
+        } else {
+          // Explicit confirmation to prevent accidental invoice overwrites
+          const confirmUpdate = window.confirm(
+            `You are currently editing existing Document #${effectiveEditingOrder.documentNumber || effectiveEditingOrder.id} (${effectiveEditingOrder.customerName}).\n\n- Click "OK" to UPDATE existing #${effectiveEditingOrder.documentNumber || effectiveEditingOrder.id}.\n- Click "Cancel" if you want to create a NEW invoice instead.`
+          );
+          if (!confirmUpdate) {
+            const saveAsNew = window.confirm(
+              `Would you like to save this bill as a BRAND NEW invoice instead (with a new invoice number)?\n\n- Click "OK" to generate a NEW invoice.\n- Click "Cancel" to return and review.`
+            );
+            if (saveAsNew) {
+              effectiveEditingOrder = null;
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('adminEditingOrder');
+                localStorage.removeItem('sales_form_draft');
+              }
+            } else {
+              setSubmitting(false);
+              return;
+            }
           }
         }
       }

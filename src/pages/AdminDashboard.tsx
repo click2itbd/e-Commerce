@@ -640,13 +640,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch {}
     return sessionStorage.getItem("adminActiveTab") || "dashboard";
   });
-  const [editingOrderForSales, setEditingOrderForSalesState] = useState<any | null>(() => {
-    try {
-      const saved = sessionStorage.getItem('adminEditingOrder');
-      if (saved) return JSON.parse(saved);
-    } catch(e) {}
-    return null;
-  });
+  // Never silently restore an editing order from past sessions on page load
+  const [editingOrderForSales, setEditingOrderForSalesState] = useState<any | null>(null);
   
   const setEditingOrderForSales = (order: any | null) => {
     setEditingOrderForSalesState(order);
@@ -1231,6 +1226,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const qOrders = query(collection(db, "orders"), limit(2000));
     const unsub = onSnapshot(qOrders, (snapshot) => {
       const liveOrders = (snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Order[]).sort((a, b) => {
+        const numA = parseInt((a.documentNumber || a.invoiceNumber || a.id || '').match(/\d+/)?.[0] || '0', 10);
+        const numB = parseInt((b.documentNumber || b.invoiceNumber || b.id || '').match(/\d+/)?.[0] || '0', 10);
+        if (numA > 0 && numB > 0 && numA !== numB) return numB - numA;
         const timeA = new Date(a.createdAt || (a as any).date || 0).getTime();
         const timeB = new Date(b.createdAt || (b as any).date || 0).getTime();
         return timeB - timeA;
@@ -1503,6 +1501,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           id: doc.id,
           ...doc.data(),
         })) as Order[]).sort((a, b) => {
+          const numA = parseInt((a.documentNumber || a.invoiceNumber || a.id || '').match(/\d+/)?.[0] || '0', 10);
+          const numB = parseInt((b.documentNumber || b.invoiceNumber || b.id || '').match(/\d+/)?.[0] || '0', 10);
+          if (numA > 0 && numB > 0 && numA !== numB) return numB - numA;
           const timeA = new Date(a.createdAt || (a as any).date || 0).getTime();
           const timeB = new Date(b.createdAt || (b as any).date || 0).getTime();
           return timeB - timeA;

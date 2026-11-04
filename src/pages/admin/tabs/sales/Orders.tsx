@@ -112,53 +112,88 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
     const matchesStatus = orderStatusFilter === 'all' || order.status === orderStatusFilter;
     
     const q = orderSearchQuery.toLowerCase().trim();
-    const matchesSearch = !q ||
-      (order.documentNumber || '').toLowerCase().includes(q) ||
-      (order.invoiceNumber || '').toLowerCase().includes(q) ||
-      (order.id || '').toLowerCase().includes(q) ||
-      (order.customerName || '').toLowerCase().includes(q) ||
-      (order.customerPhone || '').toLowerCase().includes(q) ||
-      (order.customerEmail || '').toLowerCase().includes(q) ||
-      (order.createdBy || '').toLowerCase().includes(q) ||
-      (order.preparedBy || '').toLowerCase().includes(q) ||
-      (order.company || '').toLowerCase().includes(q) ||
-      (order.branchName || '').toLowerCase().includes(q) ||
-      (order.projectName || '').toLowerCase().includes(q) ||
-      (order.workOrderNumber || '').toLowerCase().includes(q) ||
-      (order.shippingAddress || '').toLowerCase().includes(q) ||
-      (order.notes || '').toLowerCase().includes(q) ||
-      (order.items && Array.isArray(order.items) && order.items.some((item: any) =>
-        (item.name || '').toLowerCase().includes(q) ||
-        (item.productName || '').toLowerCase().includes(q) ||
-        (item.sku || '').toLowerCase().includes(q) ||
-        (item.brand || '').toLowerCase().includes(q) ||
-        (item.selectedSerials && item.selectedSerials.some((s: string) => s.toLowerCase().includes(q)))
-      ));
+    let matchesSearch = true;
+    if (q) {
+      const cleanQ = q.replace(/[^a-z0-9]/gi, '');
+      const queryDigits = q.match(/\d+/)?.[0]?.replace(/^0+/, '') || '';
+
+      const docNum = String(order.documentNumber || order.invoiceNumber || order.id || '').toLowerCase();
+      const cleanDocNum = docNum.replace(/[^a-z0-9]/gi, '');
+      const docDigits = docNum.match(/\d+/)?.[0]?.replace(/^0+/, '') || '';
+
+      // Direct doc number match (e.g. "inv 250" matches "INV-00250", "250" matches "INV-00250", "inv-250" matches "INV-00250")
+      const matchesDocNumber = 
+        docNum.includes(q) ||
+        (cleanQ.length >= 2 && cleanDocNum.includes(cleanQ)) ||
+        (queryDigits.length >= 1 && docDigits === queryDigits) ||
+        (docDigits.length > 0 && queryDigits.length > 0 && docDigits.includes(queryDigits));
+
+      if (matchesDocNumber) {
+        matchesSearch = true;
+      } else {
+        const tokens = q.split(/\s+/).filter(Boolean);
+        const searchableText = [
+          order.documentNumber,
+          order.invoiceNumber,
+          order.id,
+          order.customerName,
+          order.customerPhone,
+          order.customerEmail,
+          order.createdBy,
+          order.preparedBy,
+          order.company,
+          order.branchName,
+          order.projectName,
+          order.workOrderNumber,
+          order.shippingAddress,
+          order.notes,
+          order.paymentMethod,
+          order.status,
+          ...(Array.isArray(order.items) ? order.items.flatMap((item: any) => [
+            item.name,
+            item.productName,
+            item.sku,
+            item.brand,
+            ...(Array.isArray(item.selectedSerials) ? item.selectedSerials : []),
+          ]) : [])
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        matchesSearch = tokens.every(token => searchableText.includes(token));
+      }
+    }
 
     const rawDate = order.createdAt || order.date || order.updatedAt || '';
     const orderDate = rawDate ? String(rawDate).split('T')[0] : '';
     const matchesStartDate = !orderStartDate || (orderDate ? orderDate >= orderStartDate : true);
     const matchesEndDate = !orderEndDate || (orderDate ? orderDate <= orderEndDate : true);
+    // If user is actively searching with a query, don't let date presets hide search results
+    const matchesDate = (matchesStartDate && matchesEndDate) || (q.length >= 2 && matchesSearch);
+
     const matchesCompany = orderCompanyFilter === 'all'
       ? true
       : (orderCompanyFilter === 'main'
           ? (!order.company || order.company === 'main' || String(order.company).toLowerCase().includes('click2it'))
           : String(order.company || '').toLowerCase() === orderCompanyFilter.toLowerCase());
-    return matchesCategory && matchesStatus && matchesSearch && matchesStartDate && matchesEndDate && matchesCompany;
+    return matchesCategory && matchesStatus && matchesSearch && matchesDate && matchesCompany;
   }).sort((a, b) => {
+      // Numerical serial sorting: latest/highest document serial number strictly comes first
+      const numA = parseInt((a.documentNumber || a.invoiceNumber || a.id || '').match(/\d+/)?.[0] || '0', 10);
+      const numB = parseInt((b.documentNumber || b.invoiceNumber || b.id || '').match(/\d+/)?.[0] || '0', 10);
       const timeA = new Date(a.createdAt || a.date || 0).getTime();
       const timeB = new Date(b.createdAt || b.date || 0).getTime();
 
       if (orderSort === 'date_desc') {
+        if (numA > 0 && numB > 0 && numA !== numB) {
+          return numB - numA;
+        }
         if (timeB !== timeA) return timeB - timeA;
-        const numA = parseInt((a.documentNumber || a.id || '').match(/\d+/)?.[0] || '0', 10);
-        const numB = parseInt((b.documentNumber || b.id || '').match(/\d+/)?.[0] || '0', 10);
         return numB - numA;
       }
       if (orderSort === 'date_asc') {
+        if (numA > 0 && numB > 0 && numA !== numB) {
+          return numA - numB;
+        }
         if (timeA !== timeB) return timeA - timeB;
-        const numA = parseInt((a.documentNumber || a.id || '').match(/\d+/)?.[0] || '0', 10);
-        const numB = parseInt((b.documentNumber || b.id || '').match(/\d+/)?.[0] || '0', 10);
         return numA - numB;
       }
       if (orderSort === 'total_desc') return (b.total || 0) - (a.total || 0);
