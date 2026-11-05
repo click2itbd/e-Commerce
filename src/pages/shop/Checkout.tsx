@@ -570,7 +570,7 @@ export const Checkout: React.FC = () => {
           window.location.href = redirectUrl;
           return;
         } else {
-          throw new Error("Failed to initiate EPS Payment Gateway.");
+          throw new Error("অনলাইন পেমেন্ট গেটওয়েতে সাময়িক সমস্যা দেখা দিয়েছে। অনুগ্রহ করে 'Cash on Delivery' বেছে নিন অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।");
         }
       }
 
@@ -616,9 +616,14 @@ export const Checkout: React.FC = () => {
       toast.success("Order placed successfully!");
     } catch (error: any) {
       console.error("Checkout error:", error);
-      const msg = error.message || "Failed to place order";
-      toast.error(msg);
-      setSubmitError(msg);
+      const rawMsg = error.message || "Failed to place order";
+      const isGatewayError =
+        /EPS|InitializeEPS|HTTP \d+|GetToken|x-hash|gateway|timeout/i.test(rawMsg);
+      const customerMsg = isGatewayError
+        ? "অনলাইন পেমেন্ট গেটওয়েতে সাময়িক সমস্যা দেখা দিয়েছে। অনুগ্রহ করে 'ক্যাশ অন ডেলিভারি' (Cash on Delivery) বেছে নিন অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।"
+        : rawMsg;
+      toast.error(customerMsg);
+      setSubmitError(customerMsg);
     } finally {
       setIsProcessing(false);
     }

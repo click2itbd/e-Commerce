@@ -119,7 +119,16 @@ export async function saveEpsConfig(body) {
     cachedEpsConfig = null;
 }
 export function epsBaseUrl(cfg) {
-    return cfg.epsMode === 'live' ? cfg.epsLiveBaseUrl : cfg.epsSandboxBaseUrl;
+    let base = (cfg.epsMode === 'live' ? cfg.epsLiveBaseUrl : cfg.epsSandboxBaseUrl) || '';
+    base = base.trim().replace(/\/+$/, '');
+    if (!base) {
+        base = cfg.epsMode === 'live' ? EPS_DEFAULT_LIVE_URL : EPS_DEFAULT_SANDBOX_URL;
+    }
+    // Ensure the base URL always includes the /v1 version path so sub-routes never 404
+    if (!base.endsWith('/v1')) {
+        base = `${base}/v1`;
+    }
+    return base;
 }
 /** x-hash = base64( HMAC-SHA512( key = hashKey, message = value ) ) */
 export function epsHash(value, hashKey) {

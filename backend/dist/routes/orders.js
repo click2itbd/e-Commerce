@@ -159,9 +159,10 @@ ordersRouter.post('/:orderId/payment/eps/init', requireFirebaseAuth, async (req,
     }
     catch (error) {
         console.error('[EPS Init] Failed to initialize EPS payment:', error);
+        const friendlyError = 'Online payment is temporarily unavailable. Please choose Cash on Delivery or try again shortly.';
         return res.status(500).json({
             success: false,
-            error: error.message || 'Failed to initialize EPS payment.',
+            error: friendlyError,
         });
     }
 });
