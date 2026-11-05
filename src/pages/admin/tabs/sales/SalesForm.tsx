@@ -398,15 +398,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         return prev;
       }
 
-      // Auto-select a serial if none was scanned but the product has serials available
+      // Do not auto-select serials - staff must scan or explicitly select the exact serial barcode
       let serialToSelect = scannedSerial;
-      if (!serialToSelect && product.hasSerialTracking && product.availableSerials && product.availableSerials.length > 0) {
-        const currentlySelected = existing ? (existing.selectedSerials || []) : [];
-        const firstUnselected = product.availableSerials.find((s: string) => !currentlySelected.includes(s));
-        if (firstUnselected) {
-          serialToSelect = firstUnselected;
-        }
-      }
 
       if (existing) {
         if (existing.quantity >= availableStock) {
@@ -516,14 +509,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const p = match.product;
       let serialToUse = match.matchedSerial;
 
-      if (p.hasSerialTracking && !serialToUse) {
-        const existing = saleData.items.find(i => i.id === p.id);
-        const selected = existing ? (existing.selectedSerials || []) : [];
-        const unselected = (p.availableSerials || []).find(s => !selected.includes(s));
-        if (unselected) {
-          serialToUse = unselected;
-        }
-      }
+      // Do not auto-pick serials - staff must scan the exact physical serial barcode
 
       addItemToSale(p, serialToUse, match.matchedVariant);
       return true;
@@ -703,25 +689,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         return;
       }
       
-      // Auto-select serials if qty increases
-      if (product && product.hasSerialTracking && product.availableSerials && newQty > itemInCart.quantity) {
-        let newSelectedSerials = [...(itemInCart.selectedSerials || [])];
-        let diff = newQty - itemInCart.quantity;
-        
-        for (const serial of product.availableSerials) {
-          if (diff <= 0) break;
-          if (!newSelectedSerials.includes(serial)) {
-            newSelectedSerials.push(serial);
-            diff--;
-          }
-        }
-        
-        setSaleData(prev => ({
-          ...prev,
-          items: prev.items.map(i => i.id === productId ? { ...i, quantity: newQty, selectedSerials: newSelectedSerials } : i),
-        }));
-        return;
-      }
+      // When qty increases on serial tracked items, staff must scan/select additional serials
     }
 
     setSaleData(prev => ({
@@ -795,6 +763,26 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       return;
     }
 
+    // 1. Due Sale Validation (কাস্টমার ছাড়া বাকিতে সেল বন্ধ)
+    const isDueSale = (saleData.type !== 'quotation') && (netTotal - (Number(saleData.paidAmount) || 0) > 0.01);
+    if (isDueSale) {
+      const custName = String(saleData.customerName || '').trim().toLowerCase();
+      const custPhone = String(saleData.customerPhone || '').trim();
+      const isGeneric = !saleData.customerId || 
+                        saleData.customerId === 'general' ||
+                        custName.includes('walk-in') || 
+                        custName.includes('walk in') || 
+                        custName.includes('general customer') || 
+                        custName.includes('cash customer') ||
+                        custName === 'customer' ||
+                        custName === '';
+
+      if (isGeneric || custPhone.length < 6) {
+        toast.error('⚠️ কাস্টমার ছাড়া বাকিতে সেল বন্ধ! বাকিতে বিক্রি করতে হলে অবশ্যই সঠিক কাস্টমার (নাম ও নূন্যতম ৬ ডিজিটের মোবাইল নম্বরসহ) সিলেক্ট করতে হবে।');
+        return;
+      }
+    }
+
     if (saleData.items.length === 0) {
       toast.error('Please add at least one product to the sale');
       return;
@@ -803,11 +791,12 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     try {
       setSubmitting(true);
 
-      // Verify Serials if tracking enabled
+      // 2. Serial Tracking Validation (বারকোড ছাড়া সিরিয়াল আইটেম বিক্রি নিষেধ)
       for (const item of saleData.items) {
         if (item.hasSerialTracking) {
-          if (!item.selectedSerials || item.selectedSerials.length !== item.quantity) {
-            toast.error(`Please select exactly ${item.quantity} serial(s) for ${item.name}`);
+          const serialCount = item.selectedSerials?.length || 0;
+          if (serialCount !== item.quantity) {
+            toast.error(`"${item.name}": বারকোড ছাড়া সিরিয়াল আইটেম বিক্রি নিষেধ! প্রতিটি ইউনিটের (${item.quantity} টির) নির্দিষ্ট সিরিয়াল বারকোড সিলেক্ট/স্ক্যান করুন (বর্তমান: ${serialCount} টি)।`);
             setSubmitting(false);
             return;
           }

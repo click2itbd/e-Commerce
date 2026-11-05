@@ -338,14 +338,7 @@ export const RetailPOS = () => {
 
     if (bestMatch) {
       let serialToUse = matchedSerial;
-      if (bestMatch.hasSerialTracking && !serialToUse) {
-        const existingItem = cart.find(ci => ci.product.id === bestMatch.id);
-        const alreadySelected = existingItem?.selectedSerials || [];
-        const available = (bestMatch.availableSerials || []).find(s => !alreadySelected.includes(s));
-        if (available) {
-          serialToUse = available;
-        }
-      }
+      // Do not auto-pick serials - staff must scan the exact serial barcode on the product box
 
       addToCart(bestMatch, serialToUse, matchedVariant);
       setSearchQuery("");
@@ -540,6 +533,14 @@ export const RetailPOS = () => {
         toast.error(`Please select a variant for ${item.product.name}`);
         return;
       }
+
+      if (item.product.hasSerialTracking) {
+        const serialCount = item.selectedSerials?.length || 0;
+        if (serialCount !== item.quantity) {
+          toast.error(`"${item.product.name}": বারকোড স্ক্যান ছাড়া সিরিয়াল আইটেম বিক্রি নিষেধ! প্রতিটি ইউনিটের (${item.quantity} টির) সিরিয়াল স্ক্যান করুন (স্ক্যান হয়েছে: ${serialCount} টি)।`);
+          return;
+        }
+      }
     }
 
     setIsPaymentView(true);
@@ -563,12 +564,38 @@ export const RetailPOS = () => {
         }
       }
 
+      for (const item of cart) {
+        if (item.product.hasSerialTracking) {
+          const serialCount = item.selectedSerials?.length || 0;
+          if (serialCount !== item.quantity) {
+            toast.error(`"${item.product.name}": বারকোড স্ক্যান ছাড়া সিরিয়াল আইটেম বিক্রি নিষেধ! প্রতিটি ইউনিটের (${item.quantity} টির) সিরিয়াল স্ক্যান করুন (স্ক্যান হয়েছে: ${serialCount} টি)।`);
+            return;
+          }
+        }
+      }
+
       const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-      if (Math.abs(totalPaid - total) > 0.01) {
-        toast.error(
-          `Payment amount (${formatCurrency(totalPaid, settings)}) does not match total (${formatCurrency(total, settings)})`,
-        );
+      if (totalPaid > total + 0.01) {
+        toast.error(`পরিশোধিত টাকা (${formatCurrency(totalPaid, settings)}) মোট বিলের (${formatCurrency(total, settings)}) চেয়ে বেশি হতে পারে না!`);
         return;
+      }
+
+      const isDue = total - totalPaid > 0.01;
+      if (isDue) {
+        const custName = String(selectedCustomer?.name || '').trim().toLowerCase();
+        const custPhone = String(selectedCustomer?.phone || '').trim();
+        const isGeneric = !selectedCustomer || 
+                          selectedCustomer.id === 'general' ||
+                          custName.includes('walk-in') || 
+                          custName.includes('walk in') || 
+                          custName.includes('general customer') || 
+                          custName.includes('cash customer') ||
+                          custName === '';
+
+        if (isGeneric || custPhone.length < 6) {
+          toast.error('⚠️ কাস্টমার ছাড়া বাকিতে সেল বন্ধ! বাকিতে বিক্রি করতে হলে অবশ্যই নির্দিষ্ট কাস্টমার (নাম ও মোবাইল নম্বরসহ) সিলেক্ট করতে হবে।');
+          return;
+        }
       }
 
       setIsProcessing(true);
@@ -631,8 +658,9 @@ export const RetailPOS = () => {
         totalCost,
         profit,
         total,
-        paidAmount: total,
-        paymentStatus: "paid",
+        paidAmount: totalPaid,
+        dueAmount: isDue ? Math.max(0, total - totalPaid) : 0,
+        paymentStatus: isDue ? (totalPaid > 0 ? "partial" : "due") : "paid",
         paymentMethod: methodsUsed,
         splitPayments: payments,
         status: "delivered",
@@ -667,11 +695,7 @@ export const RetailPOS = () => {
         }
 
         if (item.product.hasSerialTracking) {
-          const serialsToUse =
-            item.selectedSerials &&
-            item.selectedSerials.length === item.quantity
-              ? item.selectedSerials
-              : (item.product.availableSerials || []).slice(0, item.quantity);
+          const serialsToUse = item.selectedSerials || [];
 
           const remainingSerials = (item.product.availableSerials || []).filter(
             (s: string) => !serialsToUse.includes(s),

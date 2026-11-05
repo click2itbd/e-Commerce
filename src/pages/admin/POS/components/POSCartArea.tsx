@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, Trash2, Plus } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Barcode } from 'lucide-react';
 import { cn, formatCurrency } from '../../../../lib/utils';
 import { Customer } from '../../../../types';
 
@@ -212,6 +212,30 @@ export const POSCartArea: React.FC<POSCartAreaProps> = ({
                             <option key={v.id} value={v.id}>{v.name} ({v.stock} in stock)</option>
                           ))}
                         </select>
+                      )}
+                      {item.product.hasSerialTracking && (
+                        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => openSerialModal(idx)}
+                            className={cn(
+                              "px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer",
+                              (item.selectedSerials?.length || 0) === item.quantity
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200"
+                                : "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse hover:bg-rose-200"
+                            )}
+                          >
+                            <Barcode size={13} />
+                            {(item.selectedSerials?.length || 0) === item.quantity
+                              ? `✓ সিরিয়াল স্ক্যান সম্পন্ন (${item.selectedSerials.length}/${item.quantity})`
+                              : `⚠️ সিরিয়াল স্ক্যান বাকি (${item.selectedSerials?.length || 0}/${item.quantity})`}
+                          </button>
+                          {item.selectedSerials && item.selectedSerials.length > 0 && (
+                            <span className="text-[10px] font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              {item.selectedSerials.join(', ')}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   </td>
