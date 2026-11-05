@@ -812,13 +812,8 @@ export const Checkout: React.FC = () => {
 
               {/* District (Only Jila as requested) */}
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5 flex items-center justify-between">
-                  <span>ডেলিভারির জেলা (District) <span className="text-rose-500">*</span></span>
-                  {formData.city && (
-                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">
-                      {isDhaka ? "ঢাকার ভেতর" : "ঢাকার বাইরে"}
-                    </span>
-                  )}
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                  ডেলিভারির জেলা (District) <span className="text-rose-500">*</span>
                 </label>
                 <select
                   name="city"
