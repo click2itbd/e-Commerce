@@ -816,7 +816,7 @@ export const Checkout: React.FC = () => {
                   <span>ডেলিভারির জেলা (District) <span className="text-rose-500">*</span></span>
                   {formData.city && (
                     <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">
-                      {isDhaka ? `ঢাকার ভেতর (ডেলিভারি চার্জ: ৳${Number(shippingConfig.insideDhaka) || 80})` : `ঢাকার বাইরে (ডেলিভারি চার্জ: ৳${Number(shippingConfig.outsideDhaka) || 120})`}
+                      {isDhaka ? "ঢাকার ভেতর" : "ঢাকার বাইরে"}
                     </span>
                   )}
                 </label>
@@ -832,7 +832,7 @@ export const Checkout: React.FC = () => {
                   </option>
                   {BD_DISTRICTS.map((district) => (
                     <option key={district} value={district}>
-                      {district === "Dhaka" ? "Dhaka (ঢাকা - ডেলিভারি চার্জ ৳80)" : district}
+                      {district === "Dhaka" ? "Dhaka (ঢাকা)" : district}
                     </option>
                   ))}
                 </select>
