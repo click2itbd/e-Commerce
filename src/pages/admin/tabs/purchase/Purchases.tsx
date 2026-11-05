@@ -7,7 +7,7 @@ import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, type Warra
 
 const itemWarrantyMonths = (i: any): number =>
   i.warrantyValue !== undefined
-    ? warrantyToMonths(Number(i.warrantyValue) || 0, (i.warrantyUnit || 'months') as WarrantyUnit)
+    ? warrantyToMonths(Number(i.warrantyValue) || 0, (i.warrantyUnit || 'years') as WarrantyUnit)
     : (Number(i.warrantyYears) || 0) * 12;
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
@@ -266,7 +266,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                      stock: Number(item.quantity) || 0,
                      hasWarranty: Boolean(item.hasWarranty),
                      warrantyMonths: item.hasWarranty ? itemWarrantyMonths(item) : 0,
-                     warrantyUnit: item.warrantyUnit || 'months',
+                     warrantyUnit: item.warrantyUnit || 'years',
                      hasSerialTracking: Boolean(item.hasSerialTracking),
                      availableSerials: addedSerials,
                      createdAt: new Date().toISOString()
@@ -520,8 +520,8 @@ const Purchases: React.FC<PurchasesProps> = ({
             tax: 0,
             total: existingProduct.costPrice || Number(costPrice) || 0,
             hasWarranty: Boolean(existingProduct.warrantyMonths && existingProduct.warrantyMonths > 0),
-            warrantyUnit: existingProduct.warrantyUnit || 'months',
-            warrantyValue: existingProduct.warrantyMonths ? monthsToWarrantyValue(existingProduct.warrantyMonths, (existingProduct.warrantyUnit || 'months') as WarrantyUnit) : 12,
+            warrantyUnit: existingProduct.warrantyUnit || 'years',
+            warrantyValue: existingProduct.warrantyMonths ? monthsToWarrantyValue(existingProduct.warrantyMonths, (existingProduct.warrantyUnit || 'years') as WarrantyUnit) : 1,
             hasSerialTracking: Boolean(existingProduct.hasSerialTracking),
             sku: existingProduct.sku || scannedCode,
             newSerials: scannedCode !== existingProduct.sku ? [scannedCode] : [],
@@ -548,8 +548,8 @@ const Purchases: React.FC<PurchasesProps> = ({
         tax: 0,
         total: Number(costPrice) || 0,
         hasWarranty: false,
-        warrantyUnit: 'months',
-        warrantyValue: 12,
+        warrantyUnit: 'years',
+        warrantyValue: 1,
         hasSerialTracking: true,
         sku: scannedCode,
         newSerials: [scannedCode],
@@ -639,8 +639,8 @@ const Purchases: React.FC<PurchasesProps> = ({
             salesPrice: Number(product.price) || 0,
             quantity: 1,
             hasWarranty: Boolean(product.warrantyMonths && product.warrantyMonths > 0),
-            warrantyUnit: product.warrantyUnit || 'months',
-            warrantyValue: product.warrantyMonths ? monthsToWarrantyValue(product.warrantyMonths, (product.warrantyUnit || 'months') as WarrantyUnit) : 12,
+            warrantyUnit: product.warrantyUnit || 'years',
+            warrantyValue: product.warrantyMonths ? monthsToWarrantyValue(product.warrantyMonths, (product.warrantyUnit || 'years') as WarrantyUnit) : 1,
             hasSerialTracking: Boolean(product.hasSerialTracking),
               sku: product.sku || '',
             newSerials: '',
@@ -957,7 +957,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
 
           if (item.hasWarranty && itemWarrantyMonths(item) > 0) {
             updates.warrantyMonths = itemWarrantyMonths(item);
-            updates.warrantyUnit = item.warrantyUnit || 'months';
+            updates.warrantyUnit = item.warrantyUnit || 'years';
           }
 
           if (currentProduct.hasSerialTracking && item.newSerials) {
@@ -1002,7 +1002,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
              stock: Number(item.quantity) || 0,
              hasWarranty: Boolean(item.hasWarranty),
              warrantyMonths: item.hasWarranty ? itemWarrantyMonths(item) : 0,
-                     warrantyUnit: item.warrantyUnit || 'months',
+                     warrantyUnit: item.warrantyUnit || 'years',
              hasSerialTracking: Boolean(item.hasSerialTracking),
              availableSerials: addedSerials,
              createdAt: new Date().toISOString()
@@ -1612,13 +1612,13 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                   type="number"
                                   min={1}
                                   disabled={!item.hasWarranty}
-                                  value={item.warrantyValue ?? 12}
+                                  value={item.warrantyValue ?? 1}
                                   onChange={e => updateItem(item.id, 'warrantyValue', Math.max(1, Number(e.target.value)))}
                                   className="w-14 text-center border border-gray-200 rounded-l p-1 font-bold focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:text-gray-400"
                                 />
                                 <select
                                   disabled={!item.hasWarranty}
-                                  value={item.warrantyUnit || 'months'}
+                                  value={item.warrantyUnit || 'years'}
                                   onChange={e => updateItem(item.id, 'warrantyUnit', e.target.value)}
                                   className="w-[4.5rem] border-y border-r border-gray-200 rounded-r p-1 text-xs font-bold text-gray-700 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer disabled:bg-gray-100 disabled:text-gray-400"
                                 >

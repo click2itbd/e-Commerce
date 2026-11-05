@@ -591,7 +591,7 @@ export const RetailPOS = () => {
           selectedSerials: c.selectedSerials || [],
           hasWarranty: c.hasWarranty || false,
           warrantyMonths: c.warrantyMonths || c.product.warrantyMonths || 0,
-          warrantyUnit: c.product.warrantyUnit || 'months',
+          warrantyUnit: c.product.warrantyUnit || 'years',
           brand: c.product.brand || '',
           warranty: (c.warrantyMonths || c.product.warrantyMonths) ? formatWarranty(c.warrantyMonths || c.product.warrantyMonths || 0, c.product.warrantyUnit) : '',
         };

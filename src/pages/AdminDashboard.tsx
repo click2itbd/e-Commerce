@@ -1117,6 +1117,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     hasSerialTracking: false,
     availableSerials: [] as string[],
     warrantyMonths: 0,
+    warrantyUnit: 'years',
   });
 
   const [customerFormData, setCustomerFormData] = useState({
@@ -1796,6 +1797,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             hasSerialTracking: false,
             availableSerials: [],
             warrantyMonths: 0,
+            warrantyUnit: 'years',
             isOutOfStock: false,
           });
           debouncedFetchData();

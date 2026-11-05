@@ -47,7 +47,7 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
     quantity: 1,
     unit: 'pcs',
     warrantyMonths: 0,
-    warrantyUnit: 'months',
+    warrantyUnit: 'years',
     paymentAccountId: '',
     paidAmount: 0,
   });
@@ -129,7 +129,7 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
         stock: Number(formData.quantity) || 1,
         unit: formData.unit || 'pcs',
         warrantyMonths: Number(formData.warrantyMonths) || 0,
-        warrantyUnit: formData.warrantyUnit || 'months',
+        warrantyUnit: formData.warrantyUnit || 'years',
         categoryId: formData.categoryId || '',
         category: categoryName,
         subCategory: formData.subCategory || '',
@@ -448,7 +448,7 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
                     placeholder="0 (No Warranty)"
                   />
                   <select
-                    value={formData.warrantyUnit || 'months'}
+                    value={formData.warrantyUnit || 'years'}
                     onChange={e => setFormData({ ...formData, warrantyUnit: e.target.value })}
                     className="border-l border-slate-200 px-3 text-xs font-bold bg-slate-50 text-slate-700 outline-none cursor-pointer"
                   >

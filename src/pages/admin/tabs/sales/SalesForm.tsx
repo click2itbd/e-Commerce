@@ -894,7 +894,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           unit: (item as any).unit || currentProduct?.unit || 'pcs',
           hasWarranty: Boolean(item.hasWarranty),
           warrantyMonths: wMonths,
-          warrantyUnit: currentProduct?.warrantyUnit || 'months',
+          warrantyUnit: currentProduct?.warrantyUnit || 'years',
           brand: currentProduct?.brand || (item as any).brand || '',
           warranty: wMonths > 0 ? formatWarranty(wMonths, currentProduct?.warrantyUnit) : '',
           selectedSerials: item.selectedSerials || [],

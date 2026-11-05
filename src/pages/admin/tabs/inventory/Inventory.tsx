@@ -981,7 +981,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
                             <input 
                                 type="checkbox" 
                                 checked={(formData.warrantyMonths || 0) > 0} 
-                                onChange={(e) => setFormData({...formData, warrantyMonths: e.target.checked ? (formData.warrantyMonths || 12) : 0, warrantyUnit: (formData as any).warrantyUnit || 'months'} as any)}
+                                onChange={(e) => setFormData({...formData, warrantyMonths: e.target.checked ? (formData.warrantyMonths || 12) : 0, warrantyUnit: (formData as any).warrantyUnit || 'years'} as any)}
                                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
                             />
                             <span className="block text-sm font-bold text-slate-800">Warranty Included</span>
@@ -992,23 +992,23 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
                               <input
                                   type="number"
                                   min="1"
-                                  value={monthsToWarrantyValue(formData.warrantyMonths || 0, (formData as any).warrantyUnit || 'months')}
-                                  onChange={e => setFormData({ ...formData, warrantyMonths: Math.max(1 / 30, warrantyToMonths(Number(e.target.value), (formData as any).warrantyUnit || 'months')) })}
+                                  value={monthsToWarrantyValue(formData.warrantyMonths || 0, (formData as any).warrantyUnit || 'years')}
+                                  onChange={e => setFormData({ ...formData, warrantyMonths: Math.max(1 / 30, warrantyToMonths(Number(e.target.value), (formData as any).warrantyUnit || 'years')) })}
                                   className="w-20 font-black text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-center"
                               />
                               <select
-                                  value={(formData as any).warrantyUnit || 'months'}
+                                  value={(formData as any).warrantyUnit || 'years'}
                                   onChange={e => {
                                     const newUnit = e.target.value as WarrantyUnit;
-                                    const oldUnit = ((formData as any).warrantyUnit || 'months') as WarrantyUnit;
+                                    const oldUnit = ((formData as any).warrantyUnit || 'years') as WarrantyUnit;
                                     const shown = monthsToWarrantyValue(formData.warrantyMonths || 0, oldUnit);
                                     setFormData({ ...formData, warrantyUnit: newUnit, warrantyMonths: warrantyToMonths(shown || 1, newUnit) } as any);
                                   }}
                                   className="text-xs font-bold text-slate-600 uppercase border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                               >
-                                <option value="days">Days</option>
-                                <option value="months">Months</option>
                                 <option value="years">Years</option>
+                                <option value="months">Months</option>
+                                <option value="days">Days</option>
                               </select>
                             </div>
                           )}
@@ -1618,7 +1618,7 @@ Storage: 512GB SSD"
                           )}
                           {hasPermission('manage_inventory') && (
                             <button
-                              onClick={() => { setEditingProduct(product); setFormData({ ...product, variants: product.variants || [], specs: product.specs || {} }); setIsAddingProduct(true); document.getElementById('main-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                              onClick={() => { setEditingProduct(product); setFormData({ ...product, variants: product.variants || [], specs: product.specs || {}, warrantyUnit: product.warrantyUnit || 'years' }); setIsAddingProduct(true); document.getElementById('main-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' }); }}
                               className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-all"
                               title="Edit Product"
                             >
