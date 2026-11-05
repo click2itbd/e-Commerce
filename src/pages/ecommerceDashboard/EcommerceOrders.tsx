@@ -69,8 +69,8 @@ export const EcommerceOrders: React.FC<EcommerceOrdersProps> = ({
 
   const storeOrders = useMemo(() => {
     return orders.filter(o => {
-      // Do not show orders awaiting online payment completion until payment is verified
-      if (o.status === 'pending_payment') return false;
+      // Allow viewing pending_payment orders when searching or filtering specifically
+      if (o.status === 'pending_payment' && statusFilter !== 'pending_payment' && !searchTerm.trim()) return false;
       const isERP = o.saleSource === 'in_store' || o.type === 'pos_sale' || o.type === 'invoice' || o.type === 'challan';
       if (sourceFilter === 'online') {
         const cat = getOrderCategory(o);
