@@ -26,6 +26,7 @@ export default function VendorDueList() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [paymentAmount, setPaymentAmount] = useState<number | ''>('');
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [editAmount, setEditAmount] = useState<number | ''>('');
   const [editDate, setEditDate] = useState('');
@@ -281,6 +282,7 @@ export default function VendorDueList() {
   const handleOpenPaymentModal = (vendor: { id: string; name: string; due: number }) => {
     setSelectedVendor(vendor);
     setPaymentNotes('');
+    setPaymentDate(new Date().toISOString().split('T')[0]);
 
     const unpaid = purchases.filter(p => {
       const matchesId = p.vendorId === vendor.id;
@@ -362,7 +364,13 @@ export default function VendorDueList() {
     try {
       setSubmitting(true);
       const acc = paymentAccounts.find(a => a.id === paymentAccountId);
-      const paymentDate = new Date().toISOString();
+      const finalPaymentDate = (() => {
+        if (!paymentDate) return new Date().toISOString();
+        const [y, m, d] = paymentDate.split('-').map(Number);
+        const now = new Date();
+        const dt = new Date(y, (m || 1) - 1, d || 1, now.getHours(), now.getMinutes(), now.getSeconds());
+        return isNaN(dt.getTime()) ? new Date().toISOString() : dt.toISOString();
+      })();
       const allocatedEntries = Object.entries(purchaseAllocations).filter(([_, amt]) => Number(amt) > 0);
 
       if (settlementMode === 'bill' && allocatedEntries.length > 0) {
@@ -393,7 +401,7 @@ export default function VendorDueList() {
           await addDoc(collection(db, 'transactions'), {
             type: 'payment_made',
             amount: Number(allocAmt),
-            date: paymentDate,
+            date: finalPaymentDate,
             description: paymentNotes 
               ? `${paymentNotes} - Paid for Purchase Bill #${docNum}`
               : `Paid for Purchase Bill #${docNum}`,
@@ -404,7 +412,7 @@ export default function VendorDueList() {
             referenceId: pur.id,
             paymentAccountId: paymentAccountId,
             paymentMethod: acc?.type || 'cash',
-            createdAt: paymentDate,
+            createdAt: finalPaymentDate,
             previousDue: selectedVendor.due,
             currentBalance: updatedVendorDue
           });
@@ -416,7 +424,7 @@ export default function VendorDueList() {
           referenceId: `VOU-${Date.now().toString().slice(-6)}`, 
           type: 'payment_made',
           amount: Number(paymentAmount),
-          date: paymentDate,
+          date: finalPaymentDate,
           description: `Settled ${allocatedEntries.length} purchase bill(s): ${settledDocNumbers.join(', ')}`,
           entityId: selectedVendor.id,
           entityName: selectedVendor.name,
@@ -451,14 +459,14 @@ export default function VendorDueList() {
         const txData = {
           type: 'payment_made',
           amount: Number(paymentAmount),
-          date: paymentDate,
+          date: finalPaymentDate,
           description: paymentNotes || 'Paid vendor due payment (General / Lump Sum)',
           entityId: selectedVendor.id,
           entityName: selectedVendor.name,
           entityType: 'vendor',
           paymentAccountId: paymentAccountId,
           paymentMethod: acc?.type || 'cash',
-          createdAt: paymentDate,
+          createdAt: finalPaymentDate,
           previousDue: selectedVendor.due,
           currentBalance: selectedVendor.due - Number(paymentAmount)
         };
@@ -833,7 +841,7 @@ export default function VendorDueList() {
                 </div>
               )}
 
-              {/* Total Amount Input & Account Select */}
+              {/* Total Amount Input, Payment Date & Account Select */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
@@ -873,6 +881,20 @@ export default function VendorDueList() {
                 </div>
 
                 <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1 flex items-center justify-between">
+                    <span>Payment Date</span>
+                    <span className="text-[10px] font-medium text-slate-400 lowercase">(for backdated / past entries)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white cursor-pointer"
+                    required
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
                     Pay From Account
                   </label>
