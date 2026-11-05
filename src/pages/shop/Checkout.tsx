@@ -6,17 +6,33 @@ import { useCart } from "../../context/CartContext";
 import { useSettings } from "../../context/SettingsContext";
 import { Layout } from "../../components/Layout";
 import { toast } from "react-hot-toast";
-import { Lock, ArrowRight, ShieldCheck, AlertTriangle, Loader2, MapPin, CheckCircle2, Plus } from "lucide-react";
+import { Lock, ArrowRight, ShieldCheck, AlertTriangle, Loader2, MapPin, CheckCircle2, Plus, Sparkles, Gift } from "lucide-react";
 import { auth, db } from "../../firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, addDoc, query, where, getDocs, updateDoc } from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
+  signInAnonymously,
 } from "firebase/auth";
 import { generatePDF } from "../../lib/pdf";
 import { initiateEpsPayment } from "../../services/paymentApi";
 import { apiPost } from "../../services/apiClient";
+
+const BD_DISTRICTS = [
+  "Dhaka",
+  "Bagerhat", "Bandarban", "Barguna", "Barishal", "Bhola", "Bogura", "Brahmanbaria",
+  "Chandpur", "Chattogram", "Chuadanga", "Cox's Bazar", "Cumilla",
+  "Dinajpur", "Faridpur", "Feni", "Gaibandha", "Gazipur", "Gopalganj",
+  "Habiganj", "Jamalpur", "Jashore", "Jhalokathi", "Jhenaidah", "Joypurhat",
+  "Khagrachhari", "Khulna", "Kishoreganj", "Kurigram", "Kushtia",
+  "Lakshmipur", "Lalmonirhat", "Madaripur", "Magura", "Manikganj", "Meherpur",
+  "Moulvibazar", "Munshiganj", "Mymensingh", "Naogaon", "Narail", "Narayanganj",
+  "Narsingdi", "Natore", "Netrokona", "Nilphamari", "Noakhali",
+  "Pabna", "Panchagarh", "Patuakhali", "Pirojpur", "Rajbari", "Rajshahi",
+  "Rangamati", "Rangpur", "Satkhira", "Shariatpur", "Sherpur", "Sirajganj",
+  "Sunamganj", "Sylhet", "Tangail", "Thakurgaon"
+];
 
 export const Checkout: React.FC = () => {
   const { user } = useAuth();
@@ -100,15 +116,13 @@ export const Checkout: React.FC = () => {
     }
   }, []);
 
+  const isDhaka = (formData.city || "").trim().toLowerCase() === "dhaka";
   let shippingCost = 0;
-  if (formData.state && formData.city) {
-    if (
-      (formData.state === "Dhaka" && formData.city === "Dhaka") ||
-      formData.state === "Dhaka"
-    ) {
-      shippingCost = shippingConfig.insideDhaka;
+  if (formData.city) {
+    if (isDhaka) {
+      shippingCost = Number(shippingConfig.insideDhaka) || 80;
     } else {
-      shippingCost = shippingConfig.outsideDhaka;
+      shippingCost = Number(shippingConfig.outsideDhaka) || 120;
     }
   }
 
@@ -121,34 +135,18 @@ export const Checkout: React.FC = () => {
   }
 
   const [paymentType, setPaymentType] = useState<"cod" | "pay_now">("cod");
-  const isAdvanceCOD = paymentType === "cod" && shippingCost > 0;
+  const isAdvanceCOD =
+    paymentType === "cod" &&
+    Boolean(settings?.requireAdvanceDeliveryCharge) &&
+    shippingCost > 0;
   const grandTotal = total + shippingCost;
-
-  const [geoData, setGeoData] = useState({
-    divisions: [],
-    districts: [],
-    upazilas: [],
-    unions: [],
-  });
-  const [activeGeo, setActiveGeo] = useState({
-    districts: [],
-    upazilas: [],
-    unions: [],
-  });
-
-  React.useEffect(() => {
-    fetch("/data/bd-geo.json")
-      .then((res) => res.json())
-      .then((data) => setGeoData(data))
-      .catch((err) => console.error("Failed to load geo data", err));
-  }, []);
 
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | null>(null);
   const [isAddressesLoaded, setIsAddressesLoaded] = useState(false);
   const [saveAddressToBook, setSaveAddressToBook] = useState(true);
 
-  const applyAddressToForm = (addr: any, currentGeoData = geoData) => {
+  const applyAddressToForm = (addr: any) => {
     if (!addr) return;
 
     let fName = "";
@@ -169,85 +167,17 @@ export const Checkout: React.FC = () => {
     rawPhone = rawPhone.replace(/^0+/, "");
     const cleanPhone = rawPhone.slice(0, 10);
 
-    const addrState = addr.state || "";
-    const addrCity = addr.city || "";
-    const addrThana = addr.thana || "";
+    const addrCity = addr.city || addr.district || "";
 
-    if (currentGeoData?.divisions && currentGeoData.divisions.length > 0) {
-      let matchedDiv = currentGeoData.divisions.find(
-        (d: any) => d.name.toLowerCase() === addrState.toLowerCase()
-      );
-
-      let matchedDist: any = null;
-      if (addrCity && currentGeoData.districts) {
-        matchedDist = currentGeoData.districts.find(
-          (d: any) => d.name.toLowerCase() === addrCity.toLowerCase()
-        );
-        if (!matchedDiv && matchedDist) {
-          matchedDiv = currentGeoData.divisions.find(
-            (div: any) => div.id === matchedDist.div_id
-          );
-        }
-      }
-
-      const filteredDistricts = matchedDiv
-        ? currentGeoData.districts.filter((d: any) => d.div_id === matchedDiv.id)
-        : [];
-
-      const filteredUpazilas = matchedDist
-        ? currentGeoData.upazilas.filter((u: any) => u.dist_id === matchedDist.id)
-        : [];
-
-      let matchedUpz: any = null;
-      if (addrThana && filteredUpazilas.length > 0) {
-        matchedUpz = filteredUpazilas.find(
-          (u: any) => u.name.toLowerCase() === addrThana.toLowerCase()
-        );
-      }
-      const filteredUnions = matchedUpz
-        ? (currentGeoData.unions || []).filter(
-            (un: any) => un.upz_id === matchedUpz.id
-          )
-        : [];
-
-      let matchedUnion: any = null;
-      const addrUnion = addr.union || "";
-      if (addrUnion && filteredUnions.length > 0) {
-        matchedUnion = filteredUnions.find(
-          (un: any) => un.name.toLowerCase() === addrUnion.toLowerCase()
-        );
-      }
-
-      setActiveGeo({
-        districts: filteredDistricts,
-        upazilas: filteredUpazilas,
-        unions: filteredUnions,
-      });
-
-      setFormData((prev) => ({
-        ...prev,
-        firstName: fName || prev.firstName,
-        lastName: lName || prev.lastName,
-        phone: cleanPhone || prev.phone,
-        address1: addr.address || prev.address1,
-        state: matchedDiv?.name || addrState || prev.state,
-        city: matchedDist?.name || addrCity || prev.city,
-        thana: matchedUpz?.name || addrThana || prev.thana,
-        union: matchedUnion?.name || addrUnion || prev.union,
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        firstName: fName || prev.firstName,
-        lastName: lName || prev.lastName,
-        phone: cleanPhone || prev.phone,
-        address1: addr.address || prev.address1,
-        state: addrState || prev.state,
-        city: addrCity || prev.city,
-        thana: addrThana || prev.thana,
-        union: addr.union || prev.union,
-      }));
-    }
+    setFormData((prev) => ({
+      ...prev,
+      firstName: fName || prev.firstName,
+      lastName: lName || prev.lastName,
+      phone: cleanPhone || prev.phone,
+      address1: addr.address || prev.address1,
+      city: addrCity || prev.city,
+      state: addrCity?.toLowerCase() === "dhaka" ? "Dhaka" : "Outside Dhaka",
+    }));
   };
 
   React.useEffect(() => {
@@ -292,55 +222,13 @@ export const Checkout: React.FC = () => {
     loadUserAddresses();
   }, [user]);
 
-  React.useEffect(() => {
-    if (
-      selectedAddressIndex !== null &&
-      savedAddresses[selectedAddressIndex] &&
-      geoData.divisions.length > 0
-    ) {
-      applyAddressToForm(savedAddresses[selectedAddressIndex], geoData);
-    }
-  }, [geoData, selectedAddressIndex]);
-
-  const handleGeoChange = (
-    e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>,
-  ) => {
-    const { name, value } = e.target;
-    let newData = { ...formData, [name]: value };
-
-    if (name === "state") {
-      const selectedDiv = geoData.divisions.find((d) => d.name === value);
-      const filteredDistricts = selectedDiv
-        ? geoData.districts.filter((d) => d.div_id === selectedDiv.id)
-        : [];
-      setActiveGeo((prev) => ({
-        ...prev,
-        districts: filteredDistricts,
-        upazilas: [],
-        unions: [],
-      }));
-      newData = { ...newData, city: "", thana: "", union: "" };
-    } else if (name === "city") {
-      const selectedDist = activeGeo.districts.find((d) => d.name === value);
-      const filteredUpazilas = selectedDist
-        ? geoData.upazilas.filter((u) => u.dist_id === selectedDist.id)
-        : [];
-      setActiveGeo((prev) => ({
-        ...prev,
-        upazilas: filteredUpazilas,
-        unions: [],
-      }));
-      newData = { ...newData, thana: "", union: "" };
-    } else if (name === "thana") {
-      const selectedUpz = activeGeo.upazilas.find((u) => u.name === value);
-      const filteredUnions = selectedUpz
-        ? geoData.unions.filter((u) => u.upz_id === selectedUpz.id)
-        : [];
-      setActiveGeo((prev) => ({ ...prev, unions: filteredUnions }));
-      newData = { ...newData, union: "" };
-    }
-
-    setFormData(newData);
+  const handleDistrictChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setFormData((prev) => ({
+      ...prev,
+      city: val,
+      state: val.toLowerCase() === "dhaka" ? "Dhaka" : "Outside Dhaka",
+    }));
   };
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -398,16 +286,6 @@ export const Checkout: React.FC = () => {
     }
   };
 
-  const generatePassword = () => {
-    const chars =
-      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-    let pwd = "";
-    for (let i = 0; i < 12; i++) {
-      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setFormData((prev) => ({ ...prev, password: pwd, confirmPassword: pwd }));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
@@ -416,46 +294,60 @@ export const Checkout: React.FC = () => {
       return;
     }
 
+    const cleanPhone = formData.phone
+      .replace(/\D/g, "")
+      .replace(/^(?:880|88)?0?/, "");
+    const phoneRegex = /^1[3-9]\d{8}$/;
+    if (!phoneRegex.test(cleanPhone)) {
+      toast.error(
+        "অনুগ্রহ করে একটি সঠিক ১০-ডিজিট মোবাইল নম্বর দিন (যেমন: 17XXXXXXXX)।",
+      );
+      return;
+    }
+    const fullPhone = `+880${cleanPhone}`;
+
+    if (!formData.city) {
+      toast.error("অনুগ্রহ করে আপনার জেলা (District) নির্বাচন করুন।");
+      return;
+    }
+
+    if (!formData.address1?.trim()) {
+      toast.error("অনুগ্রহ করে আপনার পূর্ণ ডেলিভারি ঠিকানা দিন।");
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
-      if (!user && formData.password) {
-        if (formData.password !== formData.confirmPassword) {
-          toast.error("Passwords do not match");
-          setIsProcessing(false);
-          return;
-        }
+      // Frictionless / Silent Guest Authentication: no password required!
+      let currentAuthUser = auth.currentUser || user;
+      if (!currentAuthUser) {
         try {
-          await createUserWithEmailAndPassword(
-            auth,
-            formData.email,
-            formData.password,
-          );
-        } catch (error: any) {
-          toast.error(error.message);
-          setIsProcessing(false);
-          return;
+          const anonRes = await signInAnonymously(auth);
+          currentAuthUser = anonRes.user;
+        } catch (anonErr) {
+          console.warn("signInAnonymously failed, falling back to silent guest account:", anonErr);
+          const guestEmail = formData.email?.trim() || `guest_${cleanPhone}_${Date.now()}@click2itbd.com`;
+          const autoPwd = `Guest#${Math.random().toString(36).slice(-8)}${Date.now().toString().slice(-4)}!`;
+          try {
+            const cred = await createUserWithEmailAndPassword(auth, guestEmail, autoPwd);
+            currentAuthUser = cred.user;
+          } catch (createErr: any) {
+            if (createErr.code === 'auth/email-already-in-use') {
+              const fallbackEmail = `guest_${cleanPhone}_${Date.now()}@click2itbd.com`;
+              const cred = await createUserWithEmailAndPassword(auth, fallbackEmail, autoPwd);
+              currentAuthUser = cred.user;
+            } else {
+              throw createErr;
+            }
+          }
         }
-      } else if (!user) {
-        toast.error(
-          "Please login, sign in with Google or create a password to checkout.",
-        );
-        setIsProcessing(false);
-        return;
       }
 
-      const cleanPhone = formData.phone
-        .replace(/\D/g, "")
-        .replace(/^(?:880|88)?0?/, "");
-      const phoneRegex = /^1[3-9]\d{8}$/;
-      if (!phoneRegex.test(cleanPhone)) {
-        toast.error(
-          "Please enter a valid 10-digit phone number starting with 1 (e.g. 17XXXXXXXX).",
-        );
-        setIsProcessing(false);
-        return;
+      if (!currentAuthUser) {
+        throw new Error("অর্ডার প্রসেসিংয়ে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
       }
-      const fullPhone = `+880${cleanPhone}`;
+      const token = await currentAuthUser.getIdToken();
 
       let affiliateRefId = null;
       try {
@@ -470,13 +362,7 @@ export const Checkout: React.FC = () => {
         }
       } catch (e) {}
 
-      const currentAuthUser = auth.currentUser || user;
-      if (!currentAuthUser) {
-        toast.error("Authentication required to place an order.");
-        setIsProcessing(false);
-        return;
-      }
-      const token = await currentAuthUser.getIdToken();
+      const customerFullName = `${formData.firstName} ${formData.lastName}`.trim() || formData.firstName || "Customer";
 
       const minimalItems = items.map((item: any) => ({
         id: item.id,
@@ -500,12 +386,12 @@ export const Checkout: React.FC = () => {
           platform: "ecommerce",
           items: minimalItems,
           couponCode: appliedDiscount ? appliedDiscount.code : null,
-          customerName: `${formData.firstName} ${formData.lastName}`.trim(),
-          customerEmail: formData.email,
+          customerName: customerFullName,
+          customerEmail: formData.email?.trim() || "",
           customerPhone: fullPhone,
-          shippingAddress: `${formData.address1}, ${formData.address2 ? formData.address2 + ", " : ""}${formData.union ? formData.union + ", " : ""}${formData.thana ? formData.thana + ", " : ""}${formData.city}, ${formData.state}${formData.postcode ? ' - ' + formData.postcode : ''}, ${formData.country}`,
+          shippingAddress: `${formData.address1}, ${formData.city}, Bangladesh`,
           city: formData.city,
-          state: formData.state,
+          state: isDhaka ? "Dhaka" : "Outside Dhaka",
           company: formData.company,
           paymentType,
           advanceDelivery: isAdvanceCOD,
@@ -528,18 +414,54 @@ export const Checkout: React.FC = () => {
       const createdOrderId = createRes.orderId;
       const serverOrderData = createRes.orderData;
 
+      // Sync customer to 'customers' collection so they appear in Ecommerce Dashboard & Admin
+      try {
+        const customerQ = query(collection(db, "customers"), where("phone", "==", fullPhone));
+        const customerSnap = await getDocs(customerQ);
+        const orderEarnedPoints = user ? Math.floor(grandTotal / 1000) * 10 : 0;
+
+        if (customerSnap.empty) {
+          await addDoc(collection(db, "customers"), {
+            name: customerFullName,
+            phone: fullPhone,
+            email: formData.email?.trim() || "",
+            address: `${formData.address1}, ${formData.city}`,
+            city: formData.city || "",
+            state: isDhaka ? "Dhaka" : "Outside Dhaka",
+            source: "ecommerce",
+            createdAt: new Date().toISOString(),
+            loyaltyPoints: orderEarnedPoints,
+            totalOrders: 1,
+            totalSpent: grandTotal,
+          });
+        } else {
+          const custDoc = customerSnap.docs[0];
+          const existing = custDoc.data() || {};
+          await updateDoc(doc(db, "customers", custDoc.id), {
+            name: customerFullName || existing.name,
+            email: formData.email?.trim() || existing.email || "",
+            address: `${formData.address1}, ${formData.city}` || existing.address || "",
+            city: formData.city || existing.city || "",
+            updatedAt: new Date().toISOString(),
+            loyaltyPoints: (Number(existing.loyaltyPoints) || 0) + orderEarnedPoints,
+            totalOrders: (Number(existing.totalOrders) || 0) + 1,
+            totalSpent: (Number(existing.totalSpent) || 0) + grandTotal,
+          });
+        }
+      } catch (custErr) {
+        console.warn("Could not sync customer to customers collection:", custErr);
+      }
+
       if (user && saveAddressToBook) {
         try {
           const userDocRef = doc(db, "users", user.uid);
-          const fullName = `${formData.firstName} ${formData.lastName}`.trim();
           const newAddrItem = {
             id: Date.now().toString(),
             type: "Home",
-            name: fullName,
+            name: customerFullName,
             phone: fullPhone,
-            state: formData.state,
+            state: isDhaka ? "Dhaka" : "Outside Dhaka",
             city: formData.city,
-            thana: formData.thana,
             address: formData.address1,
             isDefault: savedAddresses.length === 0,
           };
@@ -631,64 +553,85 @@ export const Checkout: React.FC = () => {
 
   return (
     <Layout>
-      <div className="max-w-5xl mx-auto px-4 py-12 mb-20 bg-slate-50 min-h-screen">
-        <div className="flex justify-between items-end mb-10">
+      <div className="max-w-4xl mx-auto px-4 py-8 md:py-12 mb-20 min-h-screen">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-              Checkout
+            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+              অর্ডার সম্পন্ন করুন (Checkout)
             </h1>
-            <p className="text-slate-500 text-base mt-2">
-              Please enter your personal details and billing information to
-              complete your order.
+            <p className="text-slate-500 text-sm mt-1">
+              লগইন ছাড়াই সহজে ও দ্রুত নাম, নম্বর ও ঠিকানা দিয়ে অর্ডার সম্পন্ন করুন।
             </p>
           </div>
           {!user && (
             <button
+              type="button"
               onClick={() => navigate("/login")}
-              className="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-6 py-2.5 text-slate-700 font-semibold rounded-xl text-sm transition-all shadow-sm"
+              className="self-start sm:self-auto bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-5 py-2 text-slate-700 font-bold rounded-xl text-xs transition-all shadow-xs cursor-pointer"
             >
-              Already Registered? Login
+              পূর্বে অ্যাকাউন্ট থাকলে লগইন করুন
             </button>
           )}
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white p-8 md:p-10 rounded-3xl shadow-sm border border-slate-100"
-        >
-          {!user && (
-            <div className="mb-12 relative border-t border-slate-200 pt-8 mt-4">
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">
-                Sign Up
-              </span>
-              <p className="text-center text-slate-500 mb-6">
-                Save time by signing up using an existing account.
-              </p>
-              <div className="flex justify-center">
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  className="flex flex-row items-center justify-center gap-3 border border-slate-200 rounded-xl px-8 py-3 hover:bg-slate-50 bg-white shadow-sm transition-all text-sm font-bold text-slate-700 hover:-translate-y-0.5"
-                >
-                  <img
-                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                    alt="Google"
-                    className="w-5 h-5"
-                  />
-                  Sign in with Google
-                </button>
+        {/* Loyalty Reward Banner (Optional login bonus) */}
+        {!user && (
+          <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50/60 border border-amber-200/90 rounded-2xl p-4 sm:p-5 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs animate-in fade-in duration-200">
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
+                <Sparkles size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                    লগইন করে অর্ডার করলে রিওয়ার্ড পয়েন্ট বোনাস!
+                  </h4>
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white px-2 py-0.5 rounded-full shadow-2xs">
+                    ১০ পয়েন্ট / ১০০০৳
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed max-w-xl">
+                  লগইন করা থাকলে প্রতি <strong>১,০০০ টাকা</strong> কেনাকাটায় <strong>১০ পয়েন্ট</strong> আপনার অ্যাকাউন্টে জমা হবে, যা পরবর্তীতে যেকোনো অর্ডারে টাকা হিসেবে রিডিম করতে পারবেন (*শর্ত প্রযোজ্য)। আপনি চাইলে কোনো <strong>লগইন ছাড়াই সরাসরি</strong> অর্ডার করতে পারেন।
+                </p>
               </div>
             </div>
-          )}
+            <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold rounded-xl shadow-xs hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <img
+                  src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                  alt="Google"
+                  className="w-4 h-4"
+                />
+                Google Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/login")}
+                className="px-4 py-2 bg-[#0E2A47] hover:bg-[#0E2A47]/90 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+              >
+                Login
+              </button>
+            </div>
+          </div>
+        )}
 
-          {/* Saved Addresses Section (Compact & User-Friendly) */}
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white p-6 sm:p-10 rounded-3xl shadow-sm border border-slate-100"
+        >
+          {/* Saved Addresses Section (Only for Logged In Users) */}
           {user && savedAddresses.length >= 2 && (
-            <div className="mb-7">
-              <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
+            <div className="mb-8 pb-6 border-b border-slate-100">
+              <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <MapPin size={15} className="text-orange-500 shrink-0" />
+                  <MapPin size={16} className="text-orange-500 shrink-0" />
                   <span className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-                    Saved Delivery Addresses
+                    আপনার সংরক্ষিত ঠিকানা
                   </span>
                   <span className="text-[11px] font-semibold text-slate-400">
                     ({savedAddresses.length})
@@ -706,14 +649,10 @@ export const Checkout: React.FC = () => {
                         lastName: "",
                         phone: "",
                         address1: "",
-                        address2: "",
-                        state: "",
                         city: "",
-                        thana: "",
-                        union: "",
+                        state: "",
                       }));
-                      setActiveGeo({ districts: [], upazilas: [], unions: [] });
-                      toast("Enter your new address details below", { icon: "✏️" });
+                      toast("নতুন ঠিকানা নিচে লিখুন", { icon: "✏️" });
                     }}
                     className={`cursor-pointer text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
                       selectedAddressIndex === -1
@@ -721,7 +660,7 @@ export const Checkout: React.FC = () => {
                         : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
                     }`}
                   >
-                    <Plus size={12} /> Use Different Address
+                    <Plus size={12} /> নতুন ঠিকানা দিন
                   </button>
                   <Link
                     to="/profile?tab=profile"
@@ -736,16 +675,7 @@ export const Checkout: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {savedAddresses.map((addr, idx) => {
                   const isSelected = selectedAddressIndex === idx;
-                  const locationParts = [
-                    addr.address,
-                    addr.union,
-                    addr.thana,
-                    addr.city,
-                    addr.state && addr.state !== addr.city ? addr.state : "",
-                  ]
-                    .map((p) => (p || "").trim())
-                    .filter(Boolean);
-                  const fullAddressLine = locationParts.join(", ");
+                  const fullAddressLine = [addr.address, addr.city, addr.state].filter(Boolean).join(", ");
 
                   return (
                     <button
@@ -753,8 +683,8 @@ export const Checkout: React.FC = () => {
                       key={idx}
                       onClick={() => {
                         setSelectedAddressIndex(idx);
-                        applyAddressToForm(addr, geoData);
-                        toast.success(`Selected "${addr.type || "Address " + (idx + 1)}"`);
+                        applyAddressToForm(addr);
+                        toast.success(`"${addr.type || "Address " + (idx + 1)}" নির্বাচিত হয়েছে`);
                       }}
                       className={`cursor-pointer text-left rounded-xl px-3.5 py-2.5 border transition-all flex flex-col gap-1 ${
                         isSelected
@@ -763,31 +693,20 @@ export const Checkout: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center justify-between gap-1.5 w-full">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span
-                            className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
-                              isSelected
-                                ? "bg-orange-500 text-white"
-                                : "bg-slate-200/80 text-slate-600"
-                            }`}
-                          >
-                            {addr.type || "Home"}
-                          </span>
-                          {addr.isDefault && (
-                            <span className="text-[9px] font-bold uppercase bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-                              Default
-                            </span>
-                          )}
-                        </div>
-                        <div
-                          className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                        <span
+                          className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
                             isSelected
-                              ? "border-orange-500 bg-orange-500 text-white"
-                              : "border-slate-300 bg-white"
+                              ? "bg-orange-500 text-white"
+                              : "bg-slate-200/80 text-slate-600"
                           }`}
                         >
-                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                        </div>
+                          {addr.type || "Home"}
+                        </span>
+                        {addr.isDefault && (
+                          <span className="text-[9px] font-bold uppercase bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                            Default
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between gap-2 text-xs mt-0.5">
@@ -816,308 +735,178 @@ export const Checkout: React.FC = () => {
             <div className="mb-6 flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-xs text-emerald-800">
               <span className="flex items-center gap-2 font-medium">
                 <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                Autofilled from your saved <strong>{savedAddresses[0].type || "Home"}</strong> address ({savedAddresses[0].name}).
+                সংরক্ষিত ঠিকানা থেকে স্বয়ংক্রিয়ভাবে পূরণ করা হয়েছে ({savedAddresses[0].name})।
               </span>
               <Link to="/profile?tab=profile" target="_blank" className="font-bold text-emerald-700 hover:underline shrink-0 ml-2">
-                Manage Address Book →
+                ম্যানেজ করুন →
               </Link>
             </div>
           )}
 
-          <div className="mb-12 relative border-t border-slate-200 pt-8">
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">
-              Personal Information
-            </span>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <input
-                type="text"
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleChange}
-                placeholder="First Name *"
-                required
-                className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all"
-              />
-              <input
-                type="text"
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleChange}
-                placeholder="Last Name *"
-                required
-                className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all"
-              />
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="Email Address *"
-                required
-                className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all"
-              />
-              <div className="flex">
-                <span className="inline-flex items-center px-4 border border-r-0 border-slate-200 bg-slate-100 text-slate-600 font-medium text-sm rounded-l-xl">
-                  <img
-                    src="https://flagcdn.com/w20/bd.png"
-                    alt="BD"
-                    className="w-5 h-auto mr-2 rounded-sm shadow-sm"
-                  />{" "}
-                  +880
-                </span>
+          {/* Customer Delivery Details Section */}
+          <div className="mb-8">
+            <h3 className="text-base font-extrabold text-slate-900 mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+              গ্রাহক ও ডেলিভারির তথ্য
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Full Name */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                  আপনার সম্পূর্ণ নাম (Full Name) <span className="text-rose-500">*</span>
+                </label>
                 <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
+                  type="text"
+                  name="firstName"
+                  value={formData.firstName}
                   onChange={handleChange}
-                  placeholder="1XXXXXXXXX *"
-                  maxLength={10}
+                  placeholder="যেমন: মোঃ রহিম উদ্দিন"
                   required
-                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-r-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all flex-1"
+                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all font-medium text-slate-900"
                 />
               </div>
-            </div>
-          </div>
 
-          <div className="mb-12 relative border-t border-slate-200 pt-8">
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">
-              Billing Address
-            </span>
-            <div className="space-y-5">
-              <input
-                type="text"
-                name="company"
-                value={formData.company}
-                onChange={handleChange}
-                placeholder="Company Name (Optional)"
-                className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all"
-              />
-              <input
-                type="text"
-                name="address1"
-                value={formData.address1}
-                onChange={handleChange}
-                placeholder="Street Address *"
-                required
-                className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all"
-              />
-              <input
-                type="text"
-                name="address2"
-                value={formData.address2}
-                onChange={handleChange}
-                placeholder="Apartment, suite, etc. (Optional)"
-                className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all"
-              />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                <select
-                  name="state"
-                  value={formData.state}
-                  onChange={handleGeoChange}
-                  required
-                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700"
-                >
-                  <option value="" disabled>
-                    Select Division *
-                  </option>
-                  {geoData.divisions.map((d) => (
-                    <option key={d.id} value={d.name}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
+              {/* Phone */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                  মোবাইল নম্বর (Phone Number) <span className="text-rose-500">*</span>
+                </label>
+                <div className="flex">
+                  <span className="inline-flex items-center px-3.5 border border-r-0 border-slate-200 bg-slate-100 text-slate-700 font-bold text-sm rounded-l-xl select-none">
+                    <img
+                      src="https://flagcdn.com/w20/bd.png"
+                      alt="BD"
+                      className="w-4 h-auto mr-1.5 rounded-xs shadow-2xs"
+                    />{" "}
+                    +880
+                  </span>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="1XXXXXXXXX"
+                    maxLength={10}
+                    required
+                    className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-r-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all flex-1 font-semibold text-slate-900"
+                  />
+                </div>
+              </div>
 
+              {/* Email (Optional) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5 flex items-center justify-between">
+                  <span>ইমেইল ঠিকানা (Email)</span>
+                  <span className="text-[10px] font-normal text-slate-400 lowercase">(ঐচ্ছিক / ইনভয়েস রিসিটের জন্য)</span>
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="example@mail.com"
+                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-800"
+                />
+              </div>
+
+              {/* District (Only Jila as requested) */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5 flex items-center justify-between">
+                  <span>ডেলিভারির জেলা (District) <span className="text-rose-500">*</span></span>
+                  {formData.city && (
+                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">
+                      {isDhaka ? `ঢাকার ভেতর (ডেলিভারি চার্জ: ৳${Number(shippingConfig.insideDhaka) || 80})` : `ঢাকার বাইরে (ডেলিভারি চার্জ: ৳${Number(shippingConfig.outsideDhaka) || 120})`}
+                    </span>
+                  )}
+                </label>
                 <select
                   name="city"
                   value={formData.city}
-                  onChange={handleGeoChange}
+                  onChange={handleDistrictChange}
                   required
-                  disabled={!formData.state}
-                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all font-semibold text-slate-800 cursor-pointer"
                 >
                   <option value="" disabled>
-                    Select District/City *
+                    -- জেলা নির্বাচন করুন (Select District) --
                   </option>
-                  {activeGeo.districts.map((d) => (
-                    <option key={d.id} value={d.name}>
-                      {d.name}
+                  {BD_DISTRICTS.map((district) => (
+                    <option key={district} value={district}>
+                      {district === "Dhaka" ? "Dhaka (ঢাকা - ডেলিভারি চার্জ ৳80)" : district}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                <select
-                  name="thana"
-                  value={formData.thana}
-                  onChange={handleGeoChange}
-                  required
-                  disabled={!formData.city}
-                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <option value="" disabled>
-                    Select Thana / Upazila *
-                  </option>
-                  {activeGeo.upazilas.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  name="union"
-                  value={formData.union}
-                  onChange={handleGeoChange}
-                  disabled={!formData.thana || activeGeo.unions.length === 0}
-                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <option value="" disabled>
-                    {activeGeo.unions.length === 0
-                      ? "No Union (Optional)"
-                      : "Select Union / Area (Optional)"}
-                  </option>
-                  {activeGeo.unions.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <select
-                  name="country"
-                  value={formData.country}
+              {/* Delivery Address */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                  সম্পূর্ণ ডেলিভারি ঠিকানা (Full Address) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="address1"
+                  value={formData.address1}
                   onChange={handleChange}
-                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all"
-                >
-                  <option value="Bangladesh">Bangladesh</option>
-                </select>
+                  placeholder="বাসা নম্বর, রোড নম্বর, এলাকা বা ল্যান্ডমার্ক..."
+                  required
+                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-900"
+                />
+              </div>
+
+              {/* Order Notes */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                  অর্ডার সংক্রান্ত বিশেষ নোট (Optional Notes)
+                </label>
+                <textarea
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleChange}
+                  placeholder="ডেলিভারিম্যানের জন্য কোনো বিশেষ নির্দেশনা থাকলে এখানে লিখুন..."
+                  rows={2}
+                  className="border border-slate-200 bg-slate-50/50 p-3 rounded-xl text-xs w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all resize-none text-slate-800"
+                />
               </div>
 
               {user && (
-                <div className="flex items-center gap-2.5 pt-2">
+                <div className="md:col-span-2 flex items-center gap-2 pt-1">
                   <input
                     type="checkbox"
                     id="saveAddressToBook"
                     name="saveAddressToBook"
                     checked={saveAddressToBook}
                     onChange={(e) => setSaveAddressToBook(e.target.checked)}
-                    className="w-4 h-4 text-[#0E2A47] rounded border-slate-300 focus:ring-[#0E2A47]"
+                    className="w-4 h-4 text-[#0E2A47] rounded border-slate-300 focus:ring-[#0E2A47] cursor-pointer"
                   />
                   <label htmlFor="saveAddressToBook" className="text-xs font-semibold text-slate-700 cursor-pointer select-none">
-                    Save / update this address in my Address Book for future checkouts
+                    ভবিষ্যৎ অর্ডারের সুবিধার জন্য এই ঠিকানাটি সেভ করে রাখুন
                   </label>
                 </div>
               )}
+            </div>
+          </div>
 
-              <div className="mb-12 relative border-t border-slate-200 pt-8">
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">
-                  Additional Information
-                </span>
-                <div className="max-w-xs mx-auto text-center">
-                  <label className="block text-sm font-medium text-slate-700 mb-3">
-                    How did you find us?
-                  </label>
-                  <select
-                    name="source"
-                    value={formData.source}
-                    onChange={handleChange}
-                    className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-center"
-                  >
-                    <option value="None">Please Select...</option>
-                    <option value="Google">Google Search</option>
-                    <option value="Social Media">Social Media</option>
-                    <option value="Friend">Friend / Recommendation</option>
-                  </select>
-                </div>
-              </div>
-
-              {items.some((item) => item.itemType === "domain") && (
-                <div className="mb-10 relative border-t border-slate-200 pt-8">
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-50 px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">
-                    Domain Registrant Information
-                  </span>
-                  <p className="text-sm text-slate-500 mb-6 text-center max-w-2xl mx-auto">
-                    You may specify alternative registered contact details for
-                    the domain registration(s) in your order when placing an
-                    order on behalf of another person or entity.
-                  </p>
-                  <div className="flex justify-center">
-                    <select
-                      name="domainContact"
-                      value={formData.domainContact}
-                      onChange={handleChange}
-                      className="border border-slate-200 p-3 rounded-xl text-sm min-w-[300px] bg-white focus:outline-none focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all"
-                    >
-                      <option value="default">
-                        Use Default Contact (Details Above)
-                      </option>
-                      <option value="custom">Add New Contact</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {!user && (
-                <div className="mb-12 relative border-t border-slate-200 pt-8">
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">
-                    Account Security
-                  </span>
-                  <p className="text-center text-sm text-slate-500 mb-6">
-                    Create a password to easily access your orders and track
-                    status.
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-3">
-                    <div className="relative group">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-[#0E2A47] transition-colors" />
-                      <input
-                        type="password"
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        placeholder="Password *"
-                        required
-                        className="border border-slate-200 bg-slate-50/50 p-3.5 pl-11 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all"
-                      />
-                    </div>
-                    <div className="relative group">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-[#0E2A47] transition-colors" />
-                      <input
-                        type="password"
-                        name="confirmPassword"
-                        value={formData.confirmPassword}
-                        onChange={handleChange}
-                        placeholder="Confirm Password *"
-                        required
-                        className="border border-slate-200 bg-slate-50/50 p-3.5 pl-11 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col sm:flex-row justify-between items-center text-sm gap-3">
-                    <button
-                      type="button"
-                      onClick={generatePassword}
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors"
-                    >
-                      Generate Password
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-500">Password Strength:</span>
-                      <span
-                        className={`font-semibold ${formData.password.length > 8 ? "text-emerald-500" : formData.password.length > 0 ? "text-amber-500" : "text-slate-400"}`}
-                      >
-                        {formData.password.length > 8
-                          ? "Strong"
-                          : formData.password.length > 0
-                            ? "Weak"
-                            : "Enter Password"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
+          {/* Domain Specific Notice (Only if Cart has .bd domain) */}
+          {items.some((item) => item.itemType === "domain") && (
+            <div className="mb-8 border border-blue-200 bg-blue-50/50 rounded-2xl p-5">
+              <span className="text-xs font-bold text-blue-700 uppercase tracking-wider block mb-2">
+                .BD Domain Registrant Info
+              </span>
+              <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+                ডোমেইন রেজিস্ট্রেশনের ক্ষেত্রে উপরের যোগাযোগের তথ্য ব্যবহৃত হবে। আপনি চাইলে বিকল্প তথ্য প্রদান করতে পারেন।
+              </p>
+              <select
+                name="domainContact"
+                value={formData.domainContact}
+                onChange={handleChange}
+                className="border border-slate-200 p-2.5 rounded-xl text-xs bg-white text-slate-800"
+              >
+                <option value="default">Use Contact Details Above</option>
+                <option value="custom">Provide Custom Contact</option>
+              </select>
+            </div>
+          )}
 
               <div className="mb-12 relative border-t border-slate-200 pt-8">
                 <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">
@@ -1249,20 +1038,6 @@ export const Checkout: React.FC = () => {
                 </div>
               )}
 
-              <div className="mb-12 relative border-t border-slate-200 pt-8">
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">
-                  Additional Notes
-                </span>
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleChange}
-                  placeholder="Enter any additional notes, delivery instructions, or special requests..."
-                  rows={4}
-                  className="w-full border border-slate-200 bg-slate-50/50 rounded-xl p-4 text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all resize-y"
-                ></textarea>
-              </div>
-
               <div className="flex flex-col items-center justify-center gap-6 pt-4 border-t border-slate-100">
                 {submitError && (
                   <div className="w-full max-w-xl p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-sm shadow-sm animate-in fade-in duration-200">
@@ -1289,7 +1064,7 @@ export const Checkout: React.FC = () => {
                     />
                   </div>
                   <span>
-                    I have read and agree to the{" "}
+                    আমি{" "}
                     <Link
                       to="/terms"
                       className="text-[#0E2A47] font-semibold hover:underline"
@@ -1297,7 +1072,7 @@ export const Checkout: React.FC = () => {
                     >
                       Terms of Service
                     </Link>{" "}
-                    & Privacy Policy
+                    এবং Privacy Policy পড়েছি এবং সম্মত আছি
                   </span>
                 </label>
 
@@ -1309,15 +1084,15 @@ export const Checkout: React.FC = () => {
                   {isProcessing ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin text-white" />
-                      <span>Processing...</span>
+                      <span>অর্ডার প্রসেস হচ্ছে...</span>
                     </>
                   ) : (
                     <>
                       <span>
                         {paymentType === "cod"
-                          ? shippingCost > 0
+                          ? isAdvanceCOD
                             ? `Pay Advance Delivery Fee (৳${shippingCost.toFixed(2)})`
-                            : "Confirm Cash on Delivery Order"
+                            : "অর্ডার নিশ্চিত করুন (Confirm Order)"
                           : `Pay Full Amount (৳${grandTotal.toFixed(2)})`}
                       </span>
                       <span className="bg-white/20 p-1.5 rounded-full group-hover:bg-white/30 transition-colors">
@@ -1327,8 +1102,6 @@ export const Checkout: React.FC = () => {
                   )}
                 </button>
               </div>
-            </div>
-          </div>
         </form>
       </div>
     </Layout>
