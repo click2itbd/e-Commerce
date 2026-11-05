@@ -1785,6 +1785,68 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                             );
                           })()}
 
+                          {/* Barcode / SKU scan or manual entry */}
+                          <div className="w-full border-t border-gray-200/80 pt-2 mt-1">
+                            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                              <label className="text-[10px] font-bold text-gray-600 uppercase flex items-center gap-1.5 shrink-0">
+                                <Barcode size={14} className="text-blue-600" />
+                                <span>Barcode / SKU:</span>
+                              </label>
+                              <div className="relative flex-1 min-w-[200px]">
+                                <input
+                                  type="text"
+                                  placeholder="স্ক্যান করুন বা বারকোড টাইপ করুন..."
+                                  value={item.sku || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setPurchaseForm(prev => ({
+                                      ...prev,
+                                      items: prev.items.map(i => i.id === item.id ? { ...i, sku: val } : i)
+                                    }));
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      const val = e.currentTarget.value.trim();
+                                      if (val) {
+                                        toast.success(`বারকোড/SKU "${val}" সংরক্ষিত হয়েছে`);
+                                      }
+                                    }
+                                  }}
+                                  className="w-full pl-8 pr-7 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm"
+                                />
+                                <ScanLine className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={13} />
+                                {item.sku && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPurchaseForm(prev => ({
+                                        ...prev,
+                                        items: prev.items.map(i => i.id === item.id ? { ...i, sku: '' } : i)
+                                      }));
+                                    }}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 p-0.5 rounded transition-colors"
+                                    title="বারকোড মুছুন"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </div>
+                              {item.sku ? (
+                                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded shrink-0 flex items-center gap-1">
+                                  ✓ {item.sku}
+                                  {item.sku.startsWith('PRD-') && (
+                                    <span className="text-[9px] text-gray-500 font-sans font-normal">(অটো SKU)</span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded shrink-0">
+                                  বারকোড ফাঁকা (ঐচ্ছিক)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
                           {/* Serial Numbers Input if serial tracking enabled */}
                           {item.hasSerialTracking && (() => {
                             const serialCount = Array.isArray(item.newSerials) ? item.newSerials.length : 0;
@@ -1916,28 +1978,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                   />
                                 </div>
                               </div>
-                              
                               {/* Scanned Badges */}
-                              {!item.hasSerialTracking && (
-                            <div className="border-t border-gray-100 pt-2 mt-2">
-                               <div className="flex gap-2 items-center">
-                                  <label className="text-[10px] font-bold text-gray-500 uppercase whitespace-nowrap">Barcode / SKU</label>
-                                  <input 
-                                    type="text" 
-                                    placeholder="Enter Barcode"
-                                    value={item.sku || ''}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setPurchaseForm(prev => ({
-                                        ...prev,
-                                        items: prev.items.map(i => i.id === item.id ? { ...i, sku: val } : i)
-                                      }))
-                                    }}
-                                    className="w-full border border-gray-200 rounded px-2 py-1 text-xs font-bold text-gray-800 focus:ring-1 focus:ring-blue-500 outline-none"
-                                  />
-                               </div>
-                            </div>
-                          )}
                           
                           {Array.isArray(item.newSerials) && item.newSerials.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5 mt-2 bg-gray-50 p-2 rounded-lg border border-gray-100">
