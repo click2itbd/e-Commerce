@@ -60,7 +60,61 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
         getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc'))),
       ]);
 
-      setPaymentAccounts(accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount)));
+      let accounts = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
+
+      // Auto-provision standard EPS Gateway and Courier COD accounts if missing
+      const hasEps = accounts.some(a => a.name?.trim().toLowerCase() === 'eps payment gateway');
+      const hasCod = accounts.some(a => a.name?.trim().toLowerCase() === 'courier cod receivable');
+
+      if (!hasEps) {
+        try {
+          const docRef = await addDoc(collection(db, 'payment_accounts'), {
+            name: 'EPS Payment Gateway',
+            type: 'bank',
+            description: 'Web Online Orders Escrow Gateway (EPS)',
+            openingBalance: 0,
+            status: 'active',
+            createdAt: new Date().toISOString()
+          });
+          accounts.push({
+            id: docRef.id,
+            name: 'EPS Payment Gateway',
+            type: 'bank',
+            description: 'Web Online Orders Escrow Gateway (EPS)',
+            openingBalance: 0,
+            status: 'active',
+            createdAt: new Date().toISOString()
+          });
+        } catch (e) {
+          console.warn('Failed to auto-create EPS account:', e);
+        }
+      }
+
+      if (!hasCod) {
+        try {
+          const docRef = await addDoc(collection(db, 'payment_accounts'), {
+            name: 'Courier COD Receivable',
+            type: 'cash',
+            description: 'Courier Cash on Delivery (COD) Holding Account',
+            openingBalance: 0,
+            status: 'active',
+            createdAt: new Date().toISOString()
+          });
+          accounts.push({
+            id: docRef.id,
+            name: 'Courier COD Receivable',
+            type: 'cash',
+            description: 'Courier Cash on Delivery (COD) Holding Account',
+            openingBalance: 0,
+            status: 'active',
+            createdAt: new Date().toISOString()
+          });
+        } catch (e) {
+          console.warn('Failed to auto-create Courier COD account:', e);
+        }
+      }
+
+      setPaymentAccounts(accounts);
       setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
     } catch (err) {
       console.error(err);

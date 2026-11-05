@@ -250,8 +250,55 @@ const EcommerceDashboard: React.FC = () => {
         await updateDoc(orderRef, { status: newStatus, stockDeducted: false });
         setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus, stockDeducted: false } : o));
       } else {
-        await updateDoc(orderRef, { status: newStatus });
-        setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+        // If order is delivered via COD, record collection in Courier COD Receivable
+        if (newStatus === 'delivered' && order && (order.paymentMethod === 'cod' || (order as any).paymentType === 'cod' || order.paymentStatus !== 'paid')) {
+          try {
+            const accSnap = await getDocs(query(collection(db, 'payment_accounts'), where('name', '==', 'Courier COD Receivable'), limit(1)));
+            let courierAccountId = '';
+            if (!accSnap.empty) {
+              courierAccountId = accSnap.docs[0].id;
+            } else {
+              const newAcc = await addDoc(collection(db, 'payment_accounts'), {
+                name: 'Courier COD Receivable',
+                type: 'cash',
+                description: 'Courier Cash on Delivery (COD) Holding Account',
+                openingBalance: 0,
+                status: 'active',
+                createdAt: new Date().toISOString()
+              });
+              courierAccountId = newAcc.id;
+            }
+
+            const txSnap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', orderId), where('type', '==', 'payment_received')));
+            if (txSnap.empty) {
+              await addDoc(collection(db, 'transactions'), {
+                type: 'payment_received',
+                amount: Number(order.total) || 0,
+                date: new Date().toISOString().split('T')[0],
+                description: `COD Collected by Courier for Order #${order.documentNumber || order.id.slice(0, 8)} (${(order as any).courier || 'Steadfast'})`,
+                entityId: order.customerId || (order as any).userId || 'general',
+                entityName: order.customerName || (order as any).shippingInfo?.fullName || 'Online Customer',
+                entityType: 'customer',
+                referenceId: order.id,
+                documentNumber: order.documentNumber || order.id.slice(0, 8),
+                paymentAccountId: courierAccountId,
+                paymentAccountName: 'Courier COD Receivable',
+                paymentMethod: 'courier_cod',
+                createdAt: new Date().toISOString(),
+                createdBy: 'Courier Delivery System'
+              });
+            }
+            await updateDoc(orderRef, { status: 'delivered', paymentStatus: 'paid' });
+            setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'delivered', paymentStatus: 'paid' } : o));
+          } catch (codErr) {
+            console.error('Error recording COD payment:', codErr);
+            await updateDoc(orderRef, { status: newStatus });
+            setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+          }
+        } else {
+          await updateDoc(orderRef, { status: newStatus });
+          setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+        }
       }
       toast.success('Status updated', { id: toastId });
 
