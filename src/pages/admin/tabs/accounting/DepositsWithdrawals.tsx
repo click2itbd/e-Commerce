@@ -164,13 +164,9 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
 
         const currentBal = getAccountBalance(formData.fromAccountId);
         if (formData.amount > currentBal) {
-          const proceed = window.confirm(
-            `Warning: Transfer amount (${formatCurrency(formData.amount, settings)}) exceeds the current balance (${formatCurrency(currentBal, settings)}) of ${fromAcc?.name}. Do you wish to continue?`
-          );
-          if (!proceed) {
-            setSubmitting(false);
-            return;
-          }
+          toast.error(`অপর্যাপ্ত ব্যালেন্স! "${fromAcc?.name}" অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই (বর্তমান ব্যালেন্স: ৳${currentBal.toLocaleString()}, ট্রান্সফার চাওয়া হয়েছে: ৳${formData.amount.toLocaleString()})। ব্যালেন্স নেগেটিভ হওয়া অনুমোদিত নয়।`);
+          setSubmitting(false);
+          return;
         }
 
         const transferBatchId = `TRF-${Date.now()}`;
@@ -227,6 +223,12 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
         toast.success(`Capital deposit of ${formatCurrency(formData.amount, settings)} recorded in ${acc?.name}`);
       } else if (actionType === 'withdrawal') {
         const acc = paymentAccounts.find(a => a.id === formData.accountId);
+        const currentBal = getAccountBalance(formData.accountId);
+        if (formData.amount > currentBal) {
+          toast.error(`অপর্যাপ্ত ব্যালেন্স! "${acc?.name}" অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই (বর্তমান ব্যালেন্স: ৳${currentBal.toLocaleString()}, উইথড্র চাওয়া হয়েছে: ৳${formData.amount.toLocaleString()})। ব্যালেন্স নেগেটিভ হওয়া অনুমোদিত নয়।`);
+          setSubmitting(false);
+          return;
+        }
         await addDoc(collection(db, 'transactions'), {
           date: txDate,
           amount: Number(formData.amount),

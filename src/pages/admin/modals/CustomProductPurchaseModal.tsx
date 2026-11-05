@@ -19,7 +19,8 @@ import {
 import { toast } from 'react-hot-toast';
 import { generateDocumentNumber } from '../../../lib/numbering';
 import { sanitizePublicProductData, saveProductPrivateCost } from '../../../lib/productCosts';
-import { Vendor, PaymentAccount, NavigationMenu } from '../../../types';
+import { Vendor, PaymentAccount, NavigationMenu, Transaction } from '../../../types';
+import { calculateAccountBalance, validateSufficientBalance } from '../../../lib/accountBalance';
 import { cn } from '../../../lib/utils';
 
 interface CustomProductPurchaseModalProps {
@@ -33,6 +34,7 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [accounts, setAccounts] = useState<PaymentAccount[]>([]);
   const [menus, setMenus] = useState<NavigationMenu[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -55,10 +57,11 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [venSnap, accSnap, menuSnap] = await Promise.all([
+        const [venSnap, accSnap, menuSnap, txSnap] = await Promise.all([
           getDocs(query(collection(db, 'vendors'), orderBy('name'))),
           getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
           getDocs(collection(db, 'menus')),
+          getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc'))).catch(() => ({ docs: [] })),
         ]);
         
         const fetchedVendors = venSnap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor));
@@ -68,6 +71,7 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
         setVendors(fetchedVendors);
         setAccounts(fetchedAccs);
         setMenus(fetchedMenus);
+        setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
 
         if (fetchedAccs.length > 0) {
           setFormData(prev => ({ ...prev, paymentAccountId: fetchedAccs[0].id }));
@@ -114,6 +118,15 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
       return;
     }
     
+    if (Number(formData.paidAmount || 0) > 0) {
+      const selectedAcc = accounts.find(a => a.id === formData.paymentAccountId);
+      const validation = validateSufficientBalance(selectedAcc, transactions, Number(formData.paidAmount));
+      if (!validation.valid) {
+        toast.error(validation.error || 'অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই!');
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const vendor = vendors.find(v => v.id === formData.vendorId);
@@ -312,6 +325,16 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
                     <option key={m.id} value={m.id}>{m.title}</option>
                   ))}
                 </select>
+                {formData.paymentAccountId && (() => {
+                  const selAcc = accounts.find(a => a.id === formData.paymentAccountId);
+                  const bal = selAcc ? calculateAccountBalance(selAcc, transactions) : 0;
+                  return (
+                    <div className="mt-1 text-[11px] font-bold text-slate-600 flex justify-between">
+                      <span>ব্যালেন্স:</span>
+                      <span className={bal > 0 ? "text-emerald-700" : "text-red-600"}>৳{bal.toLocaleString()}</span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Brand */}
@@ -480,9 +503,14 @@ export const CustomProductPurchaseModal: React.FC<CustomProductPurchaseModalProp
                   className="w-full h-10 border border-slate-200 rounded-xl px-3 text-xs font-bold text-slate-800 bg-white outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 shadow-2xs cursor-pointer"
                 >
                   <option value="">-- No Immediate Payment --</option>
-                  {accounts.map(a => (
-                    <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
-                  ))}
+                  {accounts.map(a => {
+                    const bal = calculateAccountBalance(a, transactions);
+                    return (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.type}) — ব্যালেন্স: ৳{bal.toLocaleString()}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

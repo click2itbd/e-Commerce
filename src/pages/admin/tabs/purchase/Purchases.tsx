@@ -4,6 +4,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../../../../firebase';
 import { Product, Vendor, Transaction, SiteSettings, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, type WarrantyUnit } from '../../../../lib/utils';
+import { calculateAccountBalance, validateSufficientBalance } from '../../../../lib/accountBalance';
 
 const itemWarrantyMonths = (i: any): number =>
   i.warrantyValue !== undefined
@@ -96,6 +97,7 @@ const Purchases: React.FC<PurchasesProps> = ({
   users = [],
   vendors: initialVendors = [],
   products: initialProducts = [],
+  transactions: initialTransactions = [],
   settings,
   setSelectedLedgerEntity,
   setActiveTab,
@@ -104,6 +106,7 @@ const Purchases: React.FC<PurchasesProps> = ({
   const { profile } = useAuth();
   const [vendors, setVendors] = useState<Vendor[]>(initialVendors);
   const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [purchaseHistory, setPurchaseHistory] = useState<PurchaseRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -202,19 +205,21 @@ const Purchases: React.FC<PurchasesProps> = ({
   const loadData = async () => {
     try {
       setLoading(true);
-      const [venSnap, prodSnap, accSnap, purSnap, catSnap, brandSnap] = await Promise.all([
+      const [venSnap, prodSnap, accSnap, purSnap, catSnap, brandSnap, txSnap] = await Promise.all([
         getDocs(query(collection(db, 'vendors'), orderBy('name'))),
         getDocs(query(collection(db, 'products'), orderBy('name'))),
         getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
         getDocs(query(collection(db, 'purchases'), orderBy('createdAt', 'desc'))).catch(() => ({ docs: [] })),
         getDocs(query(collection(db, 'menus'))).catch(() => ({ docs: [] })),
         getDocs(query(collection(db, 'brands'))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc'))).catch(() => ({ docs: [] })),
       ]);
 
       const vens = venSnap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor));
       const prods = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
       const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       const purs = purSnap.docs.map(d => ({ id: d.id, ...d.data() } as PurchaseRecord));
+      setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
       
       // Auto-recover any NEW_ products that were left out due to the bug
       let recoveredAny = false;
@@ -835,9 +840,17 @@ const Purchases: React.FC<PurchasesProps> = ({
       toast.error(`পরিশোধিত টাকা (৳${paid}) মোট বিলের (৳${billTotal}) চেয়ে বেশি হতে পারে না!`);
       return;
     }
-    if (paid > 0 && !purchaseForm.paymentAccountId) {
+    if (paid > 0) {
+      if (!purchaseForm.paymentAccountId) {
       toast.error('টাকা পরিশোধের জন্য একটি পেমেন্ট অ্যাকাউন্ট (Paid From Account) সিলেক্ট করুন!');
       return;
+      }
+      const selectedAcc = paymentAccounts.find(a => a.id === purchaseForm.paymentAccountId);
+      const validation = validateSufficientBalance(selectedAcc, transactions, paid);
+      if (!validation.valid) {
+        toast.error(validation.error || 'অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই!');
+        return;
+      }
     }
 
     try {
@@ -1869,6 +1882,11 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                 </div>
 
                 {/* Payment Section */}
+                {(() => {
+                  const selectedAccount = paymentAccounts.find(a => a.id === purchaseForm.paymentAccountId);
+                  const availableBalance = selectedAccount ? calculateAccountBalance(selectedAccount, transactions) : 0;
+                  const isInsufficient = Boolean(selectedAccount && purchaseForm.paidAmount > availableBalance);
+                  return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
                   <div className="bg-gray-50/70 p-3.5 rounded-xl border border-gray-200 space-y-3">
                     <span className="font-bold text-gray-700 uppercase block">Payment Source Account</span>
@@ -1887,10 +1905,24 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                         className="w-full border border-gray-200 rounded-lg p-2 font-medium"
                       >
                         <option value="">-- Select Account --</option>
-                        {paymentAccounts.map(a => (
-                          <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
-                        ))}
+                        {paymentAccounts.map(a => {
+                          const bal = calculateAccountBalance(a, transactions);
+                          return (
+                            <option key={a.id} value={a.id}>
+                              {a.name} ({a.type}) — ব্যালেন্স: ৳{bal.toLocaleString()}
+                            </option>
+                          );
+                        })}
                       </select>
+                      {selectedAccount && (
+                        <div className={cn(
+                          "mt-2 text-xs px-2.5 py-1.5 rounded-lg flex items-center justify-between font-bold",
+                          availableBalance > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
+                        )}>
+                          <span>বর্তমান ব্যালেন্স:</span>
+                          <span>{formatCurrency(availableBalance, settings)}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-2">
@@ -1920,13 +1952,42 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                         onChange={e => setPurchaseForm({ ...purchaseForm, paidAmount: Number(e.target.value) || 0 })}
                         className={cn(
                           "w-full border rounded-lg p-2 font-black text-gray-900 text-sm",
-                          purchaseForm.paidAmount > billTotal ? "border-red-400 bg-red-50 text-red-900" : "border-gray-200"
+                          purchaseForm.paidAmount > billTotal || isInsufficient ? "border-red-400 bg-red-50 text-red-900" : "border-gray-200"
                         )}
                       />
                       {purchaseForm.paidAmount > billTotal && (
                         <p className="text-[11px] text-red-600 font-bold mt-1 flex items-center gap-1">
                           <AlertCircle size={12} className="shrink-0" /> পরিশোধিত টাকা মোট বিলের (৳{billTotal}) চেয়ে বেশি হতে পারে না!
                         </p>
+                      )}
+                      {isInsufficient && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-800 space-y-1.5 mt-2">
+                          <div className="font-black flex items-center gap-1.5 text-red-900">
+                            <AlertCircle size={14} className="shrink-0 text-red-600" />
+                            অপর্যাপ্ত ব্যালেন্স! কোনোভাবেই অ্যাকাউন্ট ব্যালেন্স মাইনাস হওয়া যাবে না।
+                          </div>
+                          <p className="text-[11px] text-red-700">
+                            "{selectedAccount?.name}" অ্যাকাউন্টে বর্তমান ব্যালেন্স <b>{formatCurrency(availableBalance, settings)}</b> রয়েছে, কিন্তু আপনি পরিশোধ করতে চাচ্ছেন <b>{formatCurrency(purchaseForm.paidAmount, settings)}</b>।
+                          </p>
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {availableBalance > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setPurchaseForm({ ...purchaseForm, paidAmount: Math.min(billTotal, availableBalance) })}
+                                className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-black rounded text-[11px] transition shadow-xs cursor-pointer"
+                              >
+                                ৳{Math.min(billTotal, availableBalance).toLocaleString()} পরিশোধ করুন (বাকি ৳{(billTotal - Math.min(billTotal, availableBalance)).toLocaleString()} ডিউ)
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setPurchaseForm({ ...purchaseForm, paidAmount: 0 })}
+                              className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded text-[11px] transition shadow-xs cursor-pointer"
+                            >
+                              সম্পূর্ণ বিল (৳{billTotal.toLocaleString()}) ডিউ রাখুন
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                     <div>
@@ -1951,6 +2012,8 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                     )}
                   </div>
                 </div>
+                  );
+                })()}
 
                 {/* Bill Total & Submit */}
                 <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl flex justify-between items-center">
@@ -1960,7 +2023,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
 
                 <button
                   type="submit"
-                  disabled={submitting || purchaseForm.items.length === 0 || !purchaseForm.vendorId}
+                  disabled={submitting || purchaseForm.items.length === 0 || !purchaseForm.vendorId || (Boolean(purchaseForm.paymentAccountId && purchaseForm.paidAmount > calculateAccountBalance(paymentAccounts.find(a => a.id === purchaseForm.paymentAccountId), transactions)))}
                   className="w-full bg-[#081621] hover:bg-[#EF4444] disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm transition-all shadow-md flex items-center justify-center gap-2"
                 >
                   <CheckCircle size={18} />

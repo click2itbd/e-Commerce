@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../../../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { Transaction, TransactionCategory, PaymentAccount } from '../../../../types';
+import { calculateAccountBalance, validateSufficientBalance } from '../../../../lib/accountBalance';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
@@ -36,6 +37,7 @@ const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
   const { settings } = useSettings();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<TransactionCategory[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +79,7 @@ const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
       ]);
 
       const allTx = txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+      setAllTransactions(allTx);
       setTransactions(allTx.filter(t => t.type === 'expense'));
 
       const cats = catSnap.docs.map(d => ({ id: d.id, ...d.data() } as TransactionCategory));
@@ -107,10 +110,18 @@ const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
       return;
     }
 
+    const selectedAcc = paymentAccounts.find(a => a.id === formData.paymentAccountId);
+    if (selectedAcc && Number(formData.amount || 0) > 0) {
+      const balanceCheck = validateSufficientBalance(selectedAcc, allTransactions, Number(formData.amount));
+      if (!balanceCheck.valid) {
+        toast.error(balanceCheck.error || 'অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই!');
+        return;
+      }
+    }
+
     try {
       setSubmitting(true);
       const selectedCat = categories.find(c => c.id === formData.categoryId);
-      const selectedAcc = paymentAccounts.find(a => a.id === formData.paymentAccountId);
 
       const expenseData = {
         type: 'expense',
@@ -413,6 +424,27 @@ const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
+                  {formData.paymentAccountId && (() => {
+                    const selAcc = paymentAccounts.find(a => a.id === formData.paymentAccountId);
+                    const bal = selAcc ? calculateAccountBalance(selAcc, allTransactions) : 0;
+                    const isOver = Number(formData.amount || 0) > bal;
+                    return (
+                      <div className="mt-1.5 space-y-1">
+                        <div className={cn(
+                          "text-xs px-2.5 py-1 rounded-lg flex items-center justify-between font-bold",
+                          bal > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
+                        )}>
+                          <span>বর্তমান ব্যালেন্স:</span>
+                          <span>{formatCurrency(bal, settings)}</span>
+                        </div>
+                        {isOver && (
+                          <div className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 p-2 rounded-lg">
+                            ⚠️ অপর্যাপ্ত ব্যালেন্স! অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই (বর্তমান ব্যালেন্স: ৳{bal.toLocaleString()})। ব্যালেন্স নেগেটিভ হওয়া যাবে না।
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>
@@ -425,9 +457,14 @@ const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
                     onChange={e => setFormData({ ...formData, paymentAccountId: e.target.value })}
                     className="w-full border border-gray-200 rounded-lg p-2 font-medium"
                   >
-                    {paymentAccounts.map(a => (
-                      <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
-                    ))}
+                    {paymentAccounts.map(a => {
+                      const bal = calculateAccountBalance(a, allTransactions);
+                      return (
+                        <option key={a.id} value={a.id}>
+                          {a.name} ({a.type}) — ব্যালেন্স: ৳{bal.toLocaleString()}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 

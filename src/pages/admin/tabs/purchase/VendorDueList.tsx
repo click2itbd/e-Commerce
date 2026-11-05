@@ -7,6 +7,7 @@ import { formatCurrency, cn } from '../../../../lib/utils';
 import { Search, CreditCard, X, Check, Receipt, Filter } from 'lucide-react';
 import { generatePDF } from '../../../../lib/pdf';
 import { Vendor, Transaction, PaymentAccount } from '../../../../types';
+import { calculateAccountBalance, validateSufficientBalance } from '../../../../lib/accountBalance';
 
 import { where } from 'firebase/firestore';
 import { useAuth } from '../../../../context/AuthContext';
@@ -358,6 +359,12 @@ export default function VendorDueList() {
     }
     if (!paymentAccountId) {
       toast.error('Select a payment account');
+      return;
+    }
+    const targetAccount = paymentAccounts.find(a => a.id === paymentAccountId);
+    const balanceCheck = validateSufficientBalance(targetAccount, transactions, Number(paymentAmount));
+    if (!balanceCheck.valid) {
+      toast.error(balanceCheck.error || 'অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই!');
       return;
     }
 
@@ -905,12 +912,50 @@ export default function VendorDueList() {
                     required
                   >
                     <option value="">-- Select Account --</option>
-                    {paymentAccounts.map(acc => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name} ({acc.type})
-                      </option>
-                    ))}
+                    {paymentAccounts.map(acc => {
+                      const bal = calculateAccountBalance(acc, transactions);
+                      return (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} ({acc.type}) — ব্যালেন্স: ৳{bal.toLocaleString()}
+                        </option>
+                      );
+                    })}
                   </select>
+                  {paymentAccountId && (() => {
+                    const selAcc = paymentAccounts.find(a => a.id === paymentAccountId);
+                    const selBal = selAcc ? calculateAccountBalance(selAcc, transactions) : 0;
+                    const isOver = Number(paymentAmount) > selBal;
+                    return (
+                      <div className="mt-2 space-y-1.5">
+                        <div className={cn(
+                          "text-xs px-2.5 py-1.5 rounded-lg flex items-center justify-between font-bold",
+                          selBal > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
+                        )}>
+                          <span>অ্যাকাউন্ট ব্যালেন্স:</span>
+                          <span>{formatCurrency(selBal, settings)}</span>
+                        </div>
+                        {isOver && (
+                          <div className="bg-red-50 border border-red-200 text-red-800 p-2.5 rounded-lg text-xs space-y-1">
+                            <div className="font-black text-red-900 flex items-center gap-1">
+                              ⚠️ অপর্যাপ্ত ব্যালেন্স! ব্যালেন্স মাইনাস হতে পারবে না।
+                            </div>
+                            <p className="text-[11px] text-red-700">
+                              নির্বাচিত অ্যাকাউন্টে রয়েছে <b>{formatCurrency(selBal, settings)}</b>, কিন্তু পরিশোধ চাওয়া হয়েছে <b>{formatCurrency(Number(paymentAmount) || 0, settings)}</b>।
+                            </p>
+                            {selBal > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setPaymentAmount(selBal)}
+                                className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-[10px] transition cursor-pointer"
+                              >
+                                সর্বোচ্চ ৳{selBal.toLocaleString()} পেমেন্ট করুন
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -940,7 +985,7 @@ export default function VendorDueList() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || !paymentAmount || !paymentAccountId}
+                  disabled={submitting || !paymentAmount || !paymentAccountId || (Boolean(paymentAccountId && Number(paymentAmount) > calculateAccountBalance(paymentAccounts.find(a => a.id === paymentAccountId), transactions)))}
                   className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-black text-xs transition-all shadow-md shadow-blue-900/20 flex items-center gap-2 cursor-pointer"
                 >
                   {submitting ? 'Processing Payment...' : `Confirm Payment (${formatCurrency(Number(paymentAmount) || 0, settings)})`}
