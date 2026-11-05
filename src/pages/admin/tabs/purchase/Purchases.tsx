@@ -869,7 +869,7 @@ const Purchases: React.FC<PurchasesProps> = ({
 
     // 3. Serial Number & Quantity Match (সিরিয়াল নম্বর ও পরিমাণের মিল)
     for (const item of purchaseForm.items) {
-      if (item.hasSerialTracking) {
+      if (item.hasSerialTracking || (Array.isArray(item.newSerials) && item.newSerials.length > 0)) {
         const serials = Array.isArray(item.newSerials)
           ? item.newSerials.filter((s: string) => s && s.trim())
           : String(item.newSerials || '').split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
@@ -884,7 +884,7 @@ const Purchases: React.FC<PurchasesProps> = ({
     // 4. Duplicate Serial Number Check (ডুপ্লিকেট সিরিয়াল নম্বর রোধ)
     const seenSerials = new Set<string>();
     for (const item of purchaseForm.items) {
-      if (item.hasSerialTracking) {
+      if (item.hasSerialTracking || (Array.isArray(item.newSerials) && item.newSerials.length > 0)) {
         const serials = Array.isArray(item.newSerials)
           ? item.newSerials.filter((s: string) => s && s.trim())
           : String(item.newSerials || '').split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
@@ -1070,7 +1070,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
             updates.warrantyUnit = item.warrantyUnit || 'years';
           }
 
-          if (currentProduct.hasSerialTracking && item.newSerials) {
+          if ((currentProduct.hasSerialTracking || item.hasSerialTracking || (Array.isArray(item.newSerials) && item.newSerials.length > 0)) && item.newSerials) {
             const addedSerials = Array.isArray(item.newSerials)
               ? item.newSerials.filter((s: string) => s.trim())
               : String(item.newSerials)
@@ -1078,7 +1078,9 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                   .map((s: string) => s.trim())
                   .filter((s: string) => s);
 
+            updates.hasSerialTracking = true;
             updates.availableSerials = [...(currentProduct.availableSerials || []), ...addedSerials];
+            if (!updates.sku && addedSerials[0]) updates.sku = addedSerials[0];
           }
 
           const { publicData, privateCostData } = sanitizePublicProductData(updates, true);
@@ -1113,7 +1115,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
              hasWarranty: Boolean(item.hasWarranty),
              warrantyMonths: item.hasWarranty ? itemWarrantyMonths(item) : 0,
                      warrantyUnit: item.warrantyUnit || 'years',
-             hasSerialTracking: Boolean(item.hasSerialTracking),
+             hasSerialTracking: Boolean(item.hasSerialTracking || (addedSerials && addedSerials.length > 0)),
              availableSerials: addedSerials,
              createdAt: new Date().toISOString()
           };
@@ -1785,141 +1787,134 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                             );
                           })()}
 
-                          {/* Barcode / SKU scan or manual entry */}
-                          <div className="w-full border-t border-gray-200/80 pt-2 mt-1">
-                            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-                              <label className="text-[10px] font-bold text-gray-600 uppercase flex items-center gap-1.5 shrink-0">
-                                <Barcode size={14} className="text-blue-600" />
-                                <span>Barcode / SKU:</span>
-                              </label>
-                              <div className="relative flex-1 min-w-[200px]">
-                                <input
-                                  type="text"
-                                  placeholder="স্ক্যান করুন বা বারকোড টাইপ করুন..."
-                                  value={item.sku || ''}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setPurchaseForm(prev => ({
-                                      ...prev,
-                                      items: prev.items.map(i => i.id === item.id ? { ...i, sku: val } : i)
-                                    }));
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      const val = e.currentTarget.value.trim();
-                                      if (val) {
-                                        toast.success(`বারকোড/SKU "${val}" সংরক্ষিত হয়েছে`);
-                                      }
-                                    }
-                                  }}
-                                  className="w-full pl-8 pr-7 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm"
-                                />
-                                <ScanLine className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={13} />
-                                {item.sku && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setPurchaseForm(prev => ({
-                                        ...prev,
-                                        items: prev.items.map(i => i.id === item.id ? { ...i, sku: '' } : i)
-                                      }));
-                                    }}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 p-0.5 rounded transition-colors"
-                                    title="বারকোড মুছুন"
-                                  >
-                                    <X size={12} />
-                                  </button>
-                                )}
-                              </div>
-                              {item.sku ? (
-                                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded shrink-0 flex items-center gap-1">
-                                  ✓ {item.sku}
-                                  {item.sku.startsWith('PRD-') && (
-                                    <span className="text-[9px] text-gray-500 font-sans font-normal">(অটো SKU)</span>
-                                  )}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded shrink-0">
-                                  বারকোড ফাঁকা (ঐচ্ছিক)
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Serial Numbers Input if serial tracking enabled */}
-                          {item.hasSerialTracking && (() => {
-                            const serialCount = Array.isArray(item.newSerials) ? item.newSerials.length : 0;
+                          {/* Barcode & Serial Scanning Section (Available for every item) */}
+                          {(() => {
+                            const serials = Array.isArray(item.newSerials) ? item.newSerials : [];
+                            const serialCount = serials.length;
                             const isMatch = serialCount === Number(item.quantity);
                             const isOver = serialCount > Number(item.quantity);
+
+                            const addBarcodesToItem = (rawText: string) => {
+                              if (!rawText || !rawText.trim()) return;
+                              const tokens = rawText.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+                              if (tokens.length === 0) return;
+
+                              const currentSerials = Array.isArray(item.newSerials) ? item.newSerials : [];
+                              const otherItemSerials = purchaseForm.items
+                                .filter(i => i.id !== item.id && Array.isArray(i.newSerials))
+                                .flatMap(i => i.newSerials as string[]);
+
+                              const validNew: string[] = [];
+                              for (const cleanS of tokens) {
+                                if (currentSerials.some(cs => cs.toLowerCase() === cleanS.toLowerCase()) || validNew.some(vn => vn.toLowerCase() === cleanS.toLowerCase())) {
+                                  continue;
+                                }
+                                if (otherItemSerials.some(os => os.toLowerCase() === cleanS.toLowerCase())) {
+                                  toast.error(`বারকোড "${cleanS}" এই পারচেজের অন্য আইটেমে স্ক্যান করা হয়েছে!`);
+                                  continue;
+                                }
+                                const existingInDb = products.find(p => 
+                                  p.id !== item.id && 
+                                  Array.isArray(p.availableSerials) && 
+                                  p.availableSerials.some((existingS: string) => existingS.trim().toLowerCase() === cleanS.toLowerCase())
+                                );
+                                if (existingInDb) {
+                                  toast.error(`বারকোড "${cleanS}" ইতিমধ্যে "${existingInDb.name}" প্রোডাক্টে বিদ্যমান!`);
+                                  continue;
+                                }
+                                validNew.push(cleanS);
+                              }
+
+                              if (validNew.length > 0) {
+                                const updatedSerials = [...currentSerials, ...validNew];
+                                const newQty = Math.max(item.quantity, updatedSerials.length);
+                                setPurchaseForm(prev => ({
+                                  ...prev,
+                                  items: prev.items.map(i => 
+                                    i.id === item.id 
+                                      ? { 
+                                          ...i, 
+                                          newSerials: updatedSerials, 
+                                          quantity: newQty,
+                                          total: (Number(i.purchasePrice) || 0) * newQty,
+                                          hasSerialTracking: true,
+                                          sku: (!i.sku || i.sku.startsWith('PRD-')) ? updatedSerials[0] : i.sku
+                                        } 
+                                      : i
+                                  )
+                                }));
+                                if (validNew.length === 1) {
+                                  toast.success(`বারকোড "${validNew[0]}" যোগ হয়েছে (পরিমাণ: ${newQty})`);
+                                } else {
+                                  toast.success(`${validNew.length} টি বারকোড যোগ হয়েছে (মোট পরিমাণ: ${newQty})`);
+                                }
+                              } else if (tokens.length > 0) {
+                                toast.error('বারকোড ইতিমধ্যে স্ক্যান করা হয়েছে বা ডাটাবেজে বিদ্যমান!');
+                              }
+                            };
+
                             return (
-                            <div className="border-t border-gray-200 pt-3 mt-3">
-                              <label className="block text-xs font-bold text-gray-700 uppercase mb-2 flex justify-between items-center">
-                                <span className="flex items-center gap-1.5">
-                                  <Barcode size={14} className="text-blue-600" /> Barcode / Serial Scanning
-                                </span>
-                                <span className={cn(
-                                  "px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1",
-                                  isMatch ? "bg-emerald-100 text-emerald-800" : isOver ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"
-                                )}>
-                                  {isMatch ? "✓ সিরিয়াল মিল রয়েছে:" : isOver ? "⚠️ অতিরিক্ত সিরিয়াল:" : "⚠️ সিরিয়াল বাকি:"} {serialCount} / {item.quantity}
-                                </span>
-                              </label>
-                              
-                              <div className="flex gap-2 mb-2">
-                                <div className="relative flex-1">
+                              <div className="border-t border-gray-200/80 pt-3 mt-2.5">
+                                {/* Header with title, count badge, and clear button */}
+                                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                  <label className="text-xs font-bold text-gray-700 uppercase flex items-center gap-1.5">
+                                    <Barcode size={15} className="text-blue-600" />
+                                    <span>বারকোড স্ক্যানিং (Barcode / Serial Scanning)</span>
+                                  </label>
+
+                                  <div className="flex items-center gap-2">
+                                    {serials.length > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setPurchaseForm(prev => ({
+                                            ...prev,
+                                            items: prev.items.map(i => 
+                                              i.id === item.id 
+                                                ? { ...i, newSerials: [], quantity: 1, total: Number(i.purchasePrice) || 0 } 
+                                                : i
+                                            )
+                                          }));
+                                          toast.success('সকল বারকোড মুছে দেওয়া হয়েছে');
+                                        }}
+                                        className="text-[10px] text-red-600 hover:text-red-700 hover:underline font-bold"
+                                      >
+                                        সব মুছুন
+                                      </button>
+                                    )}
+                                    <span className={cn(
+                                      "px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1",
+                                      serials.length === 0
+                                        ? "bg-gray-100 text-gray-600 border border-gray-200"
+                                        : isMatch
+                                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                          : isOver
+                                            ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                            : "bg-blue-100 text-blue-800 border border-blue-200"
+                                    )}>
+                                      {serials.length === 0
+                                        ? `স্ক্যান বাকি: 0 / ${item.quantity}`
+                                        : isMatch
+                                          ? `✓ মিল রয়েছে: ${serials.length} / ${item.quantity}`
+                                          : isOver
+                                            ? `⚠️ অতিরিক্ত: ${serials.length} / ${item.quantity}`
+                                            : `স্ক্যান করা: ${serials.length} / ${item.quantity}`}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Barcode Scan / Paste Input */}
+                                <div className="relative mb-2">
                                   <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                                   <input
                                     type="text"
-                                    placeholder="Scan or paste multiple barcodes here..."
-                                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    placeholder="বারকোড স্ক্যান করুন বা পেস্ট করুন (কমা বা স্পেস দিয়ে একাধিক)..."
+                                    className="w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
                                     onPaste={(e) => {
                                       e.preventDefault();
                                       const pasteData = e.clipboardData.getData('text');
-                                      if (!pasteData) return;
-                                      
-                                      const newSers = pasteData.split(/[\s,]+/).filter(s => s.trim() !== '');
-                                      const currentSerials = Array.isArray(item.newSerials) ? item.newSerials : [];
-                                      const otherItemSerials = purchaseForm.items
-                                        .filter(i => i.id !== item.id && Array.isArray(i.newSerials))
-                                        .flatMap(i => i.newSerials as string[]);
-
-                                      const validNew: string[] = [];
-                                      for (const s of newSers) {
-                                        const cleanS = s.trim();
-                                        if (!cleanS) continue;
-                                        if (currentSerials.some(cs => cs.toLowerCase() === cleanS.toLowerCase()) || validNew.some(vn => vn.toLowerCase() === cleanS.toLowerCase())) {
-                                          continue; // already in this item
-                                        }
-                                        if (otherItemSerials.some(os => os.toLowerCase() === cleanS.toLowerCase())) {
-                                          toast.error(`সিরিয়াল "${cleanS}" এই পারচেজের অন্য আইটেমে স্ক্যান করা হয়েছে!`);
-                                          continue;
-                                        }
-                                        const existingInDb = products.find(p => 
-                                          p.id !== item.id && 
-                                          Array.isArray(p.availableSerials) && 
-                                          p.availableSerials.some((existingS: string) => existingS.trim().toLowerCase() === cleanS.toLowerCase())
-                                        );
-                                        if (existingInDb) {
-                                          toast.error(`সিরিয়াল "${cleanS}" ইতিমধ্যে "${existingInDb.name}" প্রোডাক্টে বিদ্যমান!`);
-                                          continue;
-                                        }
-                                        validNew.push(cleanS);
-                                      }
-                                      
-                                      if (validNew.length > 0) {
-                                        const updatedSerials = [...currentSerials, ...validNew];
-                                        setPurchaseForm(prev => ({
-                                          ...prev,
-                                          items: prev.items.map(i => 
-                                            i.id === item.id 
-                                              ? { ...i, newSerials: updatedSerials, quantity: Math.max(i.quantity, updatedSerials.length) } 
-                                              : i
-                                          )
-                                        }));
-                                        toast.success(`${validNew.length} টি সিরিয়াল সফলভাবে যোগ করা হয়েছে!`);
-                                      } else if (newSers.length > 0) {
-                                        toast.error('স্ক্যান করা সিরিয়াল ইতিমধ্যে যুক্ত বা ডেটাবেজে বিদ্যমান!');
+                                      if (pasteData) {
+                                        addBarcodesToItem(pasteData);
                                       }
                                     }}
                                     onKeyDown={(e) => {
@@ -1927,90 +1922,75 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                         e.preventDefault();
                                         const val = e.currentTarget.value.trim();
                                         if (val) {
-                                          const newSers = val.split(/[\s,]+/).filter(s => s.trim() !== '');
-                                          const currentSerials = Array.isArray(item.newSerials) ? item.newSerials : [];
-                                          const otherItemSerials = purchaseForm.items
-                                            .filter(i => i.id !== item.id && Array.isArray(i.newSerials))
-                                            .flatMap(i => i.newSerials as string[]);
-
-                                          const validNew: string[] = [];
-                                          for (const s of newSers) {
-                                            const cleanS = s.trim();
-                                            if (!cleanS) continue;
-                                            if (currentSerials.some(cs => cs.toLowerCase() === cleanS.toLowerCase()) || validNew.some(vn => vn.toLowerCase() === cleanS.toLowerCase())) {
-                                              continue;
-                                            }
-                                            if (otherItemSerials.some(os => os.toLowerCase() === cleanS.toLowerCase())) {
-                                              toast.error(`সিরিয়াল "${cleanS}" এই পারচেজের অন্য আইটেমে স্ক্যান করা হয়েছে!`);
-                                              continue;
-                                            }
-                                            const existingInDb = products.find(p => 
-                                              p.id !== item.id && 
-                                              Array.isArray(p.availableSerials) && 
-                                              p.availableSerials.some((existingS: string) => existingS.trim().toLowerCase() === cleanS.toLowerCase())
-                                            );
-                                            if (existingInDb) {
-                                              toast.error(`সিরিয়াল "${cleanS}" ইতিমধ্যে "${existingInDb.name}" প্রোডাক্টে বিদ্যমান!`);
-                                              continue;
-                                            }
-                                            validNew.push(cleanS);
-                                          }
-                                          
-                                          if (validNew.length > 0) {
-                                            const updatedSerials = [...currentSerials, ...validNew];
-                                            setPurchaseForm(prev => ({
-                                              ...prev,
-                                              items: prev.items.map(i => 
-                                                i.id === item.id 
-                                                  ? { ...i, newSerials: updatedSerials, quantity: Math.max(i.quantity, updatedSerials.length) } 
-                                                  : i
-                                              )
-                                            }));
-                                            if (validNew.length > 1) toast.success(`${validNew.length} টি সিরিয়াল যোগ হয়েছে!`);
-                                            e.currentTarget.value = ''; // clear input
-                                          } else {
-                                            toast.error('সিরিয়াল ইতিমধ্যে স্ক্যান করা হয়েছে বা বিদ্যমান!');
-                                            e.currentTarget.value = '';
-                                          }
+                                          addBarcodesToItem(val);
+                                          e.currentTarget.value = '';
                                         }
+                                      }
+                                    }}
+                                    onChange={(e) => {
+                                      const val = e.currentTarget.value;
+                                      if (val.includes(',') || val.includes('\n')) {
+                                        addBarcodesToItem(val);
+                                        e.currentTarget.value = '';
                                       }
                                     }}
                                   />
                                 </div>
-                              </div>
-                              {/* Scanned Badges */}
-                          
-                          {Array.isArray(item.newSerials) && item.newSerials.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5 mt-2 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                  {item.newSerials.map((serial, sIdx) => (
-                                    <span key={sIdx} className="inline-flex items-center gap-1 bg-white border border-gray-200 text-gray-700 text-[10px] font-mono px-2 py-1 rounded-md shadow-sm">
-                                      {serial}
-                                      <button 
-                                        type="button" 
-                                        className="text-gray-400 hover:text-red-500"
-                                        onClick={() => {
-                                          const updatedSerials = (item.newSerials as string[]).filter((_, idx) => idx !== sIdx);
-                                          setPurchaseForm(prev => ({
-                                            ...prev,
-                                            items: prev.items.map(i => 
-                                              i.id === item.id 
-                                                ? { ...i, newSerials: updatedSerials, quantity: Math.max(1, updatedSerials.length) } 
-                                                : i
-                                            )
-                                          }));
-                                        }}
+
+                                {/* Scanned Barcodes Badges */}
+                                {serials.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50/90 rounded-lg border border-gray-200 max-w-full">
+                                    {serials.map((serial, sIdx) => (
+                                      <span
+                                        key={sIdx}
+                                        className="inline-flex items-center gap-1.5 bg-white border border-gray-300 text-gray-800 text-[11px] font-mono px-2 py-0.5 rounded shadow-xs break-all"
                                       >
-                                        <X size={12} />
-                                      </button>
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              
-                              <p className="text-[10px] text-gray-500 mt-1">
-                                স্ক্যান করা বারকোড সংখ্যা এবং পণ্যের পরিমাণ (Quantity) সমান হতে হবে।
-                              </p>
-                            </div>
+                                        <span className="text-[9px] text-gray-400 select-none">#{sIdx + 1}</span>
+                                        <span className="font-semibold">{serial}</span>
+                                        <button
+                                          type="button"
+                                          className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-0.5 rounded transition-colors"
+                                          title="মুছে ফেলুন"
+                                          onClick={() => {
+                                            const updatedSerials = serials.filter((_, idx) => idx !== sIdx);
+                                            const newQty = Math.max(1, updatedSerials.length);
+                                            setPurchaseForm(prev => ({
+                                              ...prev,
+                                              items: prev.items.map(i => 
+                                                i.id === item.id 
+                                                  ? { 
+                                                      ...i, 
+                                                      newSerials: updatedSerials, 
+                                                      quantity: newQty,
+                                                      total: (Number(i.purchasePrice) || 0) * newQty,
+                                                      sku: updatedSerials[0] || i.sku
+                                                    } 
+                                                  : i
+                                              )
+                                            }));
+                                          }}
+                                        >
+                                          <X size={12} />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : item.sku ? (
+                                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-2.5 py-1.5">
+                                    <span className="font-medium text-gray-500">ডিফল্ট বারকোড / SKU:</span>
+                                    <span className="font-mono font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-200">{item.sku}</span>
+                                    {item.sku.startsWith('PRD-') ? (
+                                      <span className="text-[10px] text-blue-600 font-sans">(অটো SKU — স্পেস বা কমা দিয়ে একাধিক বারকোড দিলে আলাদা হবে ও পরিমাণ বাড়বে)</span>
+                                    ) : (
+                                      <span className="text-[10px] text-gray-500 font-sans">(নতুন বারকোড স্ক্যান করলে স্বয়ংক্রিয়ভাবে আপডেট হবে)</span>
+                                    )}
+                                  </div>
+                                ) : null}
+
+                                <p className="text-[10px] text-gray-500 mt-1.5">
+                                  💡 স্পেস, কমা বা নতুন লাইনে একাধিক বারকোড স্ক্যান/পেস্ট করলে স্বয়ংক্রিয়ভাবে আলাদা হবে এবং কোয়ান্টিটি বৃদ্ধি পাবে।
+                                </p>
+                              </div>
                             );
                           })()}
                         </div>
