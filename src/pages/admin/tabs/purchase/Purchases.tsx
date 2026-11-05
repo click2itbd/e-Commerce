@@ -487,32 +487,39 @@ const Purchases: React.FC<PurchasesProps> = ({
   // Quick Add Product: create product in Firestore and add to purchase list
   const handleBarcodeScan = async () => {
     const { category, subCategory, brand, name, model, variant, barcode, costPrice, salesPrice } = pickForm;
-    const scannedCode = barcode.trim();
-    if (!scannedCode) return;
-    if (!category) { toast.error('Please select a category first'); return; }
+    const scannedCode = (barcode || '').trim();
 
-    const existingItemIndex = purchaseForm.items.findIndex((i: any) => i.sku === scannedCode || (Array.isArray(i.newSerials) && i.newSerials.includes(scannedCode)));
-    if (existingItemIndex > -1) {
-      setPurchaseForm(prev => {
-        const newItems = [...prev.items];
-        const item = newItems[existingItemIndex];
-        let updatedSerials = Array.isArray(item.newSerials) ? [...item.newSerials] : [];
-        if (!updatedSerials.includes(scannedCode) && scannedCode !== item.sku) updatedSerials.push(scannedCode);
-        newItems[existingItemIndex] = {
-          ...item,
-          quantity: item.quantity + 1,
-          newSerials: updatedSerials.length > 0 ? updatedSerials : item.newSerials
-        };
-        return { ...prev, items: newItems };
-      });
-      setPickForm(prev => ({ ...prev, barcode: '' }));
-      toast.success('Quantity increased by 1');
+    if (!category) {
+      toast.error('অনুগ্রহ করে প্রথমে একটি ক্যাটাগরি সিলেক্ট করুন');
       return;
     }
 
-    const existingProduct = products.find(p => p.sku === scannedCode || p.availableSerials?.includes(scannedCode));
-    if (existingProduct) {
-       setPurchaseForm(prev => ({
+    // 1. If Barcode/SKU was scanned or entered
+    if (scannedCode) {
+      const existingItemIndex = purchaseForm.items.findIndex((i: any) => 
+        i.sku === scannedCode || (Array.isArray(i.newSerials) && i.newSerials.includes(scannedCode))
+      );
+      if (existingItemIndex > -1) {
+        setPurchaseForm(prev => {
+          const newItems = [...prev.items];
+          const item = newItems[existingItemIndex];
+          let updatedSerials = Array.isArray(item.newSerials) ? [...item.newSerials] : [];
+          if (!updatedSerials.includes(scannedCode) && scannedCode !== item.sku) updatedSerials.push(scannedCode);
+          newItems[existingItemIndex] = {
+            ...item,
+            quantity: item.quantity + 1,
+            newSerials: updatedSerials.length > 0 ? updatedSerials : item.newSerials
+          };
+          return { ...prev, items: newItems };
+        });
+        setPickForm(prev => ({ ...prev, barcode: '' }));
+        toast.success('পরিমাণ ১ বাড়ানো হয়েছে');
+        return;
+      }
+
+      const existingProduct = products.find(p => p.sku === scannedCode || p.availableSerials?.includes(scannedCode));
+      if (existingProduct) {
+        setPurchaseForm(prev => ({
           ...prev, 
           items: [...prev.items, {
             id: existingProduct.id,
@@ -531,18 +538,108 @@ const Purchases: React.FC<PurchasesProps> = ({
             sku: existingProduct.sku || scannedCode,
             newSerials: scannedCode !== existingProduct.sku ? [scannedCode] : [],
           }]
-       }));
-       setPickForm(prev => ({ ...prev, barcode: '' }));
-       toast.success('Product added to purchase');
-       return;
+        }));
+        setPickForm(prev => ({ ...prev, barcode: '' }));
+        toast.success('"' + existingProduct.name + '" পারচেজে যোগ করা হয়েছে');
+        return;
+      }
+
+      if (!name || !name.trim()) {
+        toast.error('নতুন প্রোডাক্টের জন্য নাম লিখুন');
+        return;
+      }
+
+      const combinedName = (name.trim() + (model ? ' ' + model.trim() : '') + (variant ? ' ' + variant.trim() : '')).trim();
+      setPurchaseForm(prev => ({
+        ...prev, 
+        items: [...prev.items, {
+          id: 'NEW_' + Math.random().toString(36).substring(2, 9),
+          name: combinedName,
+          category: category,
+          subCategory: subCategory,
+          brand: brand,
+          purchasePrice: Number(costPrice) || 0,
+          salesPrice: Number(salesPrice) || 0,
+          quantity: 1,
+          discount: 0,
+          tax: 0,
+          total: Number(costPrice) || 0,
+          hasWarranty: false,
+          warrantyUnit: 'years',
+          warrantyValue: 1,
+          hasSerialTracking: true,
+          sku: scannedCode,
+          newSerials: [scannedCode],
+        }]
+      }));
+      setPickForm(prev => ({ ...prev, name: '', model: '', variant: '', costPrice: '', salesPrice: '', barcode: '' }));
+      toast.success('"' + combinedName + '" পারচেজে ড্রাফট করা হয়েছে');
+      return;
     }
 
-    if (!name) { toast.error('Product Name is required for new items'); return; }
+    // 2. If Barcode/SKU is NOT provided (Normal Product Name & Category add)
+    if (!name || !name.trim()) {
+      toast.error('প্রোডাক্টের নাম লিখুন অথবা বারকোড স্ক্যান করুন');
+      return;
+    }
+
+    const combinedName = (name.trim() + (model ? ' ' + model.trim() : '') + (variant ? ' ' + variant.trim() : '')).trim();
+
+    // Check if an existing product already matches this name
+    const existingProductByName = products.find(p => 
+      p.name?.toLowerCase().trim() === combinedName.toLowerCase() ||
+      (p.name?.toLowerCase().trim() === name.trim().toLowerCase() && 
+       (p.category || '').toLowerCase() === (category || '').toLowerCase())
+    );
+
+    if (existingProductByName) {
+      const inPurchaseIdx = purchaseForm.items.findIndex(i => i.id === existingProductByName.id);
+      if (inPurchaseIdx > -1) {
+        setPurchaseForm(prev => {
+          const newItems = [...prev.items];
+          const newQty = newItems[inPurchaseIdx].quantity + 1;
+          newItems[inPurchaseIdx] = {
+            ...newItems[inPurchaseIdx],
+            quantity: newQty,
+            total: newQty * Number(newItems[inPurchaseIdx].purchasePrice || 0)
+          };
+          return { ...prev, items: newItems };
+        });
+        toast.success('"' + existingProductByName.name + '" পরিমাণ ১ বাড়ানো হয়েছে');
+      } else {
+        setPurchaseForm(prev => ({
+          ...prev, 
+          items: [...prev.items, {
+            id: existingProductByName.id,
+            name: existingProductByName.name,
+            category: existingProductByName.category,
+            purchasePrice: existingProductByName.costPrice || Number(costPrice) || 0,
+            salesPrice: existingProductByName.price || Number(salesPrice) || 0,
+            quantity: 1,
+            discount: 0,
+            tax: 0,
+            total: existingProductByName.costPrice || Number(costPrice) || 0,
+            hasWarranty: Boolean(existingProductByName.warrantyMonths && existingProductByName.warrantyMonths > 0),
+            warrantyUnit: existingProductByName.warrantyUnit || 'years',
+            warrantyValue: existingProductByName.warrantyMonths ? monthsToWarrantyValue(existingProductByName.warrantyMonths, (existingProductByName.warrantyUnit || 'years') as WarrantyUnit) : 1,
+            hasSerialTracking: Boolean(existingProductByName.hasSerialTracking),
+            sku: existingProductByName.sku || '',
+            newSerials: [],
+          }]
+        }));
+        toast.success('"' + existingProductByName.name + '" পারচেজে যোগ করা হয়েছে');
+      }
+      setPickForm(prev => ({ ...prev, name: '', model: '', variant: '', costPrice: '', salesPrice: '', barcode: '' }));
+      return;
+    }
+
+    // Completely new product without barcode: Auto-generate SKU & do not force serial tracking
+    const autoSku = 'PRD-' + Math.floor(10000000 + Math.random() * 90000000);
     setPurchaseForm(prev => ({
       ...prev, 
       items: [...prev.items, {
         id: 'NEW_' + Math.random().toString(36).substring(2, 9),
-        name: name + (model ? ' ' + model : '') + (variant ? ' ' + variant : ''),
+        name: combinedName,
         category: category,
         subCategory: subCategory,
         brand: brand,
@@ -555,13 +652,13 @@ const Purchases: React.FC<PurchasesProps> = ({
         hasWarranty: false,
         warrantyUnit: 'years',
         warrantyValue: 1,
-        hasSerialTracking: true,
-        sku: scannedCode,
-        newSerials: [scannedCode],
+        hasSerialTracking: false,
+        sku: autoSku,
+        newSerials: [],
       }]
     }));
-    setPickForm(prev => ({ ...prev, barcode: '' }));
-    toast.success('New item drafted to purchase');
+    setPickForm(prev => ({ ...prev, name: '', model: '', variant: '', costPrice: '', salesPrice: '', barcode: '' }));
+    toast.success('"' + combinedName + '" পারচেজে যোগ করা হয়েছে (অটো SKU: ' + autoSku + ')');
   };
 
   const handleQuickAddProduct = async (e: React.FormEvent) => {
@@ -2168,25 +2265,65 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                   </select>
 
                   <div className="grid grid-cols-2 gap-2 mt-2">
-                    <input type="text" list="product-names-list" placeholder="Product Name" value={pickForm.name} onChange={e => setPickForm({...pickForm, name: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" />
+                    <input 
+                      type="text" 
+                      list="product-names-list" 
+                      placeholder="Product Name *" 
+                      value={pickForm.name} 
+                      onChange={e => setPickForm({...pickForm, name: e.target.value})} 
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleBarcodeScan(); } }}
+                      className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" 
+                    />
                     <datalist id="product-names-list">
                       {Array.from(new Set(products.map(p => p.name).filter(Boolean))).map((n, i) => <option key={i} value={n} />)}
                     </datalist>
                     
-                    <input type="text" list="product-models-list" placeholder="Model (Optional)" value={pickForm.model} onChange={e => setPickForm({...pickForm, model: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" />
+                    <input 
+                      type="text" 
+                      list="product-models-list" 
+                      placeholder="Model (Optional)" 
+                      value={pickForm.model} 
+                      onChange={e => setPickForm({...pickForm, model: e.target.value})} 
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleBarcodeScan(); } }}
+                      className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" 
+                    />
                     <datalist id="product-models-list">
                       {Array.from(new Set(products.map(p => p.model).filter(Boolean))).map((m, i) => <option key={i} value={m} />)}
                     </datalist>
                   </div>
                   
-                  <input type="text" list="product-variants-list" placeholder="Variant (Optional)" value={pickForm.variant} onChange={e => setPickForm({...pickForm, variant: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold mt-2" />
+                  <input 
+                    type="text" 
+                    list="product-variants-list" 
+                    placeholder="Variant (Optional)" 
+                    value={pickForm.variant} 
+                    onChange={e => setPickForm({...pickForm, variant: e.target.value})} 
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleBarcodeScan(); } }}
+                    className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold mt-2" 
+                  />
                   <datalist id="product-variants-list">
                       {Array.from(new Set(products.flatMap(p => p.variants?.map(v => v.name) || []).filter(Boolean))).map((v, i) => <option key={i} value={v} />)}
                   </datalist>
                   
                   <div className="grid grid-cols-2 gap-2 mt-2">
-                    <input type="number" min={0} placeholder="Cost Price (Optional)" value={pickForm.costPrice} onChange={e => setPickForm({...pickForm, costPrice: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" />
-                    <input type="number" min={0} placeholder="Sales Price (Optional)" value={pickForm.salesPrice} onChange={e => setPickForm({...pickForm, salesPrice: e.target.value})} className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold text-blue-600" />
+                    <input 
+                      type="number" 
+                      min={0} 
+                      placeholder="Cost Price (Optional)" 
+                      value={pickForm.costPrice} 
+                      onChange={e => setPickForm({...pickForm, costPrice: e.target.value})} 
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleBarcodeScan(); } }}
+                      className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold" 
+                    />
+                    <input 
+                      type="number" 
+                      min={0} 
+                      placeholder="Sales Price (Optional)" 
+                      value={pickForm.salesPrice} 
+                      onChange={e => setPickForm({...pickForm, salesPrice: e.target.value})} 
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleBarcodeScan(); } }}
+                      className="w-full py-2 px-3 border border-gray-200 rounded-lg outline-none text-xs font-bold text-blue-600" 
+                    />
                   </div>
                 </div>
 
@@ -2194,7 +2331,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                   <div className="relative flex-1">
                     <input
                       type="text"
-                      placeholder="Scan Barcode / Enter SKU..."
+                      placeholder="Scan Barcode / Enter SKU (Optional)..."
                       value={pickForm.barcode}
                       onChange={e => setPickForm({...pickForm, barcode: e.target.value})}
                       onKeyDown={(e) => {
