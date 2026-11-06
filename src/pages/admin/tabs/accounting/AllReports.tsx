@@ -28,6 +28,7 @@ import {
   X,
   Calculator,
   ArrowUpRight,
+  ArrowLeftRight,
 } from "lucide-react";
 import { cn } from "../../../../lib/utils";
 
@@ -289,6 +290,18 @@ export const AllReports: React.FC<AllReportsProps> = ({ setActiveTab }) => {
           color: "text-emerald-700",
           bgColor: "bg-emerald-50/50",
           borderColor: "border-emerald-200",
+          isPopular: true,
+        },
+        {
+          name: "Daily Due Collection & Payout",
+          description: "Real-time daily statement of customer due recoveries & supplier due payouts with account-wise breakdown.",
+          icon: <ArrowLeftRight size={20} />,
+          tab: "daily_collection_payout",
+          badge: "Daily Sheet",
+          badgeColor: "bg-blue-100 text-blue-800",
+          color: "text-blue-700",
+          bgColor: "bg-blue-50/50",
+          borderColor: "border-blue-200",
           isPopular: true,
         },
         {

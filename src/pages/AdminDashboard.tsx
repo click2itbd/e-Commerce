@@ -251,6 +251,11 @@ const CustomerReceiveReportTab = lazy(() =>
     default: m.default,
   })),
 );
+const DailyCollectionPayoutReportTab = lazy(() =>
+  import("./admin/tabs/accounting/DailyCollectionPayoutReport").then((m) => ({
+    default: m.DailyCollectionPayoutReport,
+  })),
+);
 const LoyaltyPointsReportTab = lazy(() =>
   import("./admin/tabs/reports/LoyaltyPointsReport").then((m) => ({
     default: m.LoyaltyPointsReport,
@@ -5148,6 +5153,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     )}
                   </button>
                 )}
+                <button
+                  onClick={() => setActiveTab("daily_collection_payout")}
+                  className={cn(
+                    "w-full flex items-center rounded-md text-[13px] transition-colors",
+                    isSidebarCollapsed
+                      ? "justify-center py-2"
+                      : "gap-3 px-3 py-2",
+                    activeTab === "daily_collection_payout"
+                      ? "text-blue-600 font-bold bg-blue-50"
+                      : "text-gray-600 hover:bg-gray-50",
+                  )}
+                  title="Daily Due Collection & Supplier Payout Register"
+                >
+                  <ArrowLeftRight
+                    size={16}
+                    className={
+                      activeTab === "daily_collection_payout"
+                        ? "text-blue-600"
+                        : "text-gray-400"
+                    }
+                  />{" "}
+                  {!isSidebarCollapsed && (
+                    <span className="truncate font-bold">Daily Due & Payout</span>
+                  )}
+                </button>
                 {hasPermission("deposits_withdrawals") && (
                   <button
                     onClick={() => setActiveTab("deposits_withdrawals")}
@@ -6242,6 +6272,17 @@ handleReturnOrder={handleReturnOrder}
                   paymentAccounts={paymentAccounts}
                   settings={settings}
                   hasPermission={hasPermission}
+                />
+              ) : activeTab === "daily_collection_payout" ? (
+                <DailyCollectionPayoutReportTab
+                  transactions={transactions}
+                  customers={customers}
+                  vendors={vendors}
+                  orders={orders}
+                  paymentAccounts={paymentAccounts}
+                  settings={settings}
+                  hasPermission={hasPermission}
+                  setActiveTab={setActiveTab}
                 />
               ) : activeTab === "loyalty_points" ? (
                 <LoyaltyPointsReportTab />
