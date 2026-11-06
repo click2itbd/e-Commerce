@@ -206,8 +206,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
   useEffect(() => {
     if (editingOrder) {
-      const existingAccId = editingOrder.paymentAccountId || (paymentAccounts[0]?.id || '');
-      const matchedAcc = paymentAccounts.find(a => a.id === existingAccId);
+      const existingAccId = editingOrder.paymentAccountId || '';
+      const matchedAcc = existingAccId ? paymentAccounts.find(a => a.id === existingAccId) : null;
       setSaleData(prev => ({
         ...prev,
         type: editingOrder.type || 'invoice',
@@ -352,16 +352,15 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(accs);
       setSaleData(prev => {
-        if (!prev.paymentAccountId && accs.length > 0) {
-          const matchedAcc = editingOrder?.paymentAccountId 
-            ? accs.find(a => a.id === editingOrder.paymentAccountId) 
-            : accs[0];
-          const accToUse = matchedAcc || accs[0];
-          return {
-            ...prev,
-            paymentAccountId: accToUse.id,
-            paymentMethod: accToUse.type || prev.paymentMethod || 'cash'
-          };
+        if (!prev.paymentAccountId && editingOrder?.paymentAccountId) {
+          const matchedAcc = accs.find(a => a.id === editingOrder.paymentAccountId);
+          if (matchedAcc) {
+            return {
+              ...prev,
+              paymentAccountId: matchedAcc.id,
+              paymentMethod: matchedAcc.type || prev.paymentMethod || 'cash'
+            };
+          }
         }
         return prev;
       });
@@ -784,8 +783,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const handleCreateSale = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (saleData.type !== 'quotation' && saleData.paidAmount > 0 && !saleData.paymentAccountId) {
-      toast.error('Please select a payment account to receive the paid amount');
+    if (saleData.type !== 'quotation' && Number(saleData.paidAmount) > 0 && !saleData.paymentAccountId) {
+      toast.error('টাকা গ্রহণ/পেমেন্ট করার জন্য অনুগ্রহ করে একটি Payment Account সিলেক্ট করুন!');
       return;
     }
 

@@ -165,16 +165,10 @@ export const PurchaseReturnTab: React.FC<PurchaseReturnTabProps> = ({ fetchData 
       if (results[3].status === 'fulfilled') {
         const accs = results[3].value.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
         setPaymentAccounts(accs);
-        if (accs.length > 0 && !selectedPaymentAccountId) {
-          setSelectedPaymentAccountId(accs[0].id);
-        }
       } else {
         getDocs(collection(db, 'payment_accounts')).then(snap => {
           const accs = snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
           setPaymentAccounts(accs);
-          if (accs.length > 0 && !selectedPaymentAccountId) {
-            setSelectedPaymentAccountId(accs[0].id);
-          }
         }).catch(e => console.warn(e));
       }
 
@@ -491,12 +485,8 @@ export const PurchaseReturnTab: React.FC<PurchaseReturnTabProps> = ({ fetchData 
     // Resolve payment account if cash refund received
     let chosenAccountId = selectedPaymentAccountId;
     if (refundAmount > 0 && paymentMethod !== 'supplier_credit') {
-      if (!chosenAccountId && paymentAccounts.length > 0) {
-        chosenAccountId = paymentAccounts[0].id;
-        setSelectedPaymentAccountId(chosenAccountId);
-      }
       if (!chosenAccountId) {
-        toast.error('Please select an Account to receive the cash refund into!');
+        toast.error('টাকা রিসিভ করার জন্য অনুগ্রহ করে একটি Receiving Account সিলেক্ট করুন!');
         return;
       }
     }

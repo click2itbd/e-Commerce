@@ -380,9 +380,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
       }
     }
 
-    if (paymentAccounts.length > 0 && !paymentAccountId) {
-      setPaymentAccountId(paymentAccounts[0].id);
-    }
+    
     setIsRecordingPayment(true);
   };
 
@@ -442,6 +440,10 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
   const handleSavePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLedgerEntity) return;
+    if (!paymentAccountId) {
+      toast.error('অনুগ্রহ করে একটি Payment Account সিলেক্ট করুন!');
+      return;
+    }
     if (paymentAmount <= 0) {
       toast.error('Please enter a valid payment amount');
       return;

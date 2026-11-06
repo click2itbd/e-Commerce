@@ -182,16 +182,10 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
       if (results[1].status === 'fulfilled') {
         const accs = results[1].value.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
         setPaymentAccounts(accs);
-        if (accs.length > 0 && !selectedPaymentAccountId) {
-          setSelectedPaymentAccountId(accs[0].id);
-        }
       } else {
         getDocs(collection(db, 'payment_accounts')).then(snap => {
           const accs = snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
           setPaymentAccounts(accs);
-          if (accs.length > 0 && !selectedPaymentAccountId) {
-            setSelectedPaymentAccountId(accs[0].id);
-          }
         }).catch(e => console.warn(e));
       }
 
@@ -483,12 +477,8 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
     // Resolve payment account
     let chosenAccountId = selectedPaymentAccountId;
     if (refundAmount > 0 && paymentMethod !== 'store_credit') {
-      if (!chosenAccountId && paymentAccounts.length > 0) {
-        chosenAccountId = paymentAccounts[0].id;
-        setSelectedPaymentAccountId(chosenAccountId);
-      }
       if (!chosenAccountId) {
-        toast.error('Please select a Payment Account to disburse the refund from!');
+        toast.error('টাকা রিফান্ড দেওয়ার জন্য অনুগ্রহ করে একটি Refund Source Account সিলেক্ট করুন!');
         return;
       }
     }

@@ -110,6 +110,10 @@ const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
       return;
     }
 
+    if (!formData.paymentAccountId) {
+      toast.error('খরচ পরিশোধের জন্য একটি Payment Account সিলেক্ট করুন!');
+      return;
+    }
     const selectedAcc = paymentAccounts.find(a => a.id === formData.paymentAccountId);
     if (selectedAcc && Number(formData.amount || 0) > 0) {
       const balanceCheck = validateSufficientBalance(selectedAcc, allTransactions, Number(formData.amount));
@@ -180,7 +184,7 @@ const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
         date: new Date().toISOString().split('T')[0],
         description: '',
         categoryId: '',
-        paymentAccountId: paymentAccounts[0]?.id || '',
+        paymentAccountId: '',
         entityName: '',
         reference: '',
       });
@@ -354,7 +358,7 @@ const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
                   date: new Date().toISOString().split('T')[0],
                   description: '',
                   categoryId: categories[0]?.id || '',
-                  paymentAccountId: paymentAccounts[0]?.id || '',
+                  paymentAccountId: '',
                   entityName: '',
                   reference: '',
                 });
@@ -457,6 +461,7 @@ const ManualExpenseTab: React.FC<ManualExpenseTabProps> = ({
                     onChange={e => setFormData({ ...formData, paymentAccountId: e.target.value })}
                     className="w-full border border-gray-200 rounded-lg p-2 font-medium"
                   >
+                    <option value="">-- Select Payment Account --</option>
                     {paymentAccounts.map(a => {
                       const bal = calculateAccountBalance(a, allTransactions);
                       return (

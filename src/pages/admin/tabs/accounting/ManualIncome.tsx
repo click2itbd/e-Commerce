@@ -109,7 +109,11 @@ const ManualIncomeTab: React.FC<ManualIncomeTabProps> = ({
     try {
       setSubmitting(true);
       const selectedCat = categories.find(c => c.id === formData.categoryId);
-      const selectedAcc = paymentAccounts.find(a => a.id === formData.paymentAccountId);
+      if (!formData.paymentAccountId) {
+      toast.error('টাকা জমা নেওয়ার জন্য একটি Payment Account সিলেক্ট করুন!');
+      return;
+    }
+    const selectedAcc = paymentAccounts.find(a => a.id === formData.paymentAccountId);
 
       const incomeData = {
         type: 'income',
@@ -168,7 +172,7 @@ const ManualIncomeTab: React.FC<ManualIncomeTabProps> = ({
         date: new Date().toISOString().split('T')[0],
         description: '',
         categoryId: '',
-        paymentAccountId: paymentAccounts[0]?.id || '',
+        paymentAccountId: '',
         entityName: '',
         reference: '',
       });
@@ -342,7 +346,7 @@ const ManualIncomeTab: React.FC<ManualIncomeTabProps> = ({
                   date: new Date().toISOString().split('T')[0],
                   description: '',
                   categoryId: categories[0]?.id || '',
-                  paymentAccountId: paymentAccounts[0]?.id || '',
+                  paymentAccountId: '',
                   entityName: '',
                   reference: '',
                 });
@@ -424,6 +428,7 @@ const ManualIncomeTab: React.FC<ManualIncomeTabProps> = ({
                     onChange={e => setFormData({ ...formData, paymentAccountId: e.target.value })}
                     className="w-full border border-gray-200 rounded-lg p-2 font-medium"
                   >
+                    <option value="">-- Select Payment Account --</option>
                     {paymentAccounts.map(a => (
                       <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
                     ))}
