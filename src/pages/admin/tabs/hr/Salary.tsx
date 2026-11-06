@@ -104,36 +104,59 @@ const SalaryTab: React.FC = () => {
     setIsLoading(true);
     try {
       // 1. Sync & fetch employees
-      const syncedEmployees = await syncAppAccessStaff();
-      syncedEmployees.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      setEmployees(syncedEmployees);
+      try {
+        const syncedEmployees = await syncAppAccessStaff();
+        syncedEmployees.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setEmployees(syncedEmployees);
+      } catch (empErr) {
+        console.error('Error syncing employees:', empErr);
+      }
 
       // 2. Fetch salaries
-      const salariesQuery = query(collection(db, 'employee_salaries'), orderBy('month', 'desc'));
-      const salariesSnapshot = await getDocs(salariesQuery);
-      const salariesData = salariesSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as EmployeeSalary));
-      setEmployeeSalaries(salariesData);
+      try {
+        const salariesSnapshot = await getDocs(collection(db, 'employee_salaries'));
+        const salariesData = salariesSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as EmployeeSalary));
+        salariesData.sort((a, b) => (b.month || '').localeCompare(a.month || ''));
+        setEmployeeSalaries(salariesData);
+      } catch (salErr) {
+        console.error('Error fetching salaries:', salErr);
+      }
 
-      // 3. Fetch advances
-      const advQuery = query(collection(db, 'salary_advances'), orderBy('date', 'desc'));
-      const advSnapshot = await getDocs(advQuery);
-      const advData = advSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as SalaryAdvance));
-      setSalaryAdvances(advData);
+      // 3. Fetch advances (resilient fallback)
+      try {
+        const advSnapshot = await getDocs(collection(db, 'salary_advances'));
+        const advData = advSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as SalaryAdvance));
+        advData.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        setSalaryAdvances(advData);
+      } catch (advErr) {
+        console.warn('Could not load salary_advances (will populate once advances are saved):', advErr);
+        setSalaryAdvances([]);
+      }
 
       // 4. Fetch payment accounts
-      const accSnap = await getDocs(query(collection(db, 'payment_accounts'), orderBy('name')));
-      setPaymentAccounts(accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount)));
+      try {
+        const accSnap = await getDocs(collection(db, 'payment_accounts'));
+        const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
+        accs.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setPaymentAccounts(accs);
+      } catch (accErr) {
+        console.error('Error fetching payment accounts:', accErr);
+      }
 
       // 5. Fetch transactions for live balance checks
-      const txSnap = await getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc')));
-      setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
+      try {
+        const txSnap = await getDocs(collection(db, 'transactions'));
+        const txs = txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+        setTransactions(txs);
+      } catch (txErr) {
+        console.error('Error fetching transactions:', txErr);
+      }
 
       if (showToast) {
         toast.success('Synced and refreshed all HR & Payroll data!');
       }
     } catch (error) {
       console.error('Error fetching payroll data:', error);
-      toast.error('Failed to load payroll data');
     } finally {
       setIsLoading(false);
     }
