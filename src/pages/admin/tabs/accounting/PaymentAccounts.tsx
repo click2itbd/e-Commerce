@@ -4,7 +4,9 @@ import { db } from '../../../../firebase';
 import { PaymentAccount, Transaction } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { useAuth } from '../../../../context/AuthContext'; import { moveToTrash } from '../../../../lib/trash';
+import { useAuth } from '../../../../context/AuthContext';
+import { moveToTrash } from '../../../../lib/trash';
+import { logAudit } from '../../../../lib/audit';
 import { useSettings } from '../../../../context/SettingsContext';
 import {
   CreditCard,
@@ -19,6 +21,9 @@ import {
   FileText,
   ArrowLeftRight,
   X,
+  Lock,
+  Shield,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface PaymentAccountsTabProps {
@@ -29,7 +34,7 @@ interface PaymentAccountsTabProps {
 const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
   setActiveTab,
 }) => {
-  const { hasPermission, isAdmin } = useAuth();
+  const { hasPermission, isAdmin, profile, user } = useAuth();
   const { settings } = useSettings();
 
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
@@ -154,23 +159,79 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
       return;
     }
 
+    if (!isAdmin) {
+      toast.error('অননুমোদিত অ্যাক্সেস! শুধুমাত্র অ্যাডমিন পেমেন্ট অ্যাকাউন্ট তৈরি বা পরিবর্তন করতে পারবেন।');
+      return;
+    }
+
     try {
+      const currentUser = profile?.displayName || profile?.email || user?.displayName || user?.email || 'Admin';
+      const sanitizedOpeningBal = Number(formData.openingBalance) || 0;
+
       if (editingAccount) {
+        const oldOpening = Number(editingAccount.openingBalance) || 0;
+        const isOpeningChanged = oldOpening !== sanitizedOpeningBal;
+
+        if (isOpeningChanged) {
+          const confirmChange = window.confirm(
+            `নিরাপত্তা সতর্কতা: আপনি "${editingAccount.name}" অ্যাকাউন্টের ওপেনিং ব্যালেন্স ৳${oldOpening.toLocaleString()} থেকে পরিবর্তন করে ৳${sanitizedOpeningBal.toLocaleString()} করতে যাচ্ছেন। এর ফলে বর্তমান মোট ক্যাশ ও ব্যালেন্সে সরাসরি প্রভাব পড়বে। আপনি কি নিশ্চিত?`
+          );
+          if (!confirmChange) return;
+        }
+
         await updateDoc(doc(db, 'payment_accounts', editingAccount.id), {
           type: formData.type,
           name: formData.name,
           description: formData.description || '',
-          openingBalance: Number(formData.openingBalance) || 0,
+          openingBalance: sanitizedOpeningBal,
           status: formData.status,
           updatedAt: new Date().toISOString(),
+          updatedBy: currentUser,
         });
+
+        if (isOpeningChanged) {
+          await logAudit(
+            'EDIT',
+            'finances',
+            `[SECURITY AUDIT] Admin ${currentUser} modified opening balance of account "${editingAccount.name}" from ৳${oldOpening.toLocaleString()} to ৳${sanitizedOpeningBal.toLocaleString()}`,
+            currentUser,
+            {
+              accountId: editingAccount.id,
+              accountName: editingAccount.name,
+              oldOpeningBalance: oldOpening,
+              newOpeningBalance: sanitizedOpeningBal,
+            }
+          );
+        } else {
+          await logAudit(
+            'EDIT',
+            'finances',
+            `Updated payment account "${editingAccount.name}" details by ${currentUser}`,
+            currentUser
+          );
+        }
+
         toast.success('Payment account updated successfully');
       } else {
-        await addDoc(collection(db, 'payment_accounts'), {
+        const newDoc = await addDoc(collection(db, 'payment_accounts'), {
           ...formData,
-          openingBalance: Number(formData.openingBalance) || 0,
+          openingBalance: sanitizedOpeningBal,
           createdAt: new Date().toISOString(),
+          createdBy: currentUser,
         });
+
+        await logAudit(
+          'CREATE',
+          'finances',
+          `Created payment account "${formData.name}" (${formData.type}) with initial opening balance ৳${sanitizedOpeningBal.toLocaleString()} by ${currentUser}`,
+          currentUser,
+          {
+            accountId: newDoc.id,
+            accountName: formData.name,
+            openingBalance: sanitizedOpeningBal,
+          }
+        );
+
         toast.success('Payment account created successfully');
       }
 
@@ -185,6 +246,10 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
   };
 
   const handleEditClick = (account: PaymentAccount) => {
+    if (!isAdmin) {
+      toast.error('শুধুমাত্র অ্যাডমিন পেমেন্ট অ্যাকাউন্ট এডিট করতে পারবেন!');
+      return;
+    }
     setEditingAccount(account);
     setFormData({
       type: account.type || 'cash',
@@ -197,9 +262,36 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
   };
 
   const handleDeletePaymentAccount = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this payment account?')) return;
+    if (!isAdmin) {
+      toast.error('অননুমোদিত অ্যাক্সেস! শুধুমাত্র অ্যাডমিন পেমেন্ট অ্যাকাউন্ট মুছে ফেলতে পারবেন।');
+      return;
+    }
+    const acc = paymentAccounts.find(a => a.id === id);
+    if (!acc) return;
+
+    const hasTx = transactions.some(t => t.paymentAccountId === id);
+    if (hasTx) {
+      toast.error('এই অ্যাকাউন্টে লেনদেন রয়েছে! লেনদেনযুক্ত অ্যাকাউন্ট মুছে ফেলা যাবে না। প্রয়োজনে স্ট্যাটাস Inactive করুন।');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete payment account "${acc.name}"?`)) return;
     try {
-      const acc = paymentAccounts.find(a => a.id === id); if (acc) { await moveToTrash({ category: 'accounting', subCategory: 'Payment Account', collectionName: 'payment_accounts', entityId: id, title: `${acc.name} (${acc.type})`, subtitle: acc.description || '', amount: Number(acc.openingBalance || 0), data: acc, deletedBy: 'Admin', details: `Deleted payment account: ${acc.name}` }); } await deleteDoc(doc(db, 'payment_accounts', id));
+      const currentUser = profile?.displayName || profile?.email || user?.displayName || user?.email || 'Admin';
+      await moveToTrash({
+        category: 'accounting',
+        subCategory: 'Payment Account',
+        collectionName: 'payment_accounts',
+        entityId: id,
+        title: `${acc.name} (${acc.type})`,
+        subtitle: acc.description || '',
+        amount: Number(acc.openingBalance || 0),
+        data: acc,
+        deletedBy: currentUser,
+        details: `Deleted payment account: ${acc.name}`
+      });
+      await deleteDoc(doc(db, 'payment_accounts', id));
+      await logAudit('DELETE', 'finances', `Deleted payment account "${acc.name}" (${acc.type}) by ${currentUser}`, currentUser);
       toast.success('Payment account deleted');
       fetchData();
     } catch (error) {
@@ -226,21 +318,38 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
             Manage your physical cash drawers, bank accounts, and mobile financial services (bKash/Nagad).
           </p>
         </div>
-        <div className="flex gap-2">
-          {!isAddingPaymentAccount && (
-            <button
-              onClick={() => {
-                setEditingAccount(null);
-                setFormData({ type: 'cash', name: '', description: '', openingBalance: 0, status: 'active' });
-                setIsAddingPaymentAccount(true);
-              }}
-              className="bg-[#081621] text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-[#EF4444] transition-all font-bold text-xs shadow-sm"
-            >
-              <Plus size={16} /> Add Payment Account
-            </button>
+        <div className="flex gap-2 items-center">
+          {isAdmin ? (
+            !isAddingPaymentAccount && (
+              <button
+                onClick={() => {
+                  setEditingAccount(null);
+                  setFormData({ type: 'cash', name: '', description: '', openingBalance: 0, status: 'active' });
+                  setIsAddingPaymentAccount(true);
+                }}
+                className="bg-[#081621] text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-[#EF4444] transition-all font-bold text-xs shadow-sm cursor-pointer"
+              >
+                <Plus size={16} /> Add Payment Account
+              </button>
+            )
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold border border-slate-200">
+              <Lock size={13} className="text-slate-500" />
+              <span>অ্যাকাউন্ট তৈরি ও ব্যালেন্স অ্যাডমিন নিয়ন্ত্রিত</span>
+            </div>
           )}
         </div>
       </div>
+
+      {/* Staff Security Notice */}
+      {!isAdmin && (
+        <div className="mx-6 p-3 bg-amber-50/80 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 font-medium">
+          <Shield size={16} className="text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold">স্টাফ সিকিউরিটি পলিসি:</span> অপব্যবহার বা ব্যালেন্স হেরফের রোধ করতে কর্মীদের জন্য পেমেন্ট অ্যাকাউন্টের ওপেনিং ব্যালেন্স পরিবর্তন, নতুন অ্যাকাউন্ট তৈরি বা মুছে ফেলা সম্পূর্ণভাবে বন্ধ রাখা হয়েছে। কর্মীগণ শুধুমাত্র অ্যাকাউন্টের লাইভ ব্যালেন্স ও স্টেটমেন্ট দেখতে পারবেন।
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="px-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -283,16 +392,37 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
         <div className="px-6 pb-6">
           <div className="bg-gray-50/70 border border-gray-200 rounded-xl p-5">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">
+              <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-2">
                 {editingAccount ? 'Edit Payment Account' : 'Add New Payment Account'}
+                <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-black flex items-center gap-1">
+                  <Shield size={11} /> Admin Only
+                </span>
               </h3>
               <button
                 onClick={() => { setIsAddingPaymentAccount(false); setEditingAccount(null); }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
+
+            {editingAccount && (() => {
+              const txCount = transactions.filter(t => t.paymentAccountId === editingAccount.id).length;
+              if (txCount > 0) {
+                return (
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-bold">নিরাপত্তা সতর্কতা: লেনদেনযুক্ত অ্যাকাউন্ট ({txCount}টি লেনদেন পাওয়া গেছে)</div>
+                      <p className="text-[11px] text-amber-700 mt-0.5">
+                        এই অ্যাকাউন্টে ইতিমধ্যে লেনদেন সম্পন্ন হয়েছে। ওপেনিং ব্যালেন্স পরিবর্তন করলে সার্বিক ক্যাশ/ব্যাংক ব্যালেন্সে সরাসরি প্রভাব পড়বে এবং সিকিউরিটি অডিট লগে এটি স্থায়ীভাবে সংরক্ষিত হবে।
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             <form onSubmit={handleSaveAccount} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -329,8 +459,11 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-gray-700 uppercase mb-1">
-                    Opening Balance (৳) <span className="text-red-500">*</span>
+                  <label className="block font-bold text-gray-700 uppercase mb-1 flex items-center justify-between">
+                    <span>Opening Balance (৳) <span className="text-red-500">*</span></span>
+                    <span className="text-[10px] text-amber-700 font-bold flex items-center gap-0.5">
+                      <Lock size={11} /> অ্যাডমিন সুরক্ষিত
+                    </span>
                   </label>
                   <input
                     type="number"
@@ -340,6 +473,9 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
                     onChange={e => setFormData({ ...formData, openingBalance: Number(e.target.value) || 0 })}
                     className="w-full border border-gray-200 rounded-lg p-2 font-black text-gray-900"
                   />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    অ্যাকাউন্টের মূল বা প্রাথমিক মূলধন (স্টাফদের জন্য এন্ট্রি বন্ধ)।
+                  </p>
                 </div>
               </div>
 
@@ -396,7 +532,12 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
               <th className="px-6 py-3.5">Account Name</th>
               <th className="px-6 py-3.5">Account Type</th>
               <th className="px-6 py-3.5">Description</th>
-              <th className="px-6 py-3.5 text-right">Opening Balance</th>
+              <th className="px-6 py-3.5 text-right">
+                <span className="inline-flex items-center gap-1 justify-end">
+                  Opening Balance
+                  <Lock size={11} className="text-slate-400" title="Locked Capital" />
+                </span>
+              </th>
               <th className="px-6 py-3.5 text-right">Live Current Balance</th>
               <th className="px-6 py-3.5 text-center">Status</th>
               <th className="px-6 py-3.5 text-right">Actions</th>
@@ -429,7 +570,10 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
                     </td>
                     <td className="px-6 py-3.5 text-gray-500">{account.description || '-'}</td>
                     <td className="px-6 py-3.5 text-right font-medium text-gray-600">
-                      {formatCurrency(account.openingBalance, settings)}
+                      <div className="inline-flex items-center gap-1.5 justify-end">
+                        <span>{formatCurrency(account.openingBalance, settings)}</span>
+                        <Lock size={11} className="text-slate-300" title="Protected Initial Opening Capital" />
+                      </div>
                     </td>
                     <td className={cn(
                       "px-6 py-3.5 text-right font-black text-sm",
@@ -450,27 +594,33 @@ const PaymentAccountsTab: React.FC<PaymentAccountsTabProps> = ({
                         {setActiveTab && (
                           <button
                             onClick={() => setActiveTab('account_statement')}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-bold px-2 py-1 bg-blue-50 rounded"
+                            className="text-xs text-blue-600 hover:text-blue-800 font-bold px-2 py-1 bg-blue-50 rounded cursor-pointer"
                             title="View Statement"
                           >
                             Statement
                           </button>
                         )}
-                        <button
-                          onClick={() => handleEditClick(account)}
-                          className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
-                          title="Edit Account"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDeletePaymentAccount(account.id)}
-                            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                            title="Delete Account"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                        {isAdmin ? (
+                          <>
+                            <button
+                              onClick={() => handleEditClick(account)}
+                              className="p-1 text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
+                              title="Edit Account (Admin Only)"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePaymentAccount(account.id)}
+                              className="p-1 text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                              title="Delete Account (Admin Only)"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 rounded border border-slate-100">
+                            <Lock size={10} /> View Only
+                          </span>
                         )}
                       </div>
                     </td>
