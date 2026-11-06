@@ -11,6 +11,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generatePDF } from '../../../../lib/pdf';
 import { logAudit } from '../../../../lib/audit';
+import { LegacyDueModal } from '../../modals/LegacyDueModal';
 
 interface LedgerTabProps {
   selectedLedgerEntity?: { id: string; name: string; type: 'customer' | 'vendor'; isCompany?: boolean; companyKey?: string } | null;
@@ -38,6 +39,8 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
   const [ledgerReportModalData, setLedgerReportModalData] = useState<any[]>([]);
   const [ledgerReportType, setLedgerReportType] = useState<'income' | 'expense' | null>(null);
   const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>('all');
+  const [showLegacyDueModal, setShowLegacyDueModal] = useState(false);
+  const [legacyDueType, setLegacyDueType] = useState<'customer' | 'vendor'>('customer');
 
   useEffect(() => {
     setSelectedProjectFilter('all');
@@ -910,6 +913,21 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
             />
           </div>
 
+          {/* Add Legacy Due Button (Quick Access) */}
+          <button
+            type="button"
+            onClick={() => {
+              if (selectedLedgerEntity) {
+                setLegacyDueType(selectedLedgerEntity.type);
+              }
+              setShowLegacyDueModal(true);
+            }}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap"
+            title="Add Legacy Customer / Supplier Due"
+          >
+            <Plus size={14} /> Add Legacy Due
+          </button>
+
           {/* Branch / Project Filter (if corporate or projects available) */}
           {selectedLedgerEntity && availableProjects.length > 0 && (
             <div className="flex items-center gap-2 bg-blue-50/90 border border-blue-200 px-3 py-1.5 rounded-lg shadow-2xs">
@@ -959,6 +977,17 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
               </h3>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setLegacyDueType(selectedLedgerEntity.type);
+                  setShowLegacyDueModal(true);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                title={`Add Legacy Due / Previous Bill for ${selectedLedgerEntity.name}`}
+              >
+                <Plus size={14} /> Add Legacy Due
+              </button>
               <button
                 onClick={handleOpenPaymentModal}
                 className="bg-[#EF4444] hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer"
@@ -1680,6 +1709,26 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
           )}
         </div>
       )}
+
+      {/* Legacy Due Entry Modal */}
+      <LegacyDueModal
+        isOpen={showLegacyDueModal}
+        onClose={() => setShowLegacyDueModal(false)}
+        type={selectedLedgerEntity?.type || legacyDueType}
+        customerEntities={customers}
+        vendorEntities={vendors}
+        entities={
+          (selectedLedgerEntity?.type || legacyDueType) === 'customer'
+            ? customers
+            : vendors
+        }
+        paymentAccounts={paymentAccounts}
+        initialEntityId={selectedLedgerEntity && !selectedLedgerEntity.isCompany ? selectedLedgerEntity.id : undefined}
+        onSuccess={() => {
+          fetchTransactions();
+          fetchEntities();
+        }}
+      />
     </div>
   );
 };

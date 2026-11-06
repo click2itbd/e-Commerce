@@ -25,7 +25,10 @@ interface LegacyDueModalProps {
   isOpen: boolean;
   onClose: () => void;
   type: 'customer' | 'vendor';
-  entities: { id: string; name: string; phone?: string; address?: string }[];
+  entities?: { id: string; name: string; phone?: string; address?: string }[];
+  customerEntities?: { id: string; name: string; phone?: string; address?: string }[];
+  vendorEntities?: { id: string; name: string; phone?: string; address?: string }[];
+  initialEntityId?: string;
   paymentAccounts: PaymentAccount[];
   onSuccess: () => void;
 }
@@ -34,19 +37,21 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
   isOpen,
   onClose,
   type,
-  entities,
+  entities = [],
+  customerEntities,
+  vendorEntities,
+  initialEntityId,
   paymentAccounts,
   onSuccess,
 }) => {
   const { profile, user } = useAuth();
   const { settings } = useSettings();
 
-  const isCustomer = type === 'customer';
-  const partyLabel = isCustomer ? 'Customer' : 'Supplier';
+  const [activeType, setActiveType] = useState<'customer' | 'vendor'>(type);
 
   // Form states
   const [isNewParty, setIsNewParty] = useState(false);
-  const [selectedEntityId, setSelectedEntityId] = useState('');
+  const [selectedEntityId, setSelectedEntityId] = useState(initialEntityId || '');
   const [newPartyName, setNewPartyName] = useState('');
   const [newPartyPhone, setNewPartyPhone] = useState('');
   const [newPartyAddress, setNewPartyAddress] = useState('');
@@ -61,7 +66,27 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Sync state when modal opens or props change
+  React.useEffect(() => {
+    if (isOpen) {
+      setActiveType(type);
+      if (initialEntityId) {
+        setSelectedEntityId(initialEntityId);
+        setIsNewParty(false);
+      } else {
+        setSelectedEntityId('');
+      }
+    }
+  }, [isOpen, type, initialEntityId]);
+
   if (!isOpen) return null;
+
+  const isCustomer = activeType === 'customer';
+  const partyLabel = isCustomer ? 'Customer' : 'Supplier';
+
+  const effectiveEntities = (customerEntities && vendorEntities)
+    ? (isCustomer ? customerEntities : vendorEntities)
+    : (entities.length > 0 ? entities : (isCustomer ? customerEntities || [] : vendorEntities || []));
 
   const totalNum = Number(totalAmount) || 0;
   const paidNum = Number(paidAmount) || 0;
@@ -120,7 +145,7 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
         toast.error(`Please select a ${partyLabel.toLowerCase()}`);
         return;
       }
-      const existing = entities.find(e => e.id === selectedEntityId);
+      const existing = effectiveEntities.find(e => e.id === selectedEntityId);
       finalEntityName = existing?.name || partyLabel;
     }
 
@@ -254,6 +279,47 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
           </button>
         </div>
 
+        {/* Type Switcher (if both customer and vendor entities provided) */}
+        {customerEntities && vendorEntities && (
+          <div className="px-6 py-2.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+              Party Category:
+            </span>
+            <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-lg border border-slate-700">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveType('customer');
+                  setSelectedEntityId('');
+                }}
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+                  activeType === 'customer'
+                    ? "bg-indigo-600 text-white shadow-2xs"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <User size={12} /> Customer Due
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveType('vendor');
+                  setSelectedEntityId('');
+                }}
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+                  activeType === 'vendor'
+                    ? "bg-emerald-600 text-white shadow-2xs"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <Building2 size={12} /> Supplier Due
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 max-h-[82vh] overflow-y-auto bg-slate-50/50">
           
@@ -300,7 +366,7 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                 >
                   <option value="">-- Choose {partyLabel} --</option>
-                  {entities.map(e => (
+                  {effectiveEntities.map(e => (
                     <option key={e.id} value={e.id}>
                       {e.name} {e.phone ? `(${e.phone})` : ''}
                     </option>
