@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, addDoc, updateDoc, deleteDoc, doc, query, getDocs, orderBy, where } from 'firebase/firestore';
 import { db } from '../../../../firebase';
-import { Employee, EmployeeSalary, SalaryAdvance, PaymentAccount, Transaction } from '../../../../types';
+import { Employee, EmployeeSalary, SalaryAdvance, PaymentAccount, Transaction, SalaryPaymentInstallment } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { 
   CreditCard, X, Plus, Edit2, Trash2, CheckCircle, Calendar, 
   DollarSign, User, FileText, AlertCircle, TrendingUp, History,
   Shield, Check, Search, Filter, RefreshCw, Wallet, ArrowDownRight,
-  Clock, CheckCircle2
+  Clock, CheckCircle2, Eye, Receipt
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
@@ -45,7 +45,8 @@ const SalaryTab: React.FC = () => {
     deductions: number;
     advanceDeduction: number;
     netPay: number;
-    status: 'pending' | 'paid';
+    disbursalType: 'unpaid' | 'partial' | 'full';
+    paidAmountNow: number | '';
     paymentAccountId: string;
     paymentMethod: string;
     paymentDate: string;
@@ -59,7 +60,8 @@ const SalaryTab: React.FC = () => {
     deductions: 0,
     advanceDeduction: 0,
     netPay: 0,
-    status: 'pending',
+    disbursalType: 'unpaid',
+    paidAmountNow: '',
     paymentAccountId: '',
     paymentMethod: 'cash',
     paymentDate: new Date().toISOString().split('T')[0],
@@ -86,10 +88,16 @@ const SalaryTab: React.FC = () => {
     notes: ''
   });
 
-  // Modal 3: Quick Payout Dialog for Pending Salaries
-  const [payoutSalaryRecord, setPayoutSalaryRecord] = useState<EmployeeSalary | null>(null);
-  const [payoutAccountId, setPayoutAccountId] = useState('');
-  const [isPayingOut, setIsPayingOut] = useState(false);
+  // Modal 3: Multi-Installment / Salary Payment Modal (Pay Due / Pay Partial)
+  const [paymentModalRecord, setPaymentModalRecord] = useState<EmployeeSalary | null>(null);
+  const [installmentAmount, setInstallmentAmount] = useState<number | ''>('');
+  const [installmentAccountId, setInstallmentAccountId] = useState('');
+  const [installmentDate, setInstallmentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [installmentNote, setInstallmentNote] = useState('');
+  const [isSubmittingInstallment, setIsSubmittingInstallment] = useState(false);
+
+  // Modal 6: View Installments & History Modal
+  const [viewInstallmentsRecord, setViewInstallmentsRecord] = useState<EmployeeSalary | null>(null);
 
   // Modal 4: Edit Employee Base Salary / Increment Modal
   const [salaryModalEmployee, setSalaryModalEmployee] = useState<Employee | null>(null);
@@ -177,6 +185,36 @@ const SalaryTab: React.FC = () => {
     return calculateAccountBalance(acc, transactions);
   };
 
+  // Salary Financial & Status Computation Helpers
+  const getSalaryPaidAmount = (s: EmployeeSalary): number => {
+    if (s.paidAmount !== undefined && s.paidAmount !== null) return Number(s.paidAmount) || 0;
+    if (s.status === 'paid') return Number(s.netPay) || 0;
+    return 0;
+  };
+
+  const getSalaryDueAmount = (s: EmployeeSalary): number => {
+    const net = Number(s.netPay) || 0;
+    const paid = getSalaryPaidAmount(s);
+    return Math.max(0, net - paid);
+  };
+
+  const getSalaryEffectiveStatus = (s: EmployeeSalary): 'paid' | 'partial' | 'pending' => {
+    const due = getSalaryDueAmount(s);
+    const paid = getSalaryPaidAmount(s);
+    if (due <= 0 && (paid > 0 || (Number(s.netPay) || 0) === 0)) return 'paid';
+    if (paid > 0 && due > 0) return 'partial';
+    return 'pending';
+  };
+
+  const openInstallmentModal = (sal: EmployeeSalary) => {
+    const currentDue = getSalaryDueAmount(sal);
+    setPaymentModalRecord(sal);
+    setInstallmentAmount(currentDue);
+    setInstallmentAccountId(paymentAccounts[0]?.id || '');
+    setInstallmentDate(new Date().toISOString().split('T')[0]);
+    setInstallmentNote('');
+  };
+
   // ── 1. Handle Save / Process Monthly Salary ──
   const handleSaveSalary = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,15 +236,29 @@ const SalaryTab: React.FC = () => {
       const currentUser = profile?.displayName || user?.displayName || user?.email || 'Admin';
       const now = new Date().toISOString();
 
-      // If paying immediately, validate payment account & balance!
-      if (salaryFormData.status === 'paid' && netPay > 0) {
+      let paidNow = 0;
+      if (salaryFormData.disbursalType === 'full') {
+        paidNow = netPay;
+      } else if (salaryFormData.disbursalType === 'partial') {
+        paidNow = Math.min(netPay, Math.max(0, Number(salaryFormData.paidAmountNow) || 0));
+        if (paidNow <= 0) {
+          toast.error('Please enter a valid partial amount to disburse now');
+          return;
+        }
+      }
+
+      let selectedAcc: PaymentAccount | undefined;
+      let txDocId: string | undefined;
+
+      // Validate payment account & live balance if paying funds now!
+      if (paidNow > 0) {
         if (!salaryFormData.paymentAccountId) {
           toast.error('Please select a payment account to disburse salary!');
           return;
         }
 
-        const selectedAcc = paymentAccounts.find(a => a.id === salaryFormData.paymentAccountId);
-        const check = validateSufficientBalance(selectedAcc, transactions, netPay);
+        selectedAcc = paymentAccounts.find(a => a.id === salaryFormData.paymentAccountId);
+        const check = validateSufficientBalance(selectedAcc, transactions, paidNow);
         if (!check.valid) {
           toast.error(check.error || 'Insufficient balance in selected account!');
           return;
@@ -216,86 +268,101 @@ const SalaryTab: React.FC = () => {
         const txDoc = await addDoc(collection(db, 'transactions'), {
           type: 'salary',
           category: 'Payroll & Salaries',
-          amount: netPay,
-          date: salaryFormData.paymentDate || now,
+          amount: paidNow,
+          date: salaryFormData.paymentDate ? new Date(salaryFormData.paymentDate).toISOString() : now,
           paymentAccountId: selectedAcc?.id,
           paymentMethod: selectedAcc?.type || selectedAcc?.name || 'cash',
-          description: `Salary disbursement for ${selectedEmp.name} (${salaryFormData.month})`,
+          description: `Salary disbursement for ${selectedEmp.name} (${salaryFormData.month}) ${paidNow < netPay ? `(Partial installment: ৳${paidNow})` : '(Full settlement)'}`,
           entityId: selectedEmp.id,
           entityName: selectedEmp.name,
           entityType: 'employee',
           createdAt: now,
           createdBy: currentUser,
         });
+        txDocId = txDoc.id;
+      }
 
-        // If advance deduction was applied, reduce employee's advance balance!
-        if (advanceDeduction > 0) {
-          const newAdvanceBal = Math.max(0, (selectedEmp.advanceBalance || 0) - advanceDeduction);
-          await updateDoc(doc(db, 'employees', selectedEmp.id), {
-            advanceBalance: newAdvanceBal
-          });
-        }
+      // If advance deduction was applied, reduce employee's advance balance once
+      let advanceDeducted = editingSalary?.advanceDeducted || false;
+      if (advanceDeduction > 0 && !advanceDeducted) {
+        const newAdvanceBal = Math.max(0, (selectedEmp.advanceBalance || 0) - advanceDeduction);
+        await updateDoc(doc(db, 'employees', selectedEmp.id), {
+          advanceBalance: newAdvanceBal
+        });
+        advanceDeducted = true;
+      }
 
-        const dataToSave: Omit<EmployeeSalary, 'id'> = {
-          employeeId: selectedEmp.id,
-          employeeName: selectedEmp.name,
-          month: salaryFormData.month,
-          baseAmount: base,
-          bonus: bonus,
-          deductions: deductions,
-          advanceDeduction: advanceDeduction,
-          netPay: netPay,
-          status: 'paid',
-          paymentAccountId: selectedAcc?.id,
+      // Maintain or build installment history
+      const existingPayments: SalaryPaymentInstallment[] = editingSalary?.payments ? [...editingSalary.payments] : [];
+      if (paidNow > 0 && (!editingSalary || existingPayments.length === 0)) {
+        existingPayments.push({
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `pay_${Date.now()}`,
+          amount: paidNow,
+          date: salaryFormData.paymentDate || now.split('T')[0],
+          paymentAccountId: selectedAcc?.id || '',
+          paymentAccountName: selectedAcc?.name || 'Cash',
           paymentMethod: selectedAcc?.type || 'cash',
-          paymentDate: salaryFormData.paymentDate || now,
-          transactionId: txDoc.id,
-          notes: salaryFormData.notes,
+          transactionId: txDocId,
+          notes: salaryFormData.notes || (paidNow >= netPay ? 'Full salary payout' : 'Initial partial payment'),
           createdAt: now,
-        };
+          createdBy: currentUser
+        });
+      }
 
-        if (editingSalary) {
-          await updateDoc(doc(db, 'employee_salaries', editingSalary.id), dataToSave);
-        } else {
-          await addDoc(collection(db, 'employee_salaries'), dataToSave);
-        }
+      const totalPaidCalc = editingSalary?.paidAmount !== undefined && editingSalary.payments?.length
+        ? editingSalary.paidAmount
+        : paidNow;
+      const dueCalc = Math.max(0, netPay - totalPaidCalc);
+      const effectiveStatus: 'pending' | 'partial' | 'paid' = dueCalc <= 0 && (totalPaidCalc > 0 || netPay === 0)
+        ? 'paid' 
+        : (totalPaidCalc > 0 ? 'partial' : 'pending');
 
-        await logAudit(
-          'CREATE',
-          'HR',
-          `Disbursed salary of ${formatCurrency(netPay, settings)} to ${selectedEmp.name} for ${salaryFormData.month} via ${selectedAcc?.name}`,
-          currentUser,
-          dataToSave
-        );
+      const dataToSave: Omit<EmployeeSalary, 'id'> = {
+        employeeId: selectedEmp.id,
+        employeeName: selectedEmp.name,
+        month: salaryFormData.month,
+        baseAmount: base,
+        bonus: bonus,
+        deductions: deductions,
+        advanceDeduction: advanceDeduction,
+        advanceDeducted: advanceDeducted,
+        netPay: netPay,
+        paidAmount: totalPaidCalc,
+        dueAmount: dueCalc,
+        status: effectiveStatus,
+        paymentAccountId: selectedAcc?.id || editingSalary?.paymentAccountId || '',
+        paymentMethod: selectedAcc?.type || editingSalary?.paymentMethod || 'cash',
+        paymentDate: salaryFormData.paymentDate || now,
+        transactionId: txDocId || editingSalary?.transactionId || '',
+        payments: existingPayments,
+        notes: salaryFormData.notes,
+        createdAt: editingSalary?.createdAt || now,
+      };
 
-        toast.success(`Salary of ${formatCurrency(netPay, settings)} disbursed to ${selectedEmp.name}!`);
+      if (editingSalary) {
+        await updateDoc(doc(db, 'employee_salaries', editingSalary.id), dataToSave);
+        toast.success('Salary slip updated successfully!');
       } else {
-        // Pending status
-        const dataToSave: Omit<EmployeeSalary, 'id'> = {
-          employeeId: selectedEmp.id,
-          employeeName: selectedEmp.name,
-          month: salaryFormData.month,
-          baseAmount: base,
-          bonus: bonus,
-          deductions: deductions,
-          advanceDeduction: advanceDeduction,
-          netPay: netPay,
-          status: 'pending',
-          paymentAccountId: '',
-          paymentMethod: '',
-          paymentDate: salaryFormData.paymentDate || now,
-          notes: salaryFormData.notes,
-          createdAt: now,
-        };
-
-        if (editingSalary) {
-          await updateDoc(doc(db, 'employee_salaries', editingSalary.id), dataToSave);
-          toast.success('Salary record updated');
+        await addDoc(collection(db, 'employee_salaries'), dataToSave);
+        if (paidNow >= netPay) {
+          toast.success(`Full salary of ${formatCurrency(netPay, settings)} disbursed to ${selectedEmp.name}!`);
+        } else if (paidNow > 0) {
+          toast.success(`Partial salary of ${formatCurrency(paidNow, settings)} disbursed (Remaining Due: ${formatCurrency(dueCalc, settings)})!`);
         } else {
-          await addDoc(collection(db, 'employee_salaries'), dataToSave);
-          toast.success('Salary voucher created as Pending');
+          toast.success(`Salary voucher for ${selectedEmp.name} created as Pending (Due: ${formatCurrency(netPay, settings)})`);
         }
       }
+
+      await logAudit(
+        editingSalary ? 'UPDATE' : 'CREATE',
+        'HR',
+        `Processed salary for ${selectedEmp.name} (${salaryFormData.month}): Net Pay ${formatCurrency(netPay, settings)}, Paid ${formatCurrency(totalPaidCalc, settings)}, Due ${formatCurrency(dueCalc, settings)}`,
+        currentUser,
+        {
+          entityId: selectedEmp.id,
+          newState: dataToSave
+        }
+      );
 
       setIsAddingSalary(false);
       setEditingSalary(null);
@@ -385,7 +452,10 @@ const SalaryTab: React.FC = () => {
         'HR',
         `Disbursed advance salary of ${formatCurrency(amount, settings)} to ${selectedEmp.name} from account "${selectedAcc?.name}". New advance balance: ${formatCurrency(newBalance, settings)}`,
         currentUser,
-        advanceRecord
+        {
+          entityId: selectedEmp.id,
+          newState: advanceRecord
+        }
       );
 
       toast.success(`Advance of ${formatCurrency(amount, settings)} given to ${selectedEmp.name}!`);
@@ -406,24 +476,37 @@ const SalaryTab: React.FC = () => {
     }
   };
 
-  // ── 3. Quick Payout for Pending Salary ──
-  const handleExecutePendingPayout = async () => {
-    if (!payoutSalaryRecord) return;
-    const netPay = payoutSalaryRecord.netPay || 0;
+  // ── 3. Multi-Installment Payout Handler (Pay Due / Pay Partial) ──
+  const handleDisburseInstallment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paymentModalRecord) return;
 
-    if (netPay > 0 && !payoutAccountId) {
-      toast.error('Please select a payment account to disburse salary!');
+    const currentDue = getSalaryDueAmount(paymentModalRecord);
+    const amountToPay = Number(installmentAmount) || 0;
+
+    if (amountToPay <= 0) {
+      toast.error('Please enter a valid payment amount!');
       return;
     }
 
-    const selectedAcc = paymentAccounts.find(a => a.id === payoutAccountId);
-    const balanceCheck = validateSufficientBalance(selectedAcc, transactions, netPay);
+    if (amountToPay > currentDue) {
+      toast.error(`Amount cannot exceed remaining due of ${formatCurrency(currentDue, settings)}!`);
+      return;
+    }
+
+    if (!installmentAccountId) {
+      toast.error('Please select the payment account to disburse funds from!');
+      return;
+    }
+
+    const selectedAcc = paymentAccounts.find(a => a.id === installmentAccountId);
+    const balanceCheck = validateSufficientBalance(selectedAcc, transactions, amountToPay);
     if (!balanceCheck.valid) {
       toast.error(balanceCheck.error || 'Insufficient balance in selected account!');
       return;
     }
 
-    setIsPayingOut(true);
+    setIsSubmittingInstallment(true);
     try {
       const now = new Date().toISOString();
       const currentUser = profile?.displayName || user?.displayName || user?.email || 'Admin';
@@ -432,46 +515,113 @@ const SalaryTab: React.FC = () => {
       const txDoc = await addDoc(collection(db, 'transactions'), {
         type: 'salary',
         category: 'Payroll & Salaries',
-        amount: netPay,
-        date: now,
+        amount: amountToPay,
+        date: installmentDate ? new Date(installmentDate).toISOString() : now,
         paymentAccountId: selectedAcc?.id,
         paymentMethod: selectedAcc?.type || selectedAcc?.name || 'cash',
-        description: `Salary payout for ${payoutSalaryRecord.employeeName} (${payoutSalaryRecord.month})`,
-        entityId: payoutSalaryRecord.employeeId,
-        entityName: payoutSalaryRecord.employeeName,
+        description: `Salary installment of ${formatCurrency(amountToPay, settings)} for ${paymentModalRecord.employeeName} (${paymentModalRecord.month})`,
+        entityId: paymentModalRecord.employeeId,
+        entityName: paymentModalRecord.employeeName,
         entityType: 'employee',
         createdAt: now,
         createdBy: currentUser,
       });
 
-      // 2. Deduct advance balance if recovered in this slip
-      const advDeduction = Number(payoutSalaryRecord.advanceDeduction) || 0;
-      if (advDeduction > 0 && payoutSalaryRecord.employeeId) {
-        const emp = employees.find(e => e.id === payoutSalaryRecord.employeeId);
+      // 2. Advance deduction check (if not yet deducted)
+      const advDeduction = Number(paymentModalRecord.advanceDeduction) || 0;
+      let advanceDeducted = paymentModalRecord.advanceDeducted || false;
+      if (advDeduction > 0 && !advanceDeducted && paymentModalRecord.employeeId) {
+        const emp = employees.find(e => e.id === paymentModalRecord.employeeId);
         if (emp) {
           const newAdv = Math.max(0, (emp.advanceBalance || 0) - advDeduction);
           await updateDoc(doc(db, 'employees', emp.id), { advanceBalance: newAdv });
+          advanceDeducted = true;
         }
       }
 
-      // 3. Update salary slip status
-      await updateDoc(doc(db, 'employee_salaries', payoutSalaryRecord.id), {
-        status: 'paid',
-        paymentAccountId: selectedAcc?.id,
+      // 3. Compute new Paid, Due, Status
+      const currentPaid = getSalaryPaidAmount(paymentModalRecord);
+      const newPaid = currentPaid + amountToPay;
+      const netPay = Number(paymentModalRecord.netPay) || 0;
+      const newDue = Math.max(0, netPay - newPaid);
+      const newStatus: 'paid' | 'partial' = newDue <= 0 ? 'paid' : 'partial';
+
+      const newInstallment: SalaryPaymentInstallment = {
+        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `inst_${Date.now()}`,
+        amount: amountToPay,
+        date: installmentDate || now.split('T')[0],
+        paymentAccountId: selectedAcc?.id || '',
+        paymentAccountName: selectedAcc?.name || 'Cash',
         paymentMethod: selectedAcc?.type || 'cash',
-        paymentDate: now,
-        transactionId: txDoc.id
+        transactionId: txDoc.id,
+        notes: installmentNote || (newDue <= 0 ? 'Final settlement installment' : 'Partial installment payment'),
+        createdAt: now,
+        createdBy: currentUser,
+      };
+
+      const updatedPayments: SalaryPaymentInstallment[] = [
+        ...(paymentModalRecord.payments || [])
+      ];
+      // Backfill previous payment if not in payments array
+      if (updatedPayments.length === 0 && currentPaid > 0) {
+        updatedPayments.push({
+          id: `prev_${Date.now()}`,
+          amount: currentPaid,
+          date: paymentModalRecord.paymentDate || paymentModalRecord.createdAt?.split('T')[0] || now.split('T')[0],
+          paymentAccountId: paymentModalRecord.paymentAccountId || '',
+          paymentAccountName: paymentAccounts.find(a => a.id === paymentModalRecord.paymentAccountId)?.name || 'Previous Payment',
+          paymentMethod: paymentModalRecord.paymentMethod || 'cash',
+          notes: 'Initial payment',
+          createdAt: paymentModalRecord.createdAt || now,
+        });
+      }
+      updatedPayments.push(newInstallment);
+
+      // 4. Update salary doc
+      await updateDoc(doc(db, 'employee_salaries', paymentModalRecord.id), {
+        paidAmount: newPaid,
+        dueAmount: newDue,
+        status: newStatus,
+        advanceDeducted: advanceDeducted,
+        paymentAccountId: selectedAcc?.id || paymentModalRecord.paymentAccountId,
+        paymentMethod: selectedAcc?.type || paymentModalRecord.paymentMethod || 'cash',
+        paymentDate: installmentDate || now.split('T')[0],
+        payments: updatedPayments,
       });
 
-      toast.success(`Disbursed ${formatCurrency(netPay, settings)} to ${payoutSalaryRecord.employeeName}!`);
-      setPayoutSalaryRecord(null);
-      setPayoutAccountId('');
+      // 5. Audit Log
+      await logAudit(
+        'UPDATE',
+        'HR',
+        `Disbursed salary installment of ${formatCurrency(amountToPay, settings)} to ${paymentModalRecord.employeeName} (${paymentModalRecord.month}) via ${selectedAcc?.name}. Remaining Due: ${formatCurrency(newDue, settings)}`,
+        currentUser,
+        {
+          entityId: paymentModalRecord.id,
+          newState: {
+            employeeName: paymentModalRecord.employeeName,
+            amountPaid: amountToPay,
+            remainingDue: newDue,
+            account: selectedAcc?.name,
+          }
+        }
+      );
+
+      toast.success(
+        newDue <= 0 
+          ? `Disbursed ${formatCurrency(amountToPay, settings)}! Salary for ${paymentModalRecord.employeeName} is now Fully Paid!`
+          : `Disbursed installment of ${formatCurrency(amountToPay, settings)}! Remaining due: ${formatCurrency(newDue, settings)}`
+      );
+
+      setPaymentModalRecord(null);
+      setInstallmentAmount('');
+      setInstallmentAccountId('');
+      setInstallmentNote('');
       fetchData();
     } catch (err: any) {
-      console.error('Error executing payout:', err);
-      toast.error(err?.message || 'Failed to disburse salary');
+      console.error('Error disbursing installment:', err);
+      toast.error(err?.message || 'Failed to disburse payment');
     } finally {
-      setIsPayingOut(false);
+      setIsSubmittingInstallment(false);
     }
   };
 
@@ -517,7 +667,10 @@ const SalaryTab: React.FC = () => {
         'HR',
         `Adjusted salary for ${salaryModalEmployee.name}: ${formatCurrency(currentBase, settings)} → ${formatCurrency(newBase, settings)} (Hike: ${hike >= 0 ? '+' : ''}${formatCurrency(hike, settings)})`,
         currentUser,
-        { employeeId: salaryModalEmployee.id, oldSalary: currentBase, newSalary: newBase, hike }
+        {
+          entityId: salaryModalEmployee.id,
+          newState: { oldSalary: currentBase, newSalary: newBase, hike }
+        }
       );
 
       toast.success(`Salary updated for ${salaryModalEmployee.name}!`);
@@ -542,14 +695,14 @@ const SalaryTab: React.FC = () => {
 
   const totalPaidThisMonth = useMemo(() => {
     return employeeSalaries
-      .filter(s => s.status === 'paid' && (!selectedMonthFilter || s.month === selectedMonthFilter))
-      .reduce((sum, s) => sum + (Number(s.netPay) || 0), 0);
+      .filter(s => !selectedMonthFilter || s.month === selectedMonthFilter)
+      .reduce((sum, s) => sum + getSalaryPaidAmount(s), 0);
   }, [employeeSalaries, selectedMonthFilter]);
 
   const totalPendingThisMonth = useMemo(() => {
     return employeeSalaries
-      .filter(s => s.status === 'pending' && (!selectedMonthFilter || s.month === selectedMonthFilter))
-      .reduce((sum, s) => sum + (Number(s.netPay) || 0), 0);
+      .filter(s => !selectedMonthFilter || s.month === selectedMonthFilter)
+      .reduce((sum, s) => sum + getSalaryDueAmount(s), 0);
   }, [employeeSalaries, selectedMonthFilter]);
 
   // Clean Unique Employees (Deduplicated by normalized name)
@@ -665,8 +818,9 @@ const SalaryTab: React.FC = () => {
                 deductions: 0,
                 advanceDeduction: 0,
                 netPay: 0,
-                status: 'pending',
-                paymentAccountId: '',
+                disbursalType: 'unpaid',
+                paidAmountNow: '',
+                paymentAccountId: paymentAccounts[0]?.id || '',
                 paymentMethod: 'cash',
                 paymentDate: new Date().toISOString().split('T')[0],
                 notes: ''
@@ -802,14 +956,20 @@ const SalaryTab: React.FC = () => {
                   <th className="px-6 py-4 text-right">Deductions</th>
                   <th className="px-6 py-4 text-right">Advance Recovered</th>
                   <th className="px-6 py-4 text-right font-black">Net Pay</th>
-                  <th className="px-6 py-4">Payment Account</th>
+                  <th className="px-6 py-4 text-right">Paid Amount</th>
+                  <th className="px-6 py-4 text-right">Remaining Due</th>
                   <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Payment Account</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-700">
                 {filteredSalaries.map(sal => {
                   const payAcc = paymentAccounts.find(a => a.id === sal.paymentAccountId);
+                  const paid = getSalaryPaidAmount(sal);
+                  const due = getSalaryDueAmount(sal);
+                  const status = getSalaryEffectiveStatus(sal);
+                  const payments = sal.payments || [];
 
                   return (
                     <tr key={sal.id} className="hover:bg-gray-50/80 transition-colors group">
@@ -832,8 +992,52 @@ const SalaryTab: React.FC = () => {
                       <td className="px-6 py-4 text-right tabular-nums font-black text-gray-900 text-sm">
                         {formatCurrency(sal.netPay || 0, settings)}
                       </td>
+                      <td className="px-6 py-4 text-right tabular-nums font-black text-emerald-700">
+                        <div>{formatCurrency(paid, settings)}</div>
+                        {payments.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setViewInstallmentsRecord(sal)}
+                            className="text-[10px] text-indigo-600 hover:underline font-bold block ml-auto cursor-pointer"
+                          >
+                            ({payments.length} installments)
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right tabular-nums">
+                        {due > 0 ? (
+                          <span className="inline-block px-2 py-0.5 rounded-md text-xs font-black bg-rose-50 text-rose-700 border border-rose-200">
+                            {formatCurrency(due, settings)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 font-semibold">{formatCurrency(0, settings)}</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4">
-                        {sal.status === 'paid' ? (
+                        <span className={cn(
+                          "px-2.5 py-1 text-[11px] font-bold rounded-full border shadow-2xs inline-flex items-center gap-1.5",
+                          status === 'paid'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                            : status === 'partial'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200'
+                        )}>
+                          {status === 'paid' ? <CheckCircle2 size={12} className="text-emerald-500" /> : <Clock size={12} />}
+                          {status === 'paid' ? 'Paid (Full)' : status === 'partial' ? 'Partially Paid' : 'Pending'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {payments.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => setViewInstallmentsRecord(sal)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100 cursor-pointer"
+                            title="View installments breakdown"
+                          >
+                            <Wallet size={10} className="text-indigo-600" />
+                            Multi-Account ({payments.length})
+                          </button>
+                        ) : paid > 0 ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
                             <Wallet size={10} className="text-slate-500" />
                             {payAcc?.name || sal.paymentMethod || 'Cash'}
@@ -842,36 +1046,34 @@ const SalaryTab: React.FC = () => {
                           <span className="text-gray-400 italic">Unpaid</span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={cn(
-                          "px-2.5 py-1 text-[11px] font-bold rounded-full border shadow-2xs inline-flex items-center gap-1.5",
-                          sal.status === 'paid' 
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                        )}>
-                          {sal.status === 'paid' ? <CheckCircle2 size={12} className="text-emerald-500" /> : <Clock size={12} />}
-                          {sal.status === 'paid' ? 'Paid' : 'Pending'}
-                        </span>
-                      </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {sal.status !== 'paid' && (
+                          {due > 0 && (
                             <button
                               type="button"
-                              onClick={() => {
-                                setPayoutSalaryRecord(sal);
-                                setPayoutAccountId('');
-                              }}
+                              onClick={() => openInstallmentModal(sal)}
                               className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
-                              title="Disburse salary and mark as paid"
+                              title="Disburse payment / installment"
                             >
-                              <DollarSign size={12} /> Pay Now
+                              <DollarSign size={12} /> Pay Due
+                            </button>
+                          )}
+                          {((sal.payments && sal.payments.length > 0) || paid > 0) && (
+                            <button
+                              type="button"
+                              onClick={() => setViewInstallmentsRecord(sal)}
+                              className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                              title="View Payment Installments & History"
+                            >
+                              <History size={13} />
                             </button>
                           )}
                           <button
                             type="button"
                             onClick={() => {
                               setEditingSalary(sal);
+                              const salPaid = getSalaryPaidAmount(sal);
+                              const salDue = getSalaryDueAmount(sal);
                               setSalaryFormData({
                                 employeeId: sal.employeeId || '',
                                 employeeName: sal.employeeName,
@@ -881,7 +1083,8 @@ const SalaryTab: React.FC = () => {
                                 deductions: sal.deductions || 0,
                                 advanceDeduction: sal.advanceDeduction || 0,
                                 netPay: sal.netPay,
-                                status: sal.status,
+                                disbursalType: salDue <= 0 && salPaid > 0 ? 'full' : (salPaid > 0 ? 'partial' : 'unpaid'),
+                                paidAmountNow: salPaid || '',
                                 paymentAccountId: sal.paymentAccountId || '',
                                 paymentMethod: sal.paymentMethod || 'cash',
                                 paymentDate: sal.paymentDate || new Date().toISOString().split('T')[0],
@@ -1061,8 +1264,9 @@ const SalaryTab: React.FC = () => {
                                   deductions: 0,
                                   advanceDeduction: emp.advanceBalance ? Math.min(emp.advanceBalance, emp.baseSalary || 0) : 0,
                                   netPay: 0,
-                                  status: 'pending',
-                                  paymentAccountId: '',
+                                  disbursalType: 'unpaid',
+                                  paidAmountNow: '',
+                                  paymentAccountId: paymentAccounts[0]?.id || '',
                                   paymentMethod: 'cash',
                                   paymentDate: new Date().toISOString().split('T')[0],
                                   notes: ''
@@ -1353,82 +1557,214 @@ const SalaryTab: React.FC = () => {
                 </div>
               </div>
 
-              {/* Payout Status & Payment Account (With Live Balance Check) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Payment Status
-                  </label>
-                  <select
-                    value={salaryFormData.status}
-                    onChange={e => setSalaryFormData({...salaryFormData, status: e.target.value as 'pending' | 'paid'})}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs focus:bg-white outline-none cursor-pointer"
-                  >
-                    <option value="pending">Pending (Voucher / To Pay Later)</option>
-                    <option value="paid">Paid (Disburse Payout Now)</option>
-                  </select>
-                </div>
+              {/* ── Disbursal / Payment Options ── */}
+              {(() => {
+                const calculatedNetPay = Math.max(0, 
+                  ((Number(salaryFormData.baseAmount) || 0) + (Number(salaryFormData.bonus) || 0)) -
+                  (Number(salaryFormData.deductions) || 0) -
+                  (Number(salaryFormData.advanceDeduction) || 0)
+                );
+                const currentPayingNow = salaryFormData.disbursalType === 'full' 
+                  ? calculatedNetPay 
+                  : (salaryFormData.disbursalType === 'partial' ? (Number(salaryFormData.paidAmountNow) || 0) : 0);
+                const calculatedDue = Math.max(0, calculatedNetPay - currentPayingNow);
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Payment Date
-                  </label>
-                  <input
-                    type="date"
-                    value={salaryFormData.paymentDate}
-                    onChange={e => setSalaryFormData({...salaryFormData, paymentDate: e.target.value})}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs focus:bg-white outline-none"
-                  />
-                </div>
-              </div>
+                return (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                        Payment & Disbursal Options
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-600">
+                        Net Pay: <strong className="text-slate-900">{formatCurrency(calculatedNetPay, settings)}</strong>
+                      </span>
+                    </div>
 
-              {/* Payment Account Selection (Only required if Paid) */}
-              {salaryFormData.status === 'paid' && (
-                <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3.5 space-y-2">
-                  <label className="block text-[11px] font-bold text-indigo-900 uppercase">
-                    Disburse From Payment Account <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    required
-                    value={salaryFormData.paymentAccountId}
-                    onChange={e => setSalaryFormData({...salaryFormData, paymentAccountId: e.target.value})}
-                    className="w-full p-2.5 bg-white border border-indigo-200 rounded-xl font-bold text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500/20 outline-none cursor-pointer"
-                  >
-                    <option value="">-- Select Payment Account --</option>
-                    {paymentAccounts.map(acc => {
-                      const avail = getAccountLiveBalance(acc.id);
-                      return (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.name} ({acc.type}) — Available: {formatCurrency(avail, settings)}
-                        </option>
-                      );
-                    })}
-                  </select>
-
-                  {/* Live Account Balance Indicator */}
-                  {salaryFormData.paymentAccountId && (() => {
-                    const avail = getAccountLiveBalance(salaryFormData.paymentAccountId);
-                    const net = Math.max(0, 
-                      ((Number(salaryFormData.baseAmount) || 0) + (Number(salaryFormData.bonus) || 0)) -
-                      (Number(salaryFormData.deductions) || 0) -
-                      (Number(salaryFormData.advanceDeduction) || 0)
-                    );
-                    const isInsufficient = avail < net;
-
-                    return (
-                      <div className={cn(
-                        "p-2 rounded-lg text-xs font-bold flex items-center justify-between",
-                        isInsufficient ? "bg-rose-100 text-rose-900 border border-rose-300" : "bg-emerald-100 text-emerald-900 border border-emerald-300"
-                      )}>
-                        <span>Available Balance: {formatCurrency(avail, settings)}</span>
-                        {isInsufficient && (
-                          <span className="text-rose-700">⚠️ Insufficient funds for payout!</span>
+                    {/* Disbursal Type Selector */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSalaryFormData({ ...salaryFormData, disbursalType: 'unpaid', paidAmountNow: '' })}
+                        className={cn(
+                          "py-2 px-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between",
+                          salaryFormData.disbursalType === 'unpaid'
+                            ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                         )}
+                      >
+                        <span className="text-xs font-bold block">Unpaid (Later)</span>
+                        <span className={cn("text-[10px] mt-0.5", salaryFormData.disbursalType === 'unpaid' ? "text-slate-300" : "text-slate-400")}>
+                          Voucher only, pay later
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSalaryFormData({ 
+                          ...salaryFormData, 
+                          disbursalType: 'partial',
+                          paidAmountNow: salaryFormData.paidAmountNow !== '' && Number(salaryFormData.paidAmountNow) > 0 
+                            ? salaryFormData.paidAmountNow 
+                            : Math.min(5000, calculatedNetPay)
+                        })}
+                        className={cn(
+                          "py-2 px-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between",
+                          salaryFormData.disbursalType === 'partial'
+                            ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                        )}
+                      >
+                        <span className="text-xs font-bold block">Partial Payment</span>
+                        <span className={cn("text-[10px] mt-0.5", salaryFormData.disbursalType === 'partial' ? "text-amber-100" : "text-slate-400")}>
+                          Pay installment now
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSalaryFormData({ 
+                          ...salaryFormData, 
+                          disbursalType: 'full',
+                          paidAmountNow: calculatedNetPay
+                        })}
+                        className={cn(
+                          "py-2 px-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between",
+                          salaryFormData.disbursalType === 'full'
+                            ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                        )}
+                      >
+                        <span className="text-xs font-bold block">Full Payment</span>
+                        <span className={cn("text-[10px] mt-0.5", salaryFormData.disbursalType === 'full' ? "text-emerald-100" : "text-slate-400")}>
+                          Disburse full amount
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Partial Payment Amount Input & Quick Actions */}
+                    {salaryFormData.disbursalType === 'partial' && (
+                      <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-amber-900 uppercase">
+                            Amount Paying Now (BDT) <span className="text-red-500">*</span>
+                          </label>
+                          <span className="text-xs font-bold text-amber-800">
+                            Remaining Due: <strong className="text-amber-900 font-black">{formatCurrency(calculatedDue, settings)}</strong>
+                          </span>
+                        </div>
+
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">৳</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max={calculatedNetPay}
+                            required
+                            value={salaryFormData.paidAmountNow}
+                            onChange={e => {
+                              const val = e.target.value === '' ? '' : Number(e.target.value);
+                              setSalaryFormData({ ...salaryFormData, paidAmountNow: val });
+                            }}
+                            placeholder="e.g. 5000"
+                            className="w-full pl-8 pr-3 py-2 bg-white border border-amber-300 rounded-lg font-black text-sm text-slate-800 outline-none focus:ring-2 focus:ring-amber-500/20"
+                          />
+                        </div>
+
+                        {/* Quick Amount Pills */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-[10px] text-amber-800 font-bold">Quick:</span>
+                          {[2000, 5000, 10000].filter(a => a < calculatedNetPay).map(amt => (
+                            <button
+                              key={amt}
+                              type="button"
+                              onClick={() => setSalaryFormData({ ...salaryFormData, paidAmountNow: amt })}
+                              className="px-2 py-0.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-md text-[10px] font-bold cursor-pointer"
+                            >
+                              ৳{amt.toLocaleString()}
+                            </button>
+                          ))}
+                          {calculatedNetPay > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setSalaryFormData({ ...salaryFormData, paidAmountNow: Math.round(calculatedNetPay / 2) })}
+                              className="px-2 py-0.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-md text-[10px] font-bold cursor-pointer"
+                            >
+                              50% (৳{Math.round(calculatedNetPay / 2).toLocaleString()})
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    );
-                  })()}
-                </div>
-              )}
+                    )}
+
+                    {/* Payment Account & Payment Date (if money is being disbursed now) */}
+                    {(salaryFormData.disbursalType === 'partial' || salaryFormData.disbursalType === 'full') && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                            Disburse From Account <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            required
+                            value={salaryFormData.paymentAccountId}
+                            onChange={e => setSalaryFormData({ ...salaryFormData, paymentAccountId: e.target.value })}
+                            className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500/20 outline-none cursor-pointer"
+                          >
+                            <option value="">-- Choose Account --</option>
+                            {paymentAccounts.map(acc => {
+                              const avail = getAccountLiveBalance(acc.id);
+                              return (
+                                <option key={acc.id} value={acc.id}>
+                                  {acc.name} ({acc.type}) — Available: {formatCurrency(avail, settings)}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                            Payment Date
+                          </label>
+                          <input
+                            type="date"
+                            value={salaryFormData.paymentDate}
+                            onChange={e => setSalaryFormData({ ...salaryFormData, paymentDate: e.target.value })}
+                            className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 text-xs outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Live Balance Validation Warning for Modal 1 */}
+                    {(salaryFormData.disbursalType === 'partial' || salaryFormData.disbursalType === 'full') && salaryFormData.paymentAccountId && (() => {
+                      const avail = getAccountLiveBalance(salaryFormData.paymentAccountId);
+                      const isInsufficient = avail < currentPayingNow;
+
+                      return (
+                        <div className={cn(
+                          "p-2 rounded-lg text-xs font-bold flex items-center justify-between",
+                          isInsufficient ? "bg-rose-100 text-rose-900 border border-rose-300" : "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                        )}>
+                          <span>Account Balance: {formatCurrency(avail, settings)}</span>
+                          {isInsufficient ? (
+                            <span className="text-rose-700">⚠️ Insufficient funds for payout!</span>
+                          ) : (
+                            <span className="text-emerald-700">✓ Funds available for payout</span>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Unpaid Info Note */}
+                    {salaryFormData.disbursalType === 'unpaid' && (
+                      <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl text-xs flex items-center gap-2">
+                        <AlertCircle size={15} className="text-slate-400 shrink-0" />
+                        <span>Salary voucher will be saved as <strong>Pending (Full Due: {formatCurrency(calculatedNetPay, settings)})</strong>. You can disburse partial payments or pay in full anytime from the payroll table.</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
@@ -1644,116 +1980,367 @@ const SalaryTab: React.FC = () => {
       )}
 
       {/* ══════════════════════════════════════════════════ */}
-      {/* ── MODAL 3: Quick Payout for Pending Salary ── */}
+      {/* ── MODAL 3: Disburse Salary Payment / Add Installment ── */}
       {/* ══════════════════════════════════════════════════ */}
-      {payoutSalaryRecord && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-150 my-auto">
-            <div className="px-6 py-4 bg-emerald-700 text-white flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-base flex items-center gap-2">
-                  <DollarSign size={18} />
-                  Disburse Salary Payout
-                </h3>
-                <p className="text-[11px] text-emerald-100 mt-0.5">
-                  Confirm account and disburse pending salary
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPayoutSalaryRecord(null)}
-                className="text-emerald-200 hover:text-white p-1 rounded-lg hover:bg-white/10"
-              >
-                <X size={18} />
-              </button>
-            </div>
+      {paymentModalRecord && (() => {
+        const netPay = Number(paymentModalRecord.netPay) || 0;
+        const alreadyPaid = getSalaryPaidAmount(paymentModalRecord);
+        const currentDue = getSalaryDueAmount(paymentModalRecord);
+        const enteredAmt = Number(installmentAmount) || 0;
+        const newPaidCalc = alreadyPaid + enteredAmt;
+        const newDueCalc = Math.max(0, currentDue - enteredAmt);
+        const availBalance = installmentAccountId ? getAccountLiveBalance(installmentAccountId) : 0;
+        const isInsufficient = installmentAccountId ? availBalance < enteredAmt : false;
 
-            <div className="p-6 space-y-4 text-xs">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Employee:</span>
-                  <span className="font-bold text-gray-900">{payoutSalaryRecord.employeeName}</span>
+        return (
+          <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-150 my-auto">
+              <div className="px-6 py-4 bg-[#081621] text-white flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-base flex items-center gap-2">
+                    <DollarSign size={18} className="text-emerald-400" />
+                    Disburse Salary Payment
+                  </h3>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    Pay full remaining due or add a partial installment
+                  </p>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Salary Month:</span>
-                  <span className="font-bold text-gray-900">{payoutSalaryRecord.month}</span>
-                </div>
-                {payoutSalaryRecord.advanceDeduction ? (
-                  <div className="flex justify-between items-center text-amber-700">
-                    <span>Advance Recovered:</span>
-                    <span className="font-bold">-{formatCurrency(payoutSalaryRecord.advanceDeduction, settings)}</span>
-                  </div>
-                ) : null}
-                <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-                  <span className="font-bold text-gray-700 text-sm">Net Pay To Disburse:</span>
-                  <span className="font-black text-emerald-700 text-lg tabular-nums">
-                    {formatCurrency(payoutSalaryRecord.netPay || 0, settings)}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Select Payment Account <span className="text-red-500">*</span>
-                </label>
-                <select
-                  required
-                  value={payoutAccountId}
-                  onChange={e => setPayoutAccountId(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs focus:bg-white outline-none cursor-pointer"
+                <button
+                  type="button"
+                  onClick={() => setPaymentModalRecord(null)}
+                  className="text-slate-300 hover:text-white p-1 rounded-lg hover:bg-white/10"
                 >
-                  <option value="">-- Choose Account --</option>
-                  {paymentAccounts.map(acc => {
-                    const avail = getAccountLiveBalance(acc.id);
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleDisburseInstallment} className="p-6 space-y-4 text-xs">
+                {/* Employee & Month Overview */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 font-semibold">Staff Member:</span>
+                    <span className="font-black text-gray-900 text-sm">{paymentModalRecord.employeeName}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 font-semibold">Salary Month:</span>
+                    <span className="font-bold text-gray-800">{paymentModalRecord.month}</span>
+                  </div>
+                  <div className="pt-2 border-t border-slate-200 grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <span className="text-[10px] text-gray-400 font-bold uppercase block">Net Pay</span>
+                      <span className="font-black text-slate-900 text-xs">{formatCurrency(netPay, settings)}</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <span className="text-[10px] text-emerald-600 font-bold uppercase block">Already Paid</span>
+                      <span className="font-black text-emerald-700 text-xs">{formatCurrency(alreadyPaid, settings)}</span>
+                    </div>
+                    <div className="bg-rose-50 p-2 rounded-lg border border-rose-200">
+                      <span className="text-[10px] text-rose-700 font-bold uppercase block">Remaining Due</span>
+                      <span className="font-black text-rose-700 text-xs">{formatCurrency(currentDue, settings)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Installment Amount Input */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700 uppercase">
+                      Payment Amount (BDT) <span className="text-red-500">*</span>
+                    </label>
+                    <span className="text-[11px] text-slate-500 font-bold">
+                      Max: {formatCurrency(currentDue, settings)}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">৳</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={currentDue}
+                      step="1"
+                      required
+                      value={installmentAmount}
+                      onChange={e => setInstallmentAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder={`Enter amount up to ${currentDue}`}
+                      className="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                    />
+                  </div>
+
+                  {/* Quick Action Pills */}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setInstallmentAmount(currentDue)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer",
+                        installmentAmount === currentDue
+                          ? "bg-emerald-700 text-white border-emerald-700 shadow-2xs"
+                          : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                      )}
+                    >
+                      Full Due (৳{currentDue.toLocaleString()})
+                    </button>
+                    {[2000, 5000, 10000].filter(a => a < currentDue).map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setInstallmentAmount(amt)}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer",
+                          installmentAmount === amt
+                            ? "bg-slate-800 text-white border-slate-800 shadow-2xs"
+                            : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                        )}
+                      >
+                        ৳{amt.toLocaleString()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Live Preview */}
+                {enteredAmt > 0 && (
+                  <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-gray-500 block text-[10px]">New Paid Total</span>
+                      <strong className="text-indigo-900 font-black">{formatCurrency(newPaidCalc, settings)}</strong>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-gray-500 block text-[10px]">Due After This Payment</span>
+                      <strong className={cn("font-black", newDueCalc <= 0 ? "text-emerald-700" : "text-rose-700")}>
+                        {newDueCalc <= 0 ? '৳0.00 (Fully Settled ✓)' : formatCurrency(newDueCalc, settings)}
+                      </strong>
+                    </div>
+                  </div>
+                )}
+
+                {/* Account Selection */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Disburse From Payment Account <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={installmentAccountId}
+                    onChange={e => setInstallmentAccountId(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs focus:bg-white outline-none cursor-pointer"
+                  >
+                    <option value="">-- Choose Account --</option>
+                    {paymentAccounts.map(acc => {
+                      const avail = getAccountLiveBalance(acc.id);
+                      return (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} ({acc.type}) — Available: {formatCurrency(avail, settings)}
+                        </option>
+                      );
+                    })}
+                  </select>
+
+                  {/* Balance validation indicator */}
+                  {installmentAccountId && (() => {
                     return (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name} ({acc.type}) — Available: {formatCurrency(avail, settings)}
-                      </option>
+                      <div className={cn(
+                        "mt-2 p-2 rounded-lg text-xs font-bold flex items-center justify-between",
+                        isInsufficient ? "bg-rose-100 text-rose-900 border border-rose-300" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                      )}>
+                        <span>Account Balance: {formatCurrency(availBalance, settings)}</span>
+                        {isInsufficient ? (
+                          <span className="text-rose-700">⚠️ Insufficient funds!</span>
+                        ) : (
+                          <span className="text-emerald-700">✓ Funds available</span>
+                        )}
+                      </div>
                     );
-                  })}
-                </select>
+                  })()}
+                </div>
 
-                {/* Balance validation indicator */}
-                {payoutAccountId && (() => {
-                  const avail = getAccountLiveBalance(payoutAccountId);
-                  const net = payoutSalaryRecord.netPay || 0;
-                  const isInsufficient = avail < net;
+                {/* Payment Date & Notes */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Payment Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={installmentDate}
+                      onChange={e => setInstallmentDate(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs focus:bg-white outline-none"
+                    />
+                  </div>
 
-                  return (
-                    <div className={cn(
-                      "mt-2 p-2 rounded-lg text-xs font-bold flex items-center justify-between",
-                      isInsufficient ? "bg-rose-100 text-rose-900 border border-rose-300" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                    )}>
-                      <span>Available Balance: {formatCurrency(avail, settings)}</span>
-                      {isInsufficient && (
-                        <span className="text-rose-700">⚠️ Insufficient funds!</span>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Notes / Reference
+                    </label>
+                    <input
+                      type="text"
+                      value={installmentNote}
+                      onChange={e => setInstallmentNote(e.target.value)}
+                      placeholder="e.g. Installment 1, Cash, etc."
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 text-xs focus:bg-white outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentModalRecord(null)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      isSubmittingInstallment || 
+                      !installmentAmount || 
+                      enteredAmt <= 0 || 
+                      enteredAmt > currentDue || 
+                      !installmentAccountId || 
+                      isInsufficient
+                    }
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+                  >
+                    {isSubmittingInstallment ? 'Disbursing...' : `Disburse ${formatCurrency(enteredAmt || 0, settings)}`}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* ── MODAL 6: View Payment Installments & History ── */}
+      {/* ══════════════════════════════════════════════════ */}
+      {viewInstallmentsRecord && (() => {
+        const netPay = Number(viewInstallmentsRecord.netPay) || 0;
+        const paid = getSalaryPaidAmount(viewInstallmentsRecord);
+        const due = getSalaryDueAmount(viewInstallmentsRecord);
+        const paymentsList = viewInstallmentsRecord.payments || [];
+
+        return (
+          <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-150 my-auto">
+              <div className="px-6 py-4 bg-[#081621] text-white flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-base flex items-center gap-2">
+                    <History size={18} className="text-indigo-400" />
+                    Salary Payment & Installment History
+                  </h3>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    {viewInstallmentsRecord.employeeName} — Month: {viewInstallmentsRecord.month}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewInstallmentsRecord(null)}
+                  className="text-slate-300 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 text-xs">
+                {/* Financial Summary */}
+                <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                  <div>
+                    <span className="text-[10px] text-gray-400 uppercase font-bold block">Total Net Pay</span>
+                    <span className="text-sm font-black text-slate-900">{formatCurrency(netPay, settings)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-emerald-600 uppercase font-bold block">Total Disbursed</span>
+                    <span className="text-sm font-black text-emerald-700">{formatCurrency(paid, settings)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-rose-600 uppercase font-bold block">Remaining Due</span>
+                    <span className={cn("text-sm font-black", due > 0 ? "text-rose-700" : "text-slate-400")}>
+                      {formatCurrency(due, settings)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Installments Table */}
+                <div>
+                  <span className="text-[11px] font-bold text-slate-700 uppercase mb-2 block">
+                    Recorded Installments ({paymentsList.length})
+                  </span>
+                  {paymentsList.length > 0 ? (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-500 uppercase text-[10px]">
+                          <tr>
+                            <th className="px-3 py-2.5">#</th>
+                            <th className="px-3 py-2.5">Date</th>
+                            <th className="px-3 py-2.5 text-right">Amount</th>
+                            <th className="px-3 py-2.5">Account / Method</th>
+                            <th className="px-3 py-2.5">Note</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {paymentsList.map((inst, idx) => (
+                            <tr key={inst.id || idx} className="hover:bg-slate-50">
+                              <td className="px-3 py-2.5 font-bold text-slate-400">#{idx + 1}</td>
+                              <td className="px-3 py-2.5 font-semibold text-slate-700">{inst.date}</td>
+                              <td className="px-3 py-2.5 text-right font-black text-emerald-700 tabular-nums">
+                                {formatCurrency(inst.amount, settings)}
+                              </td>
+                              <td className="px-3 py-2.5 font-medium text-slate-800">
+                                {inst.paymentAccountName || inst.paymentMethod || 'Cash'}
+                              </td>
+                              <td className="px-3 py-2.5 text-slate-500 italic">
+                                {inst.notes || '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      <p className="font-medium">No individual installments logged yet.</p>
+                      {paid > 0 && (
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Voucher was disbursed with an initial lump sum of {formatCurrency(paid, settings)}.
+                        </p>
                       )}
                     </div>
-                  );
-                })()}
-              </div>
+                  )}
+                </div>
 
-              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setPayoutSalaryRecord(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={isPayingOut || !payoutAccountId || (getAccountLiveBalance(payoutAccountId) < (payoutSalaryRecord.netPay || 0))}
-                  onClick={handleExecutePendingPayout}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl shadow-md cursor-pointer"
-                >
-                  {isPayingOut ? 'Processing...' : 'Confirm & Disburse'}
-                </button>
+                <div className="pt-3 flex justify-between items-center border-t border-slate-100">
+                  {due > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const rec = viewInstallmentsRecord;
+                        setViewInstallmentsRecord(null);
+                        openInstallmentModal(rec);
+                      }}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <DollarSign size={14} /> Pay Remaining Due ({formatCurrency(due, settings)})
+                    </button>
+                  ) : (
+                    <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
+                      <CheckCircle2 size={14} /> Fully Paid & Settled
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setViewInstallmentsRecord(null)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ══════════════════════════════════════════════════ */}
       {/* ── MODAL 4: Quick Edit Base Salary / Increment ── */}

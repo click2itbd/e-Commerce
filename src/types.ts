@@ -633,6 +633,19 @@ export interface EmployeeLeave {
   createdAt: string;
 }
 
+export interface SalaryPaymentInstallment {
+  id: string;
+  amount: number;
+  date: string;
+  paymentAccountId: string;
+  paymentAccountName?: string;
+  paymentMethod?: string;
+  transactionId?: string;
+  notes?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
 export interface EmployeeSalary {
   id: string;
   employeeId?: string;
@@ -642,12 +655,16 @@ export interface EmployeeSalary {
   bonus: number;
   deductions: number;
   advanceDeduction?: number;
+  advanceDeducted?: boolean;
   netPay: number;
-  paymentDate: string;
+  paidAmount?: number;
+  dueAmount?: number;
+  paymentDate?: string;
   paymentAccountId?: string;
-  paymentMethod: string;
-  status: 'pending' | 'paid';
+  paymentMethod?: string;
+  status: 'pending' | 'partial' | 'paid';
   transactionId?: string;
+  payments?: SalaryPaymentInstallment[];
   notes?: string;
   createdAt: string;
 }
