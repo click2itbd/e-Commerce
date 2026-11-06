@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, addDoc, updateDoc, doc, query, getDocs, getDoc, orderBy, where, deleteDoc, increment } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, query, getDocs, getDoc, orderBy, where, deleteDoc, increment, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../../../../firebase';
 import { Product, ProductVariant, Customer, DiscountCode, SiteSettings, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn, addWarranty, formatWarranty } from '../../../../lib/utils';
@@ -67,6 +67,31 @@ interface SalesFormProps {
   setActiveTab: (tab: string) => void;
   setIsAddingCustomer: (val: boolean) => void;
 }
+
+// Deeply removes any undefined values which cause Firestore updateDoc / addDoc to crash
+const sanitizeForFirestore = (val: any): any => {
+  if (val === undefined) return null;
+  if (val === null) return null;
+  if (typeof val !== 'object') return val;
+  if (Array.isArray(val)) {
+    return val.map(item => sanitizeForFirestore(item));
+  }
+  // Preserve custom Firestore objects like FieldValue or Date
+  if (val.constructor && val.constructor.name !== 'Object') {
+    return val;
+  }
+  const clean: Record<string, any> = {};
+  for (const [k, v] of Object.entries(val)) {
+    if (v === undefined) {
+      clean[k] = '';
+    } else if (v !== null && typeof v === 'object') {
+      clean[k] = sanitizeForFirestore(v);
+    } else {
+      clean[k] = v;
+    }
+  }
+  return clean;
+};
 
 export const SalesForm: React.FC<SalesFormProps> = ({
   users = [], editingOrder, onCancelEdit,
@@ -193,6 +218,11 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         shippingAddress: editingOrder.shippingAddress || editingOrder.customerAddress || '',
         company: editingOrder.company || 'main',
         workOrderNumber: editingOrder.workOrderNumber || '',
+        branchName: editingOrder.branchName || editingOrder.projectName || '',
+        projectName: editingOrder.projectName || editingOrder.branchName || '',
+        saleSource: editingOrder.saleSource || 'in_store',
+        preparedBy: editingOrder.preparedBy || editingOrder.createdBy || prev.preparedBy || '',
+        createdBy: editingOrder.createdBy || editingOrder.preparedBy || prev.createdBy || '',
         items: (editingOrder.items || []).map((it: any) => {
           const id = it.id || it.productId || '';
           return {
@@ -202,10 +232,12 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           };
         }),
         discountType: 'flat',
-        discountValue: editingOrder.discountAmount || 0,
+        discountValue: Number(editingOrder.discountAmount) || 0,
+        appliedDiscountPercentage: Number(editingOrder.appliedDiscountPercentage) || 0,
+        appliedDiscountCode: editingOrder.appliedDiscountCode || '',
         taxRate: editingOrder.taxAmount ? (editingOrder.taxAmount / (editingOrder.subtotal || 1) * 100) : 0,
-        shippingCost: editingOrder.shippingCost || 0,
-        paidAmount: editingOrder.paidAmount || editingOrder.amountPaid || 0,
+        shippingCost: Number(editingOrder.shippingCost) || 0,
+        paidAmount: Number(editingOrder.paidAmount !== undefined ? editingOrder.paidAmount : editingOrder.amountPaid) || 0,
         paymentMethod: editingOrder.paymentMethod || matchedAcc?.type || 'cash',
         paymentAccountId: existingAccId,
         notes: editingOrder.notes || '',
@@ -854,13 +886,13 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const docNumber = effectiveEditingOrder ? (effectiveEditingOrder.documentNumber || effectiveEditingOrder.id) : await generateDocumentNumber(docType);
 
       const processedItems = saleData.items.map(item => {
-        const prodId = item.id || item.productId;
+        const prodId = item.id || item.productId || '';
         const currentProduct = products.find(p => p.id === prodId);
         if (item.isCustomService) {
           return {
             ...item,
-            productId: prodId || item.name,
-            name: item.name,
+            productId: prodId || item.name || 'custom_service',
+            name: item.name || 'Custom Service',
             price: Number(item.price) || 0,
             costPrice: 0,
             quantity: Number(item.quantity) || 1,
@@ -876,7 +908,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         return {
           ...item,
           productId: prodId || '',
-          name: item.name,
+          name: item.name || '',
           price: Number(item.price) || 0,
           costPrice: Number(item.costPrice !== undefined ? item.costPrice : currentProduct?.costPrice) || 0,
           quantity: Number(item.quantity) || 1,
@@ -886,7 +918,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           warrantyUnit: currentProduct?.warrantyUnit || 'years',
           brand: currentProduct?.brand || (item as any).brand || '',
           warranty: wMonths > 0 ? formatWarranty(wMonths, currentProduct?.warrantyUnit) : '',
-          selectedSerials: item.selectedSerials || [],
+          selectedSerials: Array.isArray(item.selectedSerials) ? item.selectedSerials : [],
         };
       });
 
@@ -902,28 +934,28 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const orderData = {
         previousDue: previousDue > 0 ? previousDue : 0,
         documentNumber: docNumber,
-        type: saleData.type,
-        saleSource: saleData.saleSource,
+        type: saleData.type || 'invoice',
+        saleSource: saleData.saleSource || 'in_store',
         company: saleData.company || 'main',
         createdBy: saleData.createdBy || saleData.preparedBy || profile?.displayName || profile?.email || 'Admin',
         preparedBy: saleData.preparedBy || saleData.createdBy || profile?.displayName || profile?.email || 'Admin',
         customerId: saleData.customerId,
         customerName: saleData.customerName,
-        workOrderNumber: saleData.workOrderNumber,
+        workOrderNumber: saleData.workOrderNumber || '',
         customerPhone: saleData.customerPhone || '',
         customerEmail: saleData.customerEmail || '',
         shippingAddress: saleData.shippingAddress || '',
         branchName: saleData.branchName || '',
         projectName: saleData.branchName || '',
         items: processedItems,
-        subtotal,
-        discountAmount: effectiveDiscount,
-        appliedDiscountPercentage: saleData.appliedDiscountPercentage,
-        appliedDiscountCode: saleData.appliedDiscountCode,
-        total: netTotal,
-        totalCost,
-        profit,
-        paidAmount: paid,
+        subtotal: Number(subtotal) || 0,
+        discountAmount: Number(effectiveDiscount) || 0,
+        appliedDiscountPercentage: Number(saleData.appliedDiscountPercentage) || 0,
+        appliedDiscountCode: saleData.appliedDiscountCode || '',
+        total: Number(netTotal) || 0,
+        totalCost: Number(totalCost) || 0,
+        profit: Number(profit) || 0,
+        paidAmount: Number(paid) || 0,
         paymentStatus,
         paymentMethod: saleData.paymentMethod || 'cash',
         paymentAccountId: saleData.paymentAccountId || '',
@@ -933,43 +965,68 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         createdAt,
       };
 
+      const cleanedOrderData = sanitizeForFirestore(orderData);
+
       let orderRefId = '';
-        if (effectiveEditingOrder) {
-          orderRefId = effectiveEditingOrder.id;
-          await updateDoc(doc(db, 'orders', effectiveEditingOrder.id), orderData);
-          
-          // REVERT OLD STOCK
-          if (effectiveEditingOrder.type === 'invoice' || effectiveEditingOrder.type === 'challan') {
-            for (const oldItem of effectiveEditingOrder.items || []) {
-              if (oldItem.isCustomService) continue;
-              const prodRef = doc(db, 'products', oldItem.productId || oldItem.id);
+      if (effectiveEditingOrder) {
+        orderRefId = effectiveEditingOrder.id;
+        await updateDoc(doc(db, 'orders', effectiveEditingOrder.id), cleanedOrderData);
+        
+        // REVERT OLD STOCK SAFELY
+        if (effectiveEditingOrder.type === 'invoice' || effectiveEditingOrder.type === 'challan') {
+          for (const oldItem of effectiveEditingOrder.items || []) {
+            if (oldItem.isCustomService) continue;
+            const prodId = oldItem.productId || oldItem.id;
+            if (!prodId || typeof prodId !== 'string') continue;
+
+            try {
+              const prodRef = doc(db, 'products', prodId);
               const pSnap = await getDoc(prodRef);
               if (pSnap.exists()) {
                 const currentProd = pSnap.data();
                 const updates: any = {};
-                updates.stock = increment(oldItem.quantity || 0);
+                const qtyToRevert = Number(oldItem.quantity) || 0;
+                if (qtyToRevert > 0) {
+                  updates.stock = increment(qtyToRevert);
+                }
                 
                 // UPDATE LOCAL STATE SO THE DEDUCT LOGIC USES IT
-                const localProd = products.find(p => p.id === (oldItem.productId || oldItem.id));
+                const localProd = products.find(p => p.id === prodId);
                 if (localProd) {
-                   localProd.stock = updates.stock;
-                   if (oldItem.selectedSerials) {
-                      localProd.availableSerials = [...(localProd.availableSerials || []), ...oldItem.selectedSerials];
-                   }
+                  localProd.stock = (Number(localProd.stock) || 0) + qtyToRevert;
+                  if (Array.isArray(oldItem.selectedSerials) && oldItem.selectedSerials.length > 0) {
+                    localProd.availableSerials = Array.from(new Set([
+                      ...(localProd.availableSerials || []),
+                      ...oldItem.selectedSerials
+                    ]));
+                  }
                 }
-                if (oldItem.selectedSerials && oldItem.selectedSerials.length > 0) {
-                   updates.availableSerials = [...(currentProd.availableSerials || []), ...oldItem.selectedSerials];
+                if (Array.isArray(oldItem.selectedSerials) && oldItem.selectedSerials.length > 0) {
+                  updates.availableSerials = Array.from(new Set([
+                    ...(currentProd.availableSerials || []),
+                    ...oldItem.selectedSerials
+                  ]));
                 }
-                await updateDoc(prodRef, updates);
+                if (Object.keys(updates).length > 0) {
+                  await updateDoc(prodRef, updates);
+                }
               }
+            } catch (revertErr) {
+              console.warn(`Could not revert stock for old product ${prodId}:`, revertErr);
             }
-            
-            // DELETE OLD SOLD SERIALS
-            const oldSerialsSnap = await getDocs(query(collection(db, 'sold_serials'), where('orderId', '==', effectiveEditingOrder.id)));
-            await Promise.all(oldSerialsSnap.docs.map(d => deleteDoc(doc(db, 'sold_serials', d.id))));
           }
           
-          // DELETE OLD TRANSACTIONS (by referenceId AND by documentNumber to ensure complete cleanup)
+          // DELETE OLD SOLD SERIALS
+          try {
+            const oldSerialsSnap = await getDocs(query(collection(db, 'sold_serials'), where('orderId', '==', effectiveEditingOrder.id)));
+            await Promise.all(oldSerialsSnap.docs.map(d => deleteDoc(doc(db, 'sold_serials', d.id))));
+          } catch (serialsErr) {
+            console.warn('Could not delete old sold serials:', serialsErr);
+          }
+        }
+        
+        // DELETE OLD TRANSACTIONS (by referenceId AND by documentNumber to ensure complete cleanup)
+        try {
           const txDocsToDelete = new Map<string, any>();
           const oldTxSnap1 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', effectiveEditingOrder.id)));
           oldTxSnap1.docs.forEach(d => txDocsToDelete.set(d.id, d.ref));
@@ -980,52 +1037,66 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             oldTxSnap3.docs.forEach(d => txDocsToDelete.set(d.id, d.ref));
           }
           await Promise.all(Array.from(txDocsToDelete.values()).map(ref => deleteDoc(ref)));
-          
-        } else {
-          const orderRef = await addDoc(collection(db, 'orders'), orderData);
-          orderRefId = orderRef.id;
+        } catch (txDelErr) {
+          console.warn('Could not clean up old transactions during edit:', txDelErr);
         }
+        
+      } else {
+        const orderRef = await addDoc(collection(db, 'orders'), cleanedOrderData);
+        orderRefId = orderRef.id;
+      }
 
       // Deduct stock and record serial warranties if invoice/challan
       if (saleData.type === 'invoice' || saleData.type === 'challan') {
         for (const item of saleData.items) {
           if (item.isCustomService) continue;
           const prodId = item.id || item.productId;
-          if (!prodId) continue;
-          const productRef = doc(db, 'products', prodId);
-          const currentProduct = products.find(p => p.id === prodId);
-          if (currentProduct) {
-            const updates: any = {};
-            updates.stock = increment(-item.quantity);
+          if (!prodId || typeof prodId !== 'string') continue;
 
-            if (currentProduct.hasSerialTracking && item.selectedSerials) {
-              const remainingSerials = (currentProduct.availableSerials || []).filter(
-                (s: string) => !item.selectedSerials.includes(s)
-              );
-              updates.availableSerials = remainingSerials;
+          try {
+            const productRef = doc(db, 'products', prodId);
+            const currentProduct = products.find(p => p.id === prodId);
+            if (currentProduct) {
+              const updates: any = {};
+              const qtyToDeduct = Number(item.quantity) || 1;
+              updates.stock = increment(-qtyToDeduct);
 
-              const warrantyEndDate = new Date();
-              const wMonths = item.hasWarranty ? (item.warrantyMonths || currentProduct.warrantyMonths || 0) : (currentProduct.warrantyMonths || 0);
-              warrantyEndDate.setTime(addWarranty(warrantyEndDate, wMonths).getTime());
+              if (currentProduct.hasSerialTracking && Array.isArray(item.selectedSerials) && item.selectedSerials.length > 0) {
+                const remainingSerials = (currentProduct.availableSerials || []).filter(
+                  (s: string) => !item.selectedSerials.includes(s)
+                );
+                updates.availableSerials = remainingSerials;
 
-              for (const serial of item.selectedSerials) {
-                await addDoc(collection(db, 'sold_serials'), {
-                  serial,
-                  productId: currentProduct.id,
-                  productName: currentProduct.name,
-                  orderId: orderRefId,
-                  documentNumber: docNumber,
-                  customerName: saleData.customerName,
-                  customerPhone: saleData.customerPhone,
-                  soldAt: createdAt,
-                  warrantyEndDate: warrantyEndDate.toISOString(),
-                  status: 'active',
-                });
+                const warrantyEndDate = new Date();
+                const wMonths = item.hasWarranty ? (item.warrantyMonths || currentProduct.warrantyMonths || 0) : (currentProduct.warrantyMonths || 0);
+                warrantyEndDate.setTime(addWarranty(warrantyEndDate, wMonths).getTime());
+
+                for (const serial of item.selectedSerials) {
+                  try {
+                    await addDoc(collection(db, 'sold_serials'), {
+                      serial,
+                      productId: currentProduct.id,
+                      productName: currentProduct.name,
+                      orderId: orderRefId,
+                      documentNumber: docNumber,
+                      customerName: saleData.customerName,
+                      customerPhone: saleData.customerPhone || '',
+                      soldAt: createdAt,
+                      warrantyEndDate: warrantyEndDate.toISOString(),
+                      status: 'active',
+                    });
+                  } catch (sErr) {
+                    console.warn(`Failed to record sold serial ${serial}:`, sErr);
+                  }
+                }
               }
-            }
 
-            await updateDoc(productRef, updates);
-            checkLowStock(currentProduct.name, Math.max(0, currentProduct.stock - item.quantity));
+              await updateDoc(productRef, updates);
+              const numStock = typeof currentProduct.stock === 'number' ? currentProduct.stock : 0;
+              checkLowStock(currentProduct.name, Math.max(0, numStock - qtyToDeduct));
+            }
+          } catch (deductErr) {
+            console.warn(`Could not deduct stock for product ${prodId}:`, deductErr);
           }
         }
 
@@ -1142,39 +1213,43 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
       toast.success(`${typeStr} #${docNumber} created successfully!`);
 
-      // Log sale to Audit Trail
-      const isSaleEdit = Boolean(effectiveEditingOrder);
-      await logAudit(
-        isSaleEdit ? 'EDIT' : 'CREATE',
-        'Sale',
-        `${isSaleEdit ? 'Updated' : 'Created'} ${typeStr} #${docNumber} for ${saleData.customerName} (Net Total: ৳${netTotal}, Paid: ৳${paid}, Items: ${saleData.items.length})`,
-        saleData.preparedBy || profile?.displayName || profile?.email || 'Admin',
-        {
-          entityId: orderRefId,
-          previousState: isSaleEdit && effectiveEditingOrder ? {
-            documentNumber: effectiveEditingOrder.documentNumber || docNumber,
-            customerName: effectiveEditingOrder.customerName,
-            customerPhone: effectiveEditingOrder.customerPhone,
-            total: effectiveEditingOrder.total,
-            paidAmount: effectiveEditingOrder.paidAmount,
-            dueAmount: effectiveEditingOrder.dueAmount,
-            items: effectiveEditingOrder.items,
-            status: effectiveEditingOrder.status
-          } : undefined,
-          newState: {
-            documentNumber: docNumber,
-            type: saleData.type,
-            customerName: saleData.customerName,
-            customerPhone: saleData.customerPhone,
-            total: netTotal,
-            paidAmount: paid,
-            dueAmount: Math.max(0, netTotal - paid),
-            items: saleData.items,
-            paymentMethod: saleData.paymentMethod,
-            preparedBy: saleData.preparedBy
+      // Log sale to Audit Trail safely
+      try {
+        const isSaleEdit = Boolean(effectiveEditingOrder);
+        await logAudit(
+          isSaleEdit ? 'EDIT' : 'CREATE',
+          'Sale',
+          `${isSaleEdit ? 'Updated' : 'Created'} ${typeStr} #${docNumber} for ${saleData.customerName} (Net Total: ৳${netTotal}, Paid: ৳${paid}, Items: ${saleData.items.length})`,
+          saleData.preparedBy || profile?.displayName || profile?.email || 'Admin',
+          {
+            entityId: orderRefId,
+            previousState: isSaleEdit && effectiveEditingOrder ? {
+              documentNumber: effectiveEditingOrder.documentNumber || docNumber,
+              customerName: effectiveEditingOrder.customerName || '',
+              customerPhone: effectiveEditingOrder.customerPhone || '',
+              total: Number(effectiveEditingOrder.total) || 0,
+              paidAmount: Number(effectiveEditingOrder.paidAmount) || 0,
+              dueAmount: Number(effectiveEditingOrder.dueAmount) || 0,
+              items: (effectiveEditingOrder.items || []).map((i: any) => ({ name: i.name, quantity: i.quantity, price: i.price })),
+              status: effectiveEditingOrder.status || ''
+            } : undefined,
+            newState: {
+              documentNumber: docNumber,
+              type: saleData.type,
+              customerName: saleData.customerName,
+              customerPhone: saleData.customerPhone || '',
+              total: netTotal,
+              paidAmount: paid,
+              dueAmount: Math.max(0, netTotal - paid),
+              items: saleData.items.map((i: any) => ({ name: i.name, quantity: i.quantity, price: i.price })),
+              paymentMethod: saleData.paymentMethod || 'cash',
+              preparedBy: saleData.preparedBy || 'Staff'
+            }
           }
-        }
-      );
+        );
+      } catch (auditErr) {
+        console.warn('Audit log error:', auditErr);
+      }
 
       // Trigger sensitive action alert if high discount applied
       if (effectiveDiscount >= 500 || (subtotal > 0 && effectiveDiscount / subtotal >= 0.08)) {
@@ -1194,7 +1269,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
       // Auto-print invoice/challan/quotation
       try {
-        const savedOrder = { id: orderRefId, ...orderData, _autoPrint: true };
+        const savedOrder = { id: orderRefId, ...cleanedOrderData, _autoPrint: true };
         generatePDF(savedOrder as any, saleData.type as any, settings);
       } catch (err) {
         console.error('Failed to auto-print PDF', err);
@@ -1230,9 +1305,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         onCancelEdit();
       }
       await fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating sale:', error);
-      toast.error('Failed to record sale');
+      const errMsg = error?.message || error?.code || 'Please check input data';
+      toast.error(`Failed to record sale: ${errMsg}`);
     } finally {
       setSubmitting(false);
     }
@@ -1599,12 +1675,25 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                         </span>
                         <select
                           value={saleData.branchName || ''}
-                          onChange={e => {
+                          onChange={async e => {
                             const val = e.target.value;
                             if (val === '__new__') {
                               const newBr = window.prompt('Enter new Branch / Project name:');
                               if (newBr && newBr.trim()) {
-                                setSaleData({ ...saleData, branchName: newBr.trim() });
+                                const trimmed = newBr.trim();
+                                setSaleData({ ...saleData, branchName: trimmed });
+                                if (saleData.customerId) {
+                                  try {
+                                    const custRef = doc(db, 'customers', saleData.customerId);
+                                    await updateDoc(custRef, {
+                                      branches: arrayUnion(trimmed),
+                                      branchName: trimmed
+                                    });
+                                    toast.success(`Project "${trimmed}" added to customer!`);
+                                  } catch (err) {
+                                    console.warn('Could not auto-save branch to customer:', err);
+                                  }
+                                }
                               }
                             } else {
                               setSaleData({ ...saleData, branchName: val });
