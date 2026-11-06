@@ -1723,6 +1723,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
             : vendors
         }
         paymentAccounts={paymentAccounts}
+        transactions={transactions}
         initialEntityId={selectedLedgerEntity && !selectedLedgerEntity.isCompany ? selectedLedgerEntity.id : undefined}
         onSuccess={() => {
           fetchTransactions();

@@ -11,6 +11,8 @@ import { AIPolishButton } from '../../../../components/common/AIPolishButton';
 import {  ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle, Clock, AlertCircle, Package, MessageCircle, ShoppingCart , Trash2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Transaction, PaymentAccount } from '../../../../types';
+import { calculateAccountBalance, validateSufficientBalance } from '../../../../lib/accountBalance';
 
 interface ServiceRecord {
   id: string;
@@ -69,6 +71,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   const [vendors, setVendors] = useState<{id: string; name: string}[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
@@ -193,6 +196,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
         setCustomers(custSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         const accSnap = await getDocs(query(collection(db, 'payment_accounts')));
         setPaymentAccounts(accSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const txSnap = await getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc')));
+        setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
 
       } catch (err) {
         console.error(err);
@@ -240,8 +245,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   const handleDeleteService = async (id: string) => {
     if (!window.confirm('Are you sure you want to permanently delete this service record?')) return;
     try {
-      await deleteDoc(doc(db, 'services', id));
       const deletedService = serviceRecords.find((s: any) => s.id === id);
+      if (deletedService?.outsourceTxPaymentId) {
+        try { await deleteDoc(doc(db, 'transactions', deletedService.outsourceTxPaymentId)); } catch (e) { console.warn('Could not delete old outsource payment tx', e); }
+      }
+      if (deletedService?.outsourceTxPurchaseId) {
+        try { await deleteDoc(doc(db, 'transactions', deletedService.outsourceTxPurchaseId)); } catch (e) { console.warn('Could not delete old outsource purchase tx', e); }
+      }
+      await deleteDoc(doc(db, 'services', id));
       await logAudit('DELETE', 'Service', `Deleted service ticket #${deletedService?.serialNumber || id} for ${deletedService?.customerName}`, profile?.displayName || profile?.email || 'Admin');
       toast.success('Service record deleted successfully');
     } catch (err) {
@@ -528,7 +539,24 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     e.preventDefault();
     try {
       const isPaidOrZero = Number(serviceFormData.serviceCharge || 0) <= 0 || serviceFormData.paymentStatus === "paid";
-      
+      const isOutsourcedMode = (serviceFormData.serviceType === 'outsourced' || serviceFormData.serviceType === 'rma' || serviceFormData.isOutsourced);
+      const oPaid = Number(serviceFormData.outsourcePaidAmount) || 0;
+      const oCost = Number(serviceFormData.outsourceCost) || 0;
+
+      // Balance validation for outsource payment
+      if (isOutsourcedMode && oPaid > 0) {
+        if (!serviceFormData.outsourcePaymentAccountId) {
+          toast.error('আউটসোর্স মেরামতের টাকা পরিশোধ করতে অনুগ্রহ করে একটি পেমেন্ট অ্যাকাউন্ট (Paid From Account) সিলেক্ট করুন অথবা সম্পূর্ণ টাকা ডিউ হিসেবে রাখুন!');
+          return;
+        }
+        const targetAcc = paymentAccounts.find(a => a.id === serviceFormData.outsourcePaymentAccountId);
+        const balanceCheck = validateSufficientBalance(targetAcc, transactions, oPaid);
+        if (!balanceCheck.valid) {
+          toast.error(balanceCheck.error || 'নির্বাচিত পেমেন্ট অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই!');
+          return;
+        }
+      }
+
       // Resolve customer payment method
       let pMethod = serviceFormData.paymentMethod || '';
       if (serviceFormData.paymentAccountId) {
@@ -556,6 +584,63 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       }).forEach(([k, v]) => {
         if (v !== undefined) cleanData[k] = v;
       });
+
+      // Manage Outsource Financial Transactions
+      if (isOutsourcedMode) {
+        // If editing, delete prior outsource transactions to avoid duplicates
+        if (editingService?.outsourceTxPaymentId) {
+          try { await deleteDoc(doc(db, 'transactions', editingService.outsourceTxPaymentId)); } catch (e) { console.warn('Could not delete old outsource payment tx', e); }
+        }
+        if (editingService?.outsourceTxPurchaseId) {
+          try { await deleteDoc(doc(db, 'transactions', editingService.outsourceTxPurchaseId)); } catch (e) { console.warn('Could not delete old outsource purchase tx', e); }
+        }
+
+        const vId = serviceFormData.vendorId || '';
+        const vName = serviceFormData.vendorName || 'Outsource Workshop';
+        const docRefNum = cleanData.serialNumber || editingService?.serialNumber || 'SVC';
+        const ticketDesc = cleanData.productName ? `${cleanData.productName} (S/N: ${docRefNum})` : `Ticket #${docRefNum}`;
+        const finalTxDate = cleanData.receivedAt || new Date().toISOString();
+
+        // 1. If outsourceCost > 0 and registered vendor, create purchase/payable transaction for vendor ledger
+        if (oCost > 0 && vId) {
+          const purTx = await addDoc(collection(db, 'transactions'), {
+            type: 'purchase',
+            entityType: 'vendor',
+            entityId: vId,
+            entityName: vName,
+            amount: oCost,
+            date: finalTxDate,
+            documentNumber: docRefNum,
+            description: `Outsource repair bill for ticket #${docRefNum} - ${ticketDesc}`,
+            reference: `SVC-${docRefNum}`,
+            category: 'Service & Repair Outsource',
+            createdAt: new Date().toISOString(),
+            createdBy: profile?.displayName || profile?.email || 'Admin',
+          });
+          cleanData.outsourceTxPurchaseId = purTx.id;
+        }
+
+        // 2. If outsourcePaidAmount > 0, create payment_made / expense transaction
+        if (oPaid > 0 && serviceFormData.outsourcePaymentAccountId) {
+          const payTx = await addDoc(collection(db, 'transactions'), {
+            type: vId ? 'payment_made' : 'expense',
+            entityType: vId ? 'vendor' : undefined,
+            entityId: vId || undefined,
+            entityName: vName,
+            amount: oPaid,
+            date: finalTxDate,
+            paymentAccountId: serviceFormData.outsourcePaymentAccountId,
+            paymentMethod: oMethod || 'cash',
+            documentNumber: docRefNum,
+            description: `Outsource repair payment for ticket #${docRefNum} - ${ticketDesc} to ${vName}`,
+            reference: `SVC-${docRefNum}`,
+            category: 'Service & Repair Outsource',
+            createdAt: new Date().toISOString(),
+            createdBy: profile?.displayName || profile?.email || 'Admin',
+          });
+          cleanData.outsourceTxPaymentId = payTx.id;
+        }
+      }
 
       if (editingService) {
         await updateDoc(doc(db, 'services', editingService.id), cleanData);
@@ -918,10 +1003,59 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                         disabled={!(serviceFormData.outsourcePaidAmount > 0)}
                       >
                         <option value="">-- Select Payment Account --</option>
-                        {paymentAccounts?.map((acc: any) => (
-                          <option key={acc.id} value={acc.id}>{acc.name} ({acc.type || 'account'})</option>
-                        ))}
+                        {paymentAccounts?.map((acc: any) => {
+                          const bal = calculateAccountBalance(acc, transactions);
+                          return (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.name} ({acc.type || 'account'}) — ব্যালেন্স: ৳{Math.round(bal).toLocaleString()}
+                            </option>
+                          );
+                        })}
                       </select>
+                      {serviceFormData.outsourcePaymentAccountId && (() => {
+                        const targetAcc = paymentAccounts.find(a => a.id === serviceFormData.outsourcePaymentAccountId);
+                        const selBal = targetAcc ? calculateAccountBalance(targetAcc, transactions) : 0;
+                        const isOver = (Number(serviceFormData.outsourcePaidAmount) || 0) > selBal;
+                        return (
+                          <div className="mt-2 space-y-1.5">
+                            <div className={`text-xs px-2.5 py-1.5 rounded-lg flex items-center justify-between font-bold ${
+                              selBal > 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'
+                            }`}>
+                              <span>অ্যাকাউন্ট ব্যালেন্স:</span>
+                              <span>৳{Math.round(selBal).toLocaleString()}</span>
+                            </div>
+                            {isOver && (
+                              <div className="bg-red-50 border border-red-200 text-red-800 p-2.5 rounded-lg text-xs space-y-1.5">
+                                <div className="font-black text-red-900 flex items-center gap-1">
+                                  <AlertCircle className="w-4 h-4 shrink-0" />
+                                  <span>অপর্যাপ্ত ব্যালেন্স! নির্বাচিত অ্যাকাউন্টে পর্যাপ্ত টাকা নেই।</span>
+                                </div>
+                                <p className="text-[11px] text-red-700">
+                                  বর্তমান ব্যালেন্স <b>৳{Math.round(selBal).toLocaleString()}</b>, কিন্তু পরিশোধ চাওয়া হয়েছে <b>৳{Number(serviceFormData.outsourcePaidAmount).toLocaleString()}</b>। ব্যালেন্স নেগেটিভ করা যাবে না। আপনি চাইলে বাকি বা পুরো টাকা ডিউ রাখতে পারেন:
+                                </p>
+                                <div className="flex flex-wrap gap-2 pt-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setServiceFormData(prev => ({ ...prev, outsourcePaidAmount: 0 }))}
+                                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-bold text-[10px] shadow-xs cursor-pointer"
+                                  >
+                                    সম্পূর্ণ টাকা ডিউ রাখুন (৳0 পরিশোধ)
+                                  </button>
+                                  {selBal > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setServiceFormData(prev => ({ ...prev, outsourcePaidAmount: Math.floor(selBal) }))}
+                                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-[10px] shadow-xs cursor-pointer"
+                                    >
+                                      সর্বোচ্চ ৳{Math.floor(selBal).toLocaleString()} পরিশোধ করুন
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1194,9 +1328,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                         className="w-full border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:ring-[#EF4444] focus:border-[#EF4444]"
                       >
                         <option value="">-- Select Payment Method / Account --</option>
-                        {paymentAccounts?.map((acc: any) => (
-                          <option key={acc.id} value={acc.id}>{acc.name} ({acc.type || 'account'})</option>
-                        ))}
+                        {paymentAccounts?.map((acc: any) => {
+                          const bal = calculateAccountBalance(acc, transactions);
+                          return (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.name} ({acc.type || 'account'}) — ব্যালেন্স: ৳{Math.round(bal).toLocaleString()}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
 

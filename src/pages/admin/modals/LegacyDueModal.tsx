@@ -6,7 +6,8 @@ import { useAuth } from '../../../context/AuthContext';
 import { useSettings } from '../../../context/SettingsContext';
 import { formatCurrency, cn } from '../../../lib/utils';
 import { logAudit } from '../../../lib/audit';
-import { PaymentAccount } from '../../../types';
+import { PaymentAccount, Transaction } from '../../../types';
+import { calculateAccountBalance, validateSufficientBalance } from '../../../lib/accountBalance';
 import { 
   X, 
   FileText, 
@@ -30,6 +31,7 @@ interface LegacyDueModalProps {
   vendorEntities?: { id: string; name: string; phone?: string; address?: string }[];
   initialEntityId?: string;
   paymentAccounts: PaymentAccount[];
+  transactions?: Transaction[];
   onSuccess: () => void;
 }
 
@@ -42,6 +44,7 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
   vendorEntities,
   initialEntityId,
   paymentAccounts,
+  transactions = [],
   onSuccess,
 }) => {
   const { profile, user } = useAuth();
@@ -124,6 +127,15 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
     if (paidNum > totalNum) {
       toast.error('Paid amount cannot exceed total bill amount');
       return;
+    }
+
+    if (!isCustomer && paidNum > 0 && paymentAccountId) {
+      const selAcc = paymentAccounts.find(a => a.id === paymentAccountId);
+      const balanceCheck = validateSufficientBalance(selAcc, transactions, paidNum);
+      if (!balanceCheck.valid) {
+        toast.error(balanceCheck.error || 'নির্বাচিত পেমেন্ট অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই!');
+        return;
+      }
     }
 
     let finalEntityId = selectedEntityId;
@@ -543,12 +555,60 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                 >
                   <option value="">-- Historical Record (No live bank/cash balance impact) --</option>
-                  {paymentAccounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.name} ({acc.type || 'account'})
-                    </option>
-                  ))}
+                  {paymentAccounts.map(acc => {
+                    const bal = calculateAccountBalance(acc, transactions);
+                    return (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} ({acc.type || 'account'}) — ব্যালেন্স: ৳{Math.round(bal).toLocaleString()}
+                      </option>
+                    );
+                  })}
                 </select>
+                {!isCustomer && paidNum > 0 && paymentAccountId && (() => {
+                  const selAcc = paymentAccounts.find(a => a.id === paymentAccountId);
+                  const selBal = selAcc ? calculateAccountBalance(selAcc, transactions) : 0;
+                  const isOver = paidNum > selBal;
+                  return (
+                    <div className="mt-2 space-y-1.5">
+                      <div className={cn(
+                        "text-xs px-2.5 py-1.5 rounded-lg flex items-center justify-between font-bold",
+                        selBal > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
+                      )}>
+                        <span>অ্যাকাউন্ট ব্যালেন্স:</span>
+                        <span>৳{Math.round(selBal).toLocaleString()}</span>
+                      </div>
+                      {isOver && (
+                        <div className="bg-red-50 border border-red-200 text-red-800 p-2.5 rounded-lg text-xs space-y-1.5">
+                          <div className="font-black text-red-900 flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4 shrink-0" />
+                            <span>অপর্যাপ্ত ব্যালেন্স! নির্বাচিত অ্যাকাউন্টে পর্যাপ্ত টাকা নেই।</span>
+                          </div>
+                          <p className="text-[11px] text-red-700">
+                            বর্তমান ব্যালেন্স <b>৳{Math.round(selBal).toLocaleString()}</b>, কিন্তু পরিশোধ চাওয়া হয়েছে <b>৳{paidNum.toLocaleString()}</b>। আপনি চাইলে সম্পূর্ণ টাকা ডিউ রাখতে পারেন অথবা বর্তমান ব্যালেন্স পরিশোধ করতে পারেন:
+                          </p>
+                          <div className="flex flex-wrap gap-2 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => setPaidAmount('')}
+                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-bold text-[10px] shadow-xs cursor-pointer"
+                            >
+                              সম্পূর্ণ টাকা ডিউ রাখুন (৳0 পরিশোধ)
+                            </button>
+                            {selBal > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setPaidAmount(Math.floor(selBal))}
+                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-[10px] shadow-xs cursor-pointer"
+                              >
+                                সর্বোচ্চ ৳{Math.floor(selBal).toLocaleString()} পরিশোধ করুন
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <p className="text-[10px] text-slate-400 mt-1">
                   {paidNum > 0 ? (
                     paymentAccountId 
@@ -589,7 +649,7 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={submitting || !totalNum}
+              disabled={submitting || !totalNum || (!isCustomer && Boolean(paymentAccountId && paidNum > calculateAccountBalance(paymentAccounts.find(a => a.id === paymentAccountId), transactions)))}
               className={cn(
                 "px-6 py-2.5 text-white rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50",
                 isCustomer ? "bg-indigo-600 hover:bg-indigo-700" : "bg-emerald-600 hover:bg-emerald-700"

@@ -1393,6 +1393,7 @@ export default function VendorDueList() {
         type="vendor"
         entities={vendors}
         paymentAccounts={paymentAccounts}
+        transactions={transactions}
         onSuccess={fetchData}
       />
 

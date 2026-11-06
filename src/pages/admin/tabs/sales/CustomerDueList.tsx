@@ -2030,6 +2030,7 @@ export default function CustomerDueList() {
         type="customer"
         entities={customers}
         paymentAccounts={paymentAccounts}
+        transactions={transactions}
         onSuccess={fetchData}
       />
 

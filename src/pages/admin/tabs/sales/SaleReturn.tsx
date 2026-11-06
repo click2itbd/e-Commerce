@@ -48,7 +48,8 @@ import { generateDocumentNumber } from '../../../../lib/numbering';
 import { Pagination } from '../../../../components/common/Pagination';
 import { logAudit } from '../../../../lib/audit';
 import { moveToTrash } from '../../../../lib/trash';
-import { PaymentAccount } from '../../../../types';
+import { PaymentAccount, Transaction } from '../../../../types';
+import { calculateAccountBalance, validateSufficientBalance } from '../../../../lib/accountBalance';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logoBase64 } from '../../../../lib/logoBase64';
@@ -81,6 +82,7 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
   const [customers, setCustomers] = useState<any[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState('');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   // Invoice Search & Selection State
   const [orders, setOrders] = useState<any[]>([]);
@@ -168,6 +170,7 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
         getDocs(query(collection(db, 'customers'), orderBy('name'))),
         getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
         getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(100))),
+        getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc'), limit(500))),
       ]);
 
       if (results[0].status === 'fulfilled') {
@@ -198,6 +201,16 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
           const ords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           setOrders(ords);
           setSearchResults(ords.slice(0, 10));
+        }).catch(e => console.warn(e));
+      }
+
+      if (results[3].status === 'fulfilled') {
+        const txs = results[3].value.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+        setTransactions(txs);
+      } else {
+        getDocs(collection(db, 'transactions')).then(snap => {
+          const txs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+          setTransactions(txs);
         }).catch(e => console.warn(e));
       }
 
@@ -483,6 +496,13 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
       }
     }
     const selectedAcc = paymentAccounts.find(a => a.id === chosenAccountId);
+    if (refundAmount > 0 && paymentMethod !== 'store_credit') {
+      const balanceCheck = validateSufficientBalance(selectedAcc, transactions, Number(refundAmount));
+      if (!balanceCheck.valid) {
+        toast.error(balanceCheck.error || 'নির্বাচিত রিফান্ড অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই!');
+        return;
+      }
+    }
 
     setIsSubmitting(true);
     try {
@@ -1389,12 +1409,60 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none px-4 py-2.5 transition-all"
                     >
                       <option value="">-- Select Source Account --</option>
-                      {paymentAccounts.map(acc => (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.name} ({acc.type})
-                        </option>
-                      ))}
+                      {paymentAccounts.map(acc => {
+                        const bal = calculateAccountBalance(acc, transactions);
+                        return (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.name} ({acc.type}) — ব্যালেন্স: ৳{Math.round(bal).toLocaleString()}
+                          </option>
+                        );
+                      })}
                     </select>
+                    {selectedPaymentAccountId && (() => {
+                      const selAcc = paymentAccounts.find(a => a.id === selectedPaymentAccountId);
+                      const selBal = selAcc ? calculateAccountBalance(selAcc, transactions) : 0;
+                      const isOver = Number(refundAmount) > selBal;
+                      return (
+                        <div className="mt-2 space-y-1.5">
+                          <div className={cn(
+                            "text-xs px-3 py-1.5 rounded-lg flex items-center justify-between font-bold",
+                            selBal > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
+                          )}>
+                            <span>অ্যাকাউন্ট ব্যালেন্স:</span>
+                            <span>৳{Math.round(selBal).toLocaleString()}</span>
+                          </div>
+                          {isOver && (
+                            <div className="bg-red-50 border border-red-200 text-red-800 p-2.5 rounded-lg text-xs space-y-1.5">
+                              <div className="font-black text-red-900 flex items-center gap-1">
+                                <AlertCircle className="w-4 h-4 shrink-0" />
+                                <span>অপর্যাপ্ত ব্যালেন্স! নির্বাচিত অ্যাকাউন্টে পর্যাপ্ত টাকা নেই।</span>
+                              </div>
+                              <p className="text-[11px] text-red-700">
+                                বর্তমান ব্যালেন্স <b>৳{Math.round(selBal).toLocaleString()}</b>, কিন্তু রিফান্ড চাওয়া হয়েছে <b>৳{Number(refundAmount).toLocaleString()}</b>। আপনি চাইলে স্টোর ক্রেডিট করতে পারেন অথবা বর্তমান ব্যালেন্স রিফান্ড দিতে পারেন:
+                              </p>
+                              <div className="flex flex-wrap gap-2 pt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setPaymentMethod('store_credit')}
+                                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-[10px] shadow-xs cursor-pointer"
+                                >
+                                  কাস্টমার লেজারে সমন্বয় (Store Credit)
+                                </button>
+                                {selBal > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setRefundAmount(Math.floor(selBal))}
+                                    className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded font-bold text-[10px] shadow-xs cursor-pointer"
+                                  >
+                                    সর্বোচ্চ ৳{Math.floor(selBal).toLocaleString()} রিফান্ড দিন
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <p className="text-[10px] text-slate-500 mt-1">টাকা এই অ্যাকাউন্ট থেকে বের হবে এবং ডে-বুকে রেকর্ড হবে।</p>
                   </div>
                 ) : (
@@ -1418,7 +1486,7 @@ export const SaleReturnTab: React.FC<SaleReturnTabProps> = ({ fetchData }) => {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || (paymentMethod !== 'store_credit' && Number(refundAmount) > 0 && Boolean(selectedPaymentAccountId && Number(refundAmount) > calculateAccountBalance(paymentAccounts.find(a => a.id === selectedPaymentAccountId), transactions)))}
                   className="w-full py-3.5 bg-red-600 hover:bg-red-700 active:scale-[0.99] text-white rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-600/25 disabled:opacity-60 mt-2 cursor-pointer"
                 >
                   {isSubmitting ? (
