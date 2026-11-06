@@ -31,7 +31,9 @@ import {
   DollarSign,
   Users
 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { generatePDF } from '../../../../lib/pdf';
+import { LegacyDueModal } from '../../modals/LegacyDueModal';
 import { Customer, Transaction, PaymentAccount, Order } from '../../../../types';
 
 import { where } from 'firebase/firestore';
@@ -71,6 +73,7 @@ export default function CustomerDueList() {
   const [orderAllocations, setOrderAllocations] = useState<Record<string, number>>({});
 
   // Opening Balance state
+  const [showLegacyDueModal, setShowLegacyDueModal] = useState(false);
   const [showOpeningBalForm, setShowOpeningBalForm] = useState(false);
   const [obAmount, setObAmount] = useState<number | ''>('');
   const [obDate, setObDate] = useState('2026-01-01');
@@ -866,6 +869,15 @@ export default function CustomerDueList() {
             </div>
 
             {/* Action Buttons */}
+            <button
+              type="button"
+              onClick={() => setShowLegacyDueModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+              title="Add Legacy Customer Due / Previous Bill"
+            >
+              <Plus size={15} /> Add Legacy Due
+            </button>
+
             <button
               type="button"
               onClick={handlePrintReport}
@@ -2011,6 +2023,15 @@ export default function CustomerDueList() {
           </div>
         );
       })()}
+
+            <LegacyDueModal
+        isOpen={showLegacyDueModal}
+        onClose={() => setShowLegacyDueModal(false)}
+        type="customer"
+        entities={customers}
+        paymentAccounts={paymentAccounts}
+        onSuccess={fetchData}
+      />
 
       {/* Edit Tx Modal */}
       {editTx && (

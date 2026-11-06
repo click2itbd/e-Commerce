@@ -4,7 +4,8 @@ import { db } from '../../../../firebase';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../../../../context/SettingsContext';
 import { formatCurrency, cn } from '../../../../lib/utils';
-import { Search, CreditCard, X, Check, Receipt, Filter } from 'lucide-react';
+import { Search, CreditCard, X, Check, Receipt, Filter, Plus } from 'lucide-react';
+import { LegacyDueModal } from '../../modals/LegacyDueModal';
 import { generatePDF } from '../../../../lib/pdf';
 import { Vendor, Transaction, PaymentAccount } from '../../../../types';
 import { calculateAccountBalance, validateSufficientBalance } from '../../../../lib/accountBalance';
@@ -40,6 +41,7 @@ export default function VendorDueList() {
   const [purchaseAllocations, setPurchaseAllocations] = useState<Record<string, number>>({});
 
   // Opening Balance state
+  const [showLegacyDueModal, setShowLegacyDueModal] = useState(false);
   const [showOpeningBalForm, setShowOpeningBalForm] = useState(false);
   const [obAmount, setObAmount] = useState<number | ''>('');
   const [obDate, setObDate] = useState('2026-01-01');
@@ -565,6 +567,15 @@ export default function VendorDueList() {
               <span className="text-xs font-bold uppercase">Total Due</span>
               <span className="text-lg font-black">{formatCurrency(totalOverallDue, settings)}</span>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowLegacyDueModal(true)}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer whitespace-nowrap"
+              title="Add Legacy Supplier Due / Previous Bill"
+            >
+              <Plus size={15} /> Add Legacy Due
+            </button>
+
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
@@ -1375,6 +1386,15 @@ export default function VendorDueList() {
           </div>
         </div>
       )}
+
+      <LegacyDueModal
+        isOpen={showLegacyDueModal}
+        onClose={() => setShowLegacyDueModal(false)}
+        type="vendor"
+        entities={vendors}
+        paymentAccounts={paymentAccounts}
+        onSuccess={fetchData}
+      />
 
     </div>
   );
