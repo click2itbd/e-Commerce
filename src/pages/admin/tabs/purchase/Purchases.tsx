@@ -37,6 +37,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { generateDocumentNumber } from '../../../../lib/numbering';
+import { AIPolishButton } from '../../../../components/common/AIPolishButton';
 import { Pagination } from '../../../../components/common/Pagination';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -2044,9 +2045,17 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                     </div>
 
                     <div className="pt-2">
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
-                        Purchase Notes (Optional)
-                      </label>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase">
+                          Purchase Notes (Optional)
+                        </label>
+                        <AIPolishButton
+                          value={purchaseForm.notes}
+                          onPolished={p => setPurchaseForm({ ...purchaseForm, notes: p })}
+                          context="notes"
+                          compact
+                        />
+                      </div>
                       <textarea
                         rows={2}
                         value={purchaseForm.notes}

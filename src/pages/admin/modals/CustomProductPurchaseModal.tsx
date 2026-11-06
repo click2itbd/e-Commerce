@@ -22,6 +22,7 @@ import { sanitizePublicProductData, saveProductPrivateCost } from '../../../lib/
 import { Vendor, PaymentAccount, NavigationMenu, Transaction } from '../../../types';
 import { calculateAccountBalance, validateSufficientBalance } from '../../../lib/accountBalance';
 import { cn } from '../../../lib/utils';
+import { AIPolishButton } from '../../../components/common/AIPolishButton';
 
 interface CustomProductPurchaseModalProps {
   onClose: () => void;

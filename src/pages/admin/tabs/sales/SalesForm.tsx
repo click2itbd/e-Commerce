@@ -49,6 +49,7 @@ import { CustomProductPurchaseModal } from '../../modals/CustomProductPurchaseMo
 import { sendEmail } from '../../../../services/emailService';
 import { logAudit } from '../../../../lib/audit';
 import { recordSensitiveAlert } from '../../../../lib/alerts';
+import { AIPolishButton } from '../../../../components/common/AIPolishButton';
 
 interface SalesFormProps {
   users?: any[];
@@ -2104,9 +2105,17 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">
-                      Sale Notes (Optional)
-                    </label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-[10px] font-extrabold text-slate-500 uppercase">
+                        Sale Notes (Optional)
+                      </label>
+                      <AIPolishButton
+                        value={saleData.notes}
+                        onPolished={polished => setSaleData({ ...saleData, notes: polished })}
+                        context="notes"
+                        compact
+                      />
+                    </div>
                     <input
                       type="text"
                       value={saleData.notes}

@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { generateChatResponse } from '../services/ai.js';
+import { generateChatResponse, polishText } from '../services/ai.js';
 
 const aiRouter = Router();
 
@@ -15,6 +15,24 @@ aiRouter.post('/chat', async (req: any, res: Response) => {
   } catch (error: any) {
     console.error('AI chat error:', error);
     return res.status(500).json({ error: error.message || 'AI service error' });
+  }
+});
+
+aiRouter.post('/polish', async (req: any, res: Response) => {
+  try {
+    const { text, context, targetLang } = req.body;
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({ error: 'Text is required to polish' });
+    }
+    if (text.length > 10000) {
+      return res.status(400).json({ error: 'Text must be under 10,000 characters' });
+    }
+
+    const polished = await polishText(text.trim(), { context, targetLang });
+    return res.json({ success: true, polished });
+  } catch (error: any) {
+    console.error('AI polish error:', error);
+    return res.status(500).json({ error: error.message || 'AI polish failed' });
   }
 });
 

@@ -255,8 +255,30 @@ ordersRouter.post('/:orderId/payment/eps/verify', optionalFirebaseAuth, async (r
             paidAt: now,
             updatedAt: now,
         });
-        // Record verified payment in transactions accounting ledger
+        // Record verified payment in transactions accounting ledger under EPS Payment Gateway
         try {
+            // Find or create 'EPS Payment Gateway' payment account
+            let epsAccountId = '';
+            try {
+                const accSnap = await db.collection('payment_accounts').where('name', '==', 'EPS Payment Gateway').limit(1).get();
+                if (!accSnap.empty) {
+                    epsAccountId = accSnap.docs[0].id;
+                }
+                else {
+                    const newAccRef = await db.collection('payment_accounts').add({
+                        name: 'EPS Payment Gateway',
+                        type: 'bank',
+                        description: 'Web Online Orders Escrow Gateway (EPS)',
+                        openingBalance: 0,
+                        status: 'active',
+                        createdAt: now,
+                    });
+                    epsAccountId = newAccRef.id;
+                }
+            }
+            catch (accErr) {
+                console.warn('[EPS Verify] Could not resolve payment account:', accErr);
+            }
             await db.collection('transactions').add({
                 type: 'payment_received',
                 amount: actualPaid,
@@ -269,7 +291,8 @@ ordersRouter.post('/:orderId/payment/eps/verify', optionalFirebaseAuth, async (r
                 entityType: 'customer',
                 referenceId: orderId,
                 documentNumber: orderData.documentNumber || orderId.slice(0, 8),
-                paymentAccountId: '',
+                paymentAccountId: epsAccountId,
+                paymentAccountName: 'EPS Payment Gateway',
                 paymentMethod: verifyRes.financialEntity || 'eps',
                 createdAt: now,
                 createdBy: 'EPS Payment Gateway',

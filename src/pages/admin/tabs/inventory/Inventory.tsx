@@ -659,7 +659,15 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
                       <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Basic Information</h4>
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Product Name</label>
+                          <div className="flex justify-between items-center mb-1.5">
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase">Product Name</label>
+                            <AIPolishButton
+                              value={formData.name}
+                              onPolished={p => setFormData({ ...formData, name: p })}
+                              context="product_name"
+                              compact
+                            />
+                          </div>
                           <input
                             type="text"
                             required
@@ -766,7 +774,15 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
                         </div>
 
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Short Description</label>
+                          <div className="flex justify-between items-center mb-1.5">
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase">Short Description</label>
+                            <AIPolishButton
+                              value={formData.shortDescription || ''}
+                              onPolished={p => setFormData({ ...formData, shortDescription: p })}
+                              context="description"
+                              compact
+                            />
+                          </div>
                           <textarea
                             rows={2}
                             value={formData.shortDescription || ''}
@@ -777,7 +793,15 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
                         </div>
 
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Description</label>
+                          <div className="flex justify-between items-center mb-1.5">
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase">Description</label>
+                            <AIPolishButton
+                              value={formData.description || ''}
+                              onPolished={p => setFormData({ ...formData, description: p })}
+                              context="description"
+                              compact
+                            />
+                          </div>
                           <textarea
                             rows={4}
                             value={formData.description}
