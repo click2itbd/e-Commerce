@@ -41,7 +41,7 @@ export const AIPolishButton: React.FC<AIPolishButtonProps> = ({
     };
   }, [menuOpen]);
 
-  const handlePolish = async (targetLang: PolishTargetLang = 'auto') => {
+  const handlePolish = async (targetLang: PolishTargetLang = 'english') => {
     const cleanText = (value || '').trim();
     if (!cleanText) {
       toast.error('দয়া করে আগে কিছু লিখুন!');
@@ -62,7 +62,7 @@ export const AIPolishButton: React.FC<AIPolishButtonProps> = ({
           (t) => (
             <div className="flex items-center justify-between gap-3 text-xs">
               <span className="font-semibold text-slate-800">
-                ✨ টেক্সট পলিশ সম্পন্ন!
+                ✨ {targetLang === 'bangla' ? 'বাংলা রূপান্তর সম্পন্ন!' : 'সঠিক ইংরেজিতে রূপান্তর সম্পন্ন!'}
               </span>
               <button
                 type="button"
@@ -89,28 +89,22 @@ export const AIPolishButton: React.FC<AIPolishButtonProps> = ({
 
   const options: { label: string; desc: string; targetLang: PolishTargetLang; icon: string }[] = [
     {
-      label: 'Auto Polish & Fix',
-      desc: 'বানান, গ্রামার ও টাইপো স্বয়ংক্রিয় শুদ্ধকরণ',
-      targetLang: 'auto',
-      icon: '✨',
-    },
-    {
-      label: 'Banglish to বাংলা',
-      desc: 'বাংলিশ লেখা শুদ্ধ বাংলা লিপিতে রূপান্তর',
-      targetLang: 'banglish_to_bangla',
-      icon: '🇧🇩',
-    },
-    {
       label: 'Professional English',
-      desc: 'শুদ্ধ ও প্রফেশনাল ইংরেজি ফরম্যাট',
+      desc: 'বাংলিশ, বাংলা বা ভুল ইংরেজি সব সঠিক English হবে',
       targetLang: 'english',
       icon: '🇬🇧',
+    },
+    {
+      label: 'Title Case Format',
+      desc: 'প্রোডাক্টের নাম, মডেল ও ব্র্যান্ড ফরম্যাট (English)',
+      targetLang: 'english',
+      icon: '🏷️',
     },
     {
       label: 'Formal Bengali (প্রমিত বাংলা)',
       desc: 'প্রমিত বাংলা ব্যাকরণ ও বানান শুদ্ধি',
       targetLang: 'bangla',
-      icon: '📝',
+      icon: '🇧🇩',
     },
   ];
 
@@ -121,8 +115,8 @@ export const AIPolishButton: React.FC<AIPolishButtonProps> = ({
         <button
           type="button"
           disabled={loading || disabled}
-          onClick={() => handlePolish('auto')}
-          title="Click to AI Polish text (Typo fix, grammar & formatting)"
+          onClick={() => handlePolish('english')}
+          title="Click to polish into correct English (Fixes Banglish, Bangla & spelling mistakes)"
           className={`inline-flex items-center gap-1.5 font-bold text-xs transition-colors hover:text-purple-900 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
             compact ? 'px-2 py-1' : 'px-2.5 py-1.5'
           }`}

@@ -1634,7 +1634,15 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
               <div>
                 <h4 className="font-bold text-xs mb-2 text-slate-700 flex items-center justify-between">
                   <span>Terms & Conditions Clauses</span>
-                  <span className="text-[10px] text-indigo-600 font-medium">Click to append:</span>
+                  <div className="flex items-center gap-2">
+                    <AIPolishButton
+                      value={formData.termsAndConditions}
+                      onPolished={(polished) => setFormData(prev => ({ ...prev, termsAndConditions: polished }))}
+                      context="quotation"
+                      compact
+                    />
+                    <span className="text-[10px] text-indigo-600 font-medium">Click to append:</span>
+                  </div>
                 </h4>
                 <div className="flex flex-wrap gap-1.5 mb-2.5">
                   {[

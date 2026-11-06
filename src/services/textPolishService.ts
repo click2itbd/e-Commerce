@@ -1,12 +1,134 @@
 import { apiPost } from './apiClient';
 
 export type PolishContext = 'product_name' | 'description' | 'notes' | 'quotation' | 'general';
-export type PolishTargetLang = 'auto' | 'bangla' | 'english' | 'banglish_to_bangla';
+export type PolishTargetLang = 'english' | 'auto' | 'bangla' | 'banglish_to_bangla';
 
 export interface PolishOptions {
   context?: PolishContext;
   targetLang?: PolishTargetLang;
 }
+
+// Common Banglish/Bengali to English translation map for local fallback
+const BANGLISH_TO_ENGLISH: Record<string, string> = {
+  // Phrases
+  'kono problem nai': 'no issue',
+  'kono somossa nai': 'no problem',
+  'problem nai': 'no issue',
+  'taka pore dibe': 'will pay remaining balance later',
+  'taka baki ase': 'due balance',
+  'deya hobe': 'will be provided',
+  'pathano hobe': 'will be dispatched',
+  'onek bhalo': 'high quality',
+  'khub bhalo': 'high quality',
+  'khub valo': 'high quality',
+  'bhalo quality': 'good quality',
+  'akta laptop': '1 Laptop',
+  'akta monitor': '1 Monitor',
+  'official warranty': 'official warranty',
+  'service charge': 'service charge',
+
+  // Single Banglish words
+  'bochor': 'years',
+  'bosor': 'years',
+  'bochorer': 'years',
+  'mash': 'months',
+  'masher': 'months',
+  'din': 'days',
+  'diner': 'days',
+  'warrenty': 'warranty',
+  'warenty': 'warranty',
+  'guarenty': 'guarantee',
+  'garranty': 'guarantee',
+  'sathe': 'with',
+  'shathe': 'with',
+  'shate': 'with',
+  'er': 'of',
+  'notun': 'new',
+  'puran': 'used',
+  'purano': 'used',
+  'dam': 'price',
+  'kom': 'low',
+  'beshi': 'high',
+  'bhalo': 'good',
+  'valo': 'good',
+  'onek': 'many',
+  'ektu': 'a bit',
+  'urgent': 'urgent',
+  'dorkar': 'needed',
+  'proyojon': 'required',
+  'dhonnobad': 'thank you',
+  'deya': 'given',
+  'dibo': 'will provide',
+  'dite': 'to provide',
+  'nibo': 'will take',
+  'kinte': 'to buy',
+  'chai': 'want',
+  'chaile': 'if needed',
+  'advance': 'advance',
+  'advanse': 'advance',
+  'baki': 'due',
+  'taka': 'BDT',
+  'tk': 'BDT',
+  'porishodh': 'paid',
+  'delivary': 'delivery',
+  'delevery': 'delivery',
+  'chalan': 'challan',
+  'challan': 'challan',
+  'invoce': 'invoice',
+  'invice': 'invoice',
+  'custmer': 'customer',
+  'costomer': 'customer',
+  'pathaben': 'please send',
+  'pathano': 'dispatch',
+  'shomoy': 'time',
+  'shob': 'all',
+  'sohoj': 'easy',
+  'akta': '1',
+  'ekta': '1',
+  'duta': '2',
+  'tin': '3',
+  'char': '4',
+  'paach': '5',
+
+  // Bengali script mappings to English
+  '১': '1',
+  '২': '2',
+  '৩': '3',
+  '৪': '4',
+  '৫': '5',
+  '৬': '6',
+  '৭': '7',
+  '৮': '8',
+  '৯': '9',
+  '০': '0',
+  'বছর': 'years',
+  'বছরের': 'years',
+  'মাস': 'months',
+  'দিনের': 'days',
+  'দিন': 'days',
+  'ওয়ারেন্টি': 'warranty',
+  'গ্যারান্টি': 'guarantee',
+  'নতুন': 'New',
+  'পুরাতন': 'Used',
+  'টাকা': 'BDT',
+  'ডেলিভারি': 'Delivery',
+  'ইনভয়েস': 'Invoice',
+  'কাস্টমার': 'Customer',
+  'অগ্রিম': 'Advance',
+  'বাকি': 'Due',
+  'চালান': 'Challan',
+  'কুরিয়ার': 'Courier',
+  'সহ': 'with',
+  'অফিশিয়াল': 'Official',
+  'মনিটর': 'Monitor',
+  'ল্যাপটপ': 'Laptop',
+  'মাদারবোর্ড': 'Motherboard',
+  'প্রসেসর': 'Processor',
+  'মেমোরি': 'RAM',
+  'কেসিং': 'Casing',
+  'মাউস': 'Mouse',
+  'কীবোর্ড': 'Keyboard',
+};
 
 // Common Banglish to Bengali phonetic word map
 const BANGLISH_DICT: Record<string, string> = {
@@ -220,47 +342,63 @@ const SPELLING_CORRECTIONS: Record<string, string> = {
 };
 
 /**
- * Intelligent client-side rule-based text polisher used when offline or fallback
+ * Intelligent client-side rule-based text polisher used when offline or fallback.
+ * By default converts Banglish, Bengali and typos into Clean, Professional English.
  */
 export function polishTextLocally(text: string, options?: PolishOptions): string {
   if (!text || !text.trim()) return '';
 
   let str = text.trim();
   const context = options?.context || 'general';
-  const targetLang = options?.targetLang || 'auto';
+  const targetLang = options?.targetLang || 'english';
 
   // Check if mostly Bengali script
   const isBengaliScript = /[\u0980-\u09FF]/.test(str);
 
-  if (targetLang === 'banglish_to_bangla' || (!isBengaliScript && targetLang === 'bangla')) {
-    // Replace Banglish phrases/words with Bengali
+  if (targetLang === 'banglish_to_bangla' || (targetLang === 'bangla' && !isBengaliScript)) {
+    // Replace Banglish phrases/words with Bengali script
     let lowerStr = str.toLowerCase();
     for (const [k, v] of Object.entries(BANGLISH_DICT)) {
       const reg = new RegExp(`\\b${k}\\b`, 'gi');
       lowerStr = lowerStr.replace(reg, v);
     }
     str = lowerStr;
+  } else if (targetLang === 'bangla') {
+    // Already Bengali, preserve
   } else {
-    // 1. Correct common spelling mistakes
+    // Default & English: Convert Banglish & Bengali into English + fix all typos!
+    // 1. Replace Banglish & Bengali phrases and words with English
+    for (const [k, v] of Object.entries(BANGLISH_TO_ENGLISH)) {
+      if (/[\u0980-\u09FF]/.test(k)) {
+        // Bengali script direct replacement
+        str = str.split(k).join(` ${v} `);
+      } else {
+        // Banglish word boundary replacement
+        const reg = new RegExp(`\\b${k}\\b`, 'gi');
+        str = str.replace(reg, v);
+      }
+    }
+
+    // 2. Correct common spelling mistakes
     for (const [misspelled, correct] of Object.entries(SPELLING_CORRECTIONS)) {
       const reg = new RegExp(`\\b${misspelled}\\b`, 'gi');
       str = str.replace(reg, correct);
     }
 
-    // 2. Capitalize technology brands and acronyms
+    // 3. Capitalize technology brands and acronyms
     for (const [brandLower, brandProper] of Object.entries(TECH_BRANDS)) {
       const reg = new RegExp(`\\b${brandLower}\\b`, 'gi');
       str = str.replace(reg, brandProper);
     }
   }
 
-  // 3. Fix spacing around punctuation: "word ,word" -> "word, word", "word .word" -> "word. Word"
+  // 4. Fix spacing around punctuation: "word ,word" -> "word, word", "word .word" -> "word. Word"
   str = str
     .replace(/\s+([,.:;?!])/g, '$1')
     .replace(/([,.:;?!])(?=[^\s\d])/g, '$1 ')
     .replace(/\s{2,}/g, ' ');
 
-  // 4. Product Name formatting: Title Case
+  // 5. Product Name formatting: Title Case
   if (context === 'product_name') {
     str = str
       .split(' ')
@@ -288,7 +426,8 @@ export function polishTextLocally(text: string, options?: PolishOptions): string
 
 /**
  * Main AI Polish function:
- * Calls server-side Gemini AI service, with automatic seamless client fallback.
+ * Calls server-side Gemini AI service to convert any input (Banglish, Bengali, typos)
+ * into Flawless, Professional English, with automatic seamless client fallback.
  */
 export async function polishText(text: string, options?: PolishOptions): Promise<string> {
   const clean = (text || '').trim();
@@ -298,7 +437,7 @@ export async function polishText(text: string, options?: PolishOptions): Promise
     const res = await apiPost<{ success: boolean; polished: string }>('/api/ai/polish', {
       text: clean,
       context: options?.context || 'general',
-      targetLang: options?.targetLang || 'auto',
+      targetLang: options?.targetLang || 'english',
     });
 
     if (res && res.success && res.polished && res.polished.trim()) {
