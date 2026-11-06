@@ -5994,6 +5994,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   orders={orders}
                   customers={customers}
                   transactions={transactions}
+                  vendors={vendors}
                 />
               ) : activeTab === "crm" ? (
                 <CRMPage />

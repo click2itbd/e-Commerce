@@ -10,7 +10,8 @@ import {
   Users, DollarSign, ShoppingBag, Activity, TrendingUp, TrendingDown, 
   Calendar, AlertCircle, Server, Globe, Download, PieChart as PieIcon, 
   ArrowUpRight, ArrowDownRight, Layers, Percent, Wallet, FileText, RefreshCw,
-  CheckCircle2, ArrowRight, User, X, Search, Award, Sparkles, ChevronDown, ChevronUp
+  CheckCircle2, ArrowRight, User, X, Search, Award, Sparkles, ChevronDown, ChevronUp,
+  Package, Truck, Clock, CreditCard, ArrowDownLeft
 } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { Order, Product, Customer, Transaction, ServiceRecord } from '../types';
@@ -21,6 +22,8 @@ interface AnalyticsDashboardProps {
   customers?: Customer[];
   transactions?: Transaction[];
   serviceRecords?: ServiceRecord[];
+  vendors?: any[];
+  purchases?: any[];
 }
 
 const CATEGORY_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4'];
@@ -30,19 +33,33 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   products: initialProducts = [], 
   customers: initialCustomers = [], 
   transactions: initialTransactions = [],
-  serviceRecords = []
+  serviceRecords = [],
+  vendors: initialVendors = [],
+  purchases: initialPurchases = []
 }) => {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
+  const [vendors, setVendors] = useState<any[]>(initialVendors);
+  const [purchases, setPurchases] = useState<any[]>(initialPurchases);
   const [loading, setLoading] = useState(false);
 
-  const [timeframe, setTimeframe] = useState<'7d' | '30d' | '90d' | 'this_month' | '1y' | 'all'>('30d');
+  const [timeframe, setTimeframe] = useState<'today' | 'yesterday' | '7d' | '30d' | '90d' | 'this_month' | '1y' | 'all'>('30d');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('all');
   const [customerSearchQuery, setCustomerSearchQuery] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'by_customer'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'by_customer' | 'daily_pulse'>('overview');
   const [showServiceDiagnostic, setShowServiceDiagnostic] = useState<boolean>(false);
+
+  // Daily Business Pulse state
+  const [dailySelectedDate, setDailySelectedDate] = useState<string>(() => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+  const [dailyDetailTab, setDailyDetailTab] = useState<'sales' | 'purchases' | 'cashflow'>('sales');
 
   // Sync initial props or fetch live from Firestore
   useEffect(() => {
@@ -50,16 +67,45 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     if (initialProducts.length > 0) setProducts(initialProducts);
     if (initialCustomers.length > 0) setCustomers(initialCustomers);
     if (initialTransactions.length > 0) setTransactions(initialTransactions);
-  }, [initialOrders, initialProducts, initialCustomers, initialTransactions]);
+    if (initialVendors.length > 0) setVendors(initialVendors);
+    if (initialPurchases.length > 0) setPurchases(initialPurchases);
+  }, [initialOrders, initialProducts, initialCustomers, initialTransactions, initialVendors, initialPurchases]);
+
+  // Load auxiliary purchases & vendors if not provided
+  useEffect(() => {
+    const fetchAuxiliary = async () => {
+      try {
+        const [purSnap, venSnap] = await Promise.all([
+          getDocs(query(collection(db, 'purchases'), orderBy('createdAt', 'desc'), limit(500))).catch(async () => {
+            return await getDocs(collection(db, 'purchases'));
+          }).catch(() => ({ docs: [] } as any)),
+          getDocs(collection(db, 'vendors')).catch(() => ({ docs: [] } as any)),
+        ]);
+        if (purSnap && !purSnap.empty && initialPurchases.length === 0) {
+          setPurchases(purSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        }
+        if (venSnap && !venSnap.empty && initialVendors.length === 0) {
+          setVendors(venSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        }
+      } catch (e) {
+        console.warn('Failed to load auxiliary analytics data:', e);
+      }
+    };
+    fetchAuxiliary();
+  }, [initialPurchases.length, initialVendors.length]);
 
   const handleRefreshLive = async () => {
     setLoading(true);
     try {
-      const [ordersSnap, productsSnap, txSnap, customersSnap] = await Promise.all([
+      const [ordersSnap, productsSnap, txSnap, customersSnap, purSnap, venSnap] = await Promise.all([
         getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(500))),
         getDocs(query(collection(db, 'customers'), limit(500))),
+        getDocs(query(collection(db, 'purchases'), orderBy('createdAt', 'desc'), limit(500))).catch(async () => {
+          return await getDocs(collection(db, 'purchases'));
+        }).catch(() => ({ docs: [] } as any)),
+        getDocs(collection(db, 'vendors')).catch(() => ({ docs: [] } as any)),
       ]);
 
       const filteredSnapOrders = ordersSnap.docs
@@ -70,6 +116,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
       if (!customersSnap.empty) {
         setCustomers(customersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer)));
+      }
+      if (purSnap && !purSnap.empty) {
+        setPurchases(purSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+      }
+      if (venSnap && !venSnap.empty) {
+        setVendors(venSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
       }
     } catch (err) {
       console.error('Analytics live refresh error:', err);
@@ -91,26 +143,103 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   // Filter timeframe dates
   const { startDate, endDate } = useMemo(() => {
     const now = new Date();
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     let start = new Date();
 
-    if (timeframe === '7d') {
+    if (timeframe === 'today') {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    } else if (timeframe === 'yesterday') {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0, 0);
+      const yesterdayEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+      return { startDate: start, endDate: yesterdayEnd };
+    } else if (timeframe === '7d') {
       start.setDate(now.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
     } else if (timeframe === '30d') {
       start.setDate(now.getDate() - 30);
+      start.setHours(0, 0, 0, 0);
     } else if (timeframe === '90d') {
       start.setDate(now.getDate() - 90);
+      start.setHours(0, 0, 0, 0);
     } else if (timeframe === 'this_month') {
       start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
     } else if (timeframe === '1y') {
       start.setFullYear(now.getFullYear() - 1);
+      start.setHours(0, 0, 0, 0);
     } else {
       start = new Date(2020, 0, 1);
+      start.setHours(0, 0, 0, 0);
     }
-    start.setHours(0, 0, 0, 0);
 
     return { startDate: start, endDate: end };
   }, [timeframe]);
+
+  // Robust date & time helpers
+  const getDateString = (val: any): string => {
+    if (!val) return '';
+    try {
+      if (typeof val === 'string') {
+        if (val.length === 10 && val.includes('-')) return val;
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          return `${yyyy}-${mm}-${dd}`;
+        }
+      }
+      if (val.toDate && typeof val.toDate === 'function') {
+        const d = val.toDate();
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      }
+      if (val.seconds) {
+        const d = new Date(val.seconds * 1000);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      }
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      }
+    } catch {
+      return '';
+    }
+    return '';
+  };
+
+  const isDateEqual = (dateVal: any, targetYmd: string): boolean => {
+    if (!dateVal || !targetYmd) return false;
+    const ymd = getDateString(dateVal);
+    if (ymd === targetYmd) return true;
+    try {
+      const d = typeof dateVal === 'string' ? new Date(dateVal) : (dateVal.toDate ? dateVal.toDate() : new Date(dateVal));
+      if (!isNaN(d.getTime()) && d.toISOString().split('T')[0] === targetYmd) {
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+
+  const getTimeString = (val: any): string => {
+    if (!val) return '';
+    try {
+      const d = typeof val === 'string' ? new Date(val) : (val.toDate ? val.toDate() : new Date(val));
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+    } catch {}
+    return '';
+  };
 
   // Processed Orders in timeframe (Excluding hosting & domain orders)
   const timeframeFilteredOrders = useMemo(() => {
@@ -580,9 +709,255 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     ];
   }, [financialMetrics]);
 
-  // Export Analytics to CSV
+  // Daily Business Pulse metrics calculation for the selected single day
+  const dailyMetrics = useMemo(() => {
+    // 1. Day's Orders (retail / POS non-hosting, non-quotation)
+    const dayOrders = orders.filter(o => {
+      if ((o as any).platform === 'hosting' || (o as any).isHostingOrder || o.type === 'hosting' || o.type === 'domain') return false;
+      if (o.status === 'cancelled' || o.type === 'quotation') return false;
+      return isDateEqual(o.createdAt || (o as any).orderDate, dailySelectedDate);
+    });
+
+    let totalSalesAmount = 0;
+    let totalUnitsSold = 0;
+    let totalSalesCogs = 0;
+    const uniqueProductIds = new Set<string>();
+
+    dayOrders.forEach(o => {
+      const orderTotal = Number(o.totalAmount || o.grandTotal || o.total || 0);
+      totalSalesAmount += orderTotal;
+
+      if (o.items && Array.isArray(o.items)) {
+        o.items.forEach((item: any) => {
+          const qty = Number(item.quantity) || 1;
+          totalUnitsSold += qty;
+          if (item.id) uniqueProductIds.add(String(item.id));
+
+          const savedCost = (item as any).costPrice;
+          const knownCost = (savedCost !== undefined && savedCost !== null && savedCost > 0)
+            ? Number(savedCost)
+            : (productCostMap.get(item.id) || (Number(item.price) || 0) * 0.8);
+          totalSalesCogs += knownCost * qty;
+        });
+      }
+    });
+
+    const totalSalesCount = dayOrders.length;
+    const dayGrossProfit = totalSalesAmount - totalSalesCogs;
+    const dayGrossMargin = totalSalesAmount > 0 ? (dayGrossProfit / totalSalesAmount) * 100 : 0;
+    const avgOrderValue = totalSalesCount > 0 ? totalSalesAmount / totalSalesCount : 0;
+
+    // 2. Day's Purchases (supplier bills)
+    const dayPurchases = purchases.filter(p => {
+      return isDateEqual(p.date || p.createdAt, dailySelectedDate);
+    });
+
+    let totalPurchasesAmount = 0;
+    let totalPurchasesPaid = 0;
+    let purchasesUnitsCount = 0;
+
+    dayPurchases.forEach(p => {
+      const purTotal = Number(p.total || p.subtotal || p.grandTotal || 0);
+      totalPurchasesAmount += purTotal;
+      totalPurchasesPaid += Number(p.paidAmount || 0);
+      if (p.items && Array.isArray(p.items)) {
+        p.items.forEach((item: any) => {
+          purchasesUnitsCount += Number(item.quantity) || 1;
+        });
+      }
+    });
+    const totalPurchasesCount = dayPurchases.length;
+
+    // 3. Day's Transactions (Customer Collections, Supplier Payouts, OpEx)
+    const dayCashTransactions: Array<{
+      id: string;
+      timeStr: string;
+      direction: 'in' | 'out';
+      typeLabel: string;
+      partyName: string;
+      partyType: 'customer' | 'vendor' | 'other';
+      accountName: string;
+      amount: number;
+      refNumber: string;
+      description: string;
+    }> = [];
+
+    let customerCollectionsAmount = 0;
+    const customerPaidSet = new Set<string>();
+    let customerCollectionsCount = 0;
+
+    let supplierPayoutsAmount = 0;
+    const supplierPaidSet = new Set<string>();
+    let supplierPayoutsCount = 0;
+
+    let dayExpensesAmount = 0;
+
+    transactions.forEach(t => {
+      const dateVal = t.date || (t as any).createdAt;
+      if (!isDateEqual(dateVal, dailySelectedDate)) return;
+
+      const desc = t.description || '';
+      const descLower = desc.toLowerCase();
+      const entityType = (t.entityType || '').toLowerCase();
+      const txType = (t.type || '').toLowerCase();
+      const amt = Number(t.amount) || 0;
+      const timeStr = getTimeString(dateVal);
+      const acc = t.paymentMethod || (t as any).accountName || 'Cash';
+      const ref = t.documentNumber || t.referenceId || t.reference || '';
+
+      const isCust =
+        txType === 'payment_received' ||
+        txType === 'money_receipt' ||
+        (txType === 'payment' && entityType === 'customer') ||
+        (entityType === 'customer' && (descLower.includes('due') || descLower.includes('receipt') || descLower.includes('collection')));
+
+      const isSupp =
+        txType === 'payment_made' ||
+        (txType === 'payment' && entityType === 'vendor') ||
+        (entityType === 'vendor' && (descLower.includes('paid') || descLower.includes('payment') || descLower.includes('vendor')));
+
+      const isExp =
+        txType === 'expense' ||
+        txType === 'conveyance' ||
+        txType === 'salary';
+
+      if (isCust) {
+        customerCollectionsAmount += amt;
+        customerCollectionsCount += 1;
+        const party = t.entityName || (t as any).customerName || 'Customer';
+        if (party) customerPaidSet.add(party);
+
+        dayCashTransactions.push({
+          id: t.id,
+          timeStr,
+          direction: 'in',
+          typeLabel: 'Customer Collection',
+          partyName: party,
+          partyType: 'customer',
+          accountName: acc,
+          amount: amt,
+          refNumber: ref,
+          description: desc || 'Customer Due Recovery',
+        });
+      } else if (isSupp) {
+        supplierPayoutsAmount += amt;
+        supplierPayoutsCount += 1;
+        const party = t.entityName || (t as any).vendorName || 'Supplier';
+        if (party) supplierPaidSet.add(party);
+
+        dayCashTransactions.push({
+          id: t.id,
+          timeStr,
+          direction: 'out',
+          typeLabel: 'Supplier Payout',
+          partyName: party,
+          partyType: 'vendor',
+          accountName: acc,
+          amount: amt,
+          refNumber: ref,
+          description: desc || 'Supplier Due Payout',
+        });
+      } else if (isExp) {
+        dayExpensesAmount += amt;
+        dayCashTransactions.push({
+          id: t.id,
+          timeStr,
+          direction: 'out',
+          typeLabel: 'Expense',
+          partyName: t.entityName || 'General Expense',
+          partyType: 'other',
+          accountName: acc,
+          amount: amt,
+          refNumber: ref,
+          description: desc || 'Operating Expense',
+        });
+      }
+    });
+
+    const netCashFlow = customerCollectionsAmount - (supplierPayoutsAmount + dayExpensesAmount);
+
+    return {
+      dayOrders,
+      totalSalesAmount,
+      totalUnitsSold,
+      totalSalesCount,
+      totalUniqueProductsCount: uniqueProductIds.size,
+      totalSalesCogs,
+      dayGrossProfit,
+      dayGrossMargin,
+      avgOrderValue,
+      dayPurchases,
+      totalPurchasesAmount,
+      totalPurchasesPaid,
+      totalPurchasesCount,
+      purchasesUnitsCount,
+      dayCashTransactions,
+      customerCollectionsAmount,
+      customerCollectionsCount,
+      customerCountPaid: customerPaidSet.size,
+      supplierPayoutsAmount,
+      supplierPayoutsCount,
+      supplierCountPaid: supplierPaidSet.size,
+      dayExpensesAmount,
+      netCashFlow,
+    };
+  }, [orders, purchases, transactions, dailySelectedDate, productCostMap]);
+
+  const formattedDailyDate = useMemo(() => {
+    try {
+      const parts = dailySelectedDate.split('-');
+      if (parts.length === 3) {
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      }
+    } catch {}
+    return dailySelectedDate;
+  }, [dailySelectedDate]);
+
   // Export Analytics to CSV
   const handleExportCSV = () => {
+    if (activeTab === 'daily_pulse') {
+      const summaryRows = [
+        ['Date', `"${dailySelectedDate}"`],
+        ['Total Sales Amount (BDT)', dailyMetrics.totalSalesAmount],
+        ['Total Units / Products Sold', dailyMetrics.totalUnitsSold],
+        ['Total Sales Orders / Invoices', dailyMetrics.totalSalesCount],
+        ['Total Purchases Amount (BDT)', dailyMetrics.totalPurchasesAmount],
+        ['Total Purchases Count', dailyMetrics.totalPurchasesCount],
+        ['Customer Collections (BDT)', dailyMetrics.customerCollectionsAmount],
+        ['Customers Who Paid Count', dailyMetrics.customerCountPaid],
+        ['Supplier Payouts (BDT)', dailyMetrics.supplierPayoutsAmount],
+        ['Suppliers Paid Count', dailyMetrics.supplierCountPaid],
+        ['Operating Expenses (BDT)', dailyMetrics.dayExpensesAmount],
+        ['Net Daily Cash Flow (BDT)', dailyMetrics.netCashFlow],
+        ['Gross Profit (BDT)', dailyMetrics.dayGrossProfit],
+        ['Gross Margin (%)', `${dailyMetrics.dayGrossMargin.toFixed(1)}%`],
+        [],
+        ['--- DAY TRANSACTIONS DETAIL ---'],
+        ['Time', 'Direction', 'Type', 'Party', 'Account/Method', 'Reference', 'Amount (BDT)', 'Description'],
+        ...dailyMetrics.dayCashTransactions.map(t => [
+          `"${t.timeStr}"`,
+          `"${t.direction.toUpperCase()}"`,
+          `"${t.typeLabel}"`,
+          `"${t.partyName.replace(/"/g, '""')}"`,
+          `"${t.accountName.replace(/"/g, '""')}"`,
+          `"${t.refNumber.replace(/"/g, '""')}"`,
+          t.amount,
+          `"${t.description.replace(/"/g, '""')}"`,
+        ])
+      ];
+
+      const csvContent = 'data:text/csv;charset=utf-8,' + summaryRows.map(e => e.join(',')).join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `CLICK2IT_Daily_Pulse_${dailySelectedDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
     if (activeTab === 'by_customer') {
       const headers = ['Rank', 'Customer Name', 'Phone', 'Orders Count', 'Gross Revenue (BDT)', 'Direct COGS (BDT)', 'Net Profit (BDT)', 'Net Margin (%)', 'Last Order Date'];
       const rows = filteredCustomerProfitability.map((c, idx) => [
@@ -671,6 +1046,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               onChange={(e) => setTimeframe(e.target.value as any)}
               className="bg-transparent border-none text-xs font-bold text-gray-700 focus:ring-0 cursor-pointer outline-none pr-3"
             >
+              <option value="today">Today (আজকে)</option>
+              <option value="yesterday">Yesterday (গতকাল)</option>
               <option value="7d">Last 7 Days</option>
               <option value="30d">Last 30 Days</option>
               <option value="this_month">This Month</option>
@@ -759,6 +1136,25 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               activeTab === 'by_customer' ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-700"
             )}>
               {customerProfitability.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('daily_pulse')}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2",
+              activeTab === 'daily_pulse'
+                ? "bg-blue-600 text-white shadow-sm shadow-blue-200"
+                : "text-gray-600 hover:bg-gray-100"
+            )}
+          >
+            <Activity size={14} />
+            Daily Business Pulse (দৈনিক হিসাব)
+            <span className={cn(
+              "px-1.5 py-0.5 rounded-full text-[10px] font-black",
+              activeTab === 'daily_pulse' ? "bg-white/20 text-white" : "bg-blue-100 text-blue-800"
+            )}>
+              {dailyMetrics.totalSalesCount} Sales
             </span>
           </button>
         </div>
@@ -950,6 +1346,477 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      ) : activeTab === 'daily_pulse' ? (
+        /* ================= Daily Business Pulse Tab View ================= */
+        <div className="space-y-6">
+          {/* Quick Date Selector Bar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <Activity className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-gray-900">দৈনিক ব্যবসার হিসাব (Daily Business Pulse)</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200">
+                    Day Overview
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Showing complete daily summary for: <strong className="text-gray-800 font-semibold">{formattedDailyDate}</strong>
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Date Actions */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => {
+                  const d = new Date();
+                  const yyyy = d.getFullYear();
+                  const mm = String(d.getMonth() + 1).padStart(2, '0');
+                  const dd = String(d.getDate()).padStart(2, '0');
+                  setDailySelectedDate(`${yyyy}-${mm}-${dd}`);
+                }}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5",
+                  (() => {
+                    const d = new Date();
+                    const cur = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    return dailySelectedDate === cur;
+                  })()
+                    ? "bg-blue-600 text-white shadow-sm shadow-blue-200"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                )}
+              >
+                Today (আজকে)
+              </button>
+
+              <button
+                onClick={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() - 1);
+                  const yyyy = d.getFullYear();
+                  const mm = String(d.getMonth() + 1).padStart(2, '0');
+                  const dd = String(d.getDate()).padStart(2, '0');
+                  setDailySelectedDate(`${yyyy}-${mm}-${dd}`);
+                }}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5",
+                  (() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - 1);
+                    const yest = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    return dailySelectedDate === yest;
+                  })()
+                    ? "bg-blue-600 text-white shadow-sm shadow-blue-200"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                )}
+              >
+                Yesterday (গতকাল)
+              </button>
+
+              {/* Date Input */}
+              <div className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-xl border border-gray-200">
+                <Calendar size={14} className="text-gray-500" />
+                <input
+                  type="date"
+                  value={dailySelectedDate}
+                  onChange={(e) => {
+                    if (e.target.value) setDailySelectedDate(e.target.value);
+                  }}
+                  className="bg-transparent border-none text-xs font-bold text-gray-700 focus:ring-0 outline-none cursor-pointer"
+                />
+              </div>
+
+              <button
+                onClick={handleRefreshLive}
+                disabled={loading}
+                className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition"
+                title="Refresh Live Data"
+              >
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
+
+          {/* 7 Core KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 1. Daily Sales Revenue */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">কয় টাকার সেল (Sales Revenue)</span>
+                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <DollarSign className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-gray-900">{formatCurrency(dailyMetrics.totalSalesAmount)}</p>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
+                <span className="text-gray-500">মোট বিক্রয় মূল্য</span>
+                <span className="font-bold text-emerald-600">{dailyMetrics.totalSalesCount} টি ইনভয়েস</span>
+              </div>
+            </div>
+
+            {/* 2. Total Products Quantity Sold */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">কয়টা প্রোডাক্ট গেল (Units Sold)</span>
+                <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <Package className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-gray-900">{dailyMetrics.totalUnitsSold} <span className="text-base font-bold text-gray-500">Pcs</span></p>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
+                <span className="text-gray-500">মোট ডেলিভারি/বিক্রি পণ্য</span>
+                <span className="font-bold text-indigo-600">{dailyMetrics.totalUniqueProductsCount} ধরনের আইটেম</span>
+              </div>
+            </div>
+
+            {/* 3. Total Sales Orders Count */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">কয়টা সেল করল (Orders / Invoices)</span>
+                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                  <ShoppingBag className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-gray-900">{dailyMetrics.totalSalesCount} <span className="text-base font-bold text-gray-500">Orders</span></p>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
+                <span className="text-gray-500">গড় ইনভয়েস সাইজ</span>
+                <span className="font-bold text-blue-600">{formatCurrency(dailyMetrics.avgOrderValue)}</span>
+              </div>
+            </div>
+
+            {/* 4. Purchases from Suppliers */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">সাপ্লায়ার পারচেস (Purchases)</span>
+                <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
+                  <Truck className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-gray-900">{formatCurrency(dailyMetrics.totalPurchasesAmount)}</p>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
+                <span className="text-gray-500">কয়টা পারচেস করল</span>
+                <span className="font-bold text-purple-600">{dailyMetrics.totalPurchasesCount} টি বিল ({dailyMetrics.purchasesUnitsCount} pcs)</span>
+              </div>
+            </div>
+
+            {/* 5. Customer Collections */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">কাস্টমারের টাকা আনল (Money In)</span>
+                <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl">
+                  <ArrowDownLeft className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-emerald-600">{formatCurrency(dailyMetrics.customerCollectionsAmount)}</p>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
+                <span className="text-gray-500">কয়টা কাস্টমারের টাকা</span>
+                <span className="font-bold text-teal-700">{dailyMetrics.customerCountPaid} জন কাস্টমার ({dailyMetrics.customerCollectionsCount} রিসিট)</span>
+              </div>
+            </div>
+
+            {/* 6. Supplier Payouts */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">সাপ্লায়ারকে দিল (Money Out)</span>
+                <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
+                  <ArrowUpRight className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-rose-600">{formatCurrency(dailyMetrics.supplierPayoutsAmount)}</p>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
+                <span className="text-gray-500">কয়টা সাপ্লায়ারকে দিল</span>
+                <span className="font-bold text-rose-700">{dailyMetrics.supplierCountPaid} জন ভেন্ডর ({dailyMetrics.supplierPayoutsCount} পেমেন্ট)</span>
+              </div>
+            </div>
+
+            {/* 7. Gross Profit & Net Pulse */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition sm:col-span-2">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">দিনের লাভ ও মার্জিন (Gross Profit & Margin)</span>
+                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-3">
+                <p className="text-2xl font-black text-gray-900">{formatCurrency(dailyMetrics.dayGrossProfit)}</p>
+                <span className={cn(
+                  "px-2 py-0.5 rounded-md text-xs font-black",
+                  dailyMetrics.dayGrossMargin >= 20 ? "bg-emerald-50 text-emerald-700" :
+                  dailyMetrics.dayGrossMargin > 0 ? "bg-blue-50 text-blue-700" :
+                  "bg-rose-50 text-rose-700"
+                )}>
+                  মার্জিন {dailyMetrics.dayGrossMargin.toFixed(1)}%
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-100 text-xs">
+                <div className="text-gray-500">
+                  বিক্রিত মালের ক্রয়মূল্য (COGS): <strong className="text-gray-700 font-semibold">{formatCurrency(dailyMetrics.totalSalesCogs)}</strong>
+                </div>
+                <div className="text-right">
+                  <span className="text-gray-500">দিনের নিট ক্যাশ ইনফ্লো: </span>
+                  <strong className={cn(
+                    "font-bold",
+                    dailyMetrics.netCashFlow >= 0 ? "text-emerald-600" : "text-rose-600"
+                  )}>
+                    {formatCurrency(dailyMetrics.netCashFlow)}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Daily Breakdown Detail Section */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {/* Sub-tab Switcher Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b border-gray-100 bg-gray-50/50">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  onClick={() => setDailyDetailTab('sales')}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5",
+                    dailyDetailTab === 'sales'
+                      ? "bg-white text-gray-900 shadow-xs border border-gray-200"
+                      : "text-gray-500 hover:text-gray-800"
+                  )}
+                >
+                  <ShoppingBag size={14} className="text-emerald-600" />
+                  <span>আজকের সেল্স (Sales - {dailyMetrics.dayOrders.length})</span>
+                </button>
+
+                <button
+                  onClick={() => setDailyDetailTab('purchases')}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5",
+                    dailyDetailTab === 'purchases'
+                      ? "bg-white text-gray-900 shadow-xs border border-gray-200"
+                      : "text-gray-500 hover:text-gray-800"
+                  )}
+                >
+                  <Truck size={14} className="text-purple-600" />
+                  <span>আজকের পারচেস (Purchases - {dailyMetrics.dayPurchases.length})</span>
+                </button>
+
+                <button
+                  onClick={() => setDailyDetailTab('cashflow')}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5",
+                    dailyDetailTab === 'cashflow'
+                      ? "bg-white text-gray-900 shadow-xs border border-gray-200"
+                      : "text-gray-500 hover:text-gray-800"
+                  )}
+                >
+                  <ArrowDownLeft size={14} className="text-teal-600" />
+                  <span>ক্যাশ ও ডিউ লেনদেন (Transactions - {dailyMetrics.dayCashTransactions.length})</span>
+                </button>
+              </div>
+
+              <span className="text-xs text-gray-400 font-medium">
+                Detailed records for {dailySelectedDate}
+              </span>
+            </div>
+
+            {/* Sub-tab 1: Daily Sales Orders */}
+            {dailyDetailTab === 'sales' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50/80 text-gray-600 text-xs uppercase tracking-wider font-bold border-b border-gray-100">
+                    <tr>
+                      <th className="py-3 px-4">Invoice / Order #</th>
+                      <th className="py-3 px-4">Time</th>
+                      <th className="py-3 px-4">Customer</th>
+                      <th className="py-3 px-4">Products & Quantities</th>
+                      <th className="py-3 px-4 text-right">Order Total</th>
+                      <th className="py-3 px-4 text-center">Payment Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {dailyMetrics.dayOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-gray-400 text-xs">
+                          এই তারিখে কোনো সেল্স অর্ডার তৈরি হয়নি।
+                        </td>
+                      </tr>
+                    ) : (
+                      dailyMetrics.dayOrders.map((o: any) => {
+                        const itemsSummary = (o.items || [])
+                          .map((i: any) => `${i.name || i.title || 'Product'} (${i.quantity || 1}x)`)
+                          .join(', ');
+                        const timeStr = getTimeString(o.createdAt || o.orderDate);
+                        const orderTotal = Number(o.totalAmount || o.grandTotal || o.total || 0);
+
+                        return (
+                          <tr key={o.id} className="hover:bg-gray-50/60 transition">
+                            <td className="py-3 px-4 font-bold text-gray-900">
+                              {o.orderNumber || o.invoiceNumber || o.id.slice(0, 8)}
+                            </td>
+                            <td className="py-3 px-4 text-xs text-gray-500">
+                              {timeStr || 'N/A'}
+                            </td>
+                            <td className="py-3 px-4">
+                              <p className="font-bold text-gray-800 text-xs">{o.customerName || 'Walk-in Customer'}</p>
+                              {o.customerPhone && <p className="text-[11px] text-gray-400">{o.customerPhone}</p>}
+                            </td>
+                            <td className="py-3 px-4 text-xs text-gray-600 max-w-xs truncate" title={itemsSummary}>
+                              {itemsSummary || 'Standard Sale'}
+                            </td>
+                            <td className="py-3 px-4 text-right font-black text-gray-900">
+                              {formatCurrency(orderTotal)}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                                o.paymentStatus === 'paid' ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                o.paymentStatus === 'partial' ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                                "bg-rose-50 text-rose-700 border border-rose-200"
+                              )}>
+                                {o.paymentStatus || 'Completed'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Sub-tab 2: Daily Purchases */}
+            {dailyDetailTab === 'purchases' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50/80 text-gray-600 text-xs uppercase tracking-wider font-bold border-b border-gray-100">
+                    <tr>
+                      <th className="py-3 px-4">Document / Memo #</th>
+                      <th className="py-3 px-4">Time</th>
+                      <th className="py-3 px-4">Supplier / Vendor</th>
+                      <th className="py-3 px-4">Items Summary</th>
+                      <th className="py-3 px-4 text-right">Bill Total</th>
+                      <th className="py-3 px-4 text-right">Paid Amount</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {dailyMetrics.dayPurchases.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-gray-400 text-xs">
+                          এই তারিখে কোনো সাপ্লায়ার পারচেস বা বিল রেকর্ড করা হয়নি।
+                        </td>
+                      </tr>
+                    ) : (
+                      dailyMetrics.dayPurchases.map((p: any) => {
+                        const itemsSummary = (p.items || [])
+                          .map((i: any) => `${i.name || i.productName || 'Item'} (${i.quantity || 1}x)`)
+                          .join(', ');
+                        const timeStr = getTimeString(p.date || p.createdAt);
+                        const billTotal = Number(p.total || p.subtotal || p.grandTotal || 0);
+                        const paid = Number(p.paidAmount || 0);
+
+                        return (
+                          <tr key={p.id} className="hover:bg-gray-50/60 transition">
+                            <td className="py-3 px-4 font-bold text-gray-900">
+                              {p.documentNumber || p.memoNumber || p.id.slice(0, 8)}
+                            </td>
+                            <td className="py-3 px-4 text-xs text-gray-500">
+                              {timeStr || 'N/A'}
+                            </td>
+                            <td className="py-3 px-4 font-bold text-gray-800 text-xs">
+                              {p.vendorName || 'Supplier'}
+                            </td>
+                            <td className="py-3 px-4 text-xs text-gray-600 max-w-xs truncate" title={itemsSummary}>
+                              {itemsSummary || 'Inventory Purchase'}
+                            </td>
+                            <td className="py-3 px-4 text-right font-black text-gray-900">
+                              {formatCurrency(billTotal)}
+                            </td>
+                            <td className="py-3 px-4 text-right font-bold text-emerald-600">
+                              {formatCurrency(paid)}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                                p.paymentStatus === 'paid' ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                p.paymentStatus === 'partial' ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                                "bg-rose-50 text-rose-700 border border-rose-200"
+                              )}>
+                                {p.paymentStatus || (paid >= billTotal ? 'Paid' : 'Unpaid')}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Sub-tab 3: Daily Transactions (Collections & Payouts) */}
+            {dailyDetailTab === 'cashflow' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50/80 text-gray-600 text-xs uppercase tracking-wider font-bold border-b border-gray-100">
+                    <tr>
+                      <th className="py-3 px-4">Time</th>
+                      <th className="py-3 px-4">Flow Type</th>
+                      <th className="py-3 px-4">Party Name</th>
+                      <th className="py-3 px-4">Payment Account</th>
+                      <th className="py-3 px-4">Reference / Memo</th>
+                      <th className="py-3 px-4 text-right">Inflow (টাকা আনা)</th>
+                      <th className="py-3 px-4 text-right">Outflow (টাকা দেওয়া)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {dailyMetrics.dayCashTransactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-gray-400 text-xs">
+                          এই তারিখে কোনো ক্যাশ বা ব্যাংক ট্রানজেকশন নেই।
+                        </td>
+                      </tr>
+                    ) : (
+                      dailyMetrics.dayCashTransactions.map((t) => (
+                        <tr key={t.id} className="hover:bg-gray-50/60 transition">
+                          <td className="py-3 px-4 text-xs text-gray-500 font-medium">
+                            {t.timeStr || 'N/A'}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase inline-flex items-center gap-1",
+                              t.direction === 'in' 
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-rose-50 text-rose-700 border border-rose-200"
+                            )}>
+                              {t.direction === 'in' ? <ArrowDownLeft size={11} /> : <ArrowUpRight size={11} />}
+                              {t.typeLabel}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-bold text-gray-900 text-xs">
+                            {t.partyName}
+                          </td>
+                          <td className="py-3 px-4 text-xs text-gray-600">
+                            {t.accountName}
+                          </td>
+                          <td className="py-3 px-4 text-xs text-gray-500 font-mono">
+                            {t.refNumber || '-'}
+                          </td>
+                          <td className="py-3 px-4 text-right font-black text-emerald-600">
+                            {t.direction === 'in' ? formatCurrency(t.amount) : '-'}
+                          </td>
+                          <td className="py-3 px-4 text-right font-black text-rose-600">
+                            {t.direction === 'out' ? formatCurrency(t.amount) : '-'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       ) : (
