@@ -9,18 +9,11 @@ import {
   Download,
   Printer,
   Calendar,
-  Filter,
-  Users,
-  Truck,
-  Wallet,
   Building2,
-  CheckCircle2,
-  FileText,
   Clock,
-  Sparkles,
   Phone,
-  Receipt,
-  RotateCcw,
+  FileText,
+  Wallet,
 } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 
@@ -52,10 +45,10 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
   const [settlementFilter, setSettlementFilter] = useState<'all' | 'due_only' | 'spot_only'>('all');
 
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number>(25);
+  const [itemsPerPage] = useState<number>(25);
 
   // Quick Date Selectors
-  const handleSetQuickDate = (mode: 'today' | 'yesterday' | 'this_week' | 'this_month') => {
+  const handleSetQuickDate = (mode: 'today' | 'yesterday' | '7days' | '30days') => {
     const now = new Date();
     if (mode === 'today') {
       const d = now.toISOString().split('T')[0];
@@ -67,12 +60,12 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
       const d = y.toISOString().split('T')[0];
       setStartDate(d);
       setEndDate(d);
-    } else if (mode === 'this_week') {
+    } else if (mode === '7days') {
       const first = new Date(now);
       first.setDate(first.getDate() - 7);
       setStartDate(first.toISOString().split('T')[0]);
       setEndDate(now.toISOString().split('T')[0]);
-    } else if (mode === 'this_month') {
+    } else if (mode === '30days') {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       setStartDate(firstDay);
       setEndDate(now.toISOString().split('T')[0]);
@@ -80,14 +73,14 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
     setCurrentPage(1);
   };
 
-  // Process transactions into unified Daily Due Collection & Supplier Payout records
+  // Process transactions into unified records
   const processedRecords = useMemo(() => {
     const list: Array<{
       id: string;
       date: string;
       timeStr: string;
       dateStr: string;
-      direction: 'in' | 'out'; // in = Customer collection, out = Supplier payout
+      direction: 'in' | 'out';
       flowType: 'customer_due' | 'supplier_payout';
       partyType: 'customer' | 'vendor';
       partyName: string;
@@ -113,18 +106,17 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
       const entityType = (tx.entityType || '').toLowerCase();
       const txType = (tx.type || '').toLowerCase();
 
-      // Resolve Account Name
       const matchedAcc = paymentAccounts.find(a => a.id === tx.paymentAccountId);
       const accountName = matchedAcc?.name || tx.paymentMethod || 'Cash Counter';
 
-      // 1. CUSTOMER DUE COLLECTION (Money received / Money receipts / Inflows from customer)
+      // Customer payments / collections
       const isCustomerPayment =
         txType === 'payment_received' ||
         txType === 'money_receipt' ||
         (txType === 'payment' && entityType === 'customer') ||
         (entityType === 'customer' && (descLower.includes('due') || descLower.includes('receipt') || descLower.includes('collection')));
 
-      // 2. SUPPLIER / VENDOR PAYOUT (Payments made to suppliers / vendors)
+      // Supplier / vendor payments
       const isSupplierPayment =
         txType === 'payment_made' ||
         (txType === 'payment' && entityType === 'vendor') ||
@@ -158,7 +150,7 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
           direction: 'in',
           flowType: 'customer_due',
           partyType: 'customer',
-          partyName: tx.entityName || customer?.name || 'Walk-in / Cash Customer',
+          partyName: tx.entityName || customer?.name || 'Walk-in Customer',
           partyPhone: customer?.phone || '',
           partyId: tx.entityId || customer?.id || '',
           amount: Number(tx.amount) || 0,
@@ -166,7 +158,7 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
           paymentMethod: tx.paymentMethod || matchedAcc?.type || 'cash',
           referenceId: tx.referenceId || '',
           documentNumber: tx.documentNumber || tx.referenceId || '',
-          description: desc || 'Customer Due Collection / Money Receipt',
+          description: desc || 'Customer Due Collection',
           isDueSettlement,
         });
       } else if (isSupplierPayment) {
@@ -187,7 +179,7 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
           paymentMethod: tx.paymentMethod || matchedAcc?.type || 'cash',
           referenceId: tx.referenceId || '',
           documentNumber: tx.documentNumber || tx.referenceId || '',
-          description: desc || 'Paid Supplier / Vendor Due',
+          description: desc || 'Supplier Due Payment',
           isDueSettlement,
         });
       }
@@ -196,18 +188,15 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, customers, vendors, paymentAccounts, startDate, endDate]);
 
-  // Filter by Account, Settlement type, Tab view and Search text
+  // Filter records
   const filteredRecords = useMemo(() => {
     return processedRecords.filter(item => {
-      // Tab filter
       if (activeViewTab === 'collection' && item.direction !== 'in') return false;
       if (activeViewTab === 'payout' && item.direction !== 'out') return false;
 
-      // Settlement filter
       if (settlementFilter === 'due_only' && !item.isDueSettlement) return false;
       if (settlementFilter === 'spot_only' && item.isDueSettlement) return false;
 
-      // Account filter
       if (selectedAccountId !== 'all') {
         const matched = paymentAccounts.find(a => a.id === selectedAccountId);
         const accTarget = (matched?.name || '').toLowerCase();
@@ -216,7 +205,6 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
         }
       }
 
-      // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesName = item.partyName.toLowerCase().includes(q);
@@ -234,7 +222,7 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
     });
   }, [processedRecords, activeViewTab, settlementFilter, selectedAccountId, searchQuery, paymentAccounts]);
 
-  // Overall KPIs for the selected date range
+  // Overall KPIs
   const summary = useMemo(() => {
     let totalCollected = 0;
     let countCollected = 0;
@@ -276,28 +264,26 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
     return filteredRecords.slice(start, start + itemsPerPage);
   }, [filteredRecords, currentPage, itemsPerPage]);
 
-  // Print Daily Sheet handler
   const handlePrintDailySheet = () => {
     window.print();
   };
 
-  // CSV Export
   const handleExportCSV = () => {
     const headers = [
       'Date & Time',
       'Transaction Type',
-      'Party Name (Customer/Supplier)',
+      'Party Name',
       'Phone Number',
-      'Account / Method',
-      'Reference / Voucher #',
-      'Remarks',
+      'Payment Account',
+      'Reference / Voucher',
+      'Notes',
       'Collected Inflow (BDT)',
       'Paid Outflow (BDT)',
     ];
 
     const rows = filteredRecords.map(r => [
       `"${new Date(r.date).toLocaleString()}"`,
-      `"${r.direction === 'in' ? 'Customer Due Collected' : 'Supplier Payout'}"`,
+      `"${r.direction === 'in' ? 'Customer Due Collection' : 'Supplier Due Payment'}"`,
       `"${r.partyName.replace(/"/g, '""')}"`,
       `"${r.partyPhone}"`,
       `"${r.accountName.replace(/"/g, '""')}"`,
@@ -311,15 +297,15 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Daily_Due_Collection_And_Payout_${startDate}_to_${endDate}.csv`);
+    link.setAttribute('download', `Daily_Collection_Payout_${startDate}_to_${endDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    <div className="space-y-6">
-      {/* Print-Only Header Styles */}
+    <div className="space-y-5">
+      {/* Print Styles */}
       <style>{`
         @media print {
           body * {
@@ -334,7 +320,7 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
             top: 0;
             width: 100%;
             background: white !important;
-            padding: 20px;
+            padding: 16px;
           }
           .no-print {
             display: none !important;
@@ -343,75 +329,60 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
       `}</style>
 
       {/* Main Container */}
-      <div id="daily-sheet-printable" className="space-y-6">
-        {/* Printable Brand Header */}
-        <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-4 text-center">
-          <h1 className="text-2xl font-black text-slate-900 uppercase tracking-wider">
-            {settings?.brandName || 'Click2IT'}
+      <div id="daily-sheet-printable" className="space-y-5">
+        {/* Printable Letterhead */}
+        <div className="hidden print:block border-b border-slate-900 pb-3 mb-4 text-center">
+          <h1 className="text-xl font-bold text-slate-900 uppercase tracking-wider">
+            {settings?.brandName || 'Store Name'}
           </h1>
           <p className="text-xs text-slate-600 mt-0.5">
-            {settings?.companyAddress || settings?.address || 'Dhaka, Bangladesh'} | Phone: {settings?.contactPhone || settings?.phone || ''}
+            {settings?.companyAddress || settings?.address || 'Dhaka, Bangladesh'}
           </p>
-          <div className="mt-3 inline-block px-4 py-1 bg-slate-900 text-white rounded font-bold text-xs uppercase tracking-widest">
-            Daily Due Collection & Supplier Payout Register
+          <div className="mt-2 text-xs font-bold uppercase tracking-wider text-slate-900">
+            Daily Collection & Supplier Payout Statement
           </div>
-          <p className="text-xs text-slate-700 font-bold mt-2">
-            Statement Date: {startDate === endDate ? startDate : `${startDate} to ${endDate}`} | Generated: {new Date().toLocaleString()}
+          <p className="text-[11px] text-slate-600 mt-1">
+            Period: {startDate === endDate ? startDate : `${startDate} to ${endDate}`} | Generated: {new Date().toLocaleString()}
           </p>
         </div>
 
-        {/* Top Header Card */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/90 p-5 md:p-6 no-print">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
-                <ArrowLeftRight size={22} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-lg font-black text-slate-900 tracking-tight">
-                    Daily Due Collection & Supplier Payout
-                  </h2>
-                  <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                    দৈনিক বকেয়া আদায় ও দেনা পরিশোধ
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Track day-wise customer dues collected and supplier payments made with account breakdown & audit sheet
-                </p>
-              </div>
+        {/* Clean Header Bar */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 no-print shadow-2xs">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ArrowLeftRight size={18} className="text-blue-600" />
+                Daily Collection & Payout
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Overview of customer due recoveries and supplier payments
+              </p>
             </div>
 
-            {/* Quick Action Buttons */}
-            <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handlePrintDailySheet}
-                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer"
-                title="Print clean A4 daily audit sheet"
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                <Printer size={14} />
-                <span>Print Daily Sheet</span>
+                <Printer size={13} />
+                <span>Print</span>
               </button>
-
               <button
                 type="button"
                 onClick={handleExportCSV}
-                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer"
-                title="Export filtered records to CSV"
+                className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                <Download size={14} />
+                <Download size={13} />
                 <span>Export CSV</span>
               </button>
             </div>
           </div>
 
-          {/* Date Selector & Quick Range Presets */}
-          <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                <Calendar size={14} /> Date Range:
-              </span>
+          {/* Date Range Bar */}
+          <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <Calendar size={13} className="text-slate-400" />
               <input
                 type="date"
                 value={startDate}
@@ -419,9 +390,9 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
                   setStartDate(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 bg-white focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
+                className="border border-slate-200 rounded-md px-2 py-1 text-xs font-medium text-slate-800 bg-white"
               />
-              <span className="text-xs font-bold text-slate-400">to</span>
+              <span className="text-slate-400">to</span>
               <input
                 type="date"
                 value={endDate}
@@ -429,182 +400,137 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
                   setEndDate(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 bg-white focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
+                className="border border-slate-200 rounded-md px-2 py-1 text-xs font-medium text-slate-800 bg-white"
               />
             </div>
 
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => handleSetQuickDate('today')}
                 className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer',
+                  'px-2.5 py-1 rounded-md text-xs font-medium transition-all border cursor-pointer',
                   startDate === todayStr && endDate === todayStr
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    ? 'bg-blue-50 text-blue-700 border-blue-200 font-bold'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                 )}
               >
-                Today (আজ)
+                Today
               </button>
               <button
                 type="button"
                 onClick={() => handleSetQuickDate('yesterday')}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all border bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 cursor-pointer"
+                className="px-2.5 py-1 rounded-md text-xs font-medium transition-all border bg-white text-slate-600 border-slate-200 hover:bg-slate-50 cursor-pointer"
               >
-                Yesterday (গতকাল)
+                Yesterday
               </button>
               <button
                 type="button"
-                onClick={() => handleSetQuickDate('this_week')}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all border bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 cursor-pointer"
+                onClick={() => handleSetQuickDate('7days')}
+                className="px-2.5 py-1 rounded-md text-xs font-medium transition-all border bg-white text-slate-600 border-slate-200 hover:bg-slate-50 cursor-pointer"
               >
-                Last 7 Days
+                7 Days
               </button>
               <button
                 type="button"
-                onClick={() => handleSetQuickDate('this_month')}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all border bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 cursor-pointer"
+                onClick={() => handleSetQuickDate('30days')}
+                className="px-2.5 py-1 rounded-md text-xs font-medium transition-all border bg-white text-slate-600 border-slate-200 hover:bg-slate-50 cursor-pointer"
               >
-                This Month (চলতি মাস)
+                This Month
               </button>
             </div>
           </div>
         </div>
 
-        {/* Top 3 Metric KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Card 1: Customer Due Inflow */}
-          <div className="bg-white rounded-2xl p-5 border border-emerald-200 shadow-xs bg-gradient-to-br from-white to-emerald-50/40 relative overflow-hidden">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Customer Due Collected (বকেয়া আদায়)
-                </p>
-                <h3 className="text-2xl font-black text-emerald-700 mt-1.5 tracking-tight">
-                  {formatCurrency(summary.totalCollected, settings)}
-                </h3>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                <ArrowDownLeft size={20} />
-              </div>
+        {/* Clean Metrics: 3 Minimal Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Card 1: Collections */}
+          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+              <span>Customer Collections</span>
+              <span className="text-[11px] text-slate-400">{summary.countCollected} receipts</span>
             </div>
-            <div className="mt-3 pt-3 border-t border-emerald-100/80 flex items-center justify-between text-xs font-bold text-emerald-800">
-              <span>Receipts Recorded:</span>
-              <span className="bg-emerald-200/80 px-2 py-0.5 rounded-md text-[11px]">
-                {summary.countCollected} Collection(s)
-              </span>
+            <div className="mt-2 text-xl font-bold text-emerald-600 tracking-tight">
+              +{formatCurrency(summary.totalCollected, settings)}
+            </div>
+            <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-1">
+              <ArrowDownLeft size={12} className="text-emerald-500" />
+              <span>Total cash/bank inflow</span>
             </div>
           </div>
 
-          {/* Card 2: Supplier Payout Outflow */}
-          <div className="bg-white rounded-2xl p-5 border border-rose-200 shadow-xs bg-gradient-to-br from-white to-rose-50/40 relative overflow-hidden">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                  Supplier Due Paid (সাপ্লায়ার পরিশোধ)
-                </p>
-                <h3 className="text-2xl font-black text-rose-700 mt-1.5 tracking-tight">
-                  {formatCurrency(summary.totalPayout, settings)}
-                </h3>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
-                <ArrowUpRight size={20} />
-              </div>
+          {/* Card 2: Payouts */}
+          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+              <span>Supplier Payouts</span>
+              <span className="text-[11px] text-slate-400">{summary.countPayout} vouchers</span>
             </div>
-            <div className="mt-3 pt-3 border-t border-rose-100/80 flex items-center justify-between text-xs font-bold text-rose-800">
-              <span>Vouchers Paid:</span>
-              <span className="bg-rose-200/80 px-2 py-0.5 rounded-md text-[11px]">
-                {summary.countPayout} Payment(s)
-              </span>
+            <div className="mt-2 text-xl font-bold text-rose-600 tracking-tight">
+              -{formatCurrency(summary.totalPayout, settings)}
+            </div>
+            <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-1">
+              <ArrowUpRight size={12} className="text-rose-500" />
+              <span>Total supplier disbursements</span>
             </div>
           </div>
 
-          {/* Card 3: Net Daily Recovery / Cash Flow */}
-          <div
-            className={cn(
-              'bg-white rounded-2xl p-5 border shadow-xs relative overflow-hidden',
-              summary.netFlow >= 0
-                ? 'border-blue-200 bg-gradient-to-br from-white to-blue-50/40'
-                : 'border-amber-200 bg-gradient-to-br from-white to-amber-50/40'
-            )}
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <p
-                  className={cn(
-                    'text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5',
-                    summary.netFlow >= 0 ? 'text-blue-800' : 'text-amber-800'
-                  )}
-                >
-                  <Wallet size={13} />
-                  Net Daily Recovery (দিনের নিট পজিশন)
-                </p>
-                <h3
-                  className={cn(
-                    'text-2xl font-black mt-1.5 tracking-tight',
-                    summary.netFlow >= 0 ? 'text-blue-700' : 'text-amber-700'
-                  )}
-                >
-                  {summary.netFlow >= 0 ? '+' : ''}
-                  {formatCurrency(summary.netFlow, settings)}
-                </h3>
-              </div>
-              <div
-                className={cn(
-                  'w-10 h-10 rounded-xl flex items-center justify-center font-bold',
-                  summary.netFlow >= 0 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                )}
-              >
-                <Building2 size={20} />
-              </div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold">
-              <span className="text-slate-600">Cash Flow Status:</span>
+          {/* Card 3: Net Cash Position */}
+          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+              <span>Net Cash Position</span>
               <span
                 className={cn(
-                  'px-2 py-0.5 rounded-md text-[11px]',
-                  summary.netFlow >= 0 ? 'bg-blue-200/80 text-blue-900' : 'bg-amber-200/80 text-amber-900'
+                  'text-[10px] px-1.5 py-0.5 rounded font-semibold',
+                  summary.netFlow >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
                 )}
               >
-                {summary.netFlow >= 0 ? '🟢 Net Surplus (সারপ্লাস)' : '🔴 Net Outflow (বেশি পরিশোধ)'}
+                {summary.netFlow >= 0 ? 'Surplus' : 'Deficit'}
               </span>
+            </div>
+            <div
+              className={cn(
+                'mt-2 text-xl font-bold tracking-tight',
+                summary.netFlow >= 0 ? 'text-blue-600' : 'text-slate-900'
+              )}
+            >
+              {summary.netFlow >= 0 ? '+' : ''}
+              {formatCurrency(summary.netFlow, settings)}
+            </div>
+            <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-1">
+              <Wallet size={12} className="text-slate-400" />
+              <span>Collections minus payouts</span>
             </div>
           </div>
         </div>
 
-        {/* Account-wise Inflow & Outflow Breakdown Pills */}
+        {/* Minimal Account Breakdown Strip */}
         {Object.keys(summary.accountSummary).length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs">
-            <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2.5 flex items-center gap-1.5">
-              <Building2 size={13} className="text-slate-400" />
-              <span>Account-wise Deposit & Payout Breakdown (অ্যাকাউন্ট অনুযায়ী বিবরণ):</span>
+          <div className="bg-white rounded-xl border border-slate-200 p-3 text-xs shadow-2xs">
+            <div className="flex items-center gap-1.5 text-slate-500 font-medium mb-2 text-[11px] uppercase tracking-wider">
+              <Building2 size={12} />
+              <span>Accounts Summary</span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
               {Object.entries(summary.accountSummary).map(([accName, vals]) => (
                 <div
                   key={accName}
-                  className="bg-slate-50/80 border border-slate-200 rounded-xl p-2.5 text-xs flex flex-col justify-between"
+                  className="bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1 text-xs flex items-center gap-2"
                 >
-                  <span className="font-bold text-slate-800 truncate" title={accName}>
-                    {accName}
-                  </span>
-                  <div className="mt-1 flex items-center justify-between font-mono font-extrabold text-[11px]">
-                    <span className="text-emerald-700">+{formatCurrency(vals.in, settings)}</span>
-                    <span className="text-rose-700">-{formatCurrency(vals.out, settings)}</span>
-                  </div>
+                  <span className="font-semibold text-slate-700">{accName}:</span>
+                  <span className="text-emerald-600 font-medium">+{formatCurrency(vals.in, settings)}</span>
+                  <span className="text-slate-300">/</span>
+                  <span className="text-rose-600 font-medium">-{formatCurrency(vals.out, settings)}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Filters, Tabs & Search Bar */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/90 p-4 md:p-5 space-y-4 no-print">
-          {/* Main View Tabs */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl w-fit">
+        {/* Filter & View Tabs */}
+        <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-3 no-print shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* View Tabs */}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg w-fit text-xs">
               <button
                 type="button"
                 onClick={() => {
@@ -612,18 +538,14 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
                   setCurrentPage(1);
                 }}
                 className={cn(
-                  'px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5',
+                  'px-3 py-1 rounded-md font-medium transition-all cursor-pointer',
                   activeViewTab === 'all'
-                    ? 'bg-white text-slate-900 shadow-xs'
+                    ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                     : 'text-slate-600 hover:text-slate-900'
                 )}
               >
-                <span>All Activities (সব লেনদেন)</span>
-                <span className="text-[10px] bg-slate-200 text-slate-800 px-1.5 py-0.2 rounded-full">
-                  {processedRecords.length}
-                </span>
+                All Movements ({processedRecords.length})
               </button>
-
               <button
                 type="button"
                 onClick={() => {
@@ -631,18 +553,14 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
                   setCurrentPage(1);
                 }}
                 className={cn(
-                  'px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5',
+                  'px-3 py-1 rounded-md font-medium transition-all cursor-pointer',
                   activeViewTab === 'collection'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-emerald-700 hover:bg-emerald-50'
+                    ? 'bg-white text-emerald-700 shadow-2xs font-semibold'
+                    : 'text-slate-600 hover:text-emerald-700'
                 )}
               >
-                <span>Customer Due Collected (বকেয়া আদায়)</span>
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded-full">
-                  {summary.countCollected}
-                </span>
+                Collections ({summary.countCollected})
               </button>
-
               <button
                 type="button"
                 onClick={() => {
@@ -650,41 +568,35 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
                   setCurrentPage(1);
                 }}
                 className={cn(
-                  'px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5',
+                  'px-3 py-1 rounded-md font-medium transition-all cursor-pointer',
                   activeViewTab === 'payout'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'text-rose-700 hover:bg-rose-50'
+                    ? 'bg-white text-rose-700 shadow-2xs font-semibold'
+                    : 'text-slate-600 hover:text-rose-700'
                 )}
               >
-                <span>Supplier Paid (সাপ্লায়ারকে পরিশোধ)</span>
-                <span className="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded-full">
-                  {summary.countPayout}
-                </span>
+                Payouts ({summary.countPayout})
               </button>
             </div>
 
-            {/* Classification: Due Settlement vs All */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-500 uppercase">Type:</span>
-              <select
-                value={settlementFilter}
-                onChange={e => {
-                  setSettlementFilter(e.target.value as any);
-                  setCurrentPage(1);
-                }}
-                className="border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 bg-white"
-              >
-                <option value="all">All Movements (Due + Invoice Bills)</option>
-                <option value="due_only">Due Recoveries & Settlements Only (শুধু বকেয়া ও দেনা শোধ)</option>
-                <option value="spot_only">On-Spot Bill Payments Only (স্পট বিল)</option>
-              </select>
-            </div>
+            {/* Type selector */}
+            <select
+              value={settlementFilter}
+              onChange={e => {
+                setSettlementFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
+              className="border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-700 bg-white"
+            >
+              <option value="all">All Transactions</option>
+              <option value="due_only">Due Recoveries Only</option>
+              <option value="spot_only">Spot Bill Payments Only</option>
+            </select>
           </div>
 
-          {/* Search & Account Dropdown Filter */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+          {/* Search & Account select */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5">
             <div className="md:col-span-8 relative">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
@@ -692,11 +604,10 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Search by customer name, supplier, phone, voucher / receipt #, or remarks..."
-                className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-blue-500 focus:border-blue-500 bg-slate-50/50"
+                placeholder="Search by customer, supplier, phone, voucher #, notes..."
+                className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white focus:outline-none focus:border-slate-400"
               />
             </div>
-
             <div className="md:col-span-4">
               <select
                 value={selectedAccountId}
@@ -704,12 +615,12 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
                   setSelectedAccountId(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 bg-slate-50/50 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white focus:outline-none focus:border-slate-400"
               >
-                <option value="all">-- All Accounts (সব অ্যাকাউন্ট) --</option>
+                <option value="all">All Accounts</option>
                 {paymentAccounts.map((acc: any) => (
                   <option key={acc.id} value={acc.id}>
-                    {acc.name} ({acc.type || 'account'})
+                    {acc.name}
                   </option>
                 ))}
               </select>
@@ -717,31 +628,31 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
           </div>
         </div>
 
-        {/* Data Table */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/90 overflow-hidden">
+        {/* Clean Data Table */}
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 font-black text-slate-700 uppercase tracking-wider text-[11px]">
+              <thead className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-600 text-[11px] uppercase tracking-wider">
                 <tr>
-                  <th className="py-3 px-4">Date & Time</th>
-                  <th className="py-3 px-4">Category / Flow</th>
-                  <th className="py-3 px-4">Customer / Supplier Name</th>
-                  <th className="py-3 px-4">Account / Mode</th>
-                  <th className="py-3 px-4">Receipt / Voucher #</th>
-                  <th className="py-3 px-4">Notes / Remarks</th>
-                  <th className="py-3 px-4 text-right">Collected (Inflow)</th>
-                  <th className="py-3 px-4 text-right">Paid (Outflow)</th>
+                  <th className="py-2.5 px-3.5">Date & Time</th>
+                  <th className="py-2.5 px-3.5">Type</th>
+                  <th className="py-2.5 px-3.5">Party Name</th>
+                  <th className="py-2.5 px-3.5">Account</th>
+                  <th className="py-2.5 px-3.5">Voucher / Ref</th>
+                  <th className="py-2.5 px-3.5">Remarks</th>
+                  <th className="py-2.5 px-3.5 text-right">Inflow (+)</th>
+                  <th className="py-2.5 px-3.5 text-right">Outflow (-)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedRecords.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <FileText size={36} className="text-slate-300" />
-                        <p className="font-bold text-slate-600 text-sm">No transaction records found</p>
-                        <p className="text-xs text-slate-400 max-w-sm">
-                          No customer due collections or supplier payments matched the selected date or filter criteria.
+                    <td colSpan={8} className="py-10 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-1.5">
+                        <FileText size={28} className="text-slate-300" />
+                        <p className="font-semibold text-slate-600 text-xs">No records found</p>
+                        <p className="text-[11px] text-slate-400">
+                          No collections or payouts recorded for the selected date range.
                         </p>
                       </div>
                     </td>
@@ -750,110 +661,70 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
                   paginatedRecords.map((item, idx) => {
                     const isInflow = item.direction === 'in';
                     return (
-                      <tr
-                        key={item.id || idx}
-                        className={cn(
-                          'transition-colors hover:bg-slate-50/80',
-                          isInflow ? 'hover:bg-emerald-50/20' : 'hover:bg-rose-50/20'
-                        )}
-                      >
+                      <tr key={item.id || idx} className="hover:bg-slate-50/70 transition-colors">
                         {/* Date & Time */}
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <div className="font-bold text-slate-800">{item.dateStr}</div>
+                        <td className="py-2.5 px-3.5 whitespace-nowrap text-slate-700">
+                          <span className="font-medium">{item.dateStr}</span>
                           {item.timeStr && (
-                            <div className="text-[10px] text-slate-400 font-medium flex items-center gap-1 mt-0.5">
-                              <Clock size={10} />
-                              <span>{item.timeStr}</span>
-                            </div>
+                            <span className="text-[11px] text-slate-400 ml-1.5">{item.timeStr}</span>
                           )}
                         </td>
 
-                        {/* Category / Flow */}
-                        <td className="py-3 px-4 whitespace-nowrap">
+                        {/* Type badge */}
+                        <td className="py-2.5 px-3.5 whitespace-nowrap">
                           {isInflow ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              <ArrowDownLeft size={11} className="text-emerald-700" />
-                              <span>বকেয়া আদায়</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Collection
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-200">
-                              <ArrowUpRight size={11} className="text-rose-700" />
-                              <span>সাপ্লায়ার পরিশোধ</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                              Payout
                             </span>
                           )}
                         </td>
 
-                        {/* Customer / Supplier Name */}
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-black text-slate-900">{item.partyName}</span>
-                            {item.partyType === 'customer' && setActiveTab && (
-                              <button
-                                type="button"
-                                onClick={() => setActiveTab('customer_due_list')}
-                                className="text-[10px] text-blue-600 hover:underline font-bold no-print"
-                                title="Open Customer Due List"
-                              >
-                                [Due]
-                              </button>
-                            )}
-                            {item.partyType === 'vendor' && setActiveTab && (
-                              <button
-                                type="button"
-                                onClick={() => setActiveTab('vendor_due_list')}
-                                className="text-[10px] text-purple-600 hover:underline font-bold no-print"
-                                title="Open Vendor Due List"
-                              >
-                                [Supplier]
-                              </button>
-                            )}
-                          </div>
+                        {/* Party Name */}
+                        <td className="py-2.5 px-3.5">
+                          <div className="font-semibold text-slate-900">{item.partyName}</div>
                           {item.partyPhone && (
-                            <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
-                              <Phone size={10} className="text-slate-400" />
-                              <span>{item.partyPhone}</span>
-                            </div>
+                            <div className="text-[10px] text-slate-400">{item.partyPhone}</div>
                           )}
                         </td>
 
-                        {/* Account & Method */}
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md text-[11px] border border-slate-200">
-                            {item.accountName}
-                          </span>
+                        {/* Account */}
+                        <td className="py-2.5 px-3.5 whitespace-nowrap text-slate-600">
+                          {item.accountName}
                         </td>
 
-                        {/* Receipt / Voucher # */}
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span className="font-mono font-bold text-slate-600 text-[11px]">
-                            {item.documentNumber || item.referenceId || '—'}
-                          </span>
+                        {/* Voucher / Ref */}
+                        <td className="py-2.5 px-3.5 whitespace-nowrap font-mono text-[11px] text-slate-500">
+                          {item.documentNumber || item.referenceId || '—'}
                         </td>
 
-                        {/* Notes / Remarks */}
-                        <td className="py-3 px-4 max-w-xs truncate" title={item.description}>
-                          <span className="text-slate-600">{item.description}</span>
+                        {/* Remarks */}
+                        <td className="py-2.5 px-3.5 max-w-xs truncate text-slate-600" title={item.description}>
+                          {item.description}
                         </td>
 
-                        {/* Collected Inflow */}
-                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                        {/* Inflow */}
+                        <td className="py-2.5 px-3.5 text-right whitespace-nowrap font-mono">
                           {isInflow ? (
-                            <span className="font-mono font-black text-emerald-700 text-sm">
+                            <span className="text-emerald-600 font-semibold">
                               +{formatCurrency(item.amount, settings)}
                             </span>
                           ) : (
-                            <span className="text-slate-300 font-mono">—</span>
+                            <span className="text-slate-300">—</span>
                           )}
                         </td>
 
-                        {/* Paid Outflow */}
-                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                        {/* Outflow */}
+                        <td className="py-2.5 px-3.5 text-right whitespace-nowrap font-mono">
                           {!isInflow ? (
-                            <span className="font-mono font-black text-rose-700 text-sm">
+                            <span className="text-rose-600 font-semibold">
                               -{formatCurrency(item.amount, settings)}
                             </span>
                           ) : (
-                            <span className="text-slate-300 font-mono">—</span>
+                            <span className="text-slate-300">—</span>
                           )}
                         </td>
                       </tr>
@@ -862,20 +733,20 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
                 )}
               </tbody>
 
-              {/* Table Footer Summary Row */}
+              {/* Table Footer */}
               {paginatedRecords.length > 0 && (
-                <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-black text-slate-900 text-xs">
+                <tfoot className="bg-slate-50 border-t border-slate-200 text-xs font-semibold text-slate-800">
                   <tr>
-                    <td colSpan={6} className="py-3 px-4 text-right uppercase tracking-wider text-[11px]">
-                      Filtered Summary (ফিল্টারকৃত মোট):
+                    <td colSpan={6} className="py-2.5 px-3.5 text-right uppercase tracking-wider text-[11px] text-slate-500">
+                      Total:
                     </td>
-                    <td className="py-3 px-4 text-right text-emerald-800 font-mono text-sm whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 text-right text-emerald-700 font-mono">
                       +{formatCurrency(
                         filteredRecords.reduce((acc, r) => acc + (r.direction === 'in' ? r.amount : 0), 0),
                         settings
                       )}
                     </td>
-                    <td className="py-3 px-4 text-right text-rose-800 font-mono text-sm whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 text-right text-rose-700 font-mono">
                       -{formatCurrency(
                         filteredRecords.reduce((acc, r) => acc + (r.direction === 'out' ? r.amount : 0), 0),
                         settings
@@ -887,10 +758,10 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
             </table>
           </div>
 
-          {/* Pagination Controls */}
+          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="p-4 border-t border-slate-200 no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <span className="text-xs font-bold text-slate-500">
+            <div className="p-3 border-t border-slate-200 no-print flex items-center justify-between text-xs text-slate-500">
+              <span>
                 Showing {paginatedRecords.length} of {filteredRecords.length} records
               </span>
               <Pagination
@@ -902,26 +773,23 @@ export const DailyCollectionPayoutReport: React.FC<DailyCollectionPayoutReportPr
           )}
         </div>
 
-        {/* Printable Audit Signature Section */}
-        <div className="hidden print:block pt-12 mt-12 border-t border-slate-300">
-          <div className="grid grid-cols-3 gap-8 text-center text-xs">
+        {/* Printable Signatures */}
+        <div className="hidden print:block pt-8 mt-8 border-t border-slate-200">
+          <div className="grid grid-cols-3 gap-6 text-center text-xs">
             <div>
-              <div className="border-t border-slate-900 pt-2 font-bold text-slate-800">
-                Prepared By (Cashier / Staff)
+              <div className="border-t border-slate-900 pt-1 font-semibold text-slate-800">
+                Prepared By (Cashier)
               </div>
-              <p className="text-[10px] text-slate-500 mt-0.5">Signature & Date</p>
             </div>
             <div>
-              <div className="border-t border-slate-900 pt-2 font-bold text-slate-800">
-                Verified By (Accounts Officer)
+              <div className="border-t border-slate-900 pt-1 font-semibold text-slate-800">
+                Verified By (Accounts)
               </div>
-              <p className="text-[10px] text-slate-500 mt-0.5">Signature & Date</p>
             </div>
             <div>
-              <div className="border-t border-slate-900 pt-2 font-bold text-slate-800">
-                Approved By (Proprietor / Manager)
+              <div className="border-t border-slate-900 pt-1 font-semibold text-slate-800">
+                Approved By (Manager)
               </div>
-              <p className="text-[10px] text-slate-500 mt-0.5">Signature & Seal</p>
             </div>
           </div>
         </div>

@@ -4,27 +4,33 @@ import { toast } from 'react-hot-toast';
 import { polishText, PolishContext, PolishTargetLang } from '../../services/textPolishService';
 
 interface AIPolishButtonProps {
-  value: string;
+  value?: string;
+  text?: string;
   onPolished: (newValue: string) => void;
   context?: PolishContext;
   className?: string;
   compact?: boolean;
+  size?: 'sm' | 'md' | 'lg';
   label?: string;
   disabled?: boolean;
 }
 
 export const AIPolishButton: React.FC<AIPolishButtonProps> = ({
   value,
+  text,
   onPolished,
   context = 'general',
   className = '',
   compact = false,
+  size,
   label = 'AI Polish',
   disabled = false,
 }) => {
   const [loading, setLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const rawValue = value ?? text ?? '';
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -42,7 +48,7 @@ export const AIPolishButton: React.FC<AIPolishButtonProps> = ({
   }, [menuOpen]);
 
   const handlePolish = async (targetLang: PolishTargetLang = 'english') => {
-    const cleanText = (value || '').trim();
+    const cleanText = (rawValue || '').trim();
     if (!cleanText) {
       toast.error('দয়া করে আগে কিছু লিখুন!');
       return;
@@ -50,7 +56,7 @@ export const AIPolishButton: React.FC<AIPolishButtonProps> = ({
 
     setMenuOpen(false);
     setLoading(true);
-    const originalText = value;
+    const originalText = rawValue;
 
     try {
       const polished = await polishText(cleanText, { context, targetLang });
@@ -175,3 +181,5 @@ export const AIPolishButton: React.FC<AIPolishButtonProps> = ({
     </div>
   );
 };
+
+export default AIPolishButton;
