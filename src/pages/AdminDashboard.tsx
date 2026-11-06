@@ -4997,6 +4997,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     )}
                   </button>
                 )}
+                <button
+                  onClick={() => {
+                    setActiveTab("daily_collection_payout");
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center rounded-md text-[13px] transition-colors",
+                    isSidebarCollapsed
+                      ? "justify-center py-2"
+                      : "gap-3 px-3 py-2",
+                    activeTab === "daily_collection_payout"
+                      ? "text-blue-600 font-bold bg-blue-50"
+                      : "text-gray-600 hover:bg-gray-50",
+                  )}
+                  title="Daily Collection & Payout Report"
+                >
+                  <Receipt
+                    size={16}
+                    className={
+                      activeTab === "daily_collection_payout"
+                        ? "text-blue-600"
+                        : "text-gray-400"
+                    }
+                  />{" "}
+                  {!isSidebarCollapsed && (
+                    <span className="truncate flex items-center justify-between flex-1">
+                      <span>Daily Collection Payout</span>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">
+                        Report
+                      </span>
+                    </span>
+                  )}
+                </button>
                 {hasPermission("manual_income") && (
                   <button
                     onClick={() => setActiveTab("manual_income")}
@@ -5153,31 +5186,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     )}
                   </button>
                 )}
-                <button
-                  onClick={() => setActiveTab("daily_collection_payout")}
-                  className={cn(
-                    "w-full flex items-center rounded-md text-[13px] transition-colors",
-                    isSidebarCollapsed
-                      ? "justify-center py-2"
-                      : "gap-3 px-3 py-2",
-                    activeTab === "daily_collection_payout"
-                      ? "text-blue-600 font-bold bg-blue-50"
-                      : "text-gray-600 hover:bg-gray-50",
-                  )}
-                  title="Daily Due Collection & Supplier Payout Register"
-                >
-                  <ArrowLeftRight
-                    size={16}
-                    className={
-                      activeTab === "daily_collection_payout"
-                        ? "text-blue-600"
-                        : "text-gray-400"
-                    }
-                  />{" "}
-                  {!isSidebarCollapsed && (
-                    <span className="truncate font-bold">Daily Due & Payout</span>
-                  )}
-                </button>
+
                 {hasPermission("deposits_withdrawals") && (
                   <button
                     onClick={() => setActiveTab("deposits_withdrawals")}
@@ -6405,6 +6414,11 @@ handleReturnOrder={handleReturnOrder}
                         icon: CreditCard,
                       },
                       { label: "Ledger", tab: "ledger", icon: Book },
+                      {
+                        label: "Daily Collection Payout Report",
+                        tab: "daily_collection_payout",
+                        icon: Receipt,
+                      },
                       { label: "CRM System", tab: "crm", icon: Users },
                       { label: "To-Do Tasks", tab: "tasks", icon: CheckCircle },
                       { label: "Restore / Recycle Bin", tab: "restore", icon: RotateCcw },
