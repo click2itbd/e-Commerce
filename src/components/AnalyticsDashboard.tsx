@@ -1046,8 +1046,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               onChange={(e) => setTimeframe(e.target.value as any)}
               className="bg-transparent border-none text-xs font-bold text-gray-700 focus:ring-0 cursor-pointer outline-none pr-3"
             >
-              <option value="today">Today (আজকে)</option>
-              <option value="yesterday">Yesterday (গতকাল)</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
               <option value="7d">Last 7 Days</option>
               <option value="30d">Last 30 Days</option>
               <option value="this_month">This Month</option>
@@ -1149,7 +1149,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             )}
           >
             <Activity size={14} />
-            Daily Business Pulse (দৈনিক হিসাব)
+            Daily Business Pulse
             <span className={cn(
               "px-1.5 py-0.5 rounded-full text-[10px] font-black",
               activeTab === 'daily_pulse' ? "bg-white/20 text-white" : "bg-blue-100 text-blue-800"
@@ -1359,7 +1359,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-gray-900">দৈনিক ব্যবসার হিসাব (Daily Business Pulse)</h3>
+                  <h3 className="text-base font-bold text-gray-900">Daily Business Pulse</h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200">
                     Day Overview
                   </span>
@@ -1391,7 +1391,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     : "bg-gray-100 hover:bg-gray-200 text-gray-700"
                 )}
               >
-                Today (আজকে)
+                Today
               </button>
 
               <button
@@ -1415,7 +1415,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     : "bg-gray-100 hover:bg-gray-200 text-gray-700"
                 )}
               >
-                Yesterday (গতকাল)
+                Yesterday
               </button>
 
               {/* Date Input */}
@@ -1447,44 +1447,44 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             {/* 1. Daily Sales Revenue */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">কয় টাকার সেল (Sales Revenue)</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Daily Sales Revenue</span>
                 <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
                   <DollarSign className="w-5 h-5" />
                 </div>
               </div>
               <p className="text-2xl font-black text-gray-900">{formatCurrency(dailyMetrics.totalSalesAmount)}</p>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
-                <span className="text-gray-500">মোট বিক্রয় মূল্য</span>
-                <span className="font-bold text-emerald-600">{dailyMetrics.totalSalesCount} টি ইনভয়েস</span>
+                <span className="text-gray-500">Gross Sales Revenue</span>
+                <span className="font-bold text-emerald-600">{dailyMetrics.totalSalesCount} Invoices</span>
               </div>
             </div>
 
             {/* 2. Total Products Quantity Sold */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">কয়টা প্রোডাক্ট গেল (Units Sold)</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Units Sold</span>
                 <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
                   <Package className="w-5 h-5" />
                 </div>
               </div>
               <p className="text-2xl font-black text-gray-900">{dailyMetrics.totalUnitsSold} <span className="text-base font-bold text-gray-500">Pcs</span></p>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
-                <span className="text-gray-500">মোট ডেলিভারি/বিক্রি পণ্য</span>
-                <span className="font-bold text-indigo-600">{dailyMetrics.totalUniqueProductsCount} ধরনের আইটেম</span>
+                <span className="text-gray-500">Total Units Dispatched</span>
+                <span className="font-bold text-indigo-600">{dailyMetrics.totalUniqueProductsCount} Unique Items</span>
               </div>
             </div>
 
             {/* 3. Total Sales Orders Count */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">কয়টা সেল করল (Orders / Invoices)</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Orders / Invoices</span>
                 <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
                   <ShoppingBag className="w-5 h-5" />
                 </div>
               </div>
               <p className="text-2xl font-black text-gray-900">{dailyMetrics.totalSalesCount} <span className="text-base font-bold text-gray-500">Orders</span></p>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
-                <span className="text-gray-500">গড় ইনভয়েস সাইজ</span>
+                <span className="text-gray-500">Avg Order Value</span>
                 <span className="font-bold text-blue-600">{formatCurrency(dailyMetrics.avgOrderValue)}</span>
               </div>
             </div>
@@ -1492,52 +1492,52 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             {/* 4. Purchases from Suppliers */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">সাপ্লায়ার পারচেস (Purchases)</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Supplier Purchases</span>
                 <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
                   <Truck className="w-5 h-5" />
                 </div>
               </div>
               <p className="text-2xl font-black text-gray-900">{formatCurrency(dailyMetrics.totalPurchasesAmount)}</p>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
-                <span className="text-gray-500">কয়টা পারচেস করল</span>
-                <span className="font-bold text-purple-600">{dailyMetrics.totalPurchasesCount} টি বিল ({dailyMetrics.purchasesUnitsCount} pcs)</span>
+                <span className="text-gray-500">Total Purchases</span>
+                <span className="font-bold text-purple-600">{dailyMetrics.totalPurchasesCount} Bills ({dailyMetrics.purchasesUnitsCount} pcs)</span>
               </div>
             </div>
 
             {/* 5. Customer Collections */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">কাস্টমারের টাকা আনল (Money In)</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Customer Collections (Money In)</span>
                 <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl">
                   <ArrowDownLeft className="w-5 h-5" />
                 </div>
               </div>
               <p className="text-2xl font-black text-emerald-600">{formatCurrency(dailyMetrics.customerCollectionsAmount)}</p>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
-                <span className="text-gray-500">কয়টা কাস্টমারের টাকা</span>
-                <span className="font-bold text-teal-700">{dailyMetrics.customerCountPaid} জন কাস্টমার ({dailyMetrics.customerCollectionsCount} রিসিট)</span>
+                <span className="text-gray-500">Recovered from</span>
+                <span className="font-bold text-teal-700">{dailyMetrics.customerCountPaid} Customers ({dailyMetrics.customerCollectionsCount} Receipts)</span>
               </div>
             </div>
 
             {/* 6. Supplier Payouts */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">সাপ্লায়ারকে দিল (Money Out)</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Supplier Payouts (Money Out)</span>
                 <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
                   <ArrowUpRight className="w-5 h-5" />
                 </div>
               </div>
               <p className="text-2xl font-black text-rose-600">{formatCurrency(dailyMetrics.supplierPayoutsAmount)}</p>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs">
-                <span className="text-gray-500">কয়টা সাপ্লায়ারকে দিল</span>
-                <span className="font-bold text-rose-700">{dailyMetrics.supplierCountPaid} জন ভেন্ডর ({dailyMetrics.supplierPayoutsCount} পেমেন্ট)</span>
+                <span className="text-gray-500">Paid to</span>
+                <span className="font-bold text-rose-700">{dailyMetrics.supplierCountPaid} Vendors ({dailyMetrics.supplierPayoutsCount} Payments)</span>
               </div>
             </div>
 
             {/* 7. Gross Profit & Net Pulse */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition sm:col-span-2">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">দিনের লাভ ও মার্জিন (Gross Profit & Margin)</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Gross Profit & Margin</span>
                 <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
                   <TrendingUp className="w-5 h-5" />
                 </div>
@@ -1550,15 +1550,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                   dailyMetrics.dayGrossMargin > 0 ? "bg-blue-50 text-blue-700" :
                   "bg-rose-50 text-rose-700"
                 )}>
-                  মার্জিন {dailyMetrics.dayGrossMargin.toFixed(1)}%
+                  Margin {dailyMetrics.dayGrossMargin.toFixed(1)}%
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-100 text-xs">
                 <div className="text-gray-500">
-                  বিক্রিত মালের ক্রয়মূল্য (COGS): <strong className="text-gray-700 font-semibold">{formatCurrency(dailyMetrics.totalSalesCogs)}</strong>
+                  Cost of Goods Sold (COGS): <strong className="text-gray-700 font-semibold">{formatCurrency(dailyMetrics.totalSalesCogs)}</strong>
                 </div>
                 <div className="text-right">
-                  <span className="text-gray-500">দিনের নিট ক্যাশ ইনফ্লো: </span>
+                  <span className="text-gray-500">Net Daily Cash Flow: </span>
                   <strong className={cn(
                     "font-bold",
                     dailyMetrics.netCashFlow >= 0 ? "text-emerald-600" : "text-rose-600"
@@ -1585,7 +1585,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                   )}
                 >
                   <ShoppingBag size={14} className="text-emerald-600" />
-                  <span>আজকের সেল্স (Sales - {dailyMetrics.dayOrders.length})</span>
+                  <span>Sales Invoices ({dailyMetrics.dayOrders.length})</span>
                 </button>
 
                 <button
@@ -1598,7 +1598,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                   )}
                 >
                   <Truck size={14} className="text-purple-600" />
-                  <span>আজকের পারচেস (Purchases - {dailyMetrics.dayPurchases.length})</span>
+                  <span>Supplier Purchases ({dailyMetrics.dayPurchases.length})</span>
                 </button>
 
                 <button
@@ -1611,7 +1611,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                   )}
                 >
                   <ArrowDownLeft size={14} className="text-teal-600" />
-                  <span>ক্যাশ ও ডিউ লেনদেন (Transactions - {dailyMetrics.dayCashTransactions.length})</span>
+                  <span>Cash Flow & Settlements ({dailyMetrics.dayCashTransactions.length})</span>
                 </button>
               </div>
 
@@ -1638,7 +1638,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     {dailyMetrics.dayOrders.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-gray-400 text-xs">
-                          এই তারিখে কোনো সেল্স অর্ডার তৈরি হয়নি।
+                          No sales orders recorded on this date.
                         </td>
                       </tr>
                     ) : (
@@ -1705,7 +1705,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     {dailyMetrics.dayPurchases.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="py-12 text-center text-gray-400 text-xs">
-                          এই তারিখে কোনো সাপ্লায়ার পারচেস বা বিল রেকর্ড করা হয়নি।
+                          No supplier purchases recorded on this date.
                         </td>
                       </tr>
                     ) : (
@@ -1767,15 +1767,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                       <th className="py-3 px-4">Party Name</th>
                       <th className="py-3 px-4">Payment Account</th>
                       <th className="py-3 px-4">Reference / Memo</th>
-                      <th className="py-3 px-4 text-right">Inflow (টাকা আনা)</th>
-                      <th className="py-3 px-4 text-right">Outflow (টাকা দেওয়া)</th>
+                      <th className="py-3 px-4 text-right">Inflow (Money In)</th>
+                      <th className="py-3 px-4 text-right">Outflow (Money Out)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {dailyMetrics.dayCashTransactions.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="py-12 text-center text-gray-400 text-xs">
-                          এই তারিখে কোনো ক্যাশ বা ব্যাংক ট্রানজেকশন নেই।
+                          No cash or bank transactions recorded on this date.
                         </td>
                       </tr>
                     ) : (
