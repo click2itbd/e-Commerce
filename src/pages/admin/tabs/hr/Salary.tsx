@@ -529,9 +529,44 @@ const SalaryTab: React.FC = () => {
       .reduce((sum, s) => sum + (Number(s.netPay) || 0), 0);
   }, [employeeSalaries, selectedMonthFilter]);
 
-  const totalOutstandingAdvances = useMemo(() => {
-    return employees.reduce((sum, e) => sum + (Number(e.advanceBalance) || 0), 0);
+  // Clean Unique Employees (Deduplicated by normalized name)
+  const uniqueEmployees = useMemo(() => {
+    const map = new Map<string, Employee>();
+    for (const emp of employees) {
+      const key = (emp.name || '').trim().toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, emp);
+      } else {
+        const existing = map.get(key)!;
+        if ((!existing.baseSalary && emp.baseSalary) || (!existing.userId && emp.userId)) {
+          map.set(key, { ...existing, ...emp });
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [employees]);
+
+  const getEmployeeOptionLabel = (emp: Employee, includeSalary = false) => {
+    const name = emp.name || 'Staff';
+    const role = emp.role || 'Staff';
+    const lowerName = name.toLowerCase();
+    const lowerRole = role.toLowerCase();
+
+    // Do not append duplicate role if the name already contains it
+    const showRole = !lowerName.includes(lowerRole) && 
+                     !lowerName.includes('admin') && 
+                     !lowerName.includes('staff') && 
+                     !lowerName.includes('manager');
+
+    const roleText = showRole ? ` (${role})` : '';
+    const advText = emp.advanceBalance && emp.advanceBalance > 0 ? ` • Advance Due: ৳${emp.advanceBalance.toLocaleString()}` : '';
+    const salText = includeSalary && emp.baseSalary ? ` • Salary: ৳${emp.baseSalary.toLocaleString()}` : '';
+    return `${name}${roleText}${salText}${advText}`;
+  };
+
+  const totalOutstandingAdvances = useMemo(() => {
+    return uniqueEmployees.reduce((sum, e) => sum + (Number(e.advanceBalance) || 0), 0);
+  }, [uniqueEmployees]);
 
   // Filtered Salaries
   const filteredSalaries = useMemo(() => {
@@ -675,7 +710,7 @@ const SalaryTab: React.FC = () => {
                 : "text-gray-500 hover:text-gray-900"
             )}
           >
-            Staff Salary Profiles ({employees.length})
+            Staff Salary Profiles ({uniqueEmployees.length})
           </button>
           <button
             type="button"
@@ -887,7 +922,7 @@ const SalaryTab: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-700">
-                {employees
+                {uniqueEmployees
                   .filter(e => !searchQuery || (e.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
                   .map(emp => {
                     const hike = Number(emp.salaryHike) || 0;
@@ -1166,9 +1201,9 @@ const SalaryTab: React.FC = () => {
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none cursor-pointer"
                   >
                     <option value="">-- Choose Employee --</option>
-                    {employees.map(emp => (
+                    {uniqueEmployees.map(emp => (
                       <option key={emp.id} value={emp.id}>
-                        {emp.name} ({emp.role || 'Staff'}) {emp.advanceBalance ? `• Advance Due: ৳${emp.advanceBalance}` : ''}
+                        {getEmployeeOptionLabel(emp, false)}
                       </option>
                     ))}
                   </select>
@@ -1450,9 +1485,9 @@ const SalaryTab: React.FC = () => {
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs focus:bg-white focus:ring-2 focus:ring-amber-500/20 outline-none cursor-pointer"
                 >
                   <option value="">-- Choose Employee --</option>
-                  {employees.map(emp => (
+                  {uniqueEmployees.map(emp => (
                     <option key={emp.id} value={emp.id}>
-                      {emp.name} ({emp.role || 'Staff'}) {emp.baseSalary ? `• Salary: ৳${emp.baseSalary}` : ''}
+                      {getEmployeeOptionLabel(emp, true)}
                     </option>
                   ))}
                 </select>

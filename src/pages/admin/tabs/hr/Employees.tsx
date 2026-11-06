@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { collection, addDoc, updateDoc, deleteDoc, doc, query, getDocs, orderBy } from 'firebase/firestore';
 import { db, storage } from '../../../../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -160,7 +160,23 @@ const EmployeesTab: React.FC = () => {
     }
   };
 
-  const filteredEmployees = employees.filter(emp => 
+  const uniqueEmployees = useMemo(() => {
+    const map = new Map<string, Employee>();
+    for (const emp of employees) {
+      const key = (emp.name || '').trim().toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, emp);
+      } else {
+        const existing = map.get(key)!;
+        if ((!existing.baseSalary && emp.baseSalary) || (!existing.userId && emp.userId)) {
+          map.set(key, { ...existing, ...emp });
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [employees]);
+
+  const filteredEmployees = uniqueEmployees.filter(emp => 
     (emp.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
     (emp.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (emp.role || '').toLowerCase().includes(searchQuery.toLowerCase())
