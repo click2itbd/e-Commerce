@@ -165,7 +165,7 @@ export default function VendorDueList() {
       if (isVendorTx && t.entityId) {
         if (!balances[t.entityId]) balances[t.entityId] = 0;
         
-        if (t.type === 'purchase' || t.type === 'opening_balance') {
+        if (t.type === 'purchase' || t.type === 'opening_balance' || t.type === 'cheque_bounced') {
           balances[t.entityId] += Number(t.amount);
         } else if (t.type === 'payment_made' || ((t.type === 'purchase_return' || t.type === 'return') && (t.paymentMethod === 'supplier_credit' || !t.paymentMethod || t.paymentMethod === 'credit'))) {
           balances[t.entityId] -= Number(t.amount);

@@ -39,6 +39,7 @@ import {
 import { generateDocumentNumber } from '../../../../lib/numbering';
 import { AIPolishButton } from '../../../../components/common/AIPolishButton';
 import { Pagination } from '../../../../components/common/Pagination';
+import { issueCheque } from '../../../../services/chequeService';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -75,6 +76,10 @@ interface PurchaseRecord {
   total: number;
   paidAmount: number;
   paymentStatus: 'paid' | 'partial' | 'unpaid';
+  isChequePayment?: boolean;
+  chequeNumber?: string;
+  chequeClearingDate?: string;
+  chequeStatus?: 'pending' | 'cleared' | 'bounced';
   paymentAccountId?: string;
   paymentMethod?: string;
   reference?: string;
@@ -176,6 +181,9 @@ const Purchases: React.FC<PurchasesProps> = ({
       paymentAccountId: '',
       paymentMethod: '',
       paidAmount: 0,
+      isChequePayment: false,
+      chequeNumber: '',
+      chequeClearingDate: new Date().toISOString().split('T')[0],
       shippingCost: 0,
       attachmentUrl: '',
       notes: '',
@@ -1188,22 +1196,41 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
         createdBy: purchaseForm.createdBy || 'Admin',
       });
 
-      // If any amount was paid, record the payment transaction
+      // If any amount was paid, record the payment transaction or register cheque
       if (paid > 0) {
-        await addDoc(collection(db, 'transactions'), {
-          type: 'payment_made',
-          amount: paid,
-          date: new Date(purchaseForm.date).toISOString(),
-          description: `Payment for Purchase #${docNumber}`,
-          entityId: purchaseForm.vendorId,
-          entityName: purchaseForm.vendorName,
-          entityType: 'vendor',
-          referenceId: purchaseDocRef.id,
-          documentNumber: docNumber,
-          paymentAccountId: selectedAcc?.id || '',
-          paymentMethod: selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash',
-          createdAt: new Date().toISOString(),
-        });
+        if (purchaseForm.isChequePayment) {
+          await issueCheque({
+            chequeNumber: purchaseForm.chequeNumber || `CK-${Date.now().toString().slice(-6)}`,
+            amount: paid,
+            bankAccountId: selectedAcc?.id || '',
+            bankAccountName: selectedAcc?.name || 'Bank',
+            bankName: (selectedAcc as any)?.bankName || selectedAcc?.name || 'Bank',
+            vendorId: purchaseForm.vendorId,
+            vendorName: purchaseForm.vendorName,
+            payeeName: purchaseForm.vendorName,
+            issueDate: purchaseForm.date,
+            clearingDate: purchaseForm.chequeClearingDate || purchaseForm.date,
+            purchaseId: purchaseDocRef.id,
+            purchaseNumber: docNumber,
+            notes: purchaseForm.notes,
+            user: purchaseForm.createdBy || 'Admin',
+          });
+        } else {
+          await addDoc(collection(db, 'transactions'), {
+            type: 'payment_made',
+            amount: paid,
+            date: new Date(purchaseForm.date).toISOString(),
+            description: `Payment for Purchase #${docNumber}`,
+            entityId: purchaseForm.vendorId,
+            entityName: purchaseForm.vendorName,
+            entityType: 'vendor',
+            referenceId: purchaseDocRef.id,
+            documentNumber: docNumber,
+            paymentAccountId: selectedAcc?.id || '',
+            paymentMethod: selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash',
+            createdAt: new Date().toISOString(),
+          });
+        }
       }
 
       toast.success(`Purchase #${docNumber} recorded & inventory restocked successfully!`);
@@ -2040,6 +2067,56 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                         )}>
                           <span>বর্তমান ব্যালেন্স:</span>
                           <span>{formatCurrency(availableBalance, settings)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cheque Payment Option */}
+                    <div className="pt-2 border-t border-gray-200">
+                      <label className="flex items-center gap-2 text-xs font-bold text-indigo-900 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(purchaseForm.isChequePayment)}
+                          onChange={e => setPurchaseForm({ 
+                            ...purchaseForm, 
+                            isChequePayment: e.target.checked,
+                            chequeClearingDate: purchaseForm.chequeClearingDate || new Date().toISOString().split('T')[0]
+                          })}
+                          className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                        />
+                        <span>🏦 Pay via Bank Cheque / PDC (পোস্ট-ডেটেড চেক)</span>
+                      </label>
+
+                      {purchaseForm.isChequePayment && (
+                        <div className="mt-2.5 bg-indigo-50/80 border border-indigo-200 rounded-xl p-3 space-y-2 animate-in fade-in">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-bold text-indigo-950 uppercase mb-1">
+                                চেক নম্বর (Cheque No) *
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g. CK-890123"
+                                value={purchaseForm.chequeNumber || ''}
+                                onChange={e => setPurchaseForm({ ...purchaseForm, chequeNumber: e.target.value })}
+                                className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 font-mono font-bold text-xs outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-indigo-950 uppercase mb-1">
+                                ক্লিয়ারিং / ক্যাশ হওয়ার তারিখ (PDC Date) *
+                              </label>
+                              <input
+                                type="date"
+                                value={purchaseForm.chequeClearingDate || ''}
+                                onChange={e => setPurchaseForm({ ...purchaseForm, chequeClearingDate: e.target.value })}
+                                className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 font-bold text-xs outline-none text-indigo-950"
+                              />
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-indigo-700 font-medium">
+                            💡 চেকটি "Pending Clearance" হিসেবে Cheque Tracker-এ থাকবে এবং ক্লিয়ারিং ডেটে নোটিফিকেশন দিবে।
+                          </p>
                         </div>
                       )}
                     </div>

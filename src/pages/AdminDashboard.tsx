@@ -233,6 +233,11 @@ const CustomerDueListTab = lazy(() =>
     default: m.default,
   })),
 );
+const ChequeTrackerTab = lazy(() =>
+  import("./admin/tabs/purchase/ChequeTracker").then((m) => ({
+    default: m.default,
+  })),
+);
 const VendorDueListTab = lazy(() =>
   import("./admin/tabs/purchase/VendorDueList").then((m) => ({
     default: m.default,
@@ -699,6 +704,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     "purchase_return",
     "vendors",
     "vendor_due_list",
+    "cheques",
     "menus",
     "services",
     "payment_accounts",
@@ -4808,6 +4814,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <span className="truncate">Supplier Due List</span>
               )}
             </button>
+            <button
+              onClick={() => {
+                setActiveTab("cheques");
+                setIsMobileMenuOpen(false);
+              }}
+              className={cn(
+                "w-full flex items-center rounded-md text-[13px] transition-colors",
+                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
+                activeTab === "cheques"
+                  ? "text-blue-600 font-bold bg-blue-50"
+                  : "text-gray-600 hover:bg-gray-50",
+              )}
+            >
+              <CreditCard
+                size={16}
+                className={
+                  activeTab === "cheques"
+                    ? "text-blue-600"
+                    : "text-gray-400"
+                }
+              />{" "}
+              {!isSidebarCollapsed && (
+                <span className="truncate flex items-center justify-between flex-1">
+                  <span>Cheque Tracker</span>
+                  <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-black">
+                    PDC
+                  </span>
+                </span>
+              )}
+            </button>
           </div>
 
           {/* Warranty */}
@@ -6213,6 +6249,8 @@ handleReturnOrder={handleReturnOrder}
                 <CustomerDueListTab />
               ) : activeTab === "vendor_due_list" ? (
                 <VendorDueListTab />
+              ) : activeTab === "cheques" ? (
+                <ChequeTrackerTab />
 
               ) : activeTab === "deliveries" ? (
                 <EcommerceDeliveries />

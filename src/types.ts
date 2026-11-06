@@ -124,7 +124,43 @@ export interface PaymentAccount {
   createdAt: string;
 }
 
-export type TransactionType = 'sale' | 'purchase' | 'expense' | 'income' | 'payment_received' | 'payment_made' | 'money_receipt' | 'return' | 'opening_balance' | 'purchase_return' | 'deposit' | 'withdrawal' | 'transfer_in' | 'transfer_out' | 'salary' | 'conveyance' | 'sale_return';
+export type ChequeStatus = 'pending' | 'cleared' | 'bounced' | 'cancelled';
+export type ChequeType = 'purchase_payment' | 'vendor_due_payment' | 'other_payment';
+
+export interface ChequeRecord {
+  id: string;
+  chequeNumber: string;
+  type: ChequeType;
+  status: ChequeStatus;
+  amount: number;
+  issueDate: string; // YYYY-MM-DD
+  clearingDate: string; // YYYY-MM-DD (Maturity date)
+  bankAccountId: string;
+  bankAccountName: string;
+  bankName?: string;
+  vendorId?: string;
+  vendorName?: string;
+  purchaseId?: string;
+  purchaseNumber?: string;
+  payeeName?: string;
+  notes?: string;
+  attachmentUrl?: string;
+  clearedAt?: string;
+  clearedBy?: string;
+  clearingTransactionId?: string;
+  bouncedAt?: string;
+  bouncedBy?: string;
+  bounceReason?: string;
+  bounceFee?: number;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelReason?: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
+}
+
+export type TransactionType = 'sale' | 'purchase' | 'expense' | 'income' | 'payment_received' | 'payment_made' | 'money_receipt' | 'return' | 'opening_balance' | 'purchase_return' | 'deposit' | 'withdrawal' | 'transfer_in' | 'transfer_out' | 'salary' | 'conveyance' | 'sale_return' | 'cheque_bounced';
 
 export interface Transaction {
   id: string;
