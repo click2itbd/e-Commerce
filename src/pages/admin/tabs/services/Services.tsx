@@ -7,6 +7,7 @@ import { logAudit } from '../../../../lib/audit';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
+import { AIPolishButton } from '../../../../components/common/AIPolishButton';
 import {  ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle, Clock, AlertCircle, Package, MessageCircle, ShoppingCart , Trash2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -25,16 +26,19 @@ interface ServiceRecord {
   equipmentType?: string;
   preparedBy?: string;
   paymentMethod?: string;
+  paymentAccountId?: string;
   paymentStatus?: string;
   
-  // RMA Fields
-  serviceType?: 'in_house' | 'rma';
+  // RMA & Outsource Fields
+  serviceType?: 'in_house' | 'outsourced' | 'rma';
   vendorId?: string;
+  vendorName?: string;
   rmaStatus?: 'Pending Vendor' | 'Sent to Vendor' | 'Received from Vendor' | 'Delivered';
   newSerialNumber?: string;
   outsourceCost?: number;
   outsourcePaidAmount?: number;
   outsourcePaymentMethod?: string;
+  outsourcePaymentAccountId?: string;
   outsourceTxPurchaseId?: string;
   outsourceTxPaymentId?: string;
   isOutsourced?: boolean;
@@ -100,10 +104,17 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     status: 'received',
     equipmentType: '',
     preparedBy: '',
-    paymentMethod: 'cash',
+    paymentMethod: '',
+    paymentAccountId: '',
     paymentStatus: 'pending',
-    serviceType: 'in_house' as 'in_house' | 'rma',
+    serviceType: 'in_house' as 'in_house' | 'outsourced' | 'rma',
     vendorId: '',
+    vendorName: '',
+    outsourceCost: 0,
+    outsourcePaidAmount: 0,
+    outsourcePaymentMethod: '',
+    outsourcePaymentAccountId: '',
+    isOutsourced: false,
     rmaStatus: 'Pending Vendor' as any,
     newSerialNumber: '',
   };
@@ -517,20 +528,41 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     e.preventDefault();
     try {
       const isPaidOrZero = Number(serviceFormData.serviceCharge || 0) <= 0 || serviceFormData.paymentStatus === "paid";
-      const serviceData = {
+      
+      // Resolve customer payment method
+      let pMethod = serviceFormData.paymentMethod || '';
+      if (serviceFormData.paymentAccountId) {
+        const acc = paymentAccounts.find(a => a.id === serviceFormData.paymentAccountId);
+        if (acc) pMethod = acc.type || acc.name;
+      }
+
+      // Resolve outsource payment method
+      let oMethod = serviceFormData.outsourcePaymentMethod || '';
+      if (serviceFormData.outsourcePaymentAccountId) {
+        const acc = paymentAccounts.find(a => a.id === serviceFormData.outsourcePaymentAccountId);
+        if (acc) oMethod = acc.type || acc.name;
+      }
+
+      // Clean undefined fields for Firestore
+      const cleanData: any = {};
+      Object.entries({
         ...serviceFormData,
+        paymentMethod: pMethod,
+        outsourcePaymentMethod: oMethod,
         paymentStatus: isPaidOrZero ? "paid" : (serviceFormData.paymentStatus || "pending"),
         receivedAt: serviceFormData.receivedAt 
           ? (serviceFormData.receivedAt.includes('T') ? serviceFormData.receivedAt : `${serviceFormData.receivedAt}T12:00:00.000Z`)
           : (editingService?.receivedAt || new Date().toISOString()),
-      };
+      }).forEach(([k, v]) => {
+        if (v !== undefined) cleanData[k] = v;
+      });
 
       if (editingService) {
-          await updateDoc(doc(db, 'services', editingService.id), serviceData);
-          await logAudit('EDIT', 'Service', `Edited service ticket #${serviceData.serialNumber || editingService.id} (${serviceData.status})`, profile?.displayName || profile?.email || 'Admin');
-          toast.success('Service updated successfully');
-        } else {
-        await addDoc(collection(db, 'services'), serviceData);
+        await updateDoc(doc(db, 'services', editingService.id), cleanData);
+        await logAudit('EDIT', 'Service', `Edited service ticket #${cleanData.serialNumber || editingService.id} (${cleanData.status})`, profile?.displayName || profile?.email || 'Admin');
+        toast.success('Service updated successfully');
+      } else {
+        await addDoc(collection(db, 'services'), cleanData);
         toast.success('Service added successfully');
       }
 
@@ -662,127 +694,232 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       </div>
 
       {isAddingService && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full">
-            <div className="p-6 border-b border-gray-100 font-bold text-lg">
-              {editingService ? 'Edit Service Record' : 'Add New Service Record'}
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-[#081621] text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#EF4444] text-white flex items-center justify-center shadow-md">
+                  <Wrench size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm tracking-wide text-white flex items-center gap-2">
+                    {editingService ? 'Edit Service Record' : 'Add New Service Record'}
+                    {editingService && (
+                      <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full">
+                        Ticket #{editingService.serialNumber || editingService.id.slice(-6).toUpperCase()}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Comprehensive service intake, vendor outsourcing & warranty management
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsAddingService(false); setEditingService(null); }}
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <form onSubmit={handleSaveService} className="p-6 bg-gray-50 border-b border-gray-100 flex flex-col gap-6 max-h-[80vh] overflow-y-auto">
-              {/* Service Type Selection */}
-              <div className="flex items-center gap-6 p-4 bg-white rounded-lg border border-gray-200">
-                <div className="font-bold text-gray-700">Service Type:</div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="serviceType" value="in_house" checked={serviceFormData.serviceType === 'in_house'} onChange={() => setServiceFormData({...serviceFormData, serviceType: 'in_house'})} className="text-[#EF4444] focus:ring-[#EF4444]" />
-                  <span>In-House Repair</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="serviceType" value="outsourced" checked={serviceFormData.serviceType === 'outsourced'} onChange={() => setServiceFormData({...serviceFormData, serviceType: 'outsourced'})} className="text-[#EF4444] focus:ring-[#EF4444]" />
-                  <span>Outsourced Repair</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="serviceType" value="rma" checked={serviceFormData.serviceType === 'rma'} onChange={() => setServiceFormData({...serviceFormData, serviceType: 'rma'})} className="text-[#EF4444] focus:ring-[#EF4444]" />
-                    <span>Warranty / RMA</span>
-                </label>
-              </div>
 
-              {/* Billing / Warranty Selection */}
-              <div className="flex items-center gap-6 p-4 bg-white rounded-lg border border-gray-200">
-                <div className="font-bold text-gray-700">Billing / Warranty:</div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    name="isWarrantyRadio" 
-                    checked={!serviceFormData.isWarranty} 
-                    onChange={() => setServiceFormData({...serviceFormData, isWarranty: false})} 
-                    className="text-[#EF4444] focus:ring-[#EF4444]" 
-                  />
-                  <span className="font-semibold text-gray-800">Paid Service</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    name="isWarrantyRadio" 
-                    checked={!!serviceFormData.isWarranty} 
-                    onChange={() => setServiceFormData({...serviceFormData, isWarranty: true, serviceCharge: 0})} 
-                    className="text-purple-600 focus:ring-purple-600" 
-                  />
-                  <span className="font-bold text-purple-700">Warranty / Free Service</span>
-                </label>
-              </div>
-
-              
-                {/* Outsourcing Checkbox (Only for In-House Repair) */}
-                {serviceFormData.serviceType === 'in_house' && (
-                  <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <input 
-                      type="checkbox" 
-                      id="isOutsourced"
-                      checked={serviceFormData.isOutsourced}
-                      onChange={(e) => setServiceFormData({...serviceFormData, isOutsourced: e.target.checked})}
-                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                    />
-                    <label htmlFor="isOutsourced" className="font-bold text-gray-700 cursor-pointer">
-                      Did you outsource this repair to a 3rd party vendor?
-                    </label>
+            {/* Modal Body */}
+            <form onSubmit={handleSaveService} className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50/60 space-y-4">
+              {/* Top Controls: Horizontal Pill Selectors */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {/* Service Type Selection */}
+                <div className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs">
+                  <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span>Service Execution Mode</span>
+                    <span className="text-[10px] font-bold text-slate-400">Choose where repair is done</span>
                   </div>
-                )}
-
-                {(serviceFormData.serviceType === 'rma' || serviceFormData.isOutsourced) && (
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-blue-800 uppercase mb-1">
-                      {serviceFormData.serviceType === 'rma' ? 'Select Supplier / Dealer' : 'Select Outsourced Mechanic / Vendor'}
-                    </label>
-                    <select
-                      value={serviceFormData.vendorId}
-                      onChange={e => setServiceFormData({ ...serviceFormData, vendorId: e.target.value })}
-                      className="w-full border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      required={serviceFormData.serviceType === 'rma' || serviceFormData.isOutsourced}
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setServiceFormData({ ...serviceFormData, serviceType: 'in_house', isOutsourced: false })}
+                      className={cn(
+                        "py-2 px-2 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 cursor-pointer",
+                        serviceFormData.serviceType === 'in_house' && !serviceFormData.isOutsourced
+                          ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                      )}
                     >
-                      <option value="">-- Select Vendor --</option>
-                      {vendors.map(v => (
-                        <option key={v.id} value={v.id}>{v.name}</option>
-                      ))}
-                    </select>
+                      🛠️ In-House
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setServiceFormData({ ...serviceFormData, serviceType: 'outsourced', isOutsourced: true })}
+                      className={cn(
+                        "py-2 px-2 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 cursor-pointer",
+                        serviceFormData.serviceType === 'outsourced' || serviceFormData.isOutsourced
+                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-700"
+                      )}
+                    >
+                      🤝 Outsourced
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setServiceFormData({ ...serviceFormData, serviceType: 'rma', isOutsourced: false })}
+                      className={cn(
+                        "py-2 px-2 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 cursor-pointer",
+                        serviceFormData.serviceType === 'rma'
+                          ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-purple-50 hover:text-purple-700"
+                      )}
+                    >
+                      🏷️ Warranty / RMA
+                    </button>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                </div>
+
+                {/* Billing / Warranty Selection */}
+                <div className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs">
+                  <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span>Billing & Warranty Policy</span>
+                    <span className="text-[10px] font-bold text-slate-400">Customer charge policy</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setServiceFormData({ ...serviceFormData, isWarranty: false })}
+                      className={cn(
+                        "py-2 px-2 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 cursor-pointer",
+                        !serviceFormData.isWarranty
+                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700"
+                      )}
+                    >
+                      💵 Paid Service
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setServiceFormData({ ...serviceFormData, isWarranty: true, serviceCharge: 0, paymentStatus: 'paid' })}
+                      className={cn(
+                        "py-2 px-2 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 cursor-pointer",
+                        serviceFormData.isWarranty
+                          ? "bg-purple-700 text-white border-purple-700 shadow-xs"
+                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-purple-50 hover:text-purple-700"
+                      )}
+                    >
+                      🛡️ Warranty / Free Service
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Outsourced Repair / RMA Partner Section */}
+              {(serviceFormData.serviceType === 'outsourced' || serviceFormData.serviceType === 'rma' || serviceFormData.isOutsourced) && (
+                <div className="p-4 bg-gradient-to-r from-blue-50/90 to-indigo-50/70 rounded-xl border border-blue-200 space-y-3.5 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-blue-200/70 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
+                      <h4 className="text-xs font-black text-blue-950 uppercase tracking-wider">
+                        {serviceFormData.serviceType === 'rma' ? '🏷️ Supplier / RMA Partner Routing' : '🤝 3rd-Party Outsource Workshop / Mechanic'}
+                      </h4>
+                    </div>
+                    <span className="text-[11px] font-bold text-blue-800 bg-blue-100/80 px-2 py-0.5 rounded-md border border-blue-200">
+                      Outsource Costing & Accounts
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     <div>
-                      <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Repair Cost (Tk)</label>
+                      <label className="block text-[11px] font-black text-blue-900 uppercase mb-1">
+                        Select Registered Vendor (Optional)
+                      </label>
+                      <select
+                        value={serviceFormData.vendorId || ''}
+                        onChange={e => {
+                          const vId = e.target.value;
+                          const foundVendor = vendors.find(v => v.id === vId);
+                          setServiceFormData({
+                            ...serviceFormData,
+                            vendorId: vId,
+                            vendorName: foundVendor ? foundVendor.name : (vId === '' ? '' : serviceFormData.vendorName)
+                          });
+                        }}
+                        className="w-full bg-white border border-blue-200 rounded-lg p-2.5 text-xs font-semibold text-slate-800 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
+                      >
+                        <option value="">-- Select from Registered Vendors --</option>
+                        {vendors.map(v => (
+                          <option key={v.id} value={v.id}>{v.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-black text-blue-900 uppercase mb-1">
+                        Vendor / Technician / Workshop Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required={serviceFormData.serviceType === 'outsourced' || serviceFormData.serviceType === 'rma' || serviceFormData.isOutsourced}
+                        value={serviceFormData.vendorName || ''}
+                        onChange={e => setServiceFormData({ ...serviceFormData, vendorName: e.target.value })}
+                        className="w-full bg-white border border-blue-200 rounded-lg p-2.5 text-xs font-bold text-slate-900 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
+                        placeholder="e.g. Master Tech Lab, Smart Care, or Md. Shakil"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-black text-blue-900 uppercase mb-1">
+                        Repair / Outsource Cost (৳)
+                      </label>
                       <input
                         type="number"
                         min={0}
                         value={serviceFormData.outsourceCost || ''}
                         onChange={e => setServiceFormData({ ...serviceFormData, outsourceCost: Number(e.target.value) || 0 })}
-                        className="w-full border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="e.g. 500"
+                        className="w-full bg-white border border-blue-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
+                        placeholder="0"
                       />
                     </div>
+
                     <div>
-                      <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Paid to Vendor (Tk)</label>
+                      <label className="block text-[11px] font-black text-blue-900 uppercase mb-1">
+                        Amount Paid to Vendor (৳)
+                      </label>
                       <input
                         type="number"
                         min={0}
                         value={serviceFormData.outsourcePaidAmount || ''}
                         onChange={e => setServiceFormData({ ...serviceFormData, outsourcePaidAmount: Number(e.target.value) || 0 })}
-                        className="w-full border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="e.g. 500"
+                        className="w-full bg-white border border-blue-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
+                        placeholder="0"
                       />
                       {(serviceFormData.outsourceCost || 0) > (serviceFormData.outsourcePaidAmount || 0) && serviceFormData.outsourceCost > 0 && (
-                        <p className="text-[10px] text-red-600 mt-1 font-bold">Unpaid: {(serviceFormData.outsourceCost || 0) - (serviceFormData.outsourcePaidAmount || 0)} Tk will go to vendor due.</p>
+                        <p className="text-[10px] text-amber-800 mt-1 font-bold">
+                          ⚠️ Remaining Due: {(serviceFormData.outsourceCost || 0) - (serviceFormData.outsourcePaidAmount || 0)} ৳ will be recorded in vendor due.
+                        </p>
                       )}
                     </div>
+
                     <div>
-                      <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Paid From Account</label>
+                      <label className="block text-[11px] font-black text-blue-900 uppercase mb-1">
+                        Paid From Account
+                      </label>
                       <select
-                        value={serviceFormData.outsourcePaymentMethod}
-                        onChange={e => setServiceFormData({ ...serviceFormData, outsourcePaymentMethod: e.target.value })}
-                        className="w-full border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        value={serviceFormData.outsourcePaymentAccountId || ''}
+                        onChange={e => {
+                          const accId = e.target.value;
+                          const acc = paymentAccounts.find(a => a.id === accId);
+                          setServiceFormData({
+                            ...serviceFormData,
+                            outsourcePaymentAccountId: accId,
+                            outsourcePaymentMethod: acc ? (acc.type || acc.name) : ''
+                          });
+                        }}
+                        className="w-full bg-white border border-blue-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
                         disabled={!(serviceFormData.outsourcePaidAmount > 0)}
                       >
-                        <option value="cash">Cash</option>
+                        <option value="">-- Select Payment Account --</option>
                         {paymentAccounts?.map((acc: any) => (
-                          <option key={acc.id} value={acc.type || acc.name}>{acc.name}</option>
+                          <option key={acc.id} value={acc.id}>{acc.name} ({acc.type || 'account'})</option>
                         ))}
                       </select>
                     </div>
@@ -790,216 +927,308 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Serial Number</label>
-                  <input
-                    type="text"
-                    required
-                    value={serviceFormData.serialNumber}
-                    onChange={e => setServiceFormData({ ...serviceFormData, serialNumber: e.target.value })}
-                    className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                  />
-                </div>
-                  <div className="relative">
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Customer Name</label>
-                    <input
-                      type="text"
-                      required
-                      autoComplete="off"
-                      value={serviceFormData.customerName}
-                      onFocus={() => setShowCustomerDropdown(true)}
-                      onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
-                      onChange={e => {
-                        const cName = e.target.value;
-                        const c = customers.find((x: any) => x.name === cName);
-                        setServiceFormData({ 
-                          ...serviceFormData, 
-                          customerName: cName,
-                          customerPhone: c ? c.phone : serviceFormData.customerPhone
-                        });
-                      }}
-                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                      placeholder="Type to search or add new..."
-                    />
-                    {showCustomerDropdown && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                        {customers.filter((c: any) => c.name.toLowerCase().includes(serviceFormData.customerName.toLowerCase())).length > 0 ? (
-                          customers.filter((c: any) => c.name.toLowerCase().includes(serviceFormData.customerName.toLowerCase())).map((c: any) => (
-                            <div 
-                              key={c.id} 
-                              className="px-3 py-2 cursor-pointer hover:bg-gray-100 border-b border-gray-50 last:border-0"
-                              onClick={() => {
-                                setServiceFormData({
-                                  ...serviceFormData, 
-                                  customerName: c.name, 
-                                  customerPhone: c.phone || serviceFormData.customerPhone
-                                });
-                                setShowCustomerDropdown(false);
-                              }}
-                            >
-                              <div className="font-bold text-sm text-gray-800">{c.name}</div>
-                              {c.phone && <div className="text-xs text-gray-500">{c.phone}</div>}
+              {/* 3-Column Horizontal Form Layout */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Column 1: Customer & Reception Details */}
+                <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-3.5 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="text-[11px] font-black text-slate-800 uppercase tracking-wide border-b border-slate-100 pb-2 flex items-center gap-1.5">
+                      <span>👤</span> Customer & Reception
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                        Serial Number / S/N <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={serviceFormData.serialNumber}
+                        onChange={e => setServiceFormData({ ...serviceFormData, serialNumber: e.target.value })}
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                        placeholder="e.g. SN12345678"
+                      />
+                    </div>
+
+                    <div className="relative">
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                        Customer Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        autoComplete="off"
+                        value={serviceFormData.customerName}
+                        onFocus={() => setShowCustomerDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                        onChange={e => {
+                          const cName = e.target.value;
+                          const c = customers.find((x: any) => x.name.toLowerCase() === cName.toLowerCase());
+                          setServiceFormData({
+                            ...serviceFormData,
+                            customerName: cName,
+                            customerPhone: c ? c.phone : serviceFormData.customerPhone
+                          });
+                        }}
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                        placeholder="Type to search or enter customer..."
+                      />
+                      {showCustomerDropdown && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto">
+                          {customers.filter((c: any) => c.name.toLowerCase().includes(serviceFormData.customerName.toLowerCase())).length > 0 ? (
+                            customers.filter((c: any) => c.name.toLowerCase().includes(serviceFormData.customerName.toLowerCase())).map((c: any) => (
+                              <div
+                                key={c.id}
+                                className="px-3 py-2 cursor-pointer hover:bg-slate-50 border-b border-slate-50 last:border-0"
+                                onClick={() => {
+                                  setServiceFormData({
+                                    ...serviceFormData,
+                                    customerName: c.name,
+                                    customerPhone: c.phone || serviceFormData.customerPhone
+                                  });
+                                  setShowCustomerDropdown(false);
+                                }}
+                              >
+                                <div className="font-bold text-xs text-slate-800">{c.name}</div>
+                                {c.phone && <div className="text-[10px] text-slate-500 font-medium">{c.phone}</div>}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-[11px] text-slate-500 italic">
+                              No matching customer. Will be saved as entered.
                             </div>
-                          ))
-                        ) : (
-                          <div className="px-3 py-2 text-xs text-gray-500 italic">
-                            No match found. Will be saved as new.
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                        Customer Phone <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        value={serviceFormData.customerPhone}
+                        onChange={e => setServiceFormData({ ...serviceFormData, customerPhone: e.target.value })}
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                        placeholder="01XXXXXXXXX"
+                      />
+                    </div>
                   </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Product Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={serviceFormData.productName}
-                    onChange={e => {
-                      const pName = e.target.value;
-                      const suggested = (!serviceFormData.equipmentType || serviceFormData.equipmentType === 'Laptop') ? suggestEquipmentType(pName) : '';
-                      setServiceFormData({ 
-                        ...serviceFormData, 
-                        productName: pName,
-                        ...(suggested ? { equipmentType: suggested } : {})
-                      });
-                    }}
-                    className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Equipment Type</label>
-                  <input
-                    type="text"
-                    list="equipment-type-suggestions"
-                    value={serviceFormData.equipmentType || ''}
-                    onChange={e => setServiceFormData({ ...serviceFormData, equipmentType: e.target.value })}
-                    className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                    placeholder="e.g. Hard Drive / Storage, Laptop, Desktop, Monitor, Printer..."
-                  />
-                  <datalist id="equipment-type-suggestions">
-                    <option value="Hard Drive / Storage" />
-                    <option value="Laptop" />
-                    <option value="Desktop" />
-                    <option value="Monitor" />
-                    <option value="Printer" />
-                    <option value="Motherboard" />
-                    <option value="Graphics Card (GPU)" />
-                    <option value="RAM / Memory" />
-                    <option value="Power Supply (PSU)" />
-                    <option value="UPS / IPS" />
-                    <option value="Networking / Router" />
-                    <option value="Accessories" />
-                  </datalist>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Issue Description</label>
-                  <textarea
-                    required
-                    value={serviceFormData.issueDescription}
-                    onChange={e => setServiceFormData({ ...serviceFormData, issueDescription: e.target.value })}
-                    className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Customer Phone</label>
-                  <input
-                    type="tel"
-                    required
-                    value={serviceFormData.customerPhone}
-                    onChange={e => setServiceFormData({ ...serviceFormData, customerPhone: e.target.value })}
-                    className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Service Charge</label>
-                  <input
-                    type="number"
-                    value={serviceFormData.serviceCharge}
-                    onChange={e => setServiceFormData({ ...serviceFormData, serviceCharge: Number(e.target.value) || 0 })}
-                    className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Payment Status</label>
-                    <select
-                      value={serviceFormData.paymentStatus || (Number(serviceFormData.serviceCharge) <= 0 ? 'paid' : 'pending')}
-                      onChange={e => setServiceFormData({ ...serviceFormData, paymentStatus: e.target.value })}
-                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="paid">Paid</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Payment Method</label>
-                    <select
-                      value={serviceFormData.paymentMethod || 'cash'}
-                      onChange={e => setServiceFormData({ ...serviceFormData, paymentMethod: e.target.value })}
-                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                    >
-                      <option value="cash">Cash</option>
-                      <option value="bkash">bKash</option>
-                      <option value="nagad">Nagad</option>
-                      <option value="bank">Bank</option>
-                      <option value="card">Card</option>
-                    </select>
-                  </div>
-                </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Prepared By</label>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Prepared By (Staff)</label>
                     <input
                       type="text"
                       value={serviceFormData.preparedBy || ''}
                       onChange={e => setServiceFormData({ ...serviceFormData, preparedBy: e.target.value })}
-                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
+                      className="w-full border border-slate-200 rounded-lg p-2 text-xs font-medium text-slate-800 focus:ring-[#EF4444] focus:border-[#EF4444]"
                       placeholder="Staff name"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
-                    <select
-                      value={serviceFormData.status || 'received'}
-                      onChange={e => setServiceFormData({ ...serviceFormData, status: e.target.value })}
-                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                    >
-                      <option value="received">Received</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="ready">Ready for Pickup</option>
-                      <option value="delivered">Delivered</option>
-                    </select>
+                </div>
+
+                {/* Column 2: Product & Issue Details */}
+                <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-3.5 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="text-[11px] font-black text-slate-800 uppercase tracking-wide border-b border-slate-100 pb-2 flex items-center gap-1.5">
+                      <span>💻</span> Device & Fault Details
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase">
+                          Product / Item Name <span className="text-red-500">*</span>
+                        </label>
+                        <AIPolishButton
+                          text={serviceFormData.productName}
+                          onPolished={polished => {
+                            const suggested = (!serviceFormData.equipmentType || serviceFormData.equipmentType === 'Laptop') ? suggestEquipmentType(polished) : '';
+                            setServiceFormData({
+                              ...serviceFormData,
+                              productName: polished,
+                              ...(suggested ? { equipmentType: suggested } : {})
+                            });
+                          }}
+                          label="Polish"
+                          size="sm"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={serviceFormData.productName}
+                        onChange={e => {
+                          const pName = e.target.value;
+                          const suggested = (!serviceFormData.equipmentType || serviceFormData.equipmentType === 'Laptop') ? suggestEquipmentType(pName) : '';
+                          setServiceFormData({
+                            ...serviceFormData,
+                            productName: pName,
+                            ...(suggested ? { equipmentType: suggested } : {})
+                          });
+                        }}
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                        placeholder="e.g. Dell Inspiron 15 3000 Series Laptop"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Equipment Category</label>
+                      <input
+                        type="text"
+                        list="equipment-type-suggestions"
+                        value={serviceFormData.equipmentType || ''}
+                        onChange={e => setServiceFormData({ ...serviceFormData, equipmentType: e.target.value })}
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs font-medium text-slate-800 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                        placeholder="e.g. Hard Drive / Storage, Laptop, Desktop..."
+                      />
+                      <datalist id="equipment-type-suggestions">
+                        <option value="Hard Drive / Storage" />
+                        <option value="Laptop" />
+                        <option value="Desktop" />
+                        <option value="Monitor" />
+                        <option value="Printer" />
+                        <option value="Motherboard" />
+                        <option value="Graphics Card (GPU)" />
+                        <option value="RAM / Memory" />
+                        <option value="Power Supply (PSU)" />
+                        <option value="UPS / IPS" />
+                        <option value="Networking / Router" />
+                        <option value="Accessories" />
+                      </datalist>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase">
+                          Issue / Problem Description <span className="text-red-500">*</span>
+                        </label>
+                        <AIPolishButton
+                          text={serviceFormData.issueDescription}
+                          onPolished={polished => setServiceFormData({ ...serviceFormData, issueDescription: polished })}
+                          label="Polish"
+                          size="sm"
+                        />
+                      </div>
+                      <textarea
+                        required
+                        value={serviceFormData.issueDescription}
+                        onChange={e => setServiceFormData({ ...serviceFormData, issueDescription: e.target.value })}
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs font-medium text-slate-800 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                        rows={3}
+                        placeholder="Describe exact customer symptoms, damage or defect notes..."
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
-                    <input
-                      type="date"
-                      value={serviceFormData.receivedAt?.split('T')[0] || ''}
-                      onChange={e => setServiceFormData({ ...serviceFormData, receivedAt: e.target.value })}
-                      className="w-full border-gray-200 rounded-md focus:ring-[#EF4444] focus:border-[#EF4444]"
-                    />
+                </div>
+
+                {/* Column 3: Billing & Status */}
+                <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-3.5 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="text-[11px] font-black text-slate-800 uppercase tracking-wide border-b border-slate-100 pb-2 flex items-center gap-1.5">
+                      <span>💰</span> Billing & Ticket Status
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Service Charge (৳)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        disabled={serviceFormData.isWarranty}
+                        value={serviceFormData.serviceCharge}
+                        onChange={e => setServiceFormData({ ...serviceFormData, serviceCharge: Number(e.target.value) || 0 })}
+                        className={cn(
+                          "w-full border rounded-lg p-2 text-xs font-bold",
+                          serviceFormData.isWarranty
+                            ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                            : "bg-white text-slate-900 border-slate-200 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                        )}
+                        placeholder="0"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Payment Status</label>
+                        <select
+                          value={serviceFormData.paymentStatus || (Number(serviceFormData.serviceCharge) <= 0 ? 'paid' : 'pending')}
+                          onChange={e => setServiceFormData({ ...serviceFormData, paymentStatus: e.target.value })}
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="paid">Paid</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Service Status</label>
+                        <select
+                          value={serviceFormData.status || 'received'}
+                          onChange={e => setServiceFormData({ ...serviceFormData, status: e.target.value })}
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                        >
+                          <option value="received">Received</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="ready">Ready for Pickup</option>
+                          <option value="delivered">Delivered</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                        Payment Method / Account
+                      </label>
+                      <select
+                        value={serviceFormData.paymentAccountId || ''}
+                        onChange={e => {
+                          const accId = e.target.value;
+                          const acc = paymentAccounts.find(a => a.id === accId);
+                          setServiceFormData({
+                            ...serviceFormData,
+                            paymentAccountId: accId,
+                            paymentMethod: acc ? (acc.type || acc.name) : ''
+                          });
+                        }}
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                      >
+                        <option value="">-- Select Payment Method / Account --</option>
+                        {paymentAccounts?.map((acc: any) => (
+                          <option key={acc.id} value={acc.id}>{acc.name} ({acc.type || 'account'})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Received Date</label>
+                      <input
+                        type="date"
+                        value={serviceFormData.receivedAt?.split('T')[0] || ''}
+                        onChange={e => setServiceFormData({ ...serviceFormData, receivedAt: e.target.value })}
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs font-medium text-slate-800 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                      />
+                    </div>
                   </div>
-                <div className="flex gap-4">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-[#EF4444] text-white py-2 rounded-md font-bold hover:bg-red-600 transition-all"
-                  >
-                    {editingService ? 'Update Service' : 'Save Service'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setIsAddingService(false); setEditingService(null); }}
-                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-md font-bold hover:bg-gray-300 transition-all"
-                  >
-                    Cancel
-                  </button>
                 </div>
               </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-200/80">
+                <button
+                  type="button"
+                  onClick={() => { setIsAddingService(false); setEditingService(null); }}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all font-bold text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-[#EF4444] hover:bg-red-600 text-white rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer"
+                >
+                  <CheckCircle size={15} />
+                  {editingService ? 'Update Service Ticket' : 'Receive Product & Save Ticket'}
+                </button>
               </div>
             </form>
           </div>
@@ -1089,10 +1318,17 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                               status: 'received',
                               equipmentType: suggestEquipmentType(record.productName) || '',
                               preparedBy: '',
-                              paymentMethod: 'cash',
+                              paymentMethod: '',
+                              paymentAccountId: '',
                               paymentStatus: 'pending',
                               serviceType: 'in_house',
                               vendorId: '',
+                              vendorName: '',
+                              outsourceCost: 0,
+                              outsourcePaidAmount: 0,
+                              outsourcePaymentMethod: '',
+                              outsourcePaymentAccountId: '',
+                              isOutsourced: false,
                               rmaStatus: 'Pending Vendor',
                               newSerialNumber: '',
                             });
@@ -1390,7 +1626,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                              <ShoppingCart size={14} />
                            </button>
                          )}
-                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, receivedAt: record.receivedAt ? record.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0], serviceType: record.serviceType || 'in_house', vendorId: record.vendorId || '', rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || suggestEquipmentType(record.productName) || '', isWarranty: !!record.isWarranty, status: record.status || 'received', paymentMethod: record.paymentMethod || 'cash', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || '', outsourceCost: record.outsourceCost || 0, outsourcePaidAmount: record.outsourcePaidAmount || 0, outsourcePaymentMethod: record.outsourcePaymentMethod || 'cash', isOutsourced: record.isOutsourced || (record.outsourceCost > 0)}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
+                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, receivedAt: record.receivedAt ? record.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0], vendorId: record.vendorId || '', vendorName: record.vendorName || '', serviceType: record.serviceType || (record.vendorId || record.vendorName || record.isOutsourced ? 'outsourced' : 'in_house'), rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || suggestEquipmentType(record.productName) || '', isWarranty: !!record.isWarranty, status: record.status || 'received', paymentMethod: record.paymentMethod || '', paymentAccountId: record.paymentAccountId || '', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || '', outsourceCost: record.outsourceCost || 0, outsourcePaidAmount: record.outsourcePaidAmount || 0, outsourcePaymentMethod: record.outsourcePaymentMethod || '', outsourcePaymentAccountId: record.outsourcePaymentAccountId || '', isOutsourced: record.isOutsourced || (record.outsourceCost > 0)}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
                            <Edit2 size={14} />
                          </button>
                           <button onClick={() => handleDeleteService(record.id)} className="text-gray-500 hover:text-red-700 bg-gray-50 hover:bg-red-50 p-1.5 rounded shadow-sm transition-all" title="Delete Service">
