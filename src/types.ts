@@ -596,9 +596,27 @@ export interface Employee {
   email: string;
   phone: string;
   role: string;
-  department: string;
+  department?: string;
   joinDate: string;
+  confirmDate?: string;
+  dateOfBirth?: string;
+  nidNumber?: string;
+  certificateUrl?: string;
+  nidUrl?: string;
+  cvUrl?: string;
   baseSalary: number;
+  previousSalary?: number;
+  salaryHike?: number;
+  lastHikeDate?: string;
+  salaryHistory?: Array<{
+    date: string;
+    oldSalary: number;
+    newSalary: number;
+    hikeAmount: number;
+    note?: string;
+  }>;
+  advanceBalance?: number;
+  userId?: string;
   status: 'active' | 'on_leave' | 'terminated';
   createdAt: string;
 }
@@ -617,17 +635,38 @@ export interface EmployeeLeave {
 
 export interface EmployeeSalary {
   id: string;
-  employeeId: string;
+  employeeId?: string;
   employeeName: string;
   month: string; // e.g., "YYYY-MM"
   baseAmount: number;
   bonus: number;
   deductions: number;
+  advanceDeduction?: number;
   netPay: number;
   paymentDate: string;
+  paymentAccountId?: string;
   paymentMethod: string;
   status: 'pending' | 'paid';
+  transactionId?: string;
+  notes?: string;
   createdAt: string;
+}
+
+export interface SalaryAdvance {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  amount: number;
+  remainingAmount: number;
+  date: string;
+  paymentAccountId: string;
+  paymentAccountName?: string;
+  paymentMethod: string;
+  notes?: string;
+  status: 'active' | 'repaid';
+  transactionId?: string;
+  createdAt: string;
+  createdBy?: string;
 }
 
 export interface DiscountCode {

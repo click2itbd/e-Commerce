@@ -10,6 +10,7 @@ import { Users as UsersIcon, Mail, X, Trash2, Shield, Key } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 import { Pagination } from '../../../../components/common/Pagination';
 import { logAudit } from '../../../../lib/audit';
+import { syncAppAccessStaff } from '../../../../lib/employeeSync';
 
 const UsersTab: React.FC = () => {
   const { profile, isAdmin, hasPermission } = useAuth();
@@ -65,6 +66,7 @@ const UsersTab: React.FC = () => {
       );
 
       toast.success('User role and permissions updated successfully');
+      syncAppAccessStaff().catch(console.error);
       fetchData();
     } catch (error) {
       console.error('Error updating user role:', error);
@@ -118,6 +120,7 @@ const UsersTab: React.FC = () => {
         }
       );
       
+      syncAppAccessStaff().catch(console.error);
       toast.success('Staff/Portal user added successfully');
       setIsAddingUser(false);
       setUserFormData({ name: '', email: '', password: '', role: 'staff', permissions: [] });

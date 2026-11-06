@@ -18,7 +18,7 @@ export function calculateAccountBalance(
     .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
 
   const outflow = accTx
-    .filter(tx => ['purchase', 'payment_made', 'expense', 'salary', 'conveyance', 'sale_return', 'withdrawal', 'transfer_out'].includes(tx.type))
+    .filter(tx => ['purchase', 'payment_made', 'expense', 'salary', 'advance_salary', 'conveyance', 'sale_return', 'withdrawal', 'transfer_out'].includes(tx.type))
     .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
 
   return opening + inflow - outflow;
