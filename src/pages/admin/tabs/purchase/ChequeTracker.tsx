@@ -70,7 +70,7 @@ export default function ChequeTracker() {
 
   const [clearDate, setClearDate] = useState(new Date().toISOString().split('T')[0]);
   const [clearNote, setClearNote] = useState('');
-  const [bounceReason, setBounceReason] = useState('Insufficient Funds (অপর্যাপ্ত ব্যালেন্স)');
+  const [bounceReason, setBounceReason] = useState('Insufficient Funds');
   const [customBounceReason, setCustomBounceReason] = useState('');
   const [bounceFee, setBounceFee] = useState<string>('0');
   const [cancelReason, setCancelReason] = useState('');
@@ -199,16 +199,16 @@ export default function ChequeTracker() {
   const handleIssueSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!issueForm.chequeNumber.trim()) {
-      toast.error('অনুগ্রহ করে চেক নম্বরটি লিখুন!');
+      toast.error('Please enter the cheque number.');
       return;
     }
     const amt = Number(issueForm.amount);
     if (!amt || amt <= 0) {
-      toast.error('বৈধ চেকের টাকার পরিমাণ দিন!');
+      toast.error('Please enter a valid cheque amount.');
       return;
     }
     if (!issueForm.bankAccountId) {
-      toast.error('যে ব্যাংক থেকে চেক দিচ্ছেন তা সিলেক্ট করুন!');
+      toast.error('Please select the issuing bank account.');
       return;
     }
 
@@ -230,7 +230,7 @@ export default function ChequeTracker() {
         user: user?.displayName || user?.email || 'Admin',
       });
 
-      toast.success(`চেক #${issueForm.chequeNumber} সফলভাবে ইস্যু করা হয়েছে!`);
+      toast.success(`Cheque #${issueForm.chequeNumber} issued successfully!`);
       setShowIssueModal(false);
       setIssueForm({
         chequeNumber: '',
@@ -245,7 +245,7 @@ export default function ChequeTracker() {
       });
     } catch (err: any) {
       console.error(err);
-      toast.error(err?.message || 'চেক ইস্যু করতে ব্যর্থ হয়েছে');
+      toast.error(err?.message || 'Failed to issue cheque');
     } finally {
       setSubmitting(false);
     }
@@ -262,12 +262,12 @@ export default function ChequeTracker() {
         user: user?.displayName || user?.email || 'Admin',
         note: clearNote,
       });
-      toast.success(`চেক #${activeCheque.chequeNumber} ক্লিয়ার্ড / পেইড হিসেবে রেকর্ড করা হয়েছে!`);
+      toast.success(`Cheque #${activeCheque.chequeNumber} marked as Cleared / Paid!`);
       setShowClearModal(false);
       setActiveCheque(null);
     } catch (err: any) {
       console.error(err);
-      toast.error(err?.message || 'ক্লিয়ার করতে ব্যর্থ হয়েছে');
+      toast.error(err?.message || 'Failed to mark cheque as cleared');
     } finally {
       setSubmitting(false);
     }
@@ -278,7 +278,7 @@ export default function ChequeTracker() {
     if (!activeCheque) return;
     const reason = bounceReason === 'Other / Custom' ? customBounceReason.trim() : bounceReason;
     if (!reason) {
-      toast.error('বাউন্সের কারণ উল্লেখ করুন!');
+      toast.error('Please specify the bounce reason.');
       return;
     }
     setSubmitting(true);
@@ -289,12 +289,12 @@ export default function ChequeTracker() {
         bounceFee: Number(bounceFee) || 0,
         user: user?.displayName || user?.email || 'Admin',
       });
-      toast.error(`চেক #${activeCheque.chequeNumber} বাউন্সড হিসেবে রেকর্ড হয়েছে এবং সাপ্লায়ারের বকেয়া ফিরে এসেছে!`);
+      toast.error(`Cheque #${activeCheque.chequeNumber} marked as Bounced. Vendor due restored!`);
       setShowBounceModal(false);
       setActiveCheque(null);
     } catch (err: any) {
       console.error(err);
-      toast.error(err?.message || 'বাউন্স রেকর্ড করতে ব্যর্থ হয়েছে');
+      toast.error(err?.message || 'Failed to record bounce');
     } finally {
       setSubmitting(false);
     }
@@ -304,7 +304,7 @@ export default function ChequeTracker() {
   const handleCancelSubmit = async () => {
     if (!activeCheque) return;
     if (!cancelReason.trim()) {
-      toast.error('বাতিল করার কারণ লিখুন!');
+      toast.error('Please enter a cancellation reason.');
       return;
     }
     setSubmitting(true);
@@ -314,12 +314,12 @@ export default function ChequeTracker() {
         reason: cancelReason,
         user: user?.displayName || user?.email || 'Admin',
       });
-      toast.success(`চেক #${activeCheque.chequeNumber} বাতিল করা হয়েছে`);
+      toast.success(`Cheque #${activeCheque.chequeNumber} has been cancelled.`);
       setShowCancelModal(false);
       setActiveCheque(null);
     } catch (err: any) {
       console.error(err);
-      toast.error(err?.message || 'বাতিল করতে ব্যর্থ হয়েছে');
+      toast.error(err?.message || 'Failed to cancel cheque');
     } finally {
       setSubmitting(false);
     }
@@ -336,10 +336,10 @@ export default function ChequeTracker() {
             </div>
             <div>
               <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                Cheque Tracker & Clearance (চেক রেজিস্টার)
+                Cheque Tracker & Clearance Register
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                পারচেজ ও সাপ্লায়ারদের দেওয়া চেকের ক্লিয়ারিং, বাউন্স ট্র্যাকিং এবং ব্যাংকের ব্যালেন্স সতর্কতা
+                Track vendor and purchase cheque clearance, maturity dates, bounce reconciliation, and bank liquidity alerts
               </p>
             </div>
           </div>
@@ -351,7 +351,7 @@ export default function ChequeTracker() {
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-sm hover:shadow transition-all cursor-pointer"
           >
             <Plus size={16} />
-            <span>নতুন চেক ইস্যু (Issue Cheque)</span>
+            <span>Issue New Cheque</span>
           </button>
         </div>
       </div>
@@ -362,10 +362,10 @@ export default function ChequeTracker() {
           <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
           <div>
             <h4 className="font-extrabold text-sm text-red-800">
-              ⚠️ ব্যাংকে অপর্যাপ্ত ব্যালেন্স সতর্কতা ({metrics.shortfallAlerts} টি চেক ঝুঁকিতে!)
+              ⚠️ Insufficient Bank Balance Alert ({metrics.shortfallAlerts} cheque(s) at risk!)
             </h4>
             <p className="text-xs text-red-700 mt-0.5">
-              সামনের ৩ দিনের মধ্যে ক্লিয়ারিং হওয়ার কথা এমন এক বা একাধিক চেকের সমপরিমাণ ব্যালেন্স সংশ্লিষ্ট ব্যাংকে নেই। বাউন্স এড়াতে অবিলম্বে ব্যাংকে ফান্ড ডিপোজিট বা ট্রান্সফার করুন।
+              One or more cheques maturing within the next 3 days exceed current bank account balances. Please deposit or transfer funds immediately to prevent cheque bounces.
             </p>
           </div>
         </div>
@@ -394,7 +394,7 @@ export default function ChequeTracker() {
             {formatCurrency(metrics.pendingTotal, settings)}
           </div>
           <div className="text-xs text-slate-500 font-medium mt-1">
-            {metrics.pendingCount} টি চেক ক্লিয়ারিংয়ের অপেক্ষায়
+            {metrics.pendingCount} cheques awaiting clearance
           </div>
         </div>
 
@@ -424,7 +424,7 @@ export default function ChequeTracker() {
             {formatCurrency(metrics.dueSoonTotal, settings)}
           </div>
           <div className="text-xs text-slate-500 font-medium mt-1">
-            আজ বা আসন্ন ৩ দিনে ক্লিয়ার হবে
+            Clearing today or within next 3 days
           </div>
         </div>
 
@@ -449,7 +449,7 @@ export default function ChequeTracker() {
             {formatCurrency(metrics.clearedTotal, settings)}
           </div>
           <div className="text-xs text-slate-500 font-medium mt-1">
-            {metrics.clearedCount} টি চেক ব্যাংক পাস হয়েছে
+            {metrics.clearedCount} cheques successfully cleared
           </div>
         </div>
 
@@ -474,7 +474,7 @@ export default function ChequeTracker() {
             {formatCurrency(metrics.bouncedTotal, settings)}
           </div>
           <div className="text-xs text-slate-500 font-medium mt-1">
-            {metrics.bouncedCount} টি চেক প্রত্যাখ্যাত (বকেয়া বহাল)
+            {metrics.bouncedCount} bounced (vendor dues restored)
           </div>
         </div>
       </div>
@@ -590,13 +590,13 @@ export default function ChequeTracker() {
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400">
                     <RefreshCw className="animate-spin inline mr-2" size={18} />
-                    চেকের তালিকা লোড হচ্ছে...
+                    Loading cheques register...
                   </td>
                 </tr>
               ) : filteredCheques.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400">
-                    কোনো চেক রেকর্ড পাওয়া যায়নি।
+                    No cheque records found.
                   </td>
                 </tr>
               ) : (
@@ -761,7 +761,7 @@ export default function ChequeTracker() {
                             <button
                               onClick={() => {
                                 setActiveCheque(ch);
-                                setBounceReason('Insufficient Funds (অপর্যাপ্ত ব্যালেন্স)');
+                                setBounceReason('Insufficient Funds');
                                 setBounceFee('0');
                                 setShowBounceModal(true);
                               }}
@@ -813,7 +813,7 @@ export default function ChequeTracker() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2 text-indigo-600 font-black text-base">
                 <CreditCard size={20} />
-                <span>নতুন ব্যাংক চেক ইস্যু করুন (Issue Cheque)</span>
+                <span>Issue New Bank Cheque</span>
               </div>
               <button 
                 onClick={() => setShowIssueModal(false)}
@@ -828,7 +828,7 @@ export default function ChequeTracker() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    চেক নম্বর (Cheque No) *
+                    Cheque Number *
                   </label>
                   <input
                     type="text"
@@ -841,7 +841,7 @@ export default function ChequeTracker() {
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    টাকার পরিমাণ (Amount ৳) *
+                    Amount (BDT) *
                   </label>
                   <input
                     type="number"
@@ -858,7 +858,7 @@ export default function ChequeTracker() {
               {/* Bank Account Selection */}
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  যে ব্যাংক থেকে চেক প্রদান করছেন (Bank Account) *
+                  Issuing Bank Account *
                 </label>
                 <select
                   required
@@ -866,14 +866,14 @@ export default function ChequeTracker() {
                   onChange={e => setIssueForm({ ...issueForm, bankAccountId: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 font-medium text-slate-800"
                 >
-                  <option value="">-- ব্যাংক অ্যাকাউন্ট সিলেক্ট করুন --</option>
+                  <option value="">-- Select Bank Account --</option>
                   {paymentAccounts
                     .filter(a => a.type === 'bank' || a.name.toLowerCase().includes('bank'))
                     .map(a => {
                       const bal = calculateAccountBalance(a, transactions);
                       return (
                         <option key={a.id} value={a.id}>
-                          {a.name} (বর্তমান ব্যালেন্স: ৳{bal.toLocaleString()})
+                          {a.name} (Current Balance: {formatCurrency(bal, settings)})
                         </option>
                       );
                     })}
@@ -884,7 +884,7 @@ export default function ChequeTracker() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    সাপ্লায়ার (Vendor - ঐচ্ছিক)
+                    Vendor / Supplier (Optional)
                   </label>
                   <select
                     value={issueForm.vendorId}
@@ -899,7 +899,7 @@ export default function ChequeTracker() {
                     }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white font-medium"
                   >
-                    <option value="">-- সাপ্লায়ার সিলেক্ট করুন --</option>
+                    <option value="">-- Select Vendor --</option>
                     {vendors.map(v => (
                       <option key={v.id} value={v.id}>
                         {v.name}
@@ -909,7 +909,7 @@ export default function ChequeTracker() {
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    চেকে উল্লিখিত নাম (Payee Name)
+                    Payee Name (As written on cheque)
                   </label>
                   <input
                     type="text"
@@ -925,7 +925,7 @@ export default function ChequeTracker() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    চেক ইস্যুর তারিখ (Issue Date) *
+                    Issue Date *
                   </label>
                   <input
                     type="date"
@@ -937,8 +937,8 @@ export default function ChequeTracker() {
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
-                    <span>ক্লিয়ারিং / PDC তারিখ (Maturity) *</span>
-                    <span className="text-[10px] text-indigo-600 font-bold">ক্যাশ হওয়ার দিন</span>
+                    <span>Clearing / Maturity Date (PDC) *</span>
+                    <span className="text-[10px] text-indigo-600 font-bold">Expected Clearance Date</span>
                   </label>
                   <input
                     type="date"
@@ -953,7 +953,7 @@ export default function ChequeTracker() {
               {/* Notes */}
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  নোট / বিবরণ (Notes)
+                  Notes / Purpose
                 </label>
                 <input
                   type="text"
@@ -970,14 +970,14 @@ export default function ChequeTracker() {
                   onClick={() => setShowIssueModal(false)}
                   className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50"
                 >
-                  বাতিল
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-sm disabled:opacity-50"
                 >
-                  {submitting ? 'সংরক্ষণ হচ্ছে...' : 'চেক ইস্যু নিশ্চিত করুন'}
+                  {submitting ? 'Saving...' : 'Confirm & Issue Cheque'}
                 </button>
               </div>
             </form>
@@ -995,10 +995,10 @@ export default function ChequeTracker() {
               </div>
               <div>
                 <h3 className="font-black text-base text-slate-900">
-                  চেক ক্লিয়ারিং নিশ্চিতকরণ (Mark as Cleared)
+                  Confirm Cheque Clearance
                 </h3>
                 <p className="text-xs text-slate-500">
-                  ব্যাংক থেকে টাকা ডেবিট হবে এবং সাপ্লায়ারের পেমেন্ট সম্পন্ন হবে।
+                  Bank balance will be debited and payment recorded against vendor account.
                 </p>
               </div>
             </div>
@@ -1027,7 +1027,7 @@ export default function ChequeTracker() {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  প্রকৃত ক্লিয়ারিংয়ের তারিখ (Actual Clearing Date) *
+                  Actual Clearing Date *
                 </label>
                 <input
                   type="date"
@@ -1040,7 +1040,7 @@ export default function ChequeTracker() {
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  নোট / ব্যাংক রেফারেন্স (Optional)
+                  Bank Reference / Notes (Optional)
                 </label>
                 <input
                   type="text"
@@ -1061,7 +1061,7 @@ export default function ChequeTracker() {
                 }}
                 className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50"
               >
-                বাতিল
+                Cancel
               </button>
               <button
                 type="button"
@@ -1069,7 +1069,7 @@ export default function ChequeTracker() {
                 onClick={handleClearSubmit}
                 className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-sm disabled:opacity-50"
               >
-                {submitting ? 'প্রসেসিং হচ্ছে...' : '✓ ক্লিয়ার্ড কনফার্ম করুন'}
+                {submitting ? 'Processing...' : '✓ Confirm Cleared'}
               </button>
             </div>
           </div>
@@ -1086,10 +1086,10 @@ export default function ChequeTracker() {
               </div>
               <div>
                 <h3 className="font-black text-base text-red-900">
-                  চেক বাউন্স রেকর্ড করুন (Mark as Bounced)
+                  Record Cheque Bounce
                 </h3>
                 <p className="text-xs text-red-600">
-                  সাপ্লায়ারের বকেয়া (Due) পুনরায় বহাল হবে।
+                  Vendor due will be restored, and bank expense debited if penalty applies.
                 </p>
               </div>
             </div>
@@ -1114,26 +1114,26 @@ export default function ChequeTracker() {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  বাউন্সের কারণ (Bounce Reason) *
+                  Bounce Reason *
                 </label>
                 <select
                   value={bounceReason}
                   onChange={e => setBounceReason(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white font-medium"
                 >
-                  <option value="Insufficient Funds (অপর্যাপ্ত ব্যালেন্স)">Insufficient Funds (অপর্যাপ্ত ব্যালেন্স)</option>
-                  <option value="Signature Mismatch (স্বাক্ষরে অমিল)">Signature Mismatch (স্বাক্ষরে অমিল)</option>
-                  <option value="Date Expired / Stale (তারিখ উত্তীর্ণ)">Date Expired / Stale (তারিখ উত্তীর্ণ)</option>
-                  <option value="Payment Stopped by Issuer (পেমেন্ট স্টপ)">Payment Stopped by Issuer (পেমেন্ট স্টপ)</option>
-                  <option value="Account Blocked / Frozen (অ্যাকাউন্ট স্থগিত)">Account Blocked / Frozen (অ্যাকাউন্ট স্থগিত)</option>
-                  <option value="Other / Custom">Other / কাস্টম কারণ লিখুন...</option>
+                  <option value="Insufficient Funds">Insufficient Funds</option>
+                  <option value="Signature Mismatch">Signature Mismatch</option>
+                  <option value="Date Expired / Stale Cheque">Date Expired / Stale Cheque</option>
+                  <option value="Payment Stopped by Issuer">Payment Stopped by Issuer</option>
+                  <option value="Account Blocked / Frozen">Account Blocked / Frozen</option>
+                  <option value="Other / Custom">Other / Custom Reason...</option>
                 </select>
               </div>
 
               {bounceReason === 'Other / Custom' && (
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    কাস্টম কারণ বিস্তারিত লিখুন *
+                    Specify Custom Reason *
                   </label>
                   <input
                     type="text"
@@ -1148,7 +1148,7 @@ export default function ChequeTracker() {
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  ব্যাংক বাউন্স চার্জ / ফি (Bank Penalty Fee ৳ - ঐচ্ছিক)
+                  Bank Bounce / Penalty Fee (BDT - Optional)
                 </label>
                 <input
                   type="number"
@@ -1159,7 +1159,7 @@ export default function ChequeTracker() {
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white font-mono font-bold"
                 />
                 <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  ব্যাংক যদি কোনো পেনাল্টি ফি কাটে, তা স্বয়ংক্রিয় ব্যাংক এক্সপেন্স হিসেবে যুক্ত হবে।
+                  If the bank charged a penalty fee, it will be automatically recorded as a bank expense.
                 </span>
               </div>
             </div>
@@ -1173,7 +1173,7 @@ export default function ChequeTracker() {
                 }}
                 className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50"
               >
-                বাতিল
+                Cancel
               </button>
               <button
                 type="button"
@@ -1181,7 +1181,7 @@ export default function ChequeTracker() {
                 onClick={handleBounceSubmit}
                 className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-all shadow-sm disabled:opacity-50"
               >
-                {submitting ? 'প্রসেসিং হচ্ছে...' : '✕ বাউন্স নিশ্চিত করুন'}
+                {submitting ? 'Processing...' : '✕ Confirm Bounce'}
               </button>
             </div>
           </div>
@@ -1193,15 +1193,15 @@ export default function ChequeTracker() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <h3 className="font-black text-sm text-slate-900">
-              চেক #{activeCheque.chequeNumber} বাতিল করতে চান?
+              Cancel Cheque #{activeCheque.chequeNumber}?
             </h3>
             <p className="text-xs text-slate-500">
-              চেকটি বাতিল করলে এটি আর ক্লিয়ার করা যাবে না।
+              Once cancelled, this cheque cannot be cleared or processed.
             </p>
 
             <div>
               <label className="block font-bold text-slate-700 mb-1 text-xs">
-                বাতিলের কারণ (Reason) *
+                Cancellation Reason *
               </label>
               <input
                 type="text"
@@ -1222,7 +1222,7 @@ export default function ChequeTracker() {
                 }}
                 className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50"
               >
-                না
+                Back
               </button>
               <button
                 type="button"
@@ -1230,7 +1230,7 @@ export default function ChequeTracker() {
                 onClick={handleCancelSubmit}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold disabled:opacity-50"
               >
-                {submitting ? 'বাতিল হচ্ছে...' : 'হ্যাঁ, বাতিল করুন'}
+                {submitting ? 'Cancelling...' : 'Yes, Cancel Cheque'}
               </button>
             </div>
           </div>
