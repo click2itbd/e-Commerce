@@ -1,25 +1,45 @@
 import { GoogleGenAI } from '@google/genai';
+import dotenv from 'dotenv';
+import path from 'path';
 
-const aiClient = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
+function getAiClient(): GoogleGenAI {
+  let key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    dotenv.config({ path: path.join(process.cwd(), '.env') });
+    dotenv.config({ path: path.join(process.cwd(), 'backend', '.env') });
+    key = process.env.GEMINI_API_KEY;
+  }
+  if (!key) {
+    throw new Error('GEMINI_API_KEY is not configured');
+  }
+  return new GoogleGenAI({ apiKey: key });
+}
 
 export async function generateChatResponse(message: string): Promise<string> {
-  if (!aiClient) {
-    throw new Error('AI service is not configured');
-  }
+  const client = getAiClient();
 
   if (!message || typeof message !== 'string' || message.length > 100000) {
     throw new Error('Message is required and must be under 2000 characters');
   }
 
   try {
-    const response = await aiClient.models.generateContent({
-      model: 'gemini-2.5-flash',
+    const response = await client.models.generateContent({
+      model: 'gemini-3.8-flash',
       contents: message
     });
     return response.text || '';
   } catch (error: any) {
-    console.error('AI chat error:', error.message);
-    throw new Error('AI service error');
+    console.error('AI chat error with primary model, trying fallback:', error.message);
+    try {
+      const fallbackResponse = await client.models.generateContent({
+        model: 'gemini-flash-latest',
+        contents: message
+      });
+      return fallbackResponse.text || '';
+    } catch (fallbackError: any) {
+      console.error('AI chat fallback error:', fallbackError.message);
+      throw new Error('AI service error');
+    }
   }
 }
 
@@ -30,9 +50,7 @@ export async function polishText(
     targetLang?: 'auto' | 'bangla' | 'english' | 'banglish_to_bangla';
   }
 ): Promise<string> {
-  if (!aiClient) {
-    throw new Error('AI service is not configured');
-  }
+  const client = getAiClient();
 
   if (!text || typeof text !== 'string' || text.trim().length === 0) {
     return '';
@@ -69,18 +87,37 @@ CRITICAL TRANSLATION & POLISHING RULES:
    - Accurately preserve numbers, model numbers, dimensions, and prices (e.g. ML-844-5, 5m, BDT 5,000, 3200MHz).`;
 
   try {
-    const response = await aiClient.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: `${systemInstruction}\n\nContext: ${context}\nTarget Language: ${targetLang}\n\nOriginal Text:\n${text}` }
-          ]
-        }
-      ]
-    });
-    let polished = (response.text || '').trim();
+    let responseText = '';
+    try {
+      const response = await client.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: `${systemInstruction}\n\nContext: ${context}\nTarget Language: ${targetLang}\n\nOriginal Text:\n${text}` }
+            ]
+          }
+        ]
+      });
+      responseText = response.text || '';
+    } catch (err: any) {
+      console.warn('AI polish error on gemini-3.8-flash, trying fallback:', err.message);
+      const fallbackResponse = await client.models.generateContent({
+        model: 'gemini-flash-latest',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: `${systemInstruction}\n\nContext: ${context}\nTarget Language: ${targetLang}\n\nOriginal Text:\n${text}` }
+            ]
+          }
+        ]
+      });
+      responseText = fallbackResponse.text || '';
+    }
+
+    let polished = responseText.trim();
     if (polished.startsWith('"') && polished.endsWith('"') && polished.length > 2) {
       polished = polished.slice(1, -1).trim();
     }
