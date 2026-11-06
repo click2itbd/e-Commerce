@@ -126,11 +126,6 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
       return;
     }
 
-    if (paidNum > 0 && !paymentAccountId) {
-      toast.error('Please select the payment account for the partial payment');
-      return;
-    }
-
     let finalEntityId = selectedEntityId;
     let finalEntityName = '';
 
@@ -213,7 +208,7 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
           entityType: isCustomer ? 'customer' : 'vendor',
           amount: paidNum,
           date: formattedBillDate,
-          paymentAccountId: paymentAccountId,
+          paymentAccountId: paymentAccountId || '',
           paymentMethod: selAcc?.type || selAcc?.name || 'cash',
           documentNumber: docNum,
           description: `Partial payment on legacy bill #${docNum || 'Opening'} (${finalEntityName})`,
@@ -230,8 +225,11 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
         'CREATE',
         isCustomer ? 'sales' : 'purchases',
         `Recorded legacy ${partyLabel.toLowerCase()} due for "${finalEntityName}": Total ৳${totalNum.toLocaleString()}, Paid ৳${paidNum.toLocaleString()}, Net Due ৳${netDue.toLocaleString()} (Bill #${docNum || 'N/A'}, Date: ${billDate})`,
-        openingTxData,
-        currentUser
+        currentUser,
+        {
+          entityId: finalEntityId,
+          newState: openingTxData
+        }
       );
 
       toast.success(`Legacy due of ${formatCurrency(netDue, settings)} recorded for ${finalEntityName}!`);
@@ -532,41 +530,51 @@ export const LegacyDueModal: React.FC<LegacyDueModalProps> = ({
               </div>
             </div>
 
-            {/* Payment Method - Only visible if Paid Amount > 0 */}
-            {paidNum > 0 && (
-              <div className="pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in duration-150">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                    {isCustomer ? 'Received Into Account' : 'Paid From Account'} <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    required={paidNum > 0}
-                    value={paymentAccountId}
-                    onChange={e => setPaymentAccountId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                  >
-                    <option value="">-- Select Payment Account --</option>
-                    {paymentAccounts.map(acc => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name} ({acc.type || 'account'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                    Partial Payment Note
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Paid in cash at delivery"
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:bg-white outline-none"
-                  />
-                </div>
+            {/* Payment Method & Account - Always available for Partial Payments */}
+            <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                  <span>{isCustomer ? 'Received Payment Account' : 'Disbursed Payment Account'}</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Optional</span>
+                </label>
+                <select
+                  value={paymentAccountId}
+                  onChange={e => setPaymentAccountId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                >
+                  <option value="">-- Historical Record (No live bank/cash balance impact) --</option>
+                  {paymentAccounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} ({acc.type || 'account'})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {paidNum > 0 ? (
+                    paymentAccountId 
+                      ? 'Payment transaction will be linked to selected live account.' 
+                      : 'Recorded in customer ledger balance without altering today’s cash drawer balance.'
+                  ) : (
+                    'If customer already made a partial payment, enter the paid amount above.'
+                  )}
+                </p>
               </div>
-            )}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Payment Reference / Memo Note
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Paid in cash at delivery, cheque #102, etc."
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:bg-white outline-none"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Reference info for this past partial payment or delivery note.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Action Buttons */}
