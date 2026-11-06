@@ -44,9 +44,9 @@ const UsersTab: React.FC = () => {
       const oldPermissions = targetUser?.permissions || [];
 
       let permissions: UserPermission[] = [];
-      if (newRole === 'admin') permissions = ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing'];
-      else if (newRole === 'manager') permissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports'];
-      else if (newRole === 'staff') permissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_services', 'manage_finances', 'manage_settings'];
+      if (newRole === 'admin') permissions = ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing', 'cheques', 'daily_collection_payout', 'employees', 'salary'];
+      else if (newRole === 'manager') permissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'cheques', 'daily_collection_payout', 'employees', 'salary'];
+      else if (newRole === 'staff') permissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_services', 'manage_finances', 'manage_settings', 'cheques', 'daily_collection_payout', 'employees', 'salary'];
       
       await updateDoc(doc(db, 'users', userId), {
         role: newRole,
@@ -90,11 +90,11 @@ const UsersTab: React.FC = () => {
       let defaultPermissions: UserPermission[] = userFormData.permissions;
       if (defaultPermissions.length === 0) {
         if (userFormData.role === 'admin') {
-          defaultPermissions = ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing'];
+          defaultPermissions = ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing', 'cheques', 'daily_collection_payout', 'employees', 'salary'];
         } else if (userFormData.role === 'manager') {
-          defaultPermissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports'];
+          defaultPermissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'cheques', 'daily_collection_payout', 'employees', 'salary'];
         } else if (userFormData.role === 'staff') {
-          defaultPermissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_services', 'manage_finances', 'manage_settings'];
+          defaultPermissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_services', 'manage_finances', 'manage_settings', 'cheques', 'daily_collection_payout', 'employees', 'salary'];
         }
       }
 
@@ -463,7 +463,13 @@ const UsersTab: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                   <div className="p-5 space-y-3">
                      <div className="text-[10px] font-black text-slate-400 mb-4 border-b border-slate-100 pb-2 uppercase tracking-widest">E-Commerce & Operations</div>
-                     {['manage_inventory', 'manage_orders', 'manage_marketing', 'manage_services'].map(perm => {
+                     {[
+                       { key: 'manage_inventory', label: 'Inventory & Stock' },
+                       { key: 'manage_orders', label: 'Orders & Sales' },
+                       { key: 'cheques', label: 'Cheque Tracker (PDC)' },
+                       { key: 'manage_marketing', label: 'Marketing & Discounts' },
+                       { key: 'manage_services', label: 'Warranty & Services' },
+                     ].map(({ key: perm, label }) => {
                         const hasPermission = (editingUserPermissions.permissions || []).includes(perm);
                         return (
                           <label key={perm} className="flex items-center gap-3 cursor-pointer group">
@@ -476,14 +482,24 @@ const UsersTab: React.FC = () => {
                                 : [...(editingUserPermissions.permissions || []), perm];
                               setEditingUserPermissions({...editingUserPermissions, permissions: newPermissions});
                             }} />
-                            <span className="text-sm font-bold text-slate-700 capitalize group-hover:text-blue-700">{perm.replace(/manage_/g, '')}</span>
+                            <span className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{label}</span>
                           </label>
                         );
                      })}
                   </div>
                   <div className="p-5 space-y-3">
-                     <div className="text-[10px] font-black text-slate-400 mb-4 border-b border-slate-100 pb-2 uppercase tracking-widest">System & Reports</div>
-                     {['manage_finances', 'manage_reports', 'manage_users', 'manage_hr', 'manage_settings', 'view_dashboard'].map(perm => {
+                     <div className="text-[10px] font-black text-slate-400 mb-4 border-b border-slate-100 pb-2 uppercase tracking-widest">Finance, HR & System</div>
+                     {[
+                       { key: 'manage_finances', label: 'Finances & Accounts' },
+                       { key: 'daily_collection_payout', label: 'Daily Collection Payout' },
+                       { key: 'employees', label: 'Employees (Team Members)' },
+                       { key: 'salary', label: 'Salary Overview & Advances' },
+                       { key: 'manage_hr', label: 'Full HR Management' },
+                       { key: 'manage_reports', label: 'Reports & Analytics' },
+                       { key: 'manage_users', label: 'App Access & Users' },
+                       { key: 'manage_settings', label: 'System Settings' },
+                       { key: 'view_dashboard', label: 'View Dashboard' },
+                     ].map(({ key: perm, label }) => {
                         const hasPermission = (editingUserPermissions.permissions || []).includes(perm);
                         return (
                           <label key={perm} className="flex items-center gap-3 cursor-pointer group">
@@ -496,7 +512,7 @@ const UsersTab: React.FC = () => {
                                 : [...(editingUserPermissions.permissions || []), perm];
                               setEditingUserPermissions({...editingUserPermissions, permissions: newPermissions});
                             }} />
-                            <span className="text-sm font-bold text-slate-700 capitalize group-hover:text-blue-700">{perm.replace(/manage_|view_/g, '')}</span>
+                            <span className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{label}</span>
                           </label>
                         );
                      })}
@@ -570,8 +586,25 @@ const UsersTab: React.FC = () => {
               {(userFormData.role === 'manager' || userFormData.role === 'staff') && (
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Custom Permissions</label>
-                  <div className="grid grid-cols-2 gap-3 max-h-40 overflow-y-auto pr-2 scrollbar-hide">
-                    {['access_ecommerce', 'access_hosting', 'view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing'].map((perm) => (
+                  <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2 scrollbar-hide">
+                    {[
+                      { key: 'access_ecommerce', label: 'E-Commerce Admin' },
+                      { key: 'access_hosting', label: 'Hosting Admin' },
+                      { key: 'view_dashboard', label: 'Dashboard' },
+                      { key: 'manage_inventory', label: 'Inventory' },
+                      { key: 'manage_orders', label: 'Orders & Sales' },
+                      { key: 'cheques', label: 'Cheque Tracker' },
+                      { key: 'manage_finances', label: 'Finances' },
+                      { key: 'daily_collection_payout', label: 'Daily Collection' },
+                      { key: 'employees', label: 'Employees' },
+                      { key: 'salary', label: 'Salary Overview' },
+                      { key: 'manage_hr', label: 'Human Resource' },
+                      { key: 'manage_reports', label: 'Reports' },
+                      { key: 'manage_services', label: 'Services' },
+                      { key: 'manage_marketing', label: 'Marketing' },
+                      { key: 'manage_settings', label: 'Settings' },
+                      { key: 'manage_users', label: 'Users' },
+                    ].map(({ key: perm, label }) => (
                       <label key={perm} className="flex items-center gap-2.5 cursor-pointer group">
                         <div className={cn("w-4 h-4 rounded-[4px] border flex items-center justify-center transition-colors shrink-0", userFormData.permissions.includes(perm as UserPermission) ? "bg-blue-600 border-blue-600" : "bg-white border-slate-300 group-hover:border-blue-400")}>
                           {userFormData.permissions.includes(perm as UserPermission) && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>}
@@ -588,7 +621,7 @@ const UsersTab: React.FC = () => {
                             }
                           }}
                         />
-                        <span className="text-[11px] font-bold text-slate-700 capitalize group-hover:text-blue-700 whitespace-nowrap truncate">{perm.replace(/manage_|view_|access_/g, '')}</span>
+                        <span className="text-[11px] font-bold text-slate-700 group-hover:text-blue-700 whitespace-nowrap truncate">{label}</span>
                       </label>
                     ))}
                   </div>

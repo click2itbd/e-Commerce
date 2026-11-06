@@ -174,7 +174,7 @@ const SalaryTab: React.FC = () => {
     fetchData();
   }, []);
 
-  if (!isAdmin && !hasPermission('manage_hr')) {
+  if (!isAdmin && !hasPermission('manage_hr') && !hasPermission('salary')) {
     return null;
   }
 

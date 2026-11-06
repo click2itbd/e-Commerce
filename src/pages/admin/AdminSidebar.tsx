@@ -158,6 +158,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           <button onClick={() => setActiveTab('vendors')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'vendors' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
             <Briefcase size={16} className={activeTab === 'vendors' ? "text-blue-600" : "text-gray-400"} /> Supplier
           </button>
+          {(hasPermission('manage_inventory') || hasPermission('manage_finances') || hasPermission('cheques')) && (
+            <button onClick={() => setActiveTab('cheques')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'cheques' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+              <CreditCard size={16} className={activeTab === 'cheques' ? "text-blue-600" : "text-gray-400"} />
+              <span className="flex items-center justify-between flex-1">
+                <span>Cheque Tracker</span>
+                <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-black">PDC</span>
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Warranty */}
@@ -238,6 +247,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               <FileText size={16} className={activeTab === 'all_reports' ? "text-blue-600" : "text-gray-400"} /> All Reports
             </button>
           )}
+          {(hasPermission('manage_finances') || hasPermission('manage_reports') || hasPermission('daily_collection_payout')) && (
+            <button onClick={() => setActiveTab('daily_collection_payout')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'daily_collection_payout' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+              <Receipt size={16} className={activeTab === 'daily_collection_payout' ? "text-blue-600" : "text-gray-400"} />
+              <span className="flex items-center justify-between flex-1">
+                <span>Daily Collection Payout</span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">Report</span>
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Marketing */}
@@ -258,7 +276,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         )}
 
         {/* HR */}
-        {(!isStaff || isAdmin || isManager) && (
+        {(!isStaff || isAdmin || isManager || hasPermission('manage_hr') || hasPermission('employees') || hasPermission('salary') || hasPermission('leave') || hasPermission('users')) && (
           <div className="px-4 mb-2">
             <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">Human Resource</div>
             {hasPermission('manage_users') && (
@@ -266,18 +284,20 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 <Users size={16} className={activeTab === 'users' ? "text-blue-600" : "text-gray-400"} /> App Access
               </button>
             )}
-            {hasPermission('manage_hr') && (
-              <>
-                <button onClick={() => setActiveTab('employees')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'employees' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                  <Briefcase size={16} className={activeTab === 'employees' ? "text-blue-600" : "text-gray-400"} /> Employees
-                </button>
-                <button onClick={() => setActiveTab('leave')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'leave' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                  <CheckCircle size={16} className={activeTab === 'leave' ? "text-blue-600" : "text-gray-400"} /> Leave
-                </button>
-                <button onClick={() => setActiveTab('salary')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'salary' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
-                  <CreditCard size={16} className={activeTab === 'salary' ? "text-blue-600" : "text-gray-400"} /> Salary Overview
-                </button>
-              </>
+            {(hasPermission('manage_hr') || hasPermission('employees')) && (
+              <button onClick={() => setActiveTab('employees')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'employees' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <Briefcase size={16} className={activeTab === 'employees' ? "text-blue-600" : "text-gray-400"} /> Employees
+              </button>
+            )}
+            {(hasPermission('manage_hr') || hasPermission('leave')) && (
+              <button onClick={() => setActiveTab('leave')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'leave' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <CheckCircle size={16} className={activeTab === 'leave' ? "text-blue-600" : "text-gray-400"} /> Leave
+              </button>
+            )}
+            {(hasPermission('manage_hr') || hasPermission('salary')) && (
+              <button onClick={() => setActiveTab('salary')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'salary' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
+                <CreditCard size={16} className={activeTab === 'salary' ? "text-blue-600" : "text-gray-400"} /> Salary Overview
+              </button>
             )}
           </div>
         )}

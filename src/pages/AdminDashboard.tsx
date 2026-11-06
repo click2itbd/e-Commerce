@@ -4819,36 +4819,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <span className="truncate">Supplier Due List</span>
               )}
             </button>
-            <button
-              onClick={() => {
-                setActiveTab("cheques");
-                setIsMobileMenuOpen(false);
-              }}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
-                activeTab === "cheques"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 hover:bg-gray-50",
-              )}
-            >
-              <CreditCard
-                size={16}
-                className={
+            {(hasPermission("manage_inventory") || hasPermission("manage_finances") || hasPermission("cheques")) && (
+              <button
+                onClick={() => {
+                  setActiveTab("cheques");
+                  setIsMobileMenuOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
                   activeTab === "cheques"
-                    ? "text-blue-600"
-                    : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate flex items-center justify-between flex-1">
-                  <span>Cheque Tracker</span>
-                  <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-black">
-                    PDC
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 hover:bg-gray-50",
+                )}
+              >
+                <CreditCard
+                  size={16}
+                  className={
+                    activeTab === "cheques"
+                      ? "text-blue-600"
+                      : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate flex items-center justify-between flex-1">
+                    <span>Cheque Tracker</span>
+                    <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-black">
+                      PDC
+                    </span>
                   </span>
-                </span>
-              )}
-            </button>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Warranty */}
@@ -4997,39 +4999,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     )}
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    setActiveTab("daily_collection_payout");
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className={cn(
-                    "w-full flex items-center rounded-md text-[13px] transition-colors",
-                    isSidebarCollapsed
-                      ? "justify-center py-2"
-                      : "gap-3 px-3 py-2",
-                    activeTab === "daily_collection_payout"
-                      ? "text-blue-600 font-bold bg-blue-50"
-                      : "text-gray-600 hover:bg-gray-50",
-                  )}
-                  title="Daily Collection & Payout Report"
-                >
-                  <Receipt
-                    size={16}
-                    className={
+                {(hasPermission("manage_finances") || hasPermission("manage_reports") || hasPermission("daily_collection_payout")) && (
+                  <button
+                    onClick={() => {
+                      setActiveTab("daily_collection_payout");
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center rounded-md text-[13px] transition-colors",
+                      isSidebarCollapsed
+                        ? "justify-center py-2"
+                        : "gap-3 px-3 py-2",
                       activeTab === "daily_collection_payout"
-                        ? "text-blue-600"
-                        : "text-gray-400"
-                    }
-                  />{" "}
-                  {!isSidebarCollapsed && (
-                    <span className="truncate flex items-center justify-between flex-1">
-                      <span>Daily Collection Payout</span>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">
-                        Report
+                        ? "text-blue-600 font-bold bg-blue-50"
+                        : "text-gray-600 hover:bg-gray-50",
+                    )}
+                    title="Daily Collection & Payout Report"
+                  >
+                    <Receipt
+                      size={16}
+                      className={
+                        activeTab === "daily_collection_payout"
+                          ? "text-blue-600"
+                          : "text-gray-400"
+                      }
+                    />{" "}
+                    {!isSidebarCollapsed && (
+                      <span className="truncate flex items-center justify-between flex-1">
+                        <span>Daily Collection Payout</span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">
+                          Report
+                        </span>
                       </span>
-                    </span>
-                  )}
-                </button>
+                    )}
+                  </button>
+                )}
                 {hasPermission("manual_income") && (
                   <button
                     onClick={() => setActiveTab("manual_income")}
@@ -5504,7 +5508,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {mode === "all" && (
             <>
               {/* HR */}
-              {(!isStaff || isAdmin || isManager) && (
+              {(!isStaff || isAdmin || isManager || hasPermission("manage_hr") || hasPermission("employees") || hasPermission("salary") || hasPermission("leave") || hasPermission("users")) && (
                 <div className="px-4 mb-2">
                   {!isSidebarCollapsed && (
                     <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 px-3">
@@ -5537,109 +5541,113 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       )}
                     </button>
                   )}
-                  {hasPermission("manage_hr") && (
-                    <>
-                      <button
-                        onClick={() => setActiveTab("employees")}
-                        className={cn(
-                          "w-full flex items-center rounded-md text-[13px] transition-colors",
-                          isSidebarCollapsed
-                            ? "justify-center py-2"
-                            : "gap-3 px-3 py-2",
-                          activeTab === "employees"
-                            ? "text-blue-600 font-bold bg-blue-50"
-                            : "text-gray-600 hover:bg-gray-50",
-                        )}
-                      >
-                        <Briefcase
-                          size={16}
-                          className={
-                            activeTab === "employees"
-                              ? "text-blue-600"
-                              : "text-gray-400"
-                          }
-                        />{" "}
-                        {!isSidebarCollapsed && (
-                          <span className="truncate">Employees</span>
-                        )}
-                      </button>
-
-                      {isAdmin && (
-                        <button
-                          onClick={() => setActiveTab("staff_performance")}
-                          className={cn(
-                            "w-full flex items-center rounded-md text-[13px] transition-colors",
-                            isSidebarCollapsed
-                              ? "justify-center py-2"
-                              : "gap-3 px-3 py-2",
-                            activeTab === "staff_performance"
-                              ? "text-blue-600 font-bold bg-blue-50"
-                              : "text-gray-600 hover:bg-gray-50",
-                          )}
-                          title={isSidebarCollapsed ? "Performance" : undefined}
-                        >
-                          <Trophy
-                            size={16}
-                            className={
-                              activeTab === "staff_performance"
-                                ? "text-blue-600"
-                                : "text-gray-400"
-                            }
-                          />{" "}
-                          {!isSidebarCollapsed && (
-                            <span className="truncate">Performance</span>
-                          )}
-                        </button>
+                  {(hasPermission("manage_hr") || hasPermission("employees")) && (
+                    <button
+                      onClick={() => setActiveTab("employees")}
+                      className={cn(
+                        "w-full flex items-center rounded-md text-[13px] transition-colors",
+                        isSidebarCollapsed
+                          ? "justify-center py-2"
+                          : "gap-3 px-3 py-2",
+                        activeTab === "employees"
+                          ? "text-blue-600 font-bold bg-blue-50"
+                          : "text-gray-600 hover:bg-gray-50",
                       )}
-                      <button
-                        onClick={() => setActiveTab("leave")}
-                        className={cn(
-                          "w-full flex items-center rounded-md text-[13px] transition-colors",
-                          isSidebarCollapsed
-                            ? "justify-center py-2"
-                            : "gap-3 px-3 py-2",
+                    >
+                      <Briefcase
+                        size={16}
+                        className={
+                          activeTab === "employees"
+                            ? "text-blue-600"
+                            : "text-gray-400"
+                        }
+                      />{" "}
+                      {!isSidebarCollapsed && (
+                        <span className="truncate">Employees</span>
+                      )}
+                    </button>
+                  )}
+
+                  {isAdmin && (
+                    <button
+                      onClick={() => setActiveTab("staff_performance")}
+                      className={cn(
+                        "w-full flex items-center rounded-md text-[13px] transition-colors",
+                        isSidebarCollapsed
+                          ? "justify-center py-2"
+                          : "gap-3 px-3 py-2",
+                        activeTab === "staff_performance"
+                          ? "text-blue-600 font-bold bg-blue-50"
+                          : "text-gray-600 hover:bg-gray-50",
+                      )}
+                      title={isSidebarCollapsed ? "Performance" : undefined}
+                    >
+                      <Trophy
+                        size={16}
+                        className={
+                          activeTab === "staff_performance"
+                            ? "text-blue-600"
+                            : "text-gray-400"
+                        }
+                      />{" "}
+                      {!isSidebarCollapsed && (
+                        <span className="truncate">Performance</span>
+                      )}
+                    </button>
+                  )}
+
+                  {(hasPermission("manage_hr") || hasPermission("leave")) && (
+                    <button
+                      onClick={() => setActiveTab("leave")}
+                      className={cn(
+                        "w-full flex items-center rounded-md text-[13px] transition-colors",
+                        isSidebarCollapsed
+                          ? "justify-center py-2"
+                          : "gap-3 px-3 py-2",
+                        activeTab === "leave"
+                          ? "text-blue-600 font-bold bg-blue-50"
+                          : "text-gray-600 hover:bg-gray-50",
+                      )}
+                    >
+                      <CheckCircle
+                        size={16}
+                        className={
                           activeTab === "leave"
-                            ? "text-blue-600 font-bold bg-blue-50"
-                            : "text-gray-600 hover:bg-gray-50",
-                        )}
-                      >
-                        <CheckCircle
-                          size={16}
-                          className={
-                            activeTab === "leave"
-                              ? "text-blue-600"
-                              : "text-gray-400"
-                          }
-                        />{" "}
-                        {!isSidebarCollapsed && (
-                          <span className="truncate">Leave</span>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => setActiveTab("salary")}
-                        className={cn(
-                          "w-full flex items-center rounded-md text-[13px] transition-colors",
-                          isSidebarCollapsed
-                            ? "justify-center py-2"
-                            : "gap-3 px-3 py-2",
+                            ? "text-blue-600"
+                            : "text-gray-400"
+                        }
+                      />{" "}
+                      {!isSidebarCollapsed && (
+                        <span className="truncate">Leave</span>
+                      )}
+                    </button>
+                  )}
+
+                  {(hasPermission("manage_hr") || hasPermission("salary")) && (
+                    <button
+                      onClick={() => setActiveTab("salary")}
+                      className={cn(
+                        "w-full flex items-center rounded-md text-[13px] transition-colors",
+                        isSidebarCollapsed
+                          ? "justify-center py-2"
+                          : "gap-3 px-3 py-2",
+                        activeTab === "salary"
+                          ? "text-blue-600 font-bold bg-blue-50"
+                          : "text-gray-600 hover:bg-gray-50",
+                      )}
+                    >
+                      <CreditCard
+                        size={16}
+                        className={
                           activeTab === "salary"
-                            ? "text-blue-600 font-bold bg-blue-50"
-                            : "text-gray-600 hover:bg-gray-50",
-                        )}
-                      >
-                        <CreditCard
-                          size={16}
-                          className={
-                            activeTab === "salary"
-                              ? "text-blue-600"
-                              : "text-gray-400"
-                          }
-                        />{" "}
-                        {!isSidebarCollapsed && (
-                          <span className="truncate">Salary Overview</span>
-                        )}
-                      </button>
-                    </>
+                            ? "text-blue-600"
+                            : "text-gray-400"
+                        }
+                      />{" "}
+                      {!isSidebarCollapsed && (
+                        <span className="truncate">Salary Overview</span>
+                      )}
+                    </button>
                   )}
                 </div>
               )}

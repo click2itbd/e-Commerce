@@ -74,7 +74,7 @@ rules_version = '2';
 // 6. Internal ERP, Accounting, HR & Audit Collections
 //    - `product_costs`, `customers`, `vendors`, `transactions`,
 //      `transaction_categories`, `payment_accounts`, `employees`,
-//      `employee_leaves`, `employee_salaries`, `salary_advances`,
+//      `employee_leaves`, `employee_salaries`, `salary_advances`, `cheques`,
 //      `sold_serials`,
 //      `service_records`, `campaigns`, `audiences`, `tasks`, `work_orders`,
 //      `internal_notes`, `cash_register`, `conveyances`, `purchases`,
@@ -827,6 +827,10 @@ service cloud.firestore {
     }
 
     match /salary_advances/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /cheques/{docId} {
       allow read, write: if isStaffOrAdmin();
     }
 

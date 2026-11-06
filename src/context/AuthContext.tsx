@@ -82,9 +82,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasPermission = (permission: UserPermission) => {
     const legacyMap: Record<string, string[]> = {
-      'manage_inventory': ['inventory', 'menus', 'brands', 'purchases', 'purchase_return', 'vendors', 'vendor_due_list'],
+      'manage_inventory': ['inventory', 'menus', 'brands', 'purchases', 'purchase_return', 'vendors', 'vendor_due_list', 'cheques'],
       'manage_orders': ['sales', 'sale_return', 'orders', 'customers', 'business_units', 'quotations', 'customer_due_list'],
-      'manage_finances': ['internal_notes', 'payment_accounts', 'ledger', 'manual_income', 'manual_expense', 'tx_categories', 'stock_accounting', 'deposits_withdrawals', 'account_balance', 'account_statement', 'balance_sheet', 'trial_balance', 'transaction_history', 'daily_collection_payout'],
+      'manage_finances': ['internal_notes', 'payment_accounts', 'ledger', 'manual_income', 'manual_expense', 'tx_categories', 'stock_accounting', 'deposits_withdrawals', 'account_balance', 'account_statement', 'balance_sheet', 'trial_balance', 'transaction_history', 'daily_collection_payout', 'cheques'],
       'manage_hr': ['users', 'employees', 'leave', 'salary'],
       'manage_services': ['hostingOrders', 'activeHostingAccounts', 'domainPricing', 'hostingPlans', 'domainOffers', 'domainRenewals', 'supportTickets', 'hosting_api_settings', 'hostingBilling', 'services'],
       'manage_marketing': ['campaigns', 'discountCodes', 'reviews'],
