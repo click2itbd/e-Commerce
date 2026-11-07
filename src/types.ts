@@ -867,6 +867,16 @@ export interface InternalNote {
   authorName: string;
   createdAt: string;
   status: 'pending' | 'resolved';
+  authorRole?: string;
+  authorEmail?: string;
+  authorAvatar?: string;
+  category?: string;
+  priority?: 'normal' | 'important' | 'urgent';
+  resolvedAt?: string;
+  resolvedBy?: string;
+  resolvedByName?: string;
+  resolutionNote?: string;
+  isPinned?: boolean;
 }
 
 
