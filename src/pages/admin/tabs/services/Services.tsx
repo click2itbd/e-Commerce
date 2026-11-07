@@ -545,19 +545,22 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   const printServiceMoneyReceipt = async (record: ServiceRecord) => {
     try {
       const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF('p', 'mm', [210, 148]); // A5 landscape format (210 x 148 mm)
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      let currentY = 12;
+      // Standard A5 Landscape format (210mm width x 148mm height)
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a5' });
+      const pageWidth = doc.internal.pageSize.getWidth(); // 210
+      const pageHeight = doc.internal.pageSize.getHeight(); // 148
 
-      // Outer & Inner Decorative Borders
-      doc.setDrawColor(20, 30, 50);
-      doc.setLineWidth(0.6);
-      doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
-      doc.setLineWidth(0.2);
-      doc.rect(6.5, 6.5, pageWidth - 13, pageHeight - 13);
+      // Outer Decorative Border (Dark Navy)
+      doc.setDrawColor(15, 23, 42);
+      doc.setLineWidth(0.7);
+      doc.rect(7, 7, pageWidth - 14, pageHeight - 14);
 
-      // Company Logo
+      // Inner Decorative Thin Border
+      doc.setDrawColor(71, 85, 105);
+      doc.setLineWidth(0.25);
+      doc.rect(8.8, 8.8, pageWidth - 17.6, pageHeight - 17.6);
+
+      // Header Company Logo
       try {
         const urlsToTry = [settings?.logoUrl, "/logo.png", "/logo.jpeg"].filter(Boolean);
         let dataUrl = "";
@@ -585,130 +588,193 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
           } catch (e) {}
         }
         if (loadedImg && dataUrl) {
-          const logoHeight = 11;
+          const logoHeight = 12;
           const logoWidth = (loadedImg.width / loadedImg.height) * logoHeight;
-          doc.addImage(dataUrl, "PNG", 12, currentY - 3, logoWidth, logoHeight);
+          doc.addImage(dataUrl, "PNG", 14, 12, logoWidth, logoHeight);
         }
       } catch (err) {}
 
-      // Header Company Name & Address
+      // Header Company Name & Address (Centered)
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(15, 23, 42); // slate-900
-      doc.text(settings?.businessName || settings?.brandName || "CLICK2IT BD", pageWidth / 2, currentY, { align: "center" });
+      doc.text(settings?.businessName || settings?.brandName || "CLICK2IT BD", pageWidth / 2, 16, { align: "center" });
 
-      currentY += 4.5;
-      doc.setFontSize(7.5);
+      doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(71, 85, 105);
       const address = settings?.address || "Shop No. 1072, Level 10, Multiplan Center, 69-71 New Elephant Road, Dhaka-1205";
-      doc.text(String(address), pageWidth / 2, currentY, { align: "center" });
+      doc.text(String(address), pageWidth / 2, 21, { align: "center" });
 
-      currentY += 3.8;
       const phone = settings?.contactPhone || "+8809640887777, +8801729887777";
-      doc.text(`Phone: ${phone} | Email: ${settings?.contactEmail || 'support@click2itbd.com'}`, pageWidth / 2, currentY, { align: "center" });
+      const email = settings?.contactEmail || "support@click2itbd.com";
+      doc.text(`Phone: ${phone} | Email: ${email}`, pageWidth / 2, 25.5, { align: "center" });
 
-      currentY += 7;
-
-      // BADGE: MONEY RECEIPT (মানি রিসিট)
+      // Title Badge: MONEY RECEIPT (Clean English, No Mojibake)
       doc.setFillColor(15, 23, 42); // slate-900
-      doc.roundedRect((pageWidth / 2) - 30, currentY, 60, 7, 1.5, 1.5, "F");
+      doc.roundedRect((pageWidth / 2) - 28, 29.5, 56, 7.5, 1.5, 1.5, "F");
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(10);
+      doc.setFontSize(10.5);
       doc.setFont("helvetica", "bold");
-      doc.text("MONEY RECEIPT (মানি রিসিট)", pageWidth / 2, currentY + 4.8, { align: "center" });
-
-      currentY += 12;
-      doc.setTextColor(15, 23, 42);
+      doc.text("MONEY RECEIPT", pageWidth / 2, 34.6, { align: "center" });
 
       // Receipt Metadata Row
+      doc.setTextColor(15, 23, 42);
       doc.setFontSize(8.5);
       doc.setFont("helvetica", "bold");
       const receiptNo = `MR-SVC-${record.serialNumber || record.id.slice(-6).toUpperCase()}`;
-      doc.text(`Receipt No: ${receiptNo}`, 12, currentY);
+      doc.text(`Receipt No: ${receiptNo}`, 14, 43);
 
       doc.setFont("helvetica", "normal");
-      doc.text(`Date: ${new Date(record.receivedAt || new Date()).toLocaleDateString('en-GB')}`, pageWidth - 12, currentY, { align: "right" });
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Ticket ID: #${record.id.slice(-6).toUpperCase()}`, (pageWidth / 2), 43, { align: "center" });
 
-      currentY += 8;
-      // Line 1: Received with thanks from
-      doc.setFont("helvetica", "normal");
-      doc.text("Received with thanks from :", 12, currentY);
       doc.setFont("helvetica", "bold");
-      doc.text(record.customerName || "Customer", 56, currentY);
-      doc.setFont("helvetica", "normal");
-      if (record.customerPhone) {
-        doc.text(`(Phone: ${record.customerPhone})`, 115, currentY);
-      }
-      doc.setDrawColor(200, 200, 200);
-      doc.setLineWidth(0.3);
-      doc.line(54, currentY + 1, pageWidth - 12, currentY + 1);
-
-      currentY += 8;
-      // Line 2: The sum of Taka / BDT
-      doc.text("The sum of BDT :", 12, currentY);
-      doc.setFont("helvetica", "bold");
-      doc.text(`৳ ${Number(record.serviceCharge || 0).toLocaleString()} /-`, 42, currentY);
-      doc.line(40, currentY + 1, 75, currentY + 1);
-
-      doc.setFont("helvetica", "normal");
-      doc.text("Payment Mode :", 80, currentY);
-      doc.setFont("helvetica", "bold");
-      doc.text((record.paymentMethod || "Cash").toUpperCase(), 108, currentY);
-      doc.line(106, currentY + 1, 140, currentY + 1);
-
-      doc.setFont("helvetica", "normal");
-      doc.text("Status :", 145, currentY);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(record.paymentStatus === 'paid' ? 16 : 180, record.paymentStatus === 'paid' ? 140 : 30, record.paymentStatus === 'paid' ? 40 : 30);
-      doc.text((record.paymentStatus === 'paid' ? "PAID" : "PENDING / RECEIVED"), 160, currentY);
       doc.setTextColor(15, 23, 42);
-      doc.line(158, currentY + 1, pageWidth - 12, currentY + 1);
+      const recDate = new Date(record.receivedAt || new Date()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      doc.text(`Date: ${recDate}`, pageWidth - 14, 43, { align: "right" });
 
-      currentY += 8;
-      // Line 3: In words
+      // Thin separator line
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.setLineWidth(0.4);
+      doc.line(14, 46, pageWidth - 14, 46);
+
+      // Line 1: Received with thanks from
+      let rowY = 55;
+      doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
-      doc.text("Amount (in words) :", 12, currentY);
+      doc.setTextColor(71, 85, 105);
+      doc.text("Received with thanks from :", 14, rowY);
       doc.setFont("helvetica", "bold");
-      const words = numberToWords(Number(record.serviceCharge || 0));
-      doc.text(`${words} Taka Only`, 46, currentY);
-      doc.line(44, currentY + 1, pageWidth - 12, currentY + 1);
-
-      currentY += 8;
-      // Line 4: On account of
-      doc.setFont("helvetica", "normal");
-      doc.text("On account of :", 12, currentY);
-      doc.setFont("helvetica", "bold");
-      const purpose = `Service & Repair charge for ${record.productName} (S/N: ${record.serialNumber || record.id.slice(-6).toUpperCase()})`;
-      doc.text(purpose.slice(0, 75), 40, currentY);
-      doc.line(38, currentY + 1, pageWidth - 12, currentY + 1);
-
-      // Amount Box & Signatures
-      currentY += 14;
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(15, 23, 42);
-      doc.setLineWidth(0.5);
-      doc.roundedRect(12, currentY - 4, 52, 10, 1, 1, "FD");
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
-      doc.text(`BDT ${Number(record.serviceCharge || 0).toLocaleString()} /-`, 38, currentY + 2.5, { align: "center" });
-
-      // Customer Signature
-      doc.setFontSize(7.5);
-      doc.setFont("helvetica", "normal");
-      doc.setDrawColor(160, 160, 160);
+      doc.setTextColor(15, 23, 42);
+      doc.text(record.customerName || "Customer", 62, rowY);
+      if (record.customerPhone) {
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100, 116, 139);
+        doc.text(`(Phone: ${record.customerPhone})`, 140, rowY);
+      }
+      doc.setDrawColor(203, 213, 225); // slate-300
       doc.setLineWidth(0.3);
-      doc.line(pageWidth - 110, currentY + 4, pageWidth - 70, currentY + 4);
-      doc.text("Customer Signature", pageWidth - 90, currentY + 7.5, { align: "center" });
+      doc.line(60, rowY + 1.5, pageWidth - 14, rowY + 1.5);
 
-      // Authorized Seal & Signature
-      doc.line(pageWidth - 52, currentY + 4, pageWidth - 12, currentY + 4);
-      doc.setFont("helvetica", "bold");
-      doc.text("Authorized Signature", pageWidth - 32, currentY + 7.5, { align: "center" });
+      // Line 2: The sum of BDT & Payment Mode & Status
+      rowY = 66;
+      doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text("The sum of BDT :", 14, rowY);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text(`BDT ${Number(record.serviceCharge || 0).toLocaleString()} /-`, 46, rowY);
+      doc.setDrawColor(203, 213, 225);
+      doc.line(44, rowY + 1.5, 92, rowY + 1.5);
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text("Payment Mode :", 98, rowY);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text((record.paymentMethod || "Cash").toUpperCase(), 126, rowY);
+      doc.line(124, rowY + 1.5, 155, rowY + 1.5);
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text("Status :", 161, rowY);
+      doc.setFont("helvetica", "bold");
+      if (record.paymentStatus === 'paid') {
+        doc.setTextColor(16, 140, 50); // emerald green
+        doc.text("PAID", 175, rowY);
+      } else {
+        doc.setTextColor(220, 38, 38); // rose red
+        doc.text("PENDING", 175, rowY);
+      }
+      doc.setDrawColor(203, 213, 225);
+      doc.line(173, rowY + 1.5, pageWidth - 14, rowY + 1.5);
+
+      // Line 3: Amount (in words)
+      rowY = 77;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text("Amount (in words) :", 14, rowY);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      let words = numberToWords(Number(record.serviceCharge || 0)).replace(/\s*and\s*Only$/i, '').replace(/\s*Only$/i, '').trim();
+      const wordsText = words ? `${words} Taka Only` : 'Zero Taka Only';
+      doc.text(wordsText, 48, rowY);
+      doc.setDrawColor(203, 213, 225);
+      doc.line(46, rowY + 1.5, pageWidth - 14, rowY + 1.5);
+
+      // Line 4: On account of
+      rowY = 88;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text("On account of :", 14, rowY);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      const purpose = `Service & Repair charge for ${record.productName} (S/N: ${record.serialNumber || record.id.slice(-6).toUpperCase()})`;
+      doc.text(purpose.slice(0, 85), 42, rowY);
+      doc.setDrawColor(203, 213, 225);
+      doc.line(40, rowY + 1.5, pageWidth - 14, rowY + 1.5);
+
+      // Line 5: Remarks / Issue Note (if provided)
+      rowY = 99;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text("Work / Issue :", 14, rowY);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(51, 65, 85);
+      const issueNote = record.issueDescription ? record.issueDescription.slice(0, 95) : "Servicing & hardware maintenance";
+      doc.text(issueNote, 38, rowY);
+      doc.setDrawColor(203, 213, 225);
+      doc.line(36, rowY + 1.5, pageWidth - 14, rowY + 1.5);
+
+      // Bottom Row: Total Amount Box (Left) + Customer Signature (Center) + Authorized Signature (Right)
+      const bottomY = 114;
+
+      // 1. Amount Box (Left)
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.setDrawColor(15, 23, 42); // slate-900
+      doc.setLineWidth(0.6);
+      doc.roundedRect(14, bottomY, 52, 15, 1.5, 1.5, "FD");
       doc.setFontSize(6.5);
+      doc.setFont("helvetica", "bold");
       doc.setTextColor(100, 116, 139);
-      doc.text("For CLICK2IT BD", pageWidth - 32, currentY + 10.5, { align: "center" });
+      doc.text("TOTAL AMOUNT (PAID)", 40, bottomY + 4.5, { align: "center" });
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text(`BDT ${Number(record.serviceCharge || 0).toLocaleString()} /-`, 40, bottomY + 11.5, { align: "center" });
+
+      // 2. Customer Signature (Center)
+      const custSigCenter = 110;
+      doc.setDrawColor(148, 163, 184); // slate-400
+      doc.setLineWidth(0.35);
+      doc.line(custSigCenter - 22, bottomY + 11, custSigCenter + 22, bottomY + 11);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text("Customer Signature", custSigCenter, bottomY + 15, { align: "center" });
+
+      // 3. Authorized Signature & Store Stamp (Right)
+      const authSigCenter = 172;
+      doc.line(authSigCenter - 24, bottomY + 11, authSigCenter + 24, bottomY + 11);
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text("Authorized Signature", authSigCenter, bottomY + 15, { align: "center" });
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text("For CLICK2IT BD", authSigCenter, bottomY + 18.5, { align: "center" });
+
+      // Footer disclaimer note
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(148, 163, 184);
+      doc.text("* Note: Computer repairs carry warranty strictly as per invoice terms. Please keep this receipt safe.", pageWidth / 2, 138, { align: "center" });
 
       doc.save(`Money_Receipt_SVC_${record.serialNumber || record.id.slice(-6)}.pdf`);
       toast.success('Money Receipt downloaded successfully');

@@ -871,8 +871,8 @@ export const generatePDF = async (
 
 // Basic number to words converter (up to cores/millions)
 export const numberToWords = (num: number): string => {
-  const a = ['','One ','Two ','Three ','Four ', 'Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
-  const b = ['', '', 'Twenty','Thirty','Forty','Fifty', 'Sixty','Seventy','Eighty','Ninety'];
+  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
   const numberString = String(Math.trunc(Math.abs(num)));
   if (numberString.length > 9) return 'Overflow';
@@ -883,14 +883,16 @@ export const numberToWords = (num: number): string => {
   str += (n[2] !== '00') ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
   str += (n[3] !== '00') ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
   str += (n[4] !== '0') ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'Hundred ' : '';
-  str += (n[5] !== '00') ? ((str !== '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) + 'Only' : 'Only';
-  return str;
+  if (n[5] !== '00') {
+    str += ((str !== '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]);
+  }
+  return str.trim();
 };
 
 export const printMoneyReceipt = async (transaction: any, settings: any) => {
   try {
     const { jsPDF } = await import('jspdf');
-    const doc = new jsPDF('p', 'mm', [210, 148]); // A5 size (half A4) is standard for receipts
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a5' }); // A5 landscape format (210 x 148 mm)
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     let currentY = 15;
