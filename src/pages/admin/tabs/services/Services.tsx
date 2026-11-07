@@ -43,6 +43,7 @@ interface ServiceRecord {
   outsourcePaymentAccountId?: string;
   outsourceTxPurchaseId?: string;
   outsourceTxPaymentId?: string;
+  outsourcePurchaseId?: string;
   isOutsourced?: boolean;
 }
 
@@ -117,6 +118,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     outsourcePaidAmount: 0,
     outsourcePaymentMethod: '',
     outsourcePaymentAccountId: '',
+    outsourcePurchaseId: '',
     isOutsourced: false,
     rmaStatus: 'Pending Vendor' as any,
     newSerialNumber: '',
@@ -251,6 +253,9 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       }
       if (deletedService?.outsourceTxPurchaseId) {
         try { await deleteDoc(doc(db, 'transactions', deletedService.outsourceTxPurchaseId)); } catch (e) { console.warn('Could not delete old outsource purchase tx', e); }
+      }
+      if (deletedService?.outsourcePurchaseId) {
+        try { await deleteDoc(doc(db, 'purchases', deletedService.outsourcePurchaseId)); } catch (e) { console.warn('Could not delete old outsource purchase bill doc', e); }
       }
       await deleteDoc(doc(db, 'services', id));
       await logAudit('DELETE', 'Service', `Deleted service ticket #${deletedService?.serialNumber || id} for ${deletedService?.customerName}`, profile?.displayName || profile?.email || 'Admin');
@@ -539,7 +544,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     e.preventDefault();
     try {
       const isPaidOrZero = Number(serviceFormData.serviceCharge || 0) <= 0 || serviceFormData.paymentStatus === "paid";
-      const isOutsourcedMode = (serviceFormData.serviceType === 'outsourced' || serviceFormData.serviceType === 'rma' || serviceFormData.isOutsourced);
+      const isOutsourcedMode = Boolean(
+        serviceFormData.serviceType === 'outsourced' ||
+        serviceFormData.serviceType === 'rma' ||
+        serviceFormData.isOutsourced ||
+        serviceFormData.vendorId ||
+        (serviceFormData.vendorName && serviceFormData.vendorName.trim() !== '') ||
+        (Number(serviceFormData.outsourceCost) || 0) > 0
+      );
       const oPaid = Number(serviceFormData.outsourcePaidAmount) || 0;
       const oCost = Number(serviceFormData.outsourceCost) || 0;
 
@@ -571,12 +583,48 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
         if (acc) oMethod = acc.type || acc.name;
       }
 
+      // Resolve / Auto-register Vendor for Outsource
+      let vId = serviceFormData.vendorId || '';
+      let vName = (serviceFormData.vendorName || '').trim();
+
+      if (isOutsourcedMode && (oCost > 0 || vName || vId)) {
+        if (!vName && vId) {
+          const match = vendors.find(v => v.id === vId);
+          if (match) vName = match.name;
+        }
+
+        if (!vId && vName) {
+          const match = vendors.find(v => v.name.toLowerCase().trim() === vName.toLowerCase());
+          if (match) {
+            vId = match.id;
+          } else {
+            // Auto-create registered vendor in Firestore so it permanently exists in Vendor Due List
+            try {
+              const newVendorRef = await addDoc(collection(db, 'vendors'), {
+                name: vName,
+                phone: '',
+                address: '',
+                category: 'Outsource Service',
+                createdAt: new Date().toISOString(),
+                createdBy: profile?.displayName || profile?.email || 'Admin',
+              });
+              vId = newVendorRef.id;
+            } catch (vErr) {
+              console.warn('Could not auto-create vendor doc:', vErr);
+            }
+          }
+        }
+      }
+
       // Clean undefined fields for Firestore
       const cleanData: any = {};
       Object.entries({
         ...serviceFormData,
+        vendorId: vId,
+        vendorName: vName || serviceFormData.vendorName || '',
         paymentMethod: pMethod,
-        outsourcePaymentMethod: oMethod,
+        outsourcePaymentMethod: oPaid > 0 ? oMethod : '',
+        outsourcePaymentAccountId: oPaid > 0 ? serviceFormData.outsourcePaymentAccountId : '',
         paymentStatus: isPaidOrZero ? "paid" : (serviceFormData.paymentStatus || "pending"),
         receivedAt: serviceFormData.receivedAt 
           ? (serviceFormData.receivedAt.includes('T') ? serviceFormData.receivedAt : `${serviceFormData.receivedAt}T12:00:00.000Z`)
@@ -585,55 +633,93 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
         if (v !== undefined) cleanData[k] = v;
       });
 
-      // Manage Outsource Financial Transactions
-      if (isOutsourcedMode) {
-        // If editing, delete prior outsource transactions to avoid duplicates
+      // Manage Outsource Financial Transactions & Purchase Bill
+      if (isOutsourcedMode && oCost > 0) {
+        // If editing, delete prior outsource transactions & purchase doc to avoid duplicates
         if (editingService?.outsourceTxPaymentId) {
           try { await deleteDoc(doc(db, 'transactions', editingService.outsourceTxPaymentId)); } catch (e) { console.warn('Could not delete old outsource payment tx', e); }
         }
         if (editingService?.outsourceTxPurchaseId) {
           try { await deleteDoc(doc(db, 'transactions', editingService.outsourceTxPurchaseId)); } catch (e) { console.warn('Could not delete old outsource purchase tx', e); }
         }
-
-        const vId = serviceFormData.vendorId || '';
-        const vName = serviceFormData.vendorName || 'Outsource Workshop';
-        const docRefNum = cleanData.serialNumber || editingService?.serialNumber || 'SVC';
-        const ticketDesc = cleanData.productName ? `${cleanData.productName} (S/N: ${docRefNum})` : `Ticket #${docRefNum}`;
-        const finalTxDate = cleanData.receivedAt || new Date().toISOString();
-
-        // 1. If outsourceCost > 0 and registered vendor, create purchase/payable transaction for vendor ledger
-        if (oCost > 0 && vId) {
-          const purTx = await addDoc(collection(db, 'transactions'), {
-            type: 'purchase',
-            entityType: 'vendor',
-            entityId: vId,
-            entityName: vName,
-            amount: oCost,
-            date: finalTxDate,
-            documentNumber: docRefNum,
-            description: `Outsource repair bill for ticket #${docRefNum} - ${ticketDesc}`,
-            reference: `SVC-${docRefNum}`,
-            category: 'Service & Repair Outsource',
-            createdAt: new Date().toISOString(),
-            createdBy: profile?.displayName || profile?.email || 'Admin',
-          });
-          cleanData.outsourceTxPurchaseId = purTx.id;
+        if (editingService?.outsourcePurchaseId) {
+          try { await deleteDoc(doc(db, 'purchases', editingService.outsourcePurchaseId)); } catch (e) { console.warn('Could not delete old outsource purchase doc', e); }
         }
 
-        // 2. If outsourcePaidAmount > 0, create payment_made / expense transaction
+        const docRefNum = cleanData.serialNumber || editingService?.serialNumber || cleanData.id || `SVC-${Date.now().toString().slice(-6)}`;
+        const ticketDesc = cleanData.productName ? `${cleanData.productName} (S/N: ${docRefNum})` : `Ticket #${docRefNum}`;
+        const finalTxDate = cleanData.receivedAt || new Date().toISOString();
+        const vendorDisplayName = vName || 'Outsource Workshop';
+
+        // 1. Create a purchase bill record in `purchases` collection so VendorDueList shows it in unpaid bills
+        let purchaseDocRefId = '';
+        try {
+          const purDoc = await addDoc(collection(db, 'purchases'), {
+            billNumber: `SVC-${docRefNum}`,
+            documentNumber: `SVC-${docRefNum}`,
+            vendorId: vId || '',
+            vendorName: vendorDisplayName,
+            total: oCost,
+            grandTotal: oCost,
+            paidAmount: oPaid,
+            paid: oPaid,
+            due: Math.max(0, oCost - oPaid),
+            paymentStatus: oPaid >= oCost ? 'paid' : (oPaid > 0 ? 'partial' : 'pending'),
+            paymentMethod: oPaid > 0 ? (oMethod || 'cash') : 'due',
+            paymentAccountId: oPaid > 0 ? (serviceFormData.outsourcePaymentAccountId || '') : '',
+            items: [{
+              name: `Outsource Repair: ${cleanData.productName || 'Service Item'} (Ticket #${docRefNum})`,
+              quantity: 1,
+              unitPrice: oCost,
+              purchasePrice: oCost,
+              total: oCost,
+            }],
+            date: finalTxDate,
+            createdAt: new Date().toISOString(),
+            createdBy: profile?.displayName || profile?.email || 'Admin',
+            type: 'service_outsource',
+            source: 'service_warranty',
+            serviceTicketNumber: docRefNum,
+          });
+          purchaseDocRefId = purDoc.id;
+          cleanData.outsourcePurchaseId = purDoc.id;
+        } catch (purDocErr) {
+          console.warn('Could not create outsource purchase doc:', purDocErr);
+        }
+
+        // 2. Create purchase transaction in `transactions` collection for vendor ledger & due balance
+        const purTx = await addDoc(collection(db, 'transactions'), {
+          type: 'purchase',
+          entityType: 'vendor',
+          entityId: vId || undefined,
+          entityName: vendorDisplayName,
+          amount: oCost,
+          date: finalTxDate,
+          documentNumber: `SVC-${docRefNum}`,
+          referenceId: purchaseDocRefId,
+          reference: `SVC-${docRefNum}`,
+          description: `Outsource repair bill for ticket #${docRefNum} - ${ticketDesc}`,
+          category: 'Service & Repair Outsource',
+          createdAt: new Date().toISOString(),
+          createdBy: profile?.displayName || profile?.email || 'Admin',
+        });
+        cleanData.outsourceTxPurchaseId = purTx.id;
+
+        // 3. If outsourcePaidAmount > 0, create payment_made / expense transaction
         if (oPaid > 0 && serviceFormData.outsourcePaymentAccountId) {
           const payTx = await addDoc(collection(db, 'transactions'), {
             type: vId ? 'payment_made' : 'expense',
             entityType: vId ? 'vendor' : undefined,
             entityId: vId || undefined,
-            entityName: vName,
+            entityName: vendorDisplayName,
             amount: oPaid,
             date: finalTxDate,
             paymentAccountId: serviceFormData.outsourcePaymentAccountId,
             paymentMethod: oMethod || 'cash',
-            documentNumber: docRefNum,
-            description: `Outsource repair payment for ticket #${docRefNum} - ${ticketDesc} to ${vName}`,
+            documentNumber: `SVC-${docRefNum}`,
+            referenceId: purchaseDocRefId,
             reference: `SVC-${docRefNum}`,
+            description: `Outsource repair payment for ticket #${docRefNum} - ${ticketDesc} to ${vendorDisplayName}`,
             category: 'Service & Repair Outsource',
             createdAt: new Date().toISOString(),
             createdBy: profile?.displayName || profile?.email || 'Admin',
@@ -943,7 +1029,15 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                         type="text"
                         required={serviceFormData.serviceType === 'outsourced' || serviceFormData.serviceType === 'rma' || serviceFormData.isOutsourced}
                         value={serviceFormData.vendorName || ''}
-                        onChange={e => setServiceFormData({ ...serviceFormData, vendorName: e.target.value })}
+                        onChange={e => {
+                          const name = e.target.value;
+                          const matched = vendors.find(v => v.name.toLowerCase().trim() === name.toLowerCase().trim());
+                          setServiceFormData({
+                            ...serviceFormData,
+                            vendorName: name,
+                            vendorId: matched ? matched.id : serviceFormData.vendorId
+                          });
+                        }}
                         className="w-full bg-white border border-blue-200 rounded-lg p-2.5 text-xs font-bold text-slate-900 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
                         placeholder="e.g. Master Tech Lab, Smart Care, or Md. Shakil"
                       />
@@ -977,16 +1071,26 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                         className="w-full bg-white border border-blue-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
                         placeholder="0"
                       />
-                      {(serviceFormData.outsourceCost || 0) > (serviceFormData.outsourcePaidAmount || 0) && serviceFormData.outsourceCost > 0 && (
+                      {(serviceFormData.outsourceCost || 0) > 0 && (Number(serviceFormData.outsourcePaidAmount) || 0) === 0 && (
+                        <p className="text-[10px] text-blue-700 mt-1 font-bold">
+                          ℹ️ কোনো পেমেন্ট দেওয়া হয়নি — সম্পূর্ণ ৳{serviceFormData.outsourceCost} ভেন্ডর ডিউ (Vendor Due)-তে রেকর্ড হবে।
+                        </p>
+                      )}
+                      {(serviceFormData.outsourceCost || 0) > (serviceFormData.outsourcePaidAmount || 0) && (Number(serviceFormData.outsourcePaidAmount) || 0) > 0 && (
                         <p className="text-[10px] text-amber-800 mt-1 font-bold">
-                          ⚠️ Remaining Due: {(serviceFormData.outsourceCost || 0) - (serviceFormData.outsourcePaidAmount || 0)} ৳ will be recorded in vendor due.
+                          ⚠️ আংশিক পরিশোধ: ৳{serviceFormData.outsourcePaidAmount} পরিশোধ হবে, বাকি ৳{(serviceFormData.outsourceCost || 0) - (serviceFormData.outsourcePaidAmount || 0)} ভেন্ডর ডিউ হিসেবে জমা থাকবে।
+                        </p>
+                      )}
+                      {(serviceFormData.outsourceCost || 0) > 0 && (Number(serviceFormData.outsourcePaidAmount) || 0) >= (serviceFormData.outsourceCost || 0) && (
+                        <p className="text-[10px] text-emerald-700 mt-1 font-bold">
+                          ✅ সম্পূর্ণ পরিশোধ: ভেন্ডরের কোনো বকেয়া (Due) থাকবে না।
                         </p>
                       )}
                     </div>
 
                     <div>
                       <label className="block text-[11px] font-black text-blue-900 uppercase mb-1">
-                        Paid From Account
+                        Paid From Account {(Number(serviceFormData.outsourcePaidAmount) || 0) > 0 && <span className="text-red-500">*</span>}
                       </label>
                       <select
                         value={serviceFormData.outsourcePaymentAccountId || ''}
@@ -1000,9 +1104,11 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                           });
                         }}
                         className="w-full bg-white border border-blue-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
-                        disabled={!(serviceFormData.outsourcePaidAmount > 0)}
+                        disabled={!((Number(serviceFormData.outsourcePaidAmount) || 0) > 0)}
                       >
-                        <option value="">-- Select Payment Account --</option>
+                        <option value="">
+                          {(Number(serviceFormData.outsourcePaidAmount) || 0) > 0 ? '-- Select Payment Account --' : '-- No Payment (Full Due) --'}
+                        </option>
                         {paymentAccounts?.map((acc: any) => {
                           const bal = calculateAccountBalance(acc, transactions);
                           return (
@@ -1765,7 +1871,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                              <ShoppingCart size={14} />
                            </button>
                          )}
-                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, receivedAt: record.receivedAt ? record.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0], vendorId: record.vendorId || '', vendorName: record.vendorName || '', serviceType: record.serviceType || (record.vendorId || record.vendorName || record.isOutsourced ? 'outsourced' : 'in_house'), rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || suggestEquipmentType(record.productName) || '', isWarranty: !!record.isWarranty, status: record.status || 'received', paymentMethod: record.paymentMethod || '', paymentAccountId: record.paymentAccountId || '', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || '', outsourceCost: record.outsourceCost || 0, outsourcePaidAmount: record.outsourcePaidAmount || 0, outsourcePaymentMethod: record.outsourcePaymentMethod || '', outsourcePaymentAccountId: record.outsourcePaymentAccountId || '', isOutsourced: record.isOutsourced || (record.outsourceCost > 0)}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
+                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, receivedAt: record.receivedAt ? record.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0], vendorId: record.vendorId || '', vendorName: record.vendorName || '', serviceType: record.serviceType || (record.vendorId || record.vendorName || record.isOutsourced ? 'outsourced' : 'in_house'), rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || suggestEquipmentType(record.productName) || '', isWarranty: !!record.isWarranty, status: record.status || 'received', paymentMethod: record.paymentMethod || '', paymentAccountId: record.paymentAccountId || '', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || '', outsourceCost: record.outsourceCost || 0, outsourcePaidAmount: record.outsourcePaidAmount || 0, outsourcePaymentMethod: record.outsourcePaymentMethod || '', outsourcePaymentAccountId: record.outsourcePaymentAccountId || '', outsourcePurchaseId: record.outsourcePurchaseId || '', isOutsourced: record.isOutsourced || ((record.outsourceCost || 0) > 0)}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
                            <Edit2 size={14} />
                          </button>
                           <button onClick={() => handleDeleteService(record.id)} className="text-gray-500 hover:text-red-700 bg-gray-50 hover:bg-red-50 p-1.5 rounded shadow-sm transition-all" title="Delete Service">

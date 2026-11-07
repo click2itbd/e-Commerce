@@ -162,20 +162,48 @@ export default function VendorDueList() {
   const calculateDues = () => {
     const balances: Record<string, number> = {};
     
+    // Build name-to-id lookup for resilient vendor matching
+    const vendorNameToId: Record<string, string> = {};
+    vendors.forEach(v => {
+      if (v.name) vendorNameToId[v.name.toLowerCase().trim()] = v.id;
+    });
+
+    const knownVendorIds = new Set(vendors.map(v => v.id));
+    const extraVendors: Vendor[] = [];
+
     transactions.forEach(t => {
       const isVendorTx = t.entityType === 'vendor' || (!t.entityType && t.type === 'purchase_return');
-      if (isVendorTx && t.entityId) {
-        if (!balances[t.entityId]) balances[t.entityId] = 0;
-        
-        if (t.type === 'purchase' || t.type === 'opening_balance' || t.type === 'cheque_bounced') {
-          balances[t.entityId] += Number(t.amount);
-        } else if (t.type === 'payment_made' || ((t.type === 'purchase_return' || t.type === 'return') && (t.paymentMethod === 'supplier_credit' || !t.paymentMethod || t.paymentMethod === 'credit'))) {
-          balances[t.entityId] -= Number(t.amount);
+      if (isVendorTx) {
+        let vId = t.entityId;
+        if (!vId && t.entityName) {
+          vId = vendorNameToId[t.entityName.toLowerCase().trim()];
+        }
+        if (vId) {
+          if (!balances[vId]) balances[vId] = 0;
+          
+          if (t.type === 'purchase' || t.type === 'opening_balance' || t.type === 'cheque_bounced') {
+            balances[vId] += Number(t.amount);
+          } else if (t.type === 'payment_made' || ((t.type === 'purchase_return' || t.type === 'return') && (t.paymentMethod === 'supplier_credit' || !t.paymentMethod || t.paymentMethod === 'credit'))) {
+            balances[vId] -= Number(t.amount);
+          }
+
+          if (!knownVendorIds.has(vId)) {
+            knownVendorIds.add(vId);
+            extraVendors.push({
+              id: vId,
+              name: t.entityName || 'Outsource Vendor',
+              phone: '',
+              address: '',
+              category: 'Outsource Service',
+            } as Vendor);
+          }
         }
       }
     });
 
-    const dueList = vendors
+    const combinedVendors = [...vendors, ...extraVendors];
+
+    const dueList = combinedVendors
       .map(c => ({
         ...c,
         due: balances[c.id] || 0
@@ -400,8 +428,27 @@ export default function VendorDueList() {
           await updateDoc(doc(db, 'purchases', purId), {
             paidAmount: newPaid,
             paid: newPaid,
+            due: Math.max(0, purTotal - newPaid),
             paymentStatus: newStatus
           });
+
+          // Sync payment back to service ticket if this was an outsource repair bill
+          if ((pur as any).serviceTicketNumber || (pur as any).source === 'service_warranty') {
+            try {
+              const svcTicket = (pur as any).serviceTicketNumber;
+              const svcQ = svcTicket 
+                ? query(collection(db, 'services'), where('serialNumber', '==', svcTicket))
+                : query(collection(db, 'services'), where('outsourcePurchaseId', '==', purId));
+              const svcSnap = await getDocs(svcQ);
+              if (!svcSnap.empty) {
+                await updateDoc(doc(db, 'services', svcSnap.docs[0].id), {
+                  outsourcePaidAmount: newPaid,
+                });
+              }
+            } catch (svcSyncErr) {
+              console.warn('Could not sync payment back to service ticket:', svcSyncErr);
+            }
+          }
 
           const docNum = pur.billNumber || pur.documentNumber || pur.id;
           settledDocNumbers.push(docNum);
