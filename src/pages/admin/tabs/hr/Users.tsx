@@ -6,7 +6,8 @@ import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { UserProfile, UserPermission } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { Users as UsersIcon, Mail, X, Trash2, Shield, Key } from 'lucide-react';
+import { Users as UsersIcon, Mail, X, Trash2, Shield, Key, Search, Lock, Sparkles, Check, CheckSquare } from 'lucide-react';
+import { APP_PERMISSION_SECTIONS, ROLE_PERMISSION_PRESETS, ALL_APP_PERMISSION_KEYS } from '../../../../constants/appPermissions';
 import { useAuth } from '../../../../context/AuthContext';
 import { Pagination } from '../../../../components/common/Pagination';
 import { logAudit } from '../../../../lib/audit';
@@ -19,6 +20,7 @@ const UsersTab: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [editingUserPermissions, setEditingUserPermissions] = useState<any | null>(null);
+  const [permSearchQuery, setPermSearchQuery] = useState('');
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [userFormData, setUserFormData] = useState({ name: '', email: '', password: '', role: 'staff', permissions: [] as UserPermission[] });
 
@@ -87,14 +89,16 @@ const UsersTab: React.FC = () => {
       
       const userCred = await createUserWithEmailAndPassword(secondaryAuth, userFormData.email, userFormData.password);
       
-      let defaultPermissions: UserPermission[] = userFormData.permissions;
-      if (defaultPermissions.length === 0) {
+      let defaultPermissions: any[] = userFormData.permissions;
+      if (!defaultPermissions || defaultPermissions.length === 0) {
         if (userFormData.role === 'admin') {
-          defaultPermissions = ['view_dashboard', 'manage_users', 'manage_settings', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'manage_hr', 'manage_services', 'manage_marketing', 'cheques', 'daily_collection_payout', 'employees', 'salary'];
+          defaultPermissions = ['access_ecommerce', ...Array.from(ALL_APP_PERMISSION_KEYS)];
         } else if (userFormData.role === 'manager') {
-          defaultPermissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_finances', 'manage_reports', 'cheques', 'daily_collection_payout', 'employees', 'salary'];
+          defaultPermissions = ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.store_manager];
         } else if (userFormData.role === 'staff') {
-          defaultPermissions = ['view_dashboard', 'manage_inventory', 'manage_orders', 'manage_services', 'manage_finances', 'manage_settings', 'cheques', 'daily_collection_payout', 'employees', 'salary'];
+          defaultPermissions = ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.sales_staff];
+        } else {
+          defaultPermissions = [];
         }
       }
 
@@ -404,146 +408,399 @@ const UsersTab: React.FC = () => {
         onItemsPerPageChange={setItemsPerPage}
       />
 
-      {showPermissionsModal && editingUserPermissions && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
-          <div className="bg-slate-50 rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh] border border-slate-200/50">
-            <div className="p-5 px-6 bg-white border-b border-slate-100 flex justify-between items-center shrink-0">
-              <h3 className="font-black text-lg text-slate-800 flex items-center gap-2">
-                <Key size={18} className="text-blue-500" /> Edit Profile & Permissions
-              </h3>
-              <button onClick={() => setShowPermissionsModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors bg-slate-100 p-1.5 rounded-lg">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto flex-1">
-              <div className="bg-white p-5 rounded-xl border border-slate-200 mb-6 shadow-sm">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Full Name / Nickname</label>
-                <input
-                  type="text"
-                  required
-                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none transition-all"
-                  value={editingUserPermissions.displayName || ''}
-                  onChange={e => setEditingUserPermissions({...editingUserPermissions, displayName: e.target.value})}
-                  placeholder="e.g. System Admin, Muntasir..."
-                />
+      {showPermissionsModal && editingUserPermissions && (() => {
+        const userPerms = editingUserPermissions.permissions || [];
+        const isPermActive = (key: string) => userPerms.includes(key);
+
+        const togglePerm = (key: string) => {
+          const current = new Set(userPerms);
+          if (current.has(key)) {
+            current.delete(key);
+          } else {
+            current.add(key);
+          }
+          setEditingUserPermissions({ ...editingUserPermissions, permissions: Array.from(current) });
+        };
+
+        const applyPreset = (presetKey: keyof typeof ROLE_PERMISSION_PRESETS) => {
+          const presetKeys = ROLE_PERMISSION_PRESETS[presetKey] || [];
+          const updated = Array.from(new Set(['access_ecommerce', ...presetKeys]));
+          setEditingUserPermissions({ ...editingUserPermissions, permissions: updated });
+          toast.success(`Preset applied: ${presetKey.replace('_', ' ')}`);
+        };
+
+        const selectAllAll = () => {
+          const allKeys = Array.from(ALL_APP_PERMISSION_KEYS);
+          setEditingUserPermissions({ ...editingUserPermissions, permissions: ['access_ecommerce', ...allKeys] });
+          toast.success('All permissions enabled');
+        };
+
+        const clearAllPerms = () => {
+          setEditingUserPermissions({ ...editingUserPermissions, permissions: ['access_ecommerce'] });
+          toast.success('All permissions cleared (except basic portal access)');
+        };
+
+        const toggleSection = (items: { key: string }[], shouldEnable: boolean) => {
+          const current = new Set(userPerms);
+          items.forEach(it => {
+            if (shouldEnable) current.add(it.key);
+            else current.delete(it.key);
+          });
+          setEditingUserPermissions({ ...editingUserPermissions, permissions: Array.from(current) });
+        };
+
+        const normalizedSearch = permSearchQuery.trim().toLowerCase();
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-slate-50 rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden flex flex-col max-h-[92vh] border border-slate-200">
+              {/* Header */}
+              <div className="p-4 sm:p-5 bg-white border-b border-slate-200 flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-sm">
+                    <Key size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base sm:text-lg text-slate-800 flex items-center gap-2">
+                      Permissions & Access Control
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                        {userPerms.length} Active
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Configure granular sidebar & feature permissions for <span className="font-bold text-slate-700">{editingUserPermissions.displayName || editingUserPermissions.email}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowPermissionsModal(false)}
+                  className="text-slate-400 hover:text-slate-600 transition-colors bg-slate-100 hover:bg-slate-200 p-2 rounded-xl"
+                >
+                  <X size={18} />
+                </button>
               </div>
 
-              <h4 className="font-black text-[11px] mb-3 text-slate-500 uppercase tracking-widest px-1">Primary Dashboard Access</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                {[
-                  { id: 'access_ecommerce', label: 'E-Commerce Admin', desc: 'Allow access to retail dashboard' },
-                  { id: 'access_hosting', label: 'Hosting Admin', desc: 'Allow access to server/domain hub' }
-                ].map(dash => {
-                  const hasAccess = (editingUserPermissions.permissions || []).includes(dash.id);
-                  return (
-                    <label key={dash.id} className={cn(
-                      "flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all",
-                      hasAccess ? "border-emerald-500 bg-emerald-50/50" : "border-slate-200 bg-white hover:border-slate-300"
-                    )}>
-                      <input type="checkbox" className="hidden" checked={hasAccess} onChange={() => {
-                        const newPermissions = hasAccess
-                          ? (editingUserPermissions.permissions || []).filter((p: string) => p !== dash.id)
-                          : [...(editingUserPermissions.permissions || []), dash.id];
-                        setEditingUserPermissions({...editingUserPermissions, permissions: newPermissions});
-                      }} />
-                      <div className="flex-1">
-                        <span className="block font-bold text-slate-800">{dash.label}</span>
-                        <span className="block text-[10px] text-slate-500 font-medium leading-snug mt-0.5">{dash.desc}</span>
-                      </div>
-                      <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-1 transition-all", hasAccess ? "bg-emerald-500 border-emerald-500" : "border-slate-300")}>
-                        {hasAccess && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>}
-                      </div>
+              {/* Body */}
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-5">
+                {/* User info */}
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center gap-3">
+                  <div className="flex-1 w-full">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                      Full Name / Nickname
                     </label>
-                  )
-                })}
+                    <input
+                      type="text"
+                      className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500 rounded-xl px-3.5 py-2 text-sm font-bold text-slate-800 outline-none transition-all"
+                      value={editingUserPermissions.displayName || ''}
+                      onChange={e => setEditingUserPermissions({ ...editingUserPermissions, displayName: e.target.value })}
+                      placeholder="e.g. Sales Executive, Technician, Accountant..."
+                    />
+                  </div>
+                  <div className="w-full sm:w-auto shrink-0 pt-1 sm:pt-4">
+                    <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl flex items-center gap-2">
+                      <Mail size={14} className="text-slate-400" />
+                      <span className="font-semibold text-slate-700">{editingUserPermissions.email}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dashboard Mode Access */}
+                <div>
+                  <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-2 px-1">
+                    Primary Dashboard Portals
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { id: 'access_ecommerce', label: 'E-Commerce Admin', desc: 'Main shop, POS, inventory, orders & accounts' },
+                      { id: 'access_hosting', label: 'Hosting Admin', desc: 'Web host services, domains & server hub' }
+                    ].map(dash => {
+                      const hasAccess = userPerms.includes(dash.id);
+                      return (
+                        <label
+                          key={dash.id}
+                          className={cn(
+                            "flex items-center justify-between p-3.5 rounded-xl border-2 cursor-pointer transition-all",
+                            hasAccess
+                              ? "border-blue-500 bg-blue-50/50 shadow-sm"
+                              : "border-slate-200 bg-white hover:border-slate-300"
+                          )}
+                        >
+                          <div className="flex-1 pr-3">
+                            <span className="block font-bold text-slate-800 text-sm">{dash.label}</span>
+                            <span className="block text-[11px] text-slate-500 font-medium leading-snug mt-0.5">{dash.desc}</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            className="hidden"
+                            checked={hasAccess}
+                            onChange={() => togglePerm(dash.id)}
+                          />
+                          <div
+                            className={cn(
+                              "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all",
+                              hasAccess ? "bg-blue-600 border-blue-600 text-white" : "border-slate-300 bg-white"
+                            )}
+                          >
+                            {hasAccess && <Check size={14} strokeWidth={3} />}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Quick Presets & Search */}
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-4 rounded-xl text-white shadow-md space-y-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-700/80 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={16} className="text-amber-400" />
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-200">
+                        Quick Role Presets / দ্রুত ভূমিকা সেট করুন
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={selectAllAll}
+                        className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-all"
+                      >
+                        ✓ All Full
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearAllPerms}
+                        className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 transition-all"
+                      >
+                        ✕ Clear All
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Preset Buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('sales_staff')}
+                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-700/80 hover:bg-slate-700 text-slate-100 border border-slate-600 transition-all flex items-center gap-1.5"
+                    >
+                      🛒 Sales Staff <span className="text-[10px] text-slate-400">(সেলস)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('technician')}
+                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-700/80 hover:bg-slate-700 text-slate-100 border border-slate-600 transition-all flex items-center gap-1.5"
+                    >
+                      🔧 Technician <span className="text-[10px] text-slate-400">(সার্ভিসিং)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('accountant')}
+                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-700/80 hover:bg-slate-700 text-slate-100 border border-slate-600 transition-all flex items-center gap-1.5"
+                    >
+                      💰 Accountant <span className="text-[10px] text-slate-400">(অ্যাকাউন্টস)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('store_manager')}
+                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-700/80 hover:bg-slate-700 text-slate-100 border border-slate-600 transition-all flex items-center gap-1.5"
+                    >
+                      👑 Store Manager <span className="text-[10px] text-slate-400">(ম্যানেজার)</span>
+                    </button>
+                  </div>
+
+                  {/* Search Filter Inside Permissions */}
+                  <div className="relative pt-1">
+                    <input
+                      type="text"
+                      value={permSearchQuery}
+                      onChange={e => setPermSearchQuery(e.target.value)}
+                      placeholder="Search permission by name or keyword (e.g. balance, due, pos, profit, notes, cheque...)"
+                      className="w-full bg-slate-900/90 border border-slate-700 text-white placeholder-slate-400 rounded-xl pl-9 pr-9 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    />
+                    <Search size={14} className="absolute left-3 top-[17px] text-slate-400" />
+                    {permSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setPermSearchQuery('')}
+                        className="absolute right-3 top-[17px] text-slate-400 hover:text-white"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 8 Granular Permission Sections */}
+                <div className="space-y-4">
+                  {APP_PERMISSION_SECTIONS.map(section => {
+                    const filteredItems = section.items.filter(item => {
+                      if (!normalizedSearch) return true;
+                      return (
+                        item.label.toLowerCase().includes(normalizedSearch) ||
+                        (item.description && item.description.toLowerCase().includes(normalizedSearch)) ||
+                        item.key.toLowerCase().includes(normalizedSearch)
+                      );
+                    });
+
+                    if (filteredItems.length === 0) return null;
+
+                    const activeCount = filteredItems.filter(it => isPermActive(it.key)).length;
+                    const allActive = activeCount === filteredItems.length;
+
+                    return (
+                      <div
+                        key={section.id}
+                        className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+                      >
+                        {/* Section Header */}
+                        <div className="bg-slate-50/80 px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-black text-xs text-slate-800 tracking-wide">
+                              {section.title}
+                            </h4>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                              {activeCount}/{filteredItems.length}
+                            </span>
+                            {section.badge && (
+                              <span
+                                className={cn(
+                                  "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                                  section.badge.includes('Sensitive')
+                                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                                    : "bg-blue-50 text-blue-700 border-blue-200"
+                                )}
+                              >
+                                {section.badge}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-[11px] text-slate-500 font-medium hidden md:inline">
+                              {section.subtitle}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleSection(filteredItems, !allActive)}
+                              className="text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                            >
+                              {allActive ? '✕ Deselect Section' : '✓ Select Section'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Section Items Grid */}
+                        <div className="p-3 sm:p-4 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                          {filteredItems.map(item => {
+                            const checked = isPermActive(item.key);
+                            return (
+                              <label
+                                key={item.key}
+                                className={cn(
+                                  "flex items-start gap-3 p-2.5 rounded-xl border transition-all cursor-pointer group",
+                                  checked
+                                    ? "bg-blue-50/40 border-blue-200"
+                                    : "bg-white border-slate-200/80 hover:bg-slate-50 hover:border-slate-300"
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="hidden"
+                                  checked={checked}
+                                  onChange={() => togglePerm(item.key)}
+                                />
+                                <div
+                                  className={cn(
+                                    "w-4 h-4 rounded-[5px] border flex items-center justify-center shrink-0 mt-0.5 transition-colors",
+                                    checked
+                                      ? "bg-blue-600 border-blue-600 text-white"
+                                      : "bg-white border-slate-300 group-hover:border-blue-400"
+                                  )}
+                                >
+                                  {checked && <Check size={12} strokeWidth={3} />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span
+                                      className={cn(
+                                        "text-xs font-bold leading-tight",
+                                        checked ? "text-blue-900" : "text-slate-800 group-hover:text-blue-700"
+                                      )}
+                                    >
+                                      {item.label}
+                                    </span>
+                                    {item.isSensitive && (
+                                      <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 border border-rose-200">
+                                        <Lock size={9} /> Sensitive
+                                      </span>
+                                    )}
+                                  </div>
+                                  {item.description && (
+                                    <div className="text-[11px] text-slate-500 font-medium leading-snug mt-0.5">
+                                      {item.description}
+                                    </div>
+                                  )}
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              <h4 className="font-black text-[11px] mb-3 text-slate-500 uppercase tracking-widest px-1">Granular App Permissions</h4>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
-                  <div className="p-5 space-y-3">
-                     <div className="text-[10px] font-black text-slate-400 mb-4 border-b border-slate-100 pb-2 uppercase tracking-widest">E-Commerce & Operations</div>
-                     {[
-                       { key: 'manage_inventory', label: 'Inventory & Stock' },
-                       { key: 'manage_orders', label: 'Orders & Sales' },
-                       { key: 'cheques', label: 'Cheque Tracker (PDC)' },
-                       { key: 'manage_marketing', label: 'Marketing & Discounts' },
-                       { key: 'manage_services', label: 'Warranty & Services' },
-                     ].map(({ key: perm, label }) => {
-                        const hasPermission = (editingUserPermissions.permissions || []).includes(perm);
-                        return (
-                          <label key={perm} className="flex items-center gap-3 cursor-pointer group">
-                            <div className={cn("w-4 h-4 rounded-[4px] border flex items-center justify-center transition-colors", hasPermission ? "bg-blue-600 border-blue-600" : "bg-white border-slate-300 group-hover:border-blue-400")}>
-                              {hasPermission && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>}
-                            </div>
-                            <input type="checkbox" className="hidden" checked={hasPermission} onChange={() => {
-                              const newPermissions = hasPermission
-                                ? (editingUserPermissions.permissions || []).filter((p: string) => p !== perm)
-                                : [...(editingUserPermissions.permissions || []), perm];
-                              setEditingUserPermissions({...editingUserPermissions, permissions: newPermissions});
-                            }} />
-                            <span className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{label}</span>
-                          </label>
+              {/* Footer */}
+              <div className="p-4 sm:p-5 bg-white border-t border-slate-200 flex justify-between items-center gap-3 shrink-0">
+                <div className="text-xs text-slate-500 font-semibold">
+                  Total Permissions Selected: <span className="font-black text-slate-800">{userPerms.length}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPermissionsModal(false)}
+                    className="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const targetUid = editingUserPermissions.uid || (editingUserPermissions as any).id;
+                        const prevUser = users.find(u => (u.uid || (u as any).id) === targetUid);
+                        await updateDoc(doc(db, 'users', targetUid), {
+                          permissions: editingUserPermissions.permissions,
+                          displayName: editingUserPermissions.displayName,
+                        });
+                        await logAudit(
+                          'PERMISSION_CHANGE',
+                          'User',
+                          `Updated granular permissions for "${editingUserPermissions.displayName || editingUserPermissions.email}" (${editingUserPermissions.email || targetUid})`,
+                          profile?.displayName || profile?.email || 'Admin',
+                          {
+                            entityId: targetUid,
+                            previousState: { permissions: prevUser?.permissions || [], displayName: prevUser?.displayName },
+                            newState: { permissions: editingUserPermissions.permissions, displayName: editingUserPermissions.displayName },
+                          }
                         );
-                     })}
-                  </div>
-                  <div className="p-5 space-y-3">
-                     <div className="text-[10px] font-black text-slate-400 mb-4 border-b border-slate-100 pb-2 uppercase tracking-widest">Finance, HR & System</div>
-                     {[
-                       { key: 'manage_finances', label: 'Finances & Accounts' },
-                       { key: 'daily_collection_payout', label: 'Daily Collection Payout' },
-                       { key: 'employees', label: 'Employees (Team Members)' },
-                       { key: 'salary', label: 'Salary Overview & Advances' },
-                       { key: 'manage_hr', label: 'Full HR Management' },
-                       { key: 'manage_reports', label: 'Reports & Analytics' },
-                       { key: 'manage_users', label: 'App Access & Users' },
-                       { key: 'manage_settings', label: 'System Settings' },
-                       { key: 'view_dashboard', label: 'View Dashboard' },
-                     ].map(({ key: perm, label }) => {
-                        const hasPermission = (editingUserPermissions.permissions || []).includes(perm);
-                        return (
-                          <label key={perm} className="flex items-center gap-3 cursor-pointer group">
-                            <div className={cn("w-4 h-4 rounded-[4px] border flex items-center justify-center transition-colors", hasPermission ? "bg-blue-600 border-blue-600" : "bg-white border-slate-300 group-hover:border-blue-400")}>
-                              {hasPermission && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>}
-                            </div>
-                            <input type="checkbox" className="hidden" checked={hasPermission} onChange={() => {
-                              const newPermissions = hasPermission
-                                ? (editingUserPermissions.permissions || []).filter((p: string) => p !== perm)
-                                : [...(editingUserPermissions.permissions || []), perm];
-                              setEditingUserPermissions({...editingUserPermissions, permissions: newPermissions});
-                            }} />
-                            <span className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{label}</span>
-                          </label>
-                        );
-                     })}
-                  </div>
+                        toast.success('Permissions updated successfully!');
+                        setShowPermissionsModal(false);
+                        fetchData();
+                      } catch (err: any) {
+                        toast.error('Failed to update permissions: ' + err.message);
+                      }
+                    }}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/20 text-white rounded-xl text-xs sm:text-sm font-bold transition-all"
+                  >
+                    Save Changes
+                  </button>
                 </div>
               </div>
             </div>
-            <div className="p-5 bg-white border-t border-slate-100 flex justify-end gap-3 shrink-0">
-              <button onClick={() => setShowPermissionsModal(false)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-              <button onClick={async () => {
-                const prevUser = users.find(u => (u.uid || (u as any).id) === editingUserPermissions.uid);
-                await updateDoc(doc(db, 'users', editingUserPermissions.uid), { permissions: editingUserPermissions.permissions, displayName: editingUserPermissions.displayName });
-                await logAudit(
-                  'PERMISSION_CHANGE',
-                  'User',
-                  `Updated permissions for "${editingUserPermissions.displayName || editingUserPermissions.email}" (${editingUserPermissions.email || editingUserPermissions.uid})`,
-                  profile?.displayName || profile?.email || 'Admin',
-                  {
-                    entityId: editingUserPermissions.uid,
-                    previousState: { permissions: prevUser?.permissions || [], displayName: prevUser?.displayName },
-                    newState: { permissions: editingUserPermissions.permissions, displayName: editingUserPermissions.displayName },
-                  }
-                );
-                toast.success('Permissions updated successfully');
-                setShowPermissionsModal(false);
-                fetchData();
-              }} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 text-white rounded-xl text-sm font-bold transition-all">Save Changes</button>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {isAddingUser && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
@@ -584,8 +841,55 @@ const UsersTab: React.FC = () => {
                 </div>
               </div>
               {(userFormData.role === 'manager' || userFormData.role === 'staff') && (
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Custom Permissions</label>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Initial Permissions Preset</label>
+                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{userFormData.permissions.length} selected</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.sales_staff] as any })}
+                      className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                    >
+                      🛒 Sales
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.technician] as any })}
+                      className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                    >
+                      🔧 Technician
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.accountant] as any })}
+                      className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                    >
+                      💰 Accountant
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.store_manager] as any })}
+                      className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                    >
+                      👑 Manager
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...Array.from(ALL_APP_PERMISSION_KEYS)] as any })}
+                      className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors"
+                    >
+                      ✓ All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce'] as any })}
+                      className="text-[10px] font-bold px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors"
+                    >
+                      ✕ Clear
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2 scrollbar-hide">
                     {[
                       { key: 'access_ecommerce', label: 'E-Commerce Admin' },

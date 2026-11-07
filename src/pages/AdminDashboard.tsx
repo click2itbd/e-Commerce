@@ -4447,84 +4447,92 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="flex-1 py-4 overflow-y-auto">
           {/* Section 1 */}
           <div className="px-4 mb-2">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed
-                  ? "justify-center py-2.5"
-                  : "gap-3 px-3 py-2.5",
-                activeTab === "dashboard"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 font-medium hover:bg-gray-50",
-              )}
-            >
-              <Activity
-                size={18}
-                className={
-                  activeTab === "dashboard" ? "text-blue-600" : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">Overview</span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("analytics")}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed
-                  ? "justify-center py-2.5"
-                  : "gap-3 px-3 py-2.5",
-                activeTab === "analytics"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 font-medium hover:bg-gray-50",
-              )}
-            >
-              <BarChart2
-                size={18}
-                className={
-                  activeTab === "analytics" ? "text-blue-600" : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">Analytics</span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("inventory")}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed
-                  ? "justify-center py-2.5"
-                  : "gap-3 px-3 py-2.5",
-                activeTab === "inventory"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 font-medium hover:bg-gray-50",
-              )}
-            >
-              <Package
-                size={18}
-                className={
-                  activeTab === "inventory" ? "text-blue-600" : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && <span className="truncate">Stock</span>}
-            </button>
-            <button
-              onClick={() => window.open("/pos", "_blank")}
-              className={cn(
-                "w-full flex items-center rounded-md text-sm transition-colors text-gray-600 font-medium hover:bg-gray-50",
-                isSidebarCollapsed
-                  ? "justify-center py-2.5"
-                  : "gap-3 px-3 py-2.5",
-              )}
-            >
-              <ShoppingCart size={18} className="text-gray-400" />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">CLICK POS</span>
-              )}
-            </button>
+            {hasPermission("dashboard") && (
+              <button
+                onClick={() => setActiveTab("dashboard")}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed
+                    ? "justify-center py-2.5"
+                    : "gap-3 px-3 py-2.5",
+                  activeTab === "dashboard"
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 font-medium hover:bg-gray-50",
+                )}
+              >
+                <Activity
+                  size={18}
+                  className={
+                    activeTab === "dashboard" ? "text-blue-600" : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">Overview</span>
+                )}
+              </button>
+            )}
+            {hasPermission("analytics") && (
+              <button
+                onClick={() => setActiveTab("analytics")}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed
+                    ? "justify-center py-2.5"
+                    : "gap-3 px-3 py-2.5",
+                  activeTab === "analytics"
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 font-medium hover:bg-gray-50",
+                )}
+              >
+                <BarChart2
+                  size={18}
+                  className={
+                    activeTab === "analytics" ? "text-blue-600" : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">Analytics</span>
+                )}
+              </button>
+            )}
+            {hasPermission("inventory") && (
+              <button
+                onClick={() => setActiveTab("inventory")}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed
+                    ? "justify-center py-2.5"
+                    : "gap-3 px-3 py-2.5",
+                  activeTab === "inventory"
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 font-medium hover:bg-gray-50",
+                )}
+              >
+                <Package
+                  size={18}
+                  className={
+                    activeTab === "inventory" ? "text-blue-600" : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && <span className="truncate">Stock</span>}
+              </button>
+            )}
+            {hasPermission("pos") && (
+              <button
+                onClick={() => window.open("/pos", "_blank")}
+                className={cn(
+                  "w-full flex items-center rounded-md text-sm transition-colors text-gray-600 font-medium hover:bg-gray-50",
+                  isSidebarCollapsed
+                    ? "justify-center py-2.5"
+                    : "gap-3 px-3 py-2.5",
+                )}
+              >
+                <ShoppingCart size={18} className="text-gray-400" />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">CLICK POS</span>
+                )}
+              </button>
+            )}
           </div>
 
           
@@ -4587,132 +4595,144 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </button>
             )}
-            <button
-              onClick={() => setActiveTab("orders")}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
-                activeTab === "orders"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 hover:bg-gray-50",
-              )}
-            >
-              <Receipt
-                size={16}
-                className={
-                  activeTab === "orders" ? "text-blue-600" : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">Orders & Docs</span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("customers")}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
-                activeTab === "customers"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 hover:bg-gray-50",
-              )}
-            >
-              <Users
-                size={16}
-                className={
-                  activeTab === "customers" ? "text-blue-600" : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">Customer</span>
-              )}
-            </button>
+            {hasPermission("orders") && (
+              <button
+                onClick={() => setActiveTab("orders")}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
+                  activeTab === "orders"
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 hover:bg-gray-50",
+                )}
+              >
+                <Receipt
+                  size={16}
+                  className={
+                    activeTab === "orders" ? "text-blue-600" : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">Orders & Docs</span>
+                )}
+              </button>
+            )}
+            {hasPermission("customers") && (
+              <button
+                onClick={() => setActiveTab("customers")}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
+                  activeTab === "customers"
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 hover:bg-gray-50",
+                )}
+              >
+                <Users
+                  size={16}
+                  className={
+                    activeTab === "customers" ? "text-blue-600" : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">Customer</span>
+                )}
+              </button>
+            )}
 
-            <button
-              onClick={() => {
-                setActiveTab("deliveries");
-                setIsMobileMenuOpen(false);
-              }}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
-                activeTab === "deliveries" ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50",
-              )}
-            >
-              <Truck size={16} className={activeTab === "deliveries" ? "text-blue-600" : "text-gray-400"} />
-              {!isSidebarCollapsed && (
-                <span className="truncate">Deliveries</span>
-              )}
-            </button>
+            {hasPermission("deliveries") && (
+              <button
+                onClick={() => {
+                  setActiveTab("deliveries");
+                  setIsMobileMenuOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
+                  activeTab === "deliveries" ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50",
+                )}
+              >
+                <Truck size={16} className={activeTab === "deliveries" ? "text-blue-600" : "text-gray-400"} />
+                {!isSidebarCollapsed && (
+                  <span className="truncate">Deliveries</span>
+                )}
+              </button>
+            )}
 
-            <button
-              onClick={() => {
-                setActiveTab("customer_due_list");
-                setIsMobileMenuOpen(false);
-              }}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
-                activeTab === "customer_due_list"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 hover:bg-gray-50",
-              )}
-            >
-              <CreditCard
-                size={16}
-                className={
+            {hasPermission("customer_due_list") && (
+              <button
+                onClick={() => {
+                  setActiveTab("customer_due_list");
+                  setIsMobileMenuOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
                   activeTab === "customer_due_list"
-                    ? "text-blue-600"
-                    : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">Customer Due List</span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("quotations")}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
-                activeTab === "quotations"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 hover:bg-gray-50",
-              )}
-            >
-              <FileText
-                size={16}
-                className={
-                  activeTab === "quotations" ? "text-blue-600" : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">Quotation System</span>
-              )}
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab("build_requests");
-                setIsMobileMenuOpen(false);
-              }}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
-                activeTab === "build_requests"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 hover:bg-gray-50",
-              )}
-            >
-              <Cpu
-                size={16}
-                className={
-                  activeTab === "build_requests" ? "text-blue-600" : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">PC Build Requests</span>
-              )}
-            </button>
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 hover:bg-gray-50",
+                )}
+              >
+                <CreditCard
+                  size={16}
+                  className={
+                    activeTab === "customer_due_list"
+                      ? "text-blue-600"
+                      : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">Customer Due List</span>
+                )}
+              </button>
+            )}
+            {hasPermission("quotations") && (
+              <button
+                onClick={() => setActiveTab("quotations")}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
+                  activeTab === "quotations"
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 hover:bg-gray-50",
+                )}
+              >
+                <FileText
+                  size={16}
+                  className={
+                    activeTab === "quotations" ? "text-blue-600" : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">Quotation System</span>
+                )}
+              </button>
+            )}
+            {hasPermission("build_requests") && (
+              <button
+                onClick={() => {
+                  setActiveTab("build_requests");
+                  setIsMobileMenuOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
+                  activeTab === "build_requests"
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 hover:bg-gray-50",
+                )}
+              >
+                <Cpu
+                  size={16}
+                  className={
+                    activeTab === "build_requests" ? "text-blue-600" : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">PC Build Requests</span>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Section 3: Purchase & Supplier */}
@@ -4774,51 +4794,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </button>
             )}
-            <button
-              onClick={() => setActiveTab("vendors")}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
-                activeTab === "vendors"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 hover:bg-gray-50",
-              )}
-            >
-              <Briefcase
-                size={16}
-                className={
-                  activeTab === "vendors" ? "text-blue-600" : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">Supplier</span>
-              )}
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab("vendor_due_list");
-                setIsMobileMenuOpen(false);
-              }}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
-                activeTab === "vendor_due_list"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 hover:bg-gray-50",
-              )}
-            >
-              <CreditCard
-                size={16}
-                className={
+            {hasPermission("vendors") && (
+              <button
+                onClick={() => setActiveTab("vendors")}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
+                  activeTab === "vendors"
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 hover:bg-gray-50",
+                )}
+              >
+                <Briefcase
+                  size={16}
+                  className={
+                    activeTab === "vendors" ? "text-blue-600" : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">Supplier</span>
+                )}
+              </button>
+            )}
+            {hasPermission("vendor_due_list") && (
+              <button
+                onClick={() => {
+                  setActiveTab("vendor_due_list");
+                  setIsMobileMenuOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed ? "justify-center py-2" : "gap-3 px-3 py-2",
                   activeTab === "vendor_due_list"
-                    ? "text-blue-600"
-                    : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">Supplier Due List</span>
-              )}
-            </button>
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 hover:bg-gray-50",
+                )}
+              >
+                <CreditCard
+                  size={16}
+                  className={
+                    activeTab === "vendor_due_list"
+                      ? "text-blue-600"
+                      : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">Supplier Due List</span>
+                )}
+              </button>
+            )}
             {(hasPermission("manage_inventory") || hasPermission("manage_finances") || hasPermission("cheques")) && (
               <button
                 onClick={() => {
@@ -5322,7 +5346,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </button>
                 )}
 
-                  {(hasPermission("manage_finances") || hasPermission("manage_orders")) && (
+                  {hasPermission("day_book") && (
                     <button
                       onClick={() => setActiveTab("day_book")}
                       className={cn(
@@ -5348,7 +5372,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       )}
                     </button>
                   )}
-                {hasPermission("manage_finances") && (
+                {hasPermission("transaction_history") && (
                   <button
                     onClick={() => setActiveTab("transaction_history")}
                     className={cn(
@@ -5374,7 +5398,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     )}
                   </button>
                 )}
-                {hasPermission("manage_finances") && (
+                {hasPermission("profit_loss") && (
                   <button
                     onClick={() => setActiveTab("profit_loss")}
                     className={cn(
@@ -5686,28 +5710,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </button>
             )}
-            <button
-              onClick={() => setActiveTab("tasks")}
-              className={cn(
-                "w-full flex items-center rounded-md text-[13px] transition-colors",
-                isSidebarCollapsed
-                  ? "justify-center py-2"
-                  : "gap-3 px-3 py-2",
-                activeTab === "tasks"
-                  ? "text-blue-600 font-bold bg-blue-50"
-                  : "text-gray-600 hover:bg-gray-50",
-              )}
-            >
-              <CheckCircle
-                size={16}
-                className={
-                  activeTab === "tasks" ? "text-blue-600" : "text-gray-400"
-                }
-              />{" "}
-              {!isSidebarCollapsed && (
-                <span className="truncate">To-Do List</span>
-              )}
-            </button>
+            {hasPermission("tasks") && (
+              <button
+                onClick={() => setActiveTab("tasks")}
+                className={cn(
+                  "w-full flex items-center rounded-md text-[13px] transition-colors",
+                  isSidebarCollapsed
+                    ? "justify-center py-2"
+                    : "gap-3 px-3 py-2",
+                  activeTab === "tasks"
+                    ? "text-blue-600 font-bold bg-blue-50"
+                    : "text-gray-600 hover:bg-gray-50",
+                )}
+              >
+                <CheckCircle
+                  size={16}
+                  className={
+                    activeTab === "tasks" ? "text-blue-600" : "text-gray-400"
+                  }
+                />{" "}
+                {!isSidebarCollapsed && (
+                  <span className="truncate">To-Do List</span>
+                )}
+              </button>
+            )}
             {isAdmin && (
               <button
                 onClick={() => setActiveTab("audit_logs")}
@@ -5734,7 +5760,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </button>
             )}
-            {(!isStaff || isAdmin || isManager) && (
+            {hasPermission("restore") && (
               <button
                 onClick={() => setActiveTab("restore")}
                 className={cn(
@@ -5964,28 +5990,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <AuditLogsTab />
               ) : activeTab === "restore" ? (
                 <RestoreCenterTab fetchData={debouncedFetchData} />
-              ) : isStaff &&
-                !isAdmin &&
-                !isManager &&
-                !OFFLINE_SHOP_TABS.includes(activeTab) ? (
-                <div className="bg-white rounded-lg shadow-sm border border-red-200 p-8 text-center max-w-md mx-auto mt-12">
+              ) : activeTab !== "notifications" && !isAdmin && !hasPermission(activeTab) ? (
+                <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-8 text-center max-w-md mx-auto mt-12">
                   <ShieldAlert
                     size={48}
                     className="mx-auto text-red-500 mb-3"
                   />
                   <h3 className="text-lg font-bold text-gray-900 mb-1">
-                    Access Restricted
+                    Access Restricted / সেকশন অ্যাক্সেস নেই
                   </h3>
                   <p className="text-sm text-gray-500 mb-4">
-                    Staff accounts are restricted to Offline Shop POS and Retail
-                    modules.
+                    আপনার অ্যাকাউন্টে এই সেকশনটির অ্যাক্সেস পারমিশন দেওয়া নেই। প্রয়োজন হলে অ্যাডমিন প্যানেল থেকে পারমিশন যোগ করুন।
                   </p>
-                  <button
-                    onClick={() => setActiveTab("sales")}
-                    className="px-4 py-2 bg-[#081621] text-white rounded-md text-sm font-bold hover:bg-[#EF4444] transition-colors"
-                  >
-                    Go to Sale Screen
-                  </button>
                 </div>
               ) : activeTab === "dashboard" ? (
                 <AdminOverviewDashboard
@@ -6168,7 +6184,7 @@ handleReturnOrder={handleReturnOrder}
                   <ProfitLossTab />
                 </Suspense>
               ) : activeTab === "transaction_history" &&
-                hasPermission("transactions") ? (
+                hasPermission("transaction_history") ? (
                 <TransactionHistoryTab
                   setSelectedLedgerEntity={setSelectedLedgerEntity}
                   setActiveTab={setActiveTab}
