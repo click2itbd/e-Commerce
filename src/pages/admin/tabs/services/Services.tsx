@@ -8,7 +8,7 @@ import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { AIPolishButton } from '../../../../components/common/AIPolishButton';
-import {  ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle, Clock, AlertCircle, Package, MessageCircle, ShoppingCart , Trash2 } from 'lucide-react';
+import {  ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle, Clock, AlertCircle, Package, MessageCircle, ShoppingCart , Trash2, Eye } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Transaction, PaymentAccount } from '../../../../types';
@@ -125,6 +125,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   };
   
   const [serviceFormData, setServiceFormData] = useState(defaultFormData);
+  const [viewingRecord, setViewingRecord] = useState<ServiceRecord | null>(null);
   const [ledgerView, setLedgerView] = useState<'ledger' | 'products'>('products');
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
 
@@ -1708,7 +1709,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   .map((record) => (
                   <tr key={record.id} className="bg-white border-b hover:bg-gray-50 transition-all">
                     <td className="px-6 py-4">
-                      <div className="font-bold">{record.id.slice(-6).toUpperCase()}</div>
+                      <button
+                        type="button"
+                        onClick={() => setViewingRecord(record)}
+                        className="font-bold text-blue-600 hover:text-blue-800 hover:underline text-left cursor-pointer flex items-center gap-1"
+                        title="Click to view full ticket details"
+                      >
+                        <span>{record.id.slice(-6).toUpperCase()}</span>
+                      </button>
                       <div className="text-xs text-gray-500">{new Date(record.receivedAt).toLocaleDateString()}</div>
                     </td>
                     <td className="px-6 py-4">
@@ -1853,6 +1861,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                        )}
 
                        <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-gray-100 w-full">
+                         <button
+                           type="button"
+                           onClick={() => setViewingRecord(record)}
+                           className="text-gray-500 hover:text-indigo-700 bg-gray-50 hover:bg-indigo-50 p-1.5 rounded shadow-sm transition-all"
+                           title="View Ticket Details"
+                         >
+                           <Eye size={14} />
+                         </button>
                          {record.customerPhone && (
                            <a href={`https://wa.me/${record.customerPhone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="text-green-500 hover:text-green-700 bg-green-50 hover:bg-green-100 p-1.5 rounded shadow-sm transition-all" title="Message on WhatsApp">
                              <MessageCircle size={14} />
@@ -1883,6 +1899,293 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      {/* ── VIEW SERVICE TICKET DETAILS MODAL ── */}
+      {viewingRecord && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-gray-100 overflow-hidden my-8 animate-in fade-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400">
+                  <Wrench className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-white">
+                      Service Ticket #{viewingRecord.serialNumber || viewingRecord.id.slice(-6).toUpperCase()}
+                    </h3>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 uppercase">
+                      {viewingRecord.serviceType === 'rma' ? 'Vendor RMA' : (viewingRecord.serviceType === 'outsourced' || viewingRecord.isOutsourced ? 'Outsourced' : 'In-House')}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Received: {new Date(viewingRecord.receivedAt).toLocaleString()}
+                    {viewingRecord.deliveredAt && ` • Delivered: ${new Date(viewingRecord.deliveredAt).toLocaleString()}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingRecord(null)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
+              {/* Status Banner */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500 font-bold">Current Status:</span>
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase ${
+                    viewingRecord.status === 'delivered' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                    viewingRecord.status === 'ready' ? 'bg-green-100 text-green-800 border border-green-200' :
+                    viewingRecord.status === 'in_progress' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                    'bg-amber-100 text-amber-800 border border-amber-200'
+                  }`}>
+                    {viewingRecord.status?.replace('_', ' ')}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500 font-bold">Policy:</span>
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase ${
+                    viewingRecord.isWarranty ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                    Number(viewingRecord.serviceCharge) <= 0 ? 'bg-slate-100 text-slate-800' :
+                    'bg-orange-100 text-orange-800 border border-orange-200'
+                  }`}>
+                    {viewingRecord.isWarranty ? 'Warranty Service' : Number(viewingRecord.serviceCharge) <= 0 ? 'Free Service' : 'Paid Service'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Customer & Product Information (2 Columns) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {/* Customer Details */}
+                <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">
+                    Customer Information
+                  </span>
+                  <div className="font-bold text-sm text-gray-900">{viewingRecord.customerName}</div>
+                  <div className="text-gray-600 flex items-center gap-1.5">
+                    <span>Phone:</span>
+                    <strong className="text-gray-900">{viewingRecord.customerPhone || 'N/A'}</strong>
+                  </div>
+                  {viewingRecord.customerEmail && (
+                    <div className="text-gray-600">
+                      <span>Email:</span> <span className="text-gray-900">{viewingRecord.customerEmail}</span>
+                    </div>
+                  )}
+                  {viewingRecord.customerAddress && (
+                    <div className="text-gray-600">
+                      <span>Address:</span> <span className="text-gray-900">{viewingRecord.customerAddress}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Product Details */}
+                <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">
+                    Device / Product Details
+                  </span>
+                  <div className="font-bold text-sm text-gray-900">{viewingRecord.productName}</div>
+                  <div className="text-gray-600 flex items-center gap-1.5 font-mono">
+                    <span>Serial No:</span>
+                    <strong className="text-gray-900">{viewingRecord.serialNumber || 'N/A'}</strong>
+                  </div>
+                  {viewingRecord.equipmentType && (
+                    <div className="text-gray-600">
+                      <span>Equipment Type:</span> <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-800 font-semibold">{viewingRecord.equipmentType}</span>
+                    </div>
+                  )}
+                  {viewingRecord.newSerialNumber && (
+                    <div className="text-emerald-700 bg-emerald-50 p-1.5 rounded-lg border border-emerald-200">
+                      <span>Replacement S/N:</span> <strong className="font-mono">{viewingRecord.newSerialNumber}</strong>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Issue Description */}
+              <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200 space-y-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block">
+                  Reported Issue / Problem Description
+                </span>
+                <p className="text-gray-900 font-medium whitespace-pre-wrap leading-relaxed">
+                  {viewingRecord.issueDescription || 'No issue description provided.'}
+                </p>
+              </div>
+
+              {/* Technician Notes */}
+              {viewingRecord.notes && (
+                <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200 space-y-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 block">
+                    Technician Diagnostic Notes
+                  </span>
+                  <p className="text-gray-900 font-medium whitespace-pre-wrap leading-relaxed">
+                    {viewingRecord.notes}
+                  </p>
+                </div>
+              )}
+
+              {/* Billing & Customer Payment */}
+              <div className="p-4 bg-white rounded-xl border border-gray-200 space-y-3">
+                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">
+                  Customer Billing & Payment
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                  <div className="p-2.5 bg-gray-50 rounded-lg">
+                    <span className="text-[10px] text-gray-500 block">Service Charge</span>
+                    <strong className="text-sm text-gray-900">৳{Number(viewingRecord.serviceCharge || 0).toLocaleString()}</strong>
+                  </div>
+                  <div className="p-2.5 bg-gray-50 rounded-lg">
+                    <span className="text-[10px] text-gray-500 block">Parts / Cost Price</span>
+                    <strong className="text-sm text-gray-900">৳{Number(viewingRecord.costPrice || 0).toLocaleString()}</strong>
+                  </div>
+                  <div className="p-2.5 bg-gray-50 rounded-lg">
+                    <span className="text-[10px] text-gray-500 block">Payment Status</span>
+                    <strong className={`text-xs uppercase font-black ${viewingRecord.paymentStatus === 'paid' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {viewingRecord.paymentStatus || 'pending'}
+                    </strong>
+                  </div>
+                  <div className="p-2.5 bg-gray-50 rounded-lg">
+                    <span className="text-[10px] text-gray-500 block">Payment Method</span>
+                    <strong className="text-xs text-gray-800 uppercase">
+                      {viewingRecord.paymentMethod || 'N/A'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Outsource / Vendor Repair Details (If Applicable) */}
+              {(viewingRecord.serviceType === 'outsourced' || viewingRecord.serviceType === 'rma' || viewingRecord.isOutsourced || (viewingRecord.outsourceCost || 0) > 0 || viewingRecord.vendorName) && (
+                <div className="p-4 bg-gradient-to-r from-blue-50/80 to-indigo-50/60 rounded-xl border border-blue-200 space-y-3">
+                  <div className="flex items-center justify-between border-b border-blue-200 pb-2">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-blue-950 flex items-center gap-1.5">
+                      <span>🤝 Outsource Workshop / Vendor Repair</span>
+                    </span>
+                    {viewingRecord.serviceType === 'rma' && viewingRecord.rmaStatus && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                        RMA: {viewingRecord.rmaStatus}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="col-span-2 p-2.5 bg-white rounded-lg border border-blue-100">
+                      <span className="text-[10px] text-slate-500 block">Assigned Vendor / Workshop</span>
+                      <strong className="text-xs text-blue-950">{viewingRecord.vendorName || 'Outsource Workshop'}</strong>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-lg border border-blue-100 text-center">
+                      <span className="text-[10px] text-slate-500 block">Outsource Cost</span>
+                      <strong className="text-xs text-slate-900">৳{Number(viewingRecord.outsourceCost || 0).toLocaleString()}</strong>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-lg border border-blue-100 text-center">
+                      <span className="text-[10px] text-slate-500 block">Amount Paid</span>
+                      <strong className="text-xs text-emerald-700">৳{Number(viewingRecord.outsourcePaidAmount || 0).toLocaleString()}</strong>
+                    </div>
+                  </div>
+
+                  {/* Remaining Due Banner */}
+                  {(Number(viewingRecord.outsourceCost || 0) - Number(viewingRecord.outsourcePaidAmount || 0)) > 0 && (
+                    <div className="p-2.5 bg-amber-100/70 border border-amber-300 rounded-lg flex items-center justify-between text-xs font-bold text-amber-900">
+                      <span>Remaining Vendor Due:</span>
+                      <span className="text-rose-700 font-black">
+                        ৳{(Number(viewingRecord.outsourceCost || 0) - Number(viewingRecord.outsourcePaidAmount || 0)).toLocaleString()} (Recorded in Vendor Due List)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer: Action Buttons */}
+            <div className="bg-gray-50 border-t border-gray-200 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => printServiceReceipt(viewingRecord)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-gray-100 text-gray-800 rounded-xl font-bold text-xs border border-gray-300 shadow-2xs transition-all cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Print Receipt</span>
+                </button>
+
+                {!viewingRecord.isWarranty && viewingRecord.serviceCharge > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => printServiceBill(viewingRecord)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-gray-100 text-gray-800 rounded-xl font-bold text-xs border border-gray-300 shadow-2xs transition-all cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Print Bill</span>
+                  </button>
+                )}
+
+                {viewingRecord.customerPhone && (
+                  <a
+                    href={`https://wa.me/${viewingRecord.customerPhone.replace(/[^0-9]/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl font-bold text-xs border border-emerald-200 shadow-2xs transition-all"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>WhatsApp</span>
+                  </a>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rec = viewingRecord;
+                    setViewingRecord(null);
+                    setEditingService(rec);
+                    setServiceFormData({
+                      ...rec,
+                      receivedAt: rec.receivedAt ? rec.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0],
+                      vendorId: rec.vendorId || '',
+                      vendorName: rec.vendorName || '',
+                      serviceType: rec.serviceType || (rec.vendorId || rec.vendorName || rec.isOutsourced ? 'outsourced' : 'in_house'),
+                      rmaStatus: rec.rmaStatus || 'Pending Vendor',
+                      equipmentType: rec.equipmentType || suggestEquipmentType(rec.productName) || '',
+                      isWarranty: !!rec.isWarranty,
+                      status: rec.status || 'received',
+                      paymentMethod: rec.paymentMethod || '',
+                      paymentAccountId: rec.paymentAccountId || '',
+                      paymentStatus: rec.paymentStatus || 'pending',
+                      medeaPayment: (rec as any).medeaPayment || '',
+                      outsourceCost: rec.outsourceCost || 0,
+                      outsourcePaidAmount: rec.outsourcePaidAmount || 0,
+                      outsourcePaymentMethod: rec.outsourcePaymentMethod || '',
+                      outsourcePaymentAccountId: rec.outsourcePaymentAccountId || '',
+                      outsourcePurchaseId: rec.outsourcePurchaseId || '',
+                      isOutsourced: rec.isOutsourced || ((rec.outsourceCost || 0) > 0),
+                    });
+                    setIsAddingService(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-xs transition-all cursor-pointer"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Edit Ticket</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewingRecord(null)}
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-bold text-xs transition-all cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
