@@ -266,7 +266,7 @@ export default function CustomerDueList() {
       }
     });
 
-    const dueList = Array.from(customerMap.values())
+    const mappedList = Array.from(customerMap.values())
       .map(c => {
         const due = balances[c.id] || 0;
         const aging = customerDebits[c.id] || {
@@ -281,12 +281,82 @@ export default function CustomerDueList() {
           agingBucket: aging.bucket,
           oldestDocNumber: aging.oldestDocNumber,
           oldestDate: aging.oldestDate,
+          linkedIds: [c.id],
         };
-      })
+      });
+
+    // Consolidate all Spacezero records into a single unified "Spacezero Ltd" profile
+    const spacezeroRecords = mappedList.filter(c => {
+      const n = (c.name || '').toLowerCase().replace(/[\s\-_.]/g, '');
+      const comp = (c.company || '').toLowerCase().replace(/[\s\-_.]/g, '');
+      return n.startsWith('spacezero') || comp.startsWith('spacezero');
+    });
+
+    let dueList = mappedList;
+    if (spacezeroRecords.length > 1) {
+      const nonSpacezero = mappedList.filter(c => {
+        const n = (c.name || '').toLowerCase().replace(/[\s\-_.]/g, '');
+        const comp = (c.company || '').toLowerCase().replace(/[\s\-_.]/g, '');
+        return !n.startsWith('spacezero') && !comp.startsWith('spacezero');
+      });
+
+      // Primary Spacezero record: prioritize "Spacezero Ltd" or the one with phone
+      const primarySpacezero = spacezeroRecords.find(c => c.name?.toLowerCase().includes('ltd')) ||
+                               spacezeroRecords.find(c => c.phone) ||
+                               spacezeroRecords[0];
+
+      const allBranches = new Set<string>();
+      spacezeroRecords.forEach(c => {
+        if (c.branchName) allBranches.add(c.branchName);
+        (c.branches || []).forEach((b: string) => b && allBranches.add(b));
+      });
+
+      // Scan orders and transactions for any Spacezero project / branch names
+      orders.forEach(o => {
+        const cName = (o.customerName || '').toLowerCase().replace(/[\s\-_.]/g, '');
+        if (cName.startsWith('spacezero')) {
+          const br = o.projectName || o.branchName;
+          if (br && !['main', 'none', 'n/a', 'corporate'].includes(br.toLowerCase())) {
+            allBranches.add(br);
+          }
+        }
+      });
+
+      transactions.forEach(t => {
+        const eName = (t.entityName || '').toLowerCase().replace(/[\s\-_.]/g, '');
+        if (eName.startsWith('spacezero')) {
+          const br = (t as any).projectName || (t as any).branchName;
+          if (br && !['main', 'none', 'n/a', 'corporate'].includes(br.toLowerCase())) {
+            allBranches.add(br);
+          }
+        }
+      });
+
+      const totalDue = spacezeroRecords.reduce((sum, r) => sum + (Number(r.due) || 0), 0);
+      const maxDaysOld = Math.max(...spacezeroRecords.map(r => r.daysOld || 0));
+      const oldestRec = spacezeroRecords.find(r => r.daysOld === maxDaysOld) || primarySpacezero;
+
+      const unifiedSpacezero = {
+        ...primarySpacezero,
+        name: 'Spacezero Ltd',
+        phone: primarySpacezero.phone || spacezeroRecords.find(r => r.phone)?.phone || '01712220734',
+        address: primarySpacezero.address || spacezeroRecords.find(r => r.address)?.address || 'Plot-01, Road-Gulshan Avenue, Gulshan, Dhaka',
+        branches: Array.from(allBranches).filter(Boolean),
+        branchName: Array.from(allBranches)[0] || '',
+        due: totalDue,
+        daysOld: maxDaysOld,
+        agingBucket: oldestRec.agingBucket || '31_60',
+        oldestDocNumber: oldestRec.oldestDocNumber,
+        oldestDate: oldestRec.oldestDate,
+        linkedIds: spacezeroRecords.map(r => r.id),
+      };
+
+      dueList = [unifiedSpacezero, ...nonSpacezero];
+    }
+
+    return dueList
       .filter(c => showAll ? true : c.due > 0)
       .sort((a, b) => b.due - a.due);
-
-    return dueList;
   };
 
   const allDueCustomers = calculateDues();
@@ -546,10 +616,14 @@ export default function CustomerDueList() {
   // Unpaid Orders for the selected customer in Payment Modal
   const customerUnpaidOrders = useMemo(() => {
     if (!selectedCustomer) return [];
+    const linkedIds = (selectedCustomer as any).linkedIds || [selectedCustomer.id];
+    const isSpacezero = (selectedCustomer.name || '').toLowerCase().replace(/[\s\-_.]/g, '').startsWith('spacezero');
     return orders.filter(o => {
       if (o.status === 'cancelled' || o.type === 'quotation') return false;
-      const matchesId = (o as any).customerId === selectedCustomer.id || o.userId === selectedCustomer.id;
-      const matchesName = o.customerName && selectedCustomer.name && o.customerName.toLowerCase().trim() === selectedCustomer.name.toLowerCase().trim();
+      const matchesId = linkedIds.includes((o as any).customerId) || linkedIds.includes(o.userId);
+      const matchesName = isSpacezero
+        ? (o.customerName || '').toLowerCase().replace(/[\s\-_.]/g, '').startsWith('spacezero')
+        : (o.customerName && selectedCustomer.name && o.customerName.toLowerCase().trim() === selectedCustomer.name.toLowerCase().trim());
       const matchesPhone = o.customerPhone && (selectedCustomer as any).phone && o.customerPhone.replace(/\D/g, '') === (selectedCustomer as any).phone.replace(/\D/g, '');
       if (!matchesId && !matchesName && !matchesPhone) return false;
       const total = Number(o.total || 0);
@@ -578,15 +652,20 @@ export default function CustomerDueList() {
   }, [customerUnpaidOrders, modalProjectFilter]);
 
   // Open Payment Modal and initialize state
-  const handleOpenPaymentModal = (customer: { id: string; name: string; due: number }) => {
+  const handleOpenPaymentModal = (customer: { id: string; name: string; due: number; linkedIds?: string[] }) => {
     setSelectedCustomer(customer);
     setPaymentNotes('');
     setModalProjectFilter('all');
 
+    const linkedIds = customer.linkedIds || [customer.id];
+    const isSpacezero = (customer.name || '').toLowerCase().replace(/[\s\-_.]/g, '').startsWith('spacezero');
+
     const unpaid = orders.filter(o => {
-      if (o.status === 'cancelled') return false;
-      const matchesId = (o as any).customerId === customer.id || o.userId === customer.id;
-      const matchesName = o.customerName && customer.name && o.customerName.toLowerCase().trim() === customer.name.toLowerCase().trim();
+      if (o.status === 'cancelled' || o.type === 'quotation') return false;
+      const matchesId = linkedIds.includes((o as any).customerId) || linkedIds.includes(o.userId);
+      const matchesName = isSpacezero
+        ? (o.customerName || '').toLowerCase().replace(/[\s\-_.]/g, '').startsWith('spacezero')
+        : (o.customerName && customer.name && o.customerName.toLowerCase().trim() === customer.name.toLowerCase().trim());
       const matchesPhone = o.customerPhone && (customer as any).phone && o.customerPhone.replace(/\D/g, '') === (customer as any).phone.replace(/\D/g, '');
       if (!matchesId && !matchesName && !matchesPhone) return false;
       const total = Number(o.total || 0);
@@ -1589,27 +1668,33 @@ export default function CustomerDueList() {
         const targetCompany = (targetCustomer as any)?.company;
         const isCorporate = false;
 
-        // Gather related customer IDs (strictly this customer)
-        const relatedCustomerIds = new Set<string>([historyCustomer.id]);
+        // Gather related customer IDs (incorporating unified profile linked IDs)
+        const relatedCustomerIds = new Set<string>((historyCustomer as any).linkedIds || [historyCustomer.id]);
+        const isSpacezero = (historyCustomer.name || '').toLowerCase().replace(/[\s\-_.]/g, '').startsWith('spacezero');
 
         // Available branches for this customer
         const availableBranches = new Set<string>();
         if (targetCustomer?.branchName) availableBranches.add(targetCustomer.branchName);
         (targetCustomer?.branches || []).forEach(b => b && availableBranches.add(b));
+        ((historyCustomer as any).branches || []).forEach((b: string) => b && availableBranches.add(b));
 
         // Scan transactions for any branchName or projectName for THIS customer
         transactions.forEach(t => {
-          if (t.entityId === historyCustomer.id || (t.entityName && t.entityName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase())) {
+          const matches = relatedCustomerIds.has(t.entityId) || 
+            (isSpacezero ? (t.entityName || '').toLowerCase().replace(/[\s\-_.]/g, '').startsWith('spacezero') : (t.entityName && t.entityName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase()));
+          if (matches) {
             const br = (t as any).branchName || (t as any).projectName;
-            if (br) availableBranches.add(br);
+            if (br && !['main', 'none', 'n/a', 'corporate'].includes(br.toLowerCase())) availableBranches.add(br);
           }
         });
 
         // Scan orders for any branchName or projectName for THIS customer
         orders.forEach(o => {
-          if (o.customerId === historyCustomer.id || (o.customerName && o.customerName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase())) {
+          const matches = relatedCustomerIds.has(o.customerId) || 
+            (isSpacezero ? (o.customerName || '').toLowerCase().replace(/[\s\-_.]/g, '').startsWith('spacezero') : (o.customerName && o.customerName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase()));
+          if (matches) {
             const br = o.projectName || o.branchName;
-            if (br) availableBranches.add(br);
+            if (br && !['main', 'none', 'n/a', 'corporate'].includes(br.toLowerCase())) availableBranches.add(br);
           }
         });
 
@@ -1622,8 +1707,8 @@ export default function CustomerDueList() {
         
         const allEntityTx = [...transactions]
           .filter(t => {
-            const matchesEntity = t.entityId === historyCustomer.id || 
-                                  (t.entityName && t.entityName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase());
+            const matchesEntity = relatedCustomerIds.has(t.entityId) || 
+                                  (isSpacezero ? (t.entityName || '').toLowerCase().replace(/[\s\-_.]/g, '').startsWith('spacezero') : (t.entityName && t.entityName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase()));
             if (!matchesEntity) return false;
 
             if (ledgerBranchFilter !== 'all') {
