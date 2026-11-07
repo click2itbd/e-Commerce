@@ -8,11 +8,12 @@ import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { AIPolishButton } from '../../../../components/common/AIPolishButton';
-import {  ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle, Clock, AlertCircle, Package, MessageCircle, ShoppingCart , Trash2, Eye } from 'lucide-react';
+import {  ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle, Clock, AlertCircle, Package, MessageCircle, ShoppingCart , Trash2, Eye, Receipt } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Transaction, PaymentAccount } from '../../../../types';
 import { calculateAccountBalance, validateSufficientBalance } from '../../../../lib/accountBalance';
+import { numberToWords } from '../../../../lib/pdf';
 
 interface ServiceRecord {
   id: string;
@@ -538,6 +539,182 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     } catch (err) {
       console.error(err);
       toast.error('Failed to generate bill');
+    }
+  };
+
+  const printServiceMoneyReceipt = async (record: ServiceRecord) => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF('p', 'mm', [210, 148]); // A5 landscape format (210 x 148 mm)
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let currentY = 12;
+
+      // Outer & Inner Decorative Borders
+      doc.setDrawColor(20, 30, 50);
+      doc.setLineWidth(0.6);
+      doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+      doc.setLineWidth(0.2);
+      doc.rect(6.5, 6.5, pageWidth - 13, pageHeight - 13);
+
+      // Company Logo
+      try {
+        const urlsToTry = [settings?.logoUrl, "/logo.png", "/logo.jpeg"].filter(Boolean);
+        let dataUrl = "";
+        let loadedImg: any = null;
+        for (const url of urlsToTry) {
+          if (!url) continue;
+          try {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            await new Promise((resolve, reject) => {
+              img.onload = () => resolve(true);
+              img.onerror = () => reject(new Error("Load failed"));
+              img.src = url as string;
+            });
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              dataUrl = canvas.toDataURL("image/png");
+              loadedImg = img;
+              break;
+            }
+          } catch (e) {}
+        }
+        if (loadedImg && dataUrl) {
+          const logoHeight = 11;
+          const logoWidth = (loadedImg.width / loadedImg.height) * logoHeight;
+          doc.addImage(dataUrl, "PNG", 12, currentY - 3, logoWidth, logoHeight);
+        }
+      } catch (err) {}
+
+      // Header Company Name & Address
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text(settings?.businessName || settings?.brandName || "CLICK2IT BD", pageWidth / 2, currentY, { align: "center" });
+
+      currentY += 4.5;
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      const address = settings?.address || "Shop No. 1072, Level 10, Multiplan Center, 69-71 New Elephant Road, Dhaka-1205";
+      doc.text(String(address), pageWidth / 2, currentY, { align: "center" });
+
+      currentY += 3.8;
+      const phone = settings?.contactPhone || "+8809640887777, +8801729887777";
+      doc.text(`Phone: ${phone} | Email: ${settings?.contactEmail || 'support@click2itbd.com'}`, pageWidth / 2, currentY, { align: "center" });
+
+      currentY += 7;
+
+      // BADGE: MONEY RECEIPT (মানি রিসিট)
+      doc.setFillColor(15, 23, 42); // slate-900
+      doc.roundedRect((pageWidth / 2) - 30, currentY, 60, 7, 1.5, 1.5, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("MONEY RECEIPT (মানি রিসিট)", pageWidth / 2, currentY + 4.8, { align: "center" });
+
+      currentY += 12;
+      doc.setTextColor(15, 23, 42);
+
+      // Receipt Metadata Row
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "bold");
+      const receiptNo = `MR-SVC-${record.serialNumber || record.id.slice(-6).toUpperCase()}`;
+      doc.text(`Receipt No: ${receiptNo}`, 12, currentY);
+
+      doc.setFont("helvetica", "normal");
+      doc.text(`Date: ${new Date(record.receivedAt || new Date()).toLocaleDateString('en-GB')}`, pageWidth - 12, currentY, { align: "right" });
+
+      currentY += 8;
+      // Line 1: Received with thanks from
+      doc.setFont("helvetica", "normal");
+      doc.text("Received with thanks from :", 12, currentY);
+      doc.setFont("helvetica", "bold");
+      doc.text(record.customerName || "Customer", 56, currentY);
+      doc.setFont("helvetica", "normal");
+      if (record.customerPhone) {
+        doc.text(`(Phone: ${record.customerPhone})`, 115, currentY);
+      }
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.3);
+      doc.line(54, currentY + 1, pageWidth - 12, currentY + 1);
+
+      currentY += 8;
+      // Line 2: The sum of Taka / BDT
+      doc.text("The sum of BDT :", 12, currentY);
+      doc.setFont("helvetica", "bold");
+      doc.text(`৳ ${Number(record.serviceCharge || 0).toLocaleString()} /-`, 42, currentY);
+      doc.line(40, currentY + 1, 75, currentY + 1);
+
+      doc.setFont("helvetica", "normal");
+      doc.text("Payment Mode :", 80, currentY);
+      doc.setFont("helvetica", "bold");
+      doc.text((record.paymentMethod || "Cash").toUpperCase(), 108, currentY);
+      doc.line(106, currentY + 1, 140, currentY + 1);
+
+      doc.setFont("helvetica", "normal");
+      doc.text("Status :", 145, currentY);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(record.paymentStatus === 'paid' ? 16 : 180, record.paymentStatus === 'paid' ? 140 : 30, record.paymentStatus === 'paid' ? 40 : 30);
+      doc.text((record.paymentStatus === 'paid' ? "PAID" : "PENDING / RECEIVED"), 160, currentY);
+      doc.setTextColor(15, 23, 42);
+      doc.line(158, currentY + 1, pageWidth - 12, currentY + 1);
+
+      currentY += 8;
+      // Line 3: In words
+      doc.setFont("helvetica", "normal");
+      doc.text("Amount (in words) :", 12, currentY);
+      doc.setFont("helvetica", "bold");
+      const words = numberToWords(Number(record.serviceCharge || 0));
+      doc.text(`${words} Taka Only`, 46, currentY);
+      doc.line(44, currentY + 1, pageWidth - 12, currentY + 1);
+
+      currentY += 8;
+      // Line 4: On account of
+      doc.setFont("helvetica", "normal");
+      doc.text("On account of :", 12, currentY);
+      doc.setFont("helvetica", "bold");
+      const purpose = `Service & Repair charge for ${record.productName} (S/N: ${record.serialNumber || record.id.slice(-6).toUpperCase()})`;
+      doc.text(purpose.slice(0, 75), 40, currentY);
+      doc.line(38, currentY + 1, pageWidth - 12, currentY + 1);
+
+      // Amount Box & Signatures
+      currentY += 14;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(15, 23, 42);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(12, currentY - 4, 52, 10, 1, 1, "FD");
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(`BDT ${Number(record.serviceCharge || 0).toLocaleString()} /-`, 38, currentY + 2.5, { align: "center" });
+
+      // Customer Signature
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "normal");
+      doc.setDrawColor(160, 160, 160);
+      doc.setLineWidth(0.3);
+      doc.line(pageWidth - 110, currentY + 4, pageWidth - 70, currentY + 4);
+      doc.text("Customer Signature", pageWidth - 90, currentY + 7.5, { align: "center" });
+
+      // Authorized Seal & Signature
+      doc.line(pageWidth - 52, currentY + 4, pageWidth - 12, currentY + 4);
+      doc.setFont("helvetica", "bold");
+      doc.text("Authorized Signature", pageWidth - 32, currentY + 7.5, { align: "center" });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("For CLICK2IT BD", pageWidth - 32, currentY + 10.5, { align: "center" });
+
+      doc.save(`Money_Receipt_SVC_${record.serialNumber || record.id.slice(-6)}.pdf`);
+      toast.success('Money Receipt downloaded successfully');
+    } catch (err) {
+      console.error('Failed to generate Money Receipt:', err);
+      toast.error('Failed to generate Money Receipt');
     }
   };
 
@@ -1878,10 +2055,20 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                            <FileText size={14} />
                          </button>
                          {!record.isWarranty && record.serviceCharge > 0 && (
-                           <button onClick={() => printServiceBill(record)} className="text-gray-500 hover:text-green-700 bg-gray-50 hover:bg-green-50 p-1.5 rounded shadow-sm transition-all" title="Print Bill">
-                             <Download size={14} />
-                           </button>
-                         )}
+                            <>
+                              <button onClick={() => printServiceBill(record)} className="text-gray-500 hover:text-green-700 bg-gray-50 hover:bg-green-50 p-1.5 rounded shadow-sm transition-all" title="Print Bill">
+                                <Download size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => printServiceMoneyReceipt(record)}
+                                className="text-gray-500 hover:text-emerald-700 bg-gray-50 hover:bg-emerald-50 p-1.5 rounded shadow-sm transition-all"
+                                title="Print Money Receipt (মানি রিসিট)"
+                              >
+                                <Receipt size={14} />
+                              </button>
+                            </>
+                          )}
                          {!record.isWarranty && record.serviceCharge > 0 && (record.status === 'delivered' || record.rmaStatus === 'Delivered') && (
                            <button onClick={() => handleDeliverToPOS(record)} className="text-gray-500 hover:text-purple-700 bg-gray-50 hover:bg-purple-50 p-1.5 rounded shadow-sm transition-all" title="Send to Sales">
                              <ShoppingCart size={14} />
@@ -2125,6 +2312,17 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   >
                     <Download className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Print Bill</span>
+                  </button>
+                )}
+                {!viewingRecord.isWarranty && Number(viewingRecord.serviceCharge || 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => printServiceMoneyReceipt(viewingRecord)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-2xs transition-all cursor-pointer"
+                    title="Print Money Receipt"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Money Receipt</span>
                   </button>
                 )}
 

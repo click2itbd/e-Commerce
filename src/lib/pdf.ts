@@ -870,7 +870,7 @@ export const generatePDF = async (
 };
 
 // Basic number to words converter (up to cores/millions)
-const numberToWords = (num: number): string => {
+export const numberToWords = (num: number): string => {
   const a = ['','One ','Two ','Three ','Four ', 'Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
   const b = ['', '', 'Twenty','Thirty','Forty','Fifty', 'Sixty','Seventy','Eighty','Ninety'];
 
