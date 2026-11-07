@@ -21,7 +21,9 @@ import {
   CheckCircle2,
   X,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
+import { calculateAccountBalance } from '../../../../lib/accountBalance';
 import { Pagination } from '../../../../components/common/Pagination';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -113,30 +115,11 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
     fetchData();
   }, []);
 
-  // Compute live account balances
+  // Compute live account balances using centralized accurate account balance logic
   const getAccountBalance = (accountId: string) => {
     const acc = paymentAccounts.find(a => a.id === accountId);
     if (!acc) return 0;
-    const opening = Number(acc.openingBalance || 0);
-
-    const accTx = transactions.filter(tx => {
-      if (tx.paymentAccountId && tx.paymentAccountId === acc.id) return true;
-      const pMethod = (tx.paymentMethod || '').toLowerCase();
-      if (!pMethod) return false;
-      const aType = (acc.type || '').toLowerCase();
-      const aName = (acc.name || '').toLowerCase();
-      return pMethod === aType || pMethod === aName || aName.includes(pMethod);
-    });
-
-    const inflow = accTx
-      .filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type))
-      .reduce((sum, tx) => sum + (tx.amount || 0), 0);
-
-    const outflow = accTx
-      .filter(tx => ['purchase', 'payment_made', 'expense', 'salary', 'conveyance', 'sale_return', 'withdrawal', 'transfer_out'].includes(tx.type))
-      .reduce((sum, tx) => sum + (tx.amount || 0), 0);
-
-    return opening + inflow - outflow;
+    return calculateAccountBalance(acc, transactions);
   };
 
   // Submit Handler for Transfer / Deposit / Withdrawal
@@ -175,7 +158,7 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
         await addDoc(collection(db, 'transactions'), {
           date: txDate,
           amount: Number(formData.amount),
-          type: 'expense',
+          type: 'transfer_out',
           category: 'Fund Transfer',
           paymentAccountId: fromAcc?.id || '',
           paymentMethod: fromAcc?.type || fromAcc?.name || '',
@@ -191,7 +174,7 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
         await addDoc(collection(db, 'transactions'), {
           date: txDate,
           amount: Number(formData.amount),
-          type: 'money_receipt',
+          type: 'transfer_in',
           category: 'Fund Transfer',
           paymentAccountId: toAcc?.id || '',
           paymentMethod: toAcc?.type || toAcc?.name || '',
@@ -209,7 +192,7 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
         await addDoc(collection(db, 'transactions'), {
           date: txDate,
           amount: Number(formData.amount),
-          type: 'money_receipt',
+          type: 'deposit',
           category: 'Capital / Fund Deposit',
           paymentAccountId: acc?.id || '',
           paymentMethod: acc?.type || acc?.name || '',
@@ -232,7 +215,7 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
         await addDoc(collection(db, 'transactions'), {
           date: txDate,
           amount: Number(formData.amount),
-          type: 'expense',
+          type: 'withdrawal',
           category: 'Owner Withdrawal / Drawing',
           paymentAccountId: acc?.id || '',
           paymentMethod: acc?.type || acc?.name || '',
@@ -278,7 +261,13 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
 
   // Filter transactions for table
   const relevantTransactions = transactions.filter(tx => {
-    return ['transfer_in', 'transfer_out', 'deposit', 'withdrawal'].includes(tx.type);
+    return (
+      ['transfer_in', 'transfer_out', 'deposit', 'withdrawal'].includes(tx.type) ||
+      tx.category === 'Fund Transfer' ||
+      tx.category === 'Capital / Fund Deposit' ||
+      tx.category === 'Owner Withdrawal / Drawing' ||
+      Boolean((tx as any).transferBatchId)
+    );
   });
 
   const filteredTransactions = relevantTransactions.filter(tx => {
@@ -408,20 +397,54 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
         <div className="flex flex-wrap items-center gap-2">
           {/* Action Buttons */}
           <button
-            onClick={() => { setActionType('transfer'); setIsModalOpen(true); }}
-            className="bg-[#081621] hover:bg-[#EF4444] text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm"
+            onClick={() => {
+              setActionType('transfer');
+              const posAcc = paymentAccounts.find(a => calculateAccountBalance(a, transactions) > 0);
+              const destAcc = paymentAccounts.find(a => a.id !== (posAcc?.id || paymentAccounts[0]?.id));
+              setFormData(prev => ({
+                ...prev,
+                fromAccountId: posAcc?.id || paymentAccounts[0]?.id || '',
+                toAccountId: destAcc?.id || paymentAccounts[1]?.id || '',
+                amount: 0,
+                note: '',
+                reference: '',
+              }));
+              setIsModalOpen(true);
+            }}
+            className="bg-[#081621] hover:bg-[#EF4444] text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
           >
             <ArrowLeftRight size={14} /> Fund Transfer
           </button>
           <button
-            onClick={() => { setActionType('deposit'); setIsModalOpen(true); }}
-            className="bg-green-600 hover:bg-green-700 text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm"
+            onClick={() => {
+              setActionType('deposit');
+              setFormData(prev => ({
+                ...prev,
+                accountId: paymentAccounts[0]?.id || '',
+                amount: 0,
+                note: '',
+                reference: '',
+              }));
+              setIsModalOpen(true);
+            }}
+            className="bg-green-600 hover:bg-green-700 text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
           >
             <ArrowDownLeft size={14} /> Capital Deposit
           </button>
           <button
-            onClick={() => { setActionType('withdrawal'); setIsModalOpen(true); }}
-            className="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm"
+            onClick={() => {
+              setActionType('withdrawal');
+              const posAcc = paymentAccounts.find(a => calculateAccountBalance(a, transactions) > 0);
+              setFormData(prev => ({
+                ...prev,
+                accountId: posAcc?.id || paymentAccounts[0]?.id || '',
+                amount: 0,
+                note: '',
+                reference: '',
+              }));
+              setIsModalOpen(true);
+            }}
+            className="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
           >
             <ArrowUpRight size={14} /> Owner Withdrawal
           </button>
@@ -685,34 +708,71 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
             <form onSubmit={handleFormSubmit} className="p-6 space-y-4 text-xs">
               {/* Transfer Mode: Source & Destination */}
               {actionType === 'transfer' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-gray-700 uppercase mb-1">Transfer From (Source)</label>
-                    <select
-                      value={formData.fromAccountId}
-                      onChange={e => setFormData({ ...formData, fromAccountId: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg p-2 font-medium"
-                    >
-                      {paymentAccounts.map(acc => (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.name} ({formatCurrency(getAccountBalance(acc.id), settings)})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-bold text-gray-700 uppercase mb-1">Transfer To (Destination)</label>
-                    <select
-                      value={formData.toAccountId}
-                      onChange={e => setFormData({ ...formData, toAccountId: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg p-2 font-medium"
-                    >
-                      {paymentAccounts.map(acc => (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.name} ({formatCurrency(getAccountBalance(acc.id), settings)})
-                        </option>
-                      ))}
-                    </select>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-gray-700 uppercase mb-1">Transfer From (Source)</label>
+                      <select
+                        value={formData.fromAccountId}
+                        onChange={e => setFormData({ ...formData, fromAccountId: e.target.value })}
+                        className="w-full border border-gray-200 rounded-lg p-2 font-medium"
+                      >
+                        {paymentAccounts.map(acc => {
+                          const bal = getAccountBalance(acc.id);
+                          return (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.name} ({acc.type}) — {formatCurrency(bal, settings)}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {formData.fromAccountId && (() => {
+                        const fromBal = getAccountBalance(formData.fromAccountId);
+                        return (
+                          <div className="mt-1.5 space-y-1">
+                            <div className={cn(
+                              "text-xs px-2.5 py-1 rounded-lg flex items-center justify-between font-bold",
+                              fromBal > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
+                            )}>
+                              <span>উৎস অ্যাকাউন্টের ব্যালেন্স:</span>
+                              <span>{formatCurrency(fromBal, settings)}</span>
+                            </div>
+                            {fromBal <= 0 && (
+                              <div className="text-[10px] text-red-600 flex items-center gap-1 font-medium bg-red-50 p-1.5 rounded border border-red-100">
+                                <AlertCircle size={12} className="shrink-0" />
+                                <span>সতর্কতা: এই অ্যাকাউন্টে ব্যালেন্স ৳0। যে অ্যাকাউন্টে ব্যালেন্স আছে (যেমন Shop Cash) সেটি সিলেক্ট করুন।</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    <div>
+                      <label className="block font-bold text-gray-700 uppercase mb-1">Transfer To (Destination)</label>
+                      <select
+                        value={formData.toAccountId}
+                        onChange={e => setFormData({ ...formData, toAccountId: e.target.value })}
+                        className="w-full border border-gray-200 rounded-lg p-2 font-medium"
+                      >
+                        {paymentAccounts.map(acc => {
+                          const bal = getAccountBalance(acc.id);
+                          return (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.name} ({acc.type}) — {formatCurrency(bal, settings)}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {formData.toAccountId && (() => {
+                        const toBal = getAccountBalance(formData.toAccountId);
+                        return (
+                          <div className="mt-1.5 text-xs px-2.5 py-1 rounded-lg flex items-center justify-between font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                            <span>গন্তব্য অ্যাকাউন্টের ব্যালেন্স:</span>
+                            <span>{formatCurrency(toBal, settings)}</span>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
               )}
@@ -730,7 +790,7 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
                   >
                     {paymentAccounts.map(acc => (
                       <option key={acc.id} value={acc.id}>
-                        {acc.name} ({acc.type}) — Current Bal: {formatCurrency(getAccountBalance(acc.id), settings)}
+                        {acc.name} ({acc.type}) — বর্তমান ব্যালেন্স: {formatCurrency(getAccountBalance(acc.id), settings)}
                       </option>
                     ))}
                   </select>
