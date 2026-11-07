@@ -293,7 +293,7 @@ export default function CustomerDueList() {
     });
 
     let dueList = mappedList;
-    if (spacezeroRecords.length > 1) {
+    if (spacezeroRecords.length >= 1) {
       const nonSpacezero = mappedList.filter(c => {
         const n = (c.name || '').toLowerCase().replace(/[\s\-_.]/g, '');
         const comp = (c.company || '').toLowerCase().replace(/[\s\-_.]/g, '');
