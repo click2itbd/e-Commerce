@@ -305,6 +305,12 @@ export interface Order {
   convertedToInvoiceId?: string;
   trackingNumber?: string;
   courier?: string;
+  hasReference?: boolean;
+  referrerCustomerId?: string;
+  referrerName?: string;
+  referrerPhone?: string;
+  referenceName?: string;
+  referencePhone?: string;
   trackingTimeline?: { status: string; location?: string; description?: string; timestamp: string; updatedBy?: string; deliveryMan?: { name: string; phone: string } }[];
 }
 

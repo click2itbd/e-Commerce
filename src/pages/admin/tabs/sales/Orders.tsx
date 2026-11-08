@@ -507,6 +507,11 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                                   📍 {order.shippingAddress || order.customerAddress || order.address}
                                 </span>
                               )}
+                              {(order.referrerName || order.referenceName) && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/70 px-1.5 py-0.5 rounded-md mt-1 w-fit" title={`Referred by: ${order.referrerName || order.referenceName} (${order.referrerPhone || order.referencePhone || 'No Phone'})`}>
+                                  <span>🤝</span> Ref: {order.referrerName || order.referenceName}
+                                </span>
+                              )}
                             </div>
                           </td>
 

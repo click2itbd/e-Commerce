@@ -65,11 +65,16 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
     status: 'pending' as Order['status'],
     createdAt: '',
     validUntil: '',
-    preparedBy: ''
+    preparedBy: '',
+    hasReference: false,
+    referrerCustomerId: '',
+    referrerName: '',
+    referrerPhone: '',
   };
 
   const [formData, setFormData] = useState(initialFormState);
   const [productSearch, setProductSearch] = useState('');
+  const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
 
   // Custom item modal state
   const [showCustomModal, setShowCustomModal] = useState(false);
@@ -249,9 +254,56 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
       return;
     }
 
+    // Reference Customer Validation
+    const rName = (formData.referrerName || '').trim();
+    const rPhone = (formData.referrerPhone || '').trim();
+    const hasRef = Boolean((formData as any).hasReference || rName || rPhone);
+
+    if (hasRef) {
+      if (!rName) {
+        toast.error('রেফারেন্স ব্যক্তির নাম অবশ্যই দিতে হবে!');
+        return;
+      }
+      if (!rPhone) {
+        toast.error('রেফারেন্স ব্যক্তির ফোন নম্বর অবশ্যই দিতে হবে!');
+        return;
+      }
+      if (!formData.customerPhone) {
+        toast.error('কাস্টমারের ফোন নম্বর অবশ্যই দিতে হবে!');
+        return;
+      }
+    }
+
     try {
       const subtotal = formData.items.reduce((sum, item) => sum + ((item.price * item.quantity) - (item.discount || 0)), 0);
       const finalTotal = Math.max(0, subtotal - formData.discountAmount);
+
+      // Auto-register reference customer if not already registered
+      let resolvedRefCustId = (formData as any).referrerCustomerId || '';
+      if (hasRef && rName && rPhone) {
+        const existingRef = customers.find(cu => 
+          (cu.phone && cu.phone.trim() === rPhone) ||
+          (cu.name && cu.name.toLowerCase().trim() === rName.toLowerCase() && cu.phone)
+        );
+        if (existingRef) {
+          resolvedRefCustId = existingRef.id;
+        } else {
+          try {
+            const newCustDoc = await addDoc(collection(db, 'customers'), {
+              name: rName,
+              phone: rPhone,
+              address: '',
+              notes: 'Registered via Quotation Reference',
+              source: 'quotation_reference',
+              createdAt: new Date().toISOString(),
+              createdBy: profile?.displayName || profile?.email || 'Admin',
+            });
+            resolvedRefCustId = newCustDoc.id;
+          } catch (rCustErr) {
+            console.warn('Could not auto-create quotation reference customer:', rCustErr);
+          }
+        }
+      }
 
       if (viewMode === 'edit' && editingId) {
         const prevQuote = quotations.find(q => q.id === editingId);
@@ -267,7 +319,13 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
           termsAndConditions: formData.termsAndConditions,
           status: formData.status,
           validUntil: formData.validUntil,
-          preparedBy: (formData as any).preparedBy || ''
+          preparedBy: (formData as any).preparedBy || '',
+          hasReference: hasRef,
+          referrerCustomerId: resolvedRefCustId,
+          referrerName: rName,
+          referrerPhone: rPhone,
+          referenceName: rName,
+          referencePhone: rPhone,
         };
         await updateDoc(doc(db, 'orders', editingId), updateData);
         await logAudit(
@@ -321,7 +379,13 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
           termsAndConditions: formData.termsAndConditions,
           createdAt: new Date().toISOString(),
           validUntil: formData.validUntil,
-          preparedBy: (formData as any).preparedBy || ''
+          preparedBy: (formData as any).preparedBy || '',
+          hasReference: hasRef,
+          referrerCustomerId: resolvedRefCustId,
+          referrerName: rName,
+          referrerPhone: rPhone,
+          referenceName: rName,
+          referencePhone: rPhone,
         } as any;
         const docRef = await addDoc(collection(db, 'orders'), newQuotation);
         setQuotations([{ id: docRef.id, ...newQuotation } as Order, ...quotations]);
@@ -430,7 +494,11 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
       status: 'pending',
       createdAt: '',
       validUntil: q.validUntil || '',
-      preparedBy: (q as any).preparedBy || ''
+      preparedBy: (q as any).preparedBy || '',
+      hasReference: Boolean((q as any).hasReference || q.referrerName || (q as any).referenceName),
+      referrerCustomerId: q.referrerCustomerId || '',
+      referrerName: q.referrerName || (q as any).referenceName || '',
+      referrerPhone: q.referrerPhone || (q as any).referencePhone || '',
     });
     setEditingId(null);
     setViewMode('create');
@@ -513,6 +581,12 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
         customerPhone: convertingQuote.customerPhone,
         customerEmail: convertingQuote.customerEmail,
         shippingAddress: convertingQuote.shippingAddress,
+        hasReference: Boolean((convertingQuote as any).hasReference || convertingQuote.referrerName || (convertingQuote as any).referenceName),
+        referrerCustomerId: convertingQuote.referrerCustomerId || '',
+        referrerName: convertingQuote.referrerName || (convertingQuote as any).referenceName || '',
+        referrerPhone: convertingQuote.referrerPhone || (convertingQuote as any).referencePhone || '',
+        referenceName: convertingQuote.referrerName || (convertingQuote as any).referenceName || '',
+        referencePhone: convertingQuote.referrerPhone || (convertingQuote as any).referencePhone || '',
         items: convertingQuote.items || [],
         total: convertingQuote.total || 0,
         paidAmount: convertPaymentStatus === 'paid' ? convertingQuote.total : 0,
@@ -628,7 +702,11 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
       status: q.status || 'pending',
       createdAt: q.createdAt || '',
       validUntil: q.validUntil || '',
-      preparedBy: (q as any).preparedBy || ''
+      preparedBy: (q as any).preparedBy || '',
+      hasReference: Boolean((q as any).hasReference || q.referrerName || (q as any).referenceName),
+      referrerCustomerId: q.referrerCustomerId || '',
+      referrerName: q.referrerName || (q as any).referenceName || '',
+      referrerPhone: q.referrerPhone || (q as any).referencePhone || '',
     });
     setEditingId(q.id);
     setViewMode('edit');
@@ -648,7 +726,11 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
       status: q.status || 'pending',
       createdAt: q.createdAt || '',
       validUntil: q.validUntil || '',
-      preparedBy: (q as any).preparedBy || ''
+      preparedBy: (q as any).preparedBy || '',
+      hasReference: Boolean((q as any).hasReference || q.referrerName || (q as any).referenceName),
+      referrerCustomerId: q.referrerCustomerId || '',
+      referrerName: q.referrerName || (q as any).referenceName || '',
+      referrerPhone: q.referrerPhone || (q as any).referencePhone || '',
     });
     setEditingId(q.id);
     setViewMode('view');
@@ -1034,6 +1116,13 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 text-slate-500 text-[11px]">
+                              {(q.referrerName || (q as any).referenceName) && (
+                                <div className="mb-1">
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/70 px-1.5 py-0.5 rounded-md" title={`Referred by: ${q.referrerName || (q as any).referenceName} (${q.referrerPhone || (q as any).referencePhone || 'No Phone'})`}>
+                                    <span>🤝</span> Ref: {q.referrerName || (q as any).referenceName}
+                                  </span>
+                                </div>
+                              )}
                               {q.customerPhone ? (
                                 <div className="flex items-center gap-1">
                                   <Phone size={11} className="text-slate-400" />
@@ -1414,6 +1503,125 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
                     placeholder="Complete address or location"
                   />
                 </div>
+              </div>
+
+              {/* Reference Customer Section in Quotation */}
+              <div className="mt-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={Boolean((formData as any).hasReference)}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setFormData(prev => ({
+                          ...prev,
+                          hasReference: checked,
+                          referrerCustomerId: checked ? (prev as any).referrerCustomerId : '',
+                          referrerName: checked ? (prev as any).referrerName : '',
+                          referrerPhone: checked ? (prev as any).referrerPhone : '',
+                        }));
+                        if (checked) setShowReferrerDropdown(false);
+                      }}
+                      className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                      <span>🤝</span> Reference / রেফারেন্স আছে?
+                    </span>
+                  </label>
+                  {(formData as any).hasReference && (
+                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                      রেফারেন্সের নাম ও ফোন নম্বর বাধ্যতামূলক
+                    </span>
+                  )}
+                </div>
+
+                {(formData as any).hasReference && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 animate-in fade-in duration-150">
+                    {/* Reference Person Name Search & Input */}
+                    <div className="relative">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        রেফারেন্স ব্যক্তি (Customer Name) <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        autoComplete="off"
+                        value={(formData as any).referrerName || ''}
+                        onFocus={() => setShowReferrerDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowReferrerDropdown(false), 200)}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const matched = customers.find(cu => 
+                            (cu.name && cu.name.toLowerCase() === val.toLowerCase()) ||
+                            (cu.phone && cu.phone === val)
+                          );
+                          setFormData(prev => ({
+                            ...prev,
+                            hasReference: true,
+                            referrerName: val,
+                            referrerPhone: matched ? (matched.phone || (prev as any).referrerPhone) : (prev as any).referrerPhone,
+                            referrerCustomerId: matched ? matched.id : ''
+                          }));
+                          setShowReferrerDropdown(true);
+                        }}
+                        placeholder="Search existing customer or type name..."
+                        className="w-full border border-indigo-200 rounded-xl p-2.5 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
+                      />
+                      {showReferrerDropdown && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-indigo-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-50">
+                          {customers.filter(cu => 
+                            (cu.name && cu.name.toLowerCase().includes(((formData as any).referrerName || '').toLowerCase())) ||
+                            (cu.phone && cu.phone.includes((formData as any).referrerName || ''))
+                          ).length > 0 ? (
+                            customers.filter(cu => 
+                              (cu.name && cu.name.toLowerCase().includes(((formData as any).referrerName || '').toLowerCase())) ||
+                              (cu.phone && cu.phone.includes((formData as any).referrerName || ''))
+                            ).slice(0, 30).map(cu => (
+                              <div
+                                key={cu.id}
+                                className="px-3 py-2 cursor-pointer hover:bg-indigo-50 flex items-center justify-between transition-colors"
+                                onMouseDown={() => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    hasReference: true,
+                                    referrerCustomerId: cu.id,
+                                    referrerName: cu.name,
+                                    referrerPhone: cu.phone || ''
+                                  }));
+                                  setShowReferrerDropdown(false);
+                                }}
+                              >
+                                <div>
+                                  <span className="font-bold text-xs text-slate-800 block">{cu.name}</span>
+                                  {cu.address && <span className="text-[10px] text-slate-400 block">{cu.address}</span>}
+                                </div>
+                                <span className="text-[11px] font-mono text-slate-500 font-semibold">{cu.phone || ''}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-[11px] text-slate-500 italic">
+                              নতুন রেফারেন্স — ফোন নম্বর দিলে কাস্টমার ডিরেক্টরিতে সেভ হবে।
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Reference Phone Input */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        রেফারেন্স ব্যক্তির ফোন নম্বর (Mobile No) <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        value={(formData as any).referrerPhone || ''}
+                        onChange={e => setFormData(prev => ({ ...prev, referrerPhone: e.target.value }))}
+                        placeholder="e.g. 01XXXXXXXXX"
+                        className="w-full border border-indigo-200 rounded-xl p-2.5 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1827,6 +2035,11 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
                 {formData.shippingAddress && <div className="text-xs text-slate-500 mt-1 max-w-xs">{formData.shippingAddress}</div>}
                 {formData.workOrderNumber && (
                   <div className="text-xs text-indigo-700 font-bold mt-1">Ref/WO: {formData.workOrderNumber}</div>
+                )}
+                {Boolean((formData as any).referrerName || (formData as any).referenceName) && (
+                  <div className="text-xs text-indigo-700 font-bold mt-1.5 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-200/80 inline-block">
+                    🤝 Referred By: {(formData as any).referrerName || (formData as any).referenceName} {Boolean((formData as any).referrerPhone || (formData as any).referencePhone) ? `(${(formData as any).referrerPhone || (formData as any).referencePhone})` : ''}
+                  </div>
                 )}
               </div>
             </div>

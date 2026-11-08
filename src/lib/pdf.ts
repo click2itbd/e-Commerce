@@ -432,7 +432,8 @@ export const generatePDF = async (
     let rightSideLines = 2; // Details No, Date
     if (o.workOrderNumber) rightSideLines++;
     
-    const leftSideHeight = (hasBranch ? 23 : 18) + (splitAddr.length * 5) + 3;
+    const hasRef = Boolean((o as any).referrerName || (o as any).referenceName);
+    const leftSideHeight = (hasBranch ? 23 : 18) + (splitAddr.length * 5) + (hasRef ? 6 : 0) + 3;
     const rightSideHeight = 13 + (rightSideLines * 6) + 3; 
     
     const boxHeight = Math.max(leftSideHeight, rightSideHeight, 26); // minimum 26 height
@@ -479,6 +480,16 @@ export const generatePDF = async (
     doc.setFont("helvetica", "normal");
     doc.setTextColor(71, 85, 105);
     doc.text(splitAddr, 20, addrY);
+
+    if (hasRef) {
+      const refN = (o as any).referrerName || (o as any).referenceName;
+      const refP = (o as any).referrerPhone || (o as any).referencePhone;
+      const refLineY = addrY + (splitAddr.length * 4.8);
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(79, 70, 229);
+      doc.text(`Ref: ${refN}${refP ? ` (${refP})` : ''}`, 20, refLineY);
+    }
 
     // Box 2 (Right) Content
     doc.setFontSize(11);

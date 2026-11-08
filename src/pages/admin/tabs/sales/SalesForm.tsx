@@ -170,8 +170,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       notes: '',
       branchName: '',
       company: 'main',
+      hasReference: false,
+      referrerCustomerId: '',
+      referrerName: '',
+      referrerPhone: '',
     };
   });
+
+  const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('sales_form_draft', JSON.stringify(saleData));
@@ -242,6 +248,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         paymentMethod: editingOrder.paymentMethod || matchedAcc?.type || 'cash',
         paymentAccountId: existingAccId,
         notes: editingOrder.notes || '',
+        hasReference: Boolean((editingOrder as any).hasReference || editingOrder.referrerName || (editingOrder as any).referenceName),
+        referrerCustomerId: editingOrder.referrerCustomerId || '',
+        referrerName: editingOrder.referrerName || (editingOrder as any).referenceName || '',
+        referrerPhone: editingOrder.referrerPhone || (editingOrder as any).referencePhone || '',
       }));
     }
   }, [editingOrder]);
@@ -815,6 +825,26 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       }
     }
 
+    // Reference Customer Validation
+    const rName = (saleData.referrerName || '').trim();
+    const rPhone = (saleData.referrerPhone || '').trim();
+    const hasRef = Boolean(saleData.hasReference || rName || rPhone);
+
+    if (hasRef) {
+      if (!rName) {
+        toast.error('রেফারেন্স ব্যক্তির নাম অবশ্যই দিতে হবে!');
+        return;
+      }
+      if (!rPhone) {
+        toast.error('রেফারেন্স ব্যক্তির ফোন নম্বর অবশ্যই দিতে হবে! (Reference customer phone is required)');
+        return;
+      }
+      if (!saleData.customerPhone && !saleData.customerId) {
+        toast.error('কাস্টমারের ফোন নম্বর অবশ্যই দিতে হবে!');
+        return;
+      }
+    }
+
     if (saleData.items.length === 0) {
       toast.error('Please add at least one product to the sale');
       return;
@@ -931,6 +961,33 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const paymentStatus = paid >= (netTotal + previousDue) ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
       const createdAt = new Date(saleData.date || new Date()).toISOString();
 
+      // Auto-register reference person as a customer if not already registered
+      let resolvedRefCustId = saleData.referrerCustomerId || '';
+      if (hasRef && rName && rPhone) {
+        const existingRef = customers.find(c => 
+          (c.phone && c.phone.trim() === rPhone) ||
+          (c.name && c.name.toLowerCase().trim() === rName.toLowerCase() && c.phone)
+        );
+        if (existingRef) {
+          resolvedRefCustId = existingRef.id;
+        } else {
+          try {
+            const newCustDoc = await addDoc(collection(db, 'customers'), {
+              name: rName,
+              phone: rPhone,
+              address: '',
+              notes: `Registered via Sales Reference for invoice (${docNumber || 'New'})`,
+              source: 'sales_reference',
+              createdAt: new Date().toISOString(),
+              createdBy: profile?.displayName || profile?.email || 'Admin',
+            });
+            resolvedRefCustId = newCustDoc.id;
+          } catch (rCustErr) {
+            console.warn('Could not auto-create sales reference customer:', rCustErr);
+          }
+        }
+      }
+
       const orderData = {
         previousDue: previousDue > 0 ? previousDue : 0,
         documentNumber: docNumber,
@@ -947,6 +1004,12 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         shippingAddress: saleData.shippingAddress || '',
         branchName: saleData.branchName || '',
         projectName: saleData.branchName || '',
+        hasReference: hasRef,
+        referrerCustomerId: resolvedRefCustId,
+        referrerName: rName,
+        referrerPhone: rPhone,
+        referenceName: rName,
+        referencePhone: rPhone,
         items: processedItems,
         subtotal: Number(subtotal) || 0,
         discountAmount: Number(effectiveDiscount) || 0,
@@ -1295,6 +1358,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         appliedDiscountPercentage: 0,
         appliedDiscountCode: '',
         notes: '',
+        hasReference: false,
+        referrerCustomerId: '',
+        referrerName: '',
+        referrerPhone: '',
       });
       setSaleDiscountCodeInput('');
       if (typeof window !== 'undefined') {
@@ -1720,6 +1787,125 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   <span>
                     Select a customer using the search box above, or click <strong className="font-bold text-blue-700">&quot;+ New Customer&quot;</strong> to create one.
                   </span>
+                </div>
+              )}
+            </div>
+
+            {/* Reference Customer Section */}
+            <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(saleData.hasReference)}
+                    onChange={e => {
+                      const checked = e.target.checked;
+                      setSaleData(prev => ({
+                        ...prev,
+                        hasReference: checked,
+                        referrerCustomerId: checked ? prev.referrerCustomerId : '',
+                        referrerName: checked ? prev.referrerName : '',
+                        referrerPhone: checked ? prev.referrerPhone : '',
+                      }));
+                      if (checked) setShowReferrerDropdown(false);
+                    }}
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                    <span>🤝</span> Reference / রেফারেন্স আছে?
+                  </span>
+                </label>
+                {saleData.hasReference && (
+                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                    রেফারেন্সের নাম ও ফোন নম্বর বাধ্যতামূলক
+                  </span>
+                )}
+              </div>
+
+              {saleData.hasReference && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 animate-in fade-in duration-150">
+                  {/* Reference Person Name Search & Input */}
+                  <div className="relative">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      রেফারেন্স ব্যক্তি (Customer Name) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      value={saleData.referrerName || ''}
+                      onFocus={() => setShowReferrerDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowReferrerDropdown(false), 200)}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const matched = customers.find(c => 
+                          (c.name && c.name.toLowerCase() === val.toLowerCase()) ||
+                          (c.phone && c.phone === val)
+                        );
+                        setSaleData(prev => ({
+                          ...prev,
+                          hasReference: true,
+                          referrerName: val,
+                          referrerPhone: matched ? (matched.phone || prev.referrerPhone) : prev.referrerPhone,
+                          referrerCustomerId: matched ? matched.id : ''
+                        }));
+                        setShowReferrerDropdown(true);
+                      }}
+                      placeholder="Search existing customer or type name..."
+                      className="w-full border border-indigo-200 rounded-xl p-2.5 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
+                    />
+                    {showReferrerDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-indigo-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-50">
+                        {customers.filter(c => 
+                          (c.name && c.name.toLowerCase().includes((saleData.referrerName || '').toLowerCase())) ||
+                          (c.phone && c.phone.includes(saleData.referrerName || ''))
+                        ).length > 0 ? (
+                          customers.filter(c => 
+                            (c.name && c.name.toLowerCase().includes((saleData.referrerName || '').toLowerCase())) ||
+                            (c.phone && c.phone.includes(saleData.referrerName || ''))
+                          ).slice(0, 30).map(c => (
+                            <div
+                              key={c.id}
+                              className="px-3 py-2 cursor-pointer hover:bg-indigo-50 flex items-center justify-between transition-colors"
+                              onMouseDown={() => {
+                                setSaleData(prev => ({
+                                  ...prev,
+                                  hasReference: true,
+                                  referrerCustomerId: c.id,
+                                  referrerName: c.name,
+                                  referrerPhone: c.phone || ''
+                                }));
+                                setShowReferrerDropdown(false);
+                              }}
+                            >
+                              <div>
+                                <span className="font-bold text-xs text-slate-800 block">{c.name}</span>
+                                {c.address && <span className="text-[10px] text-slate-400 block">{c.address}</span>}
+                              </div>
+                              <span className="text-[11px] font-mono text-slate-500 font-semibold">{c.phone || ''}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-[11px] text-slate-500 italic">
+                            নতুন রেফারেন্স — ফোন নম্বর দিলে কাস্টমার ডিরেক্টরিতে সেভ হবে।
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Reference Phone Input */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      রেফারেন্স ব্যক্তির ফোন নম্বর (Mobile No) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={saleData.referrerPhone || ''}
+                      onChange={e => setSaleData(prev => ({ ...prev, referrerPhone: e.target.value }))}
+                      placeholder="e.g. 01XXXXXXXXX"
+                      className="w-full border border-indigo-200 rounded-xl p-2.5 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
+                    />
+                  </div>
                 </div>
               )}
             </div>
