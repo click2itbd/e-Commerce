@@ -1236,273 +1236,250 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
 
             {/* Modal Body */}
             <form onSubmit={handleSaveService} className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50/60 space-y-4">
-              {/* Unified Service Header: All services received In-House, with unified billing & outsource options */}
-              <div className="p-3.5 bg-white rounded-xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-900 text-white uppercase tracking-wider">
-                      🛠️ In-House Intake & Reception
-                    </span>
-                    <span className="text-xs font-bold text-slate-700">
-                      দোকানের নিজস্ব ইনটেক ও সার্ভিসিং রেকর্ড
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                    প্রতিটি প্রোডাক্ট দোকানে ইন-হাউস রিসিভ করা হয় এবং প্রয়োজন অনুযায়ী সরাসরি বা বাইরের ভেন্ডরে মেরামত করা যায়।
-                  </p>
+              {/* Top Bar: Service Mode / Warranty / RMA (Clean Segmented Control) */}
+              <div className="bg-white p-3 rounded-xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-500">Service Intake Policy:</span>
+                  <span className={cn(
+                    "text-[11px] font-bold px-2.5 py-0.5 rounded-full border",
+                    serviceFormData.serviceType === 'rma'
+                      ? "bg-purple-50 text-purple-700 border-purple-200"
+                      : serviceFormData.isWarranty
+                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  )}>
+                    {serviceFormData.serviceType === 'rma' ? '🏷️ Vendor RMA' : serviceFormData.isWarranty ? '🛡️ Free Warranty' : '💵 Paid Service'}
+                  </span>
                 </div>
 
-                {/* Billing / Warranty Selection */}
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200 shrink-0">
                   <button
                     type="button"
-                    onClick={() => setServiceFormData({ ...serviceFormData, isWarranty: false })}
+                    onClick={() => setServiceFormData({
+                      ...serviceFormData,
+                      isWarranty: false,
+                      serviceType: serviceFormData.isOutsourced ? 'outsourced' : 'in_house'
+                    })}
                     className={cn(
-                      "py-2 px-3 rounded-lg text-xs font-bold text-center transition-all border flex items-center gap-1.5 cursor-pointer",
-                      !serviceFormData.isWarranty
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700"
+                      "py-1.5 px-3 rounded-lg text-xs font-bold text-center transition-all flex items-center gap-1.5 cursor-pointer",
+                      (!serviceFormData.isWarranty && serviceFormData.serviceType !== 'rma')
+                        ? "bg-white text-emerald-700 shadow-xs border border-slate-200"
+                        : "text-slate-600 hover:text-slate-900"
                     )}
                   >
                     💵 Paid Service
                   </button>
                   <button
                     type="button"
-                    onClick={() => setServiceFormData({ ...serviceFormData, isWarranty: true, serviceCharge: 0, paymentStatus: 'paid' })}
+                    onClick={() => setServiceFormData({
+                      ...serviceFormData,
+                      isWarranty: true,
+                      serviceType: serviceFormData.isOutsourced ? 'outsourced' : 'in_house',
+                      serviceCharge: 0,
+                      paymentStatus: 'paid'
+                    })}
                     className={cn(
-                      "py-2 px-3 rounded-lg text-xs font-bold text-center transition-all border flex items-center gap-1.5 cursor-pointer",
-                      serviceFormData.isWarranty
-                        ? "bg-purple-700 text-white border-purple-700 shadow-xs"
-                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-purple-50 hover:text-purple-700"
+                      "py-1.5 px-3 rounded-lg text-xs font-bold text-center transition-all flex items-center gap-1.5 cursor-pointer",
+                      (serviceFormData.isWarranty && serviceFormData.serviceType !== 'rma')
+                        ? "bg-white text-blue-700 shadow-xs border border-slate-200"
+                        : "text-slate-600 hover:text-slate-900"
                     )}
                   >
                     🛡️ Warranty / Free
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setServiceFormData({
+                      ...serviceFormData,
+                      serviceType: 'rma',
+                      isWarranty: true,
+                      serviceCharge: 0,
+                      paymentStatus: 'paid',
+                      isOutsourced: true,
+                      rmaStatus: serviceFormData.rmaStatus || 'Pending Vendor'
+                    })}
+                    className={cn(
+                      "py-1.5 px-3 rounded-lg text-xs font-bold text-center transition-all flex items-center gap-1.5 cursor-pointer",
+                      serviceFormData.serviceType === 'rma'
+                        ? "bg-purple-600 text-white shadow-xs"
+                        : "text-slate-600 hover:text-purple-700"
+                    )}
+                  >
+                    🏷️ Warranty / RMA
+                  </button>
                 </div>
               </div>
 
-              {/* Integrated Outsource / 3rd-Party Repair Routing Section */}
-              <div className="p-4 bg-gradient-to-r from-blue-50/90 to-indigo-50/70 rounded-xl border border-blue-200 space-y-3.5 shadow-2xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/70 pb-2.5">
+              {/* Outsource / Vendor Routing: Clean & Minimal Card */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={cn("w-2.5 h-2.5 rounded-full", (serviceFormData.isOutsourced || serviceFormData.vendorName || (serviceFormData.outsourceCost || 0) > 0) ? "bg-blue-600 animate-pulse" : "bg-slate-400")}></span>
-                    <h4 className="text-xs font-black text-blue-950 uppercase tracking-wider">
-                      🤝 Outsource Workshop / 3rd-Party Vendor Routing (আউটসোর্স মেরামত)
-                    </h4>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-blue-200 shadow-2xs hover:bg-blue-50/80 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(serviceFormData.isOutsourced || serviceFormData.serviceType === 'outsourced' || serviceFormData.serviceType === 'rma' || (serviceFormData.vendorName && serviceFormData.vendorName.trim() !== '') || (serviceFormData.outsourceCost || 0) > 0)}
-                      onChange={e => {
-                        const checked = e.target.checked;
-                        setServiceFormData({
-                          ...serviceFormData,
-                          isOutsourced: checked,
-                          serviceType: checked ? 'outsourced' : 'in_house',
-                          ...(!checked ? { outsourceCost: 0, outsourcePaidAmount: 0, vendorName: '', vendorId: '' } : {})
-                        });
-                      }}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                    />
-                    <span className="text-xs font-bold text-blue-900">
-                      Send to Outsource / Vendor (বাইরের ভেন্ডরে পাঠানো হয়েছে?)
+                    <span className="text-xs font-bold text-slate-800">
+                      {serviceFormData.serviceType === 'rma' ? '🏷️ Supplier / RMA Partner Routing' : '🤝 3rd-Party Outsource Workshop / Mechanic'}
                     </span>
-                  </label>
+                    {serviceFormData.serviceType === 'rma' ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                        Required for RMA
+                      </span>
+                    ) : (
+                      <span className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded-md border",
+                        serviceFormData.isOutsourced
+                          ? "bg-blue-50 text-blue-700 border-blue-200"
+                          : "bg-slate-100 text-slate-600 border-slate-200"
+                      )}>
+                        {serviceFormData.isOutsourced ? 'Outsourced' : 'In-House'}
+                      </span>
+                    )}
+                  </div>
+
+                  {serviceFormData.serviceType !== 'rma' && (
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 hover:text-blue-600 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(serviceFormData.isOutsourced)}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setServiceFormData({
+                            ...serviceFormData,
+                            isOutsourced: checked,
+                            serviceType: checked ? 'outsourced' : 'in_house',
+                            ...(!checked ? { outsourceCost: 0, outsourcePaidAmount: 0, vendorName: '', vendorId: '' } : {})
+                          });
+                        }}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span>Outsource to External Vendor?</span>
+                    </label>
+                  )}
                 </div>
 
-                {!Boolean(serviceFormData.isOutsourced || serviceFormData.serviceType === 'outsourced' || serviceFormData.serviceType === 'rma' || (serviceFormData.vendorName && serviceFormData.vendorName.trim() !== '') || (serviceFormData.outsourceCost || 0) > 0) ? (
-                  <div className="text-xs text-slate-600 font-medium flex items-center justify-between py-1 bg-white/70 px-3.5 rounded-lg border border-blue-100">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">🛠️</span>
-                      <span><strong>ইন-হাউস সার্ভিস (In-House Repair):</strong> এটি দোকানের নিজস্ব ল্যাবে মেরামত হবে। যদি বাইরে কোনো ভেন্ডর বা আউটসোর্সে পাঠাতে চান, উপরের বক্সে টিক দিন।</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3.5 pt-1">
-                    <div className="flex items-center justify-between border-b border-blue-200/70 pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
-                      <h4 className="text-xs font-black text-blue-950 uppercase tracking-wider">
-                        {serviceFormData.serviceType === 'rma' ? '🏷️ Supplier / RMA Partner Routing' : '🤝 3rd-Party Outsource Workshop / Mechanic'}
-                      </h4>
-                    </div>
-                    <span className="text-[11px] font-bold text-blue-800 bg-blue-100/80 px-2 py-0.5 rounded-md border border-blue-200">
-                      Outsource Costing & Accounts
-                    </span>
-                  </div>
+                {/* Only show inputs if Outsourced or RMA is active */}
+                {(serviceFormData.isOutsourced || serviceFormData.serviceType === 'rma') && (
+                  <div className="pt-2.5 border-t border-slate-100 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                          Select Registered Vendor (Optional)
+                        </label>
+                        <select
+                          value={serviceFormData.vendorId || ''}
+                          onChange={e => {
+                            const vId = e.target.value;
+                            const foundVendor = vendors.find(v => v.id === vId);
+                            setServiceFormData({
+                              ...serviceFormData,
+                              vendorId: vId,
+                              vendorName: foundVendor ? foundVendor.name : (vId === '' ? '' : serviceFormData.vendorName)
+                            });
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-blue-500"
+                        >
+                          <option value="">-- Select Registered Vendor --</option>
+                          {vendors.map(v => (
+                            <option key={v.id} value={v.id}>{v.name}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    <div>
-                      <label className="block text-[11px] font-black text-blue-900 uppercase mb-1">
-                        Select Registered Vendor (Optional)
-                      </label>
-                      <select
-                        value={serviceFormData.vendorId || ''}
-                        onChange={e => {
-                          const vId = e.target.value;
-                          const foundVendor = vendors.find(v => v.id === vId);
-                          setServiceFormData({
-                            ...serviceFormData,
-                            vendorId: vId,
-                            vendorName: foundVendor ? foundVendor.name : (vId === '' ? '' : serviceFormData.vendorName)
-                          });
-                        }}
-                        className="w-full bg-white border border-blue-200 rounded-lg p-2.5 text-xs font-semibold text-slate-800 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
-                      >
-                        <option value="">-- Select from Registered Vendors --</option>
-                        {vendors.map(v => (
-                          <option key={v.id} value={v.id}>{v.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-black text-blue-900 uppercase mb-1">
-                        Vendor / Technician / Workshop Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required={serviceFormData.serviceType === 'outsourced' || serviceFormData.serviceType === 'rma' || serviceFormData.isOutsourced}
-                        value={serviceFormData.vendorName || ''}
-                        onChange={e => {
-                          const name = e.target.value;
-                          const matched = vendors.find(v => v.name.toLowerCase().trim() === name.toLowerCase().trim());
-                          setServiceFormData({
-                            ...serviceFormData,
-                            vendorName: name,
-                            vendorId: matched ? matched.id : serviceFormData.vendorId
-                          });
-                        }}
-                        className="w-full bg-white border border-blue-200 rounded-lg p-2.5 text-xs font-bold text-slate-900 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
-                        placeholder="e.g. Master Tech Lab, Smart Care, or Md. Shakil"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-black text-blue-900 uppercase mb-1">
-                        Repair / Outsource Cost (৳)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={serviceFormData.outsourceCost || ''}
-                        onChange={e => setServiceFormData({ ...serviceFormData, outsourceCost: Number(e.target.value) || 0 })}
-                        className="w-full bg-white border border-blue-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
-                        placeholder="0"
-                      />
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                          Vendor / Workshop / Technician Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required={Boolean(serviceFormData.isOutsourced || serviceFormData.serviceType === 'rma')}
+                          value={serviceFormData.vendorName || ''}
+                          onChange={e => {
+                            const name = e.target.value;
+                            const matched = vendors.find(v => v.name.toLowerCase().trim() === name.toLowerCase().trim());
+                            setServiceFormData({
+                              ...serviceFormData,
+                              vendorName: name,
+                              vendorId: matched ? matched.id : serviceFormData.vendorId
+                            });
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:bg-white focus:ring-blue-500"
+                          placeholder="e.g. Master Tech Lab, Smart Care..."
+                        />
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-black text-blue-900 uppercase mb-1">
-                        Amount Paid to Vendor (৳)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={serviceFormData.outsourcePaidAmount || ''}
-                        onChange={e => setServiceFormData({ ...serviceFormData, outsourcePaidAmount: Number(e.target.value) || 0 })}
-                        className="w-full bg-white border border-blue-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
-                        placeholder="0"
-                      />
-                      {(serviceFormData.outsourceCost || 0) > 0 && (Number(serviceFormData.outsourcePaidAmount) || 0) === 0 && (
-                        <p className="text-[10px] text-blue-700 mt-1 font-bold">
-                          ℹ️ কোনো পেমেন্ট দেওয়া হয়নি — সম্পূর্ণ ৳{serviceFormData.outsourceCost} ভেন্ডর ডিউ (Vendor Due)-তে রেকর্ড হবে।
-                        </p>
-                      )}
-                      {(serviceFormData.outsourceCost || 0) > (serviceFormData.outsourcePaidAmount || 0) && (Number(serviceFormData.outsourcePaidAmount) || 0) > 0 && (
-                        <p className="text-[10px] text-amber-800 mt-1 font-bold">
-                          ⚠️ আংশিক পরিশোধ: ৳{serviceFormData.outsourcePaidAmount} পরিশোধ হবে, বাকি ৳{(serviceFormData.outsourceCost || 0) - (serviceFormData.outsourcePaidAmount || 0)} ভেন্ডর ডিউ হিসেবে জমা থাকবে।
-                        </p>
-                      )}
-                      {(serviceFormData.outsourceCost || 0) > 0 && (Number(serviceFormData.outsourcePaidAmount) || 0) >= (serviceFormData.outsourceCost || 0) && (
-                        <p className="text-[10px] text-emerald-700 mt-1 font-bold">
-                          ✅ সম্পূর্ণ পরিশোধ: ভেন্ডরের কোনো বকেয়া (Due) থাকবে না।
-                        </p>
-                      )}
-                    </div>
+                    {serviceFormData.serviceType !== 'rma' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                            Repair / Outsource Cost (৳)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={serviceFormData.outsourceCost || ''}
+                            onChange={e => setServiceFormData({ ...serviceFormData, outsourceCost: Number(e.target.value) || 0 })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:bg-white focus:ring-blue-500"
+                            placeholder="0"
+                          />
+                        </div>
 
-                    <div>
-                      <label className="block text-[11px] font-black text-blue-900 uppercase mb-1">
-                        Paid From Account {(Number(serviceFormData.outsourcePaidAmount) || 0) > 0 && <span className="text-red-500">*</span>}
-                      </label>
-                      <select
-                        value={serviceFormData.outsourcePaymentAccountId || ''}
-                        onChange={e => {
-                          const accId = e.target.value;
-                          const acc = paymentAccounts.find(a => a.id === accId);
-                          setServiceFormData({
-                            ...serviceFormData,
-                            outsourcePaymentAccountId: accId,
-                            outsourcePaymentMethod: acc ? (acc.type || acc.name) : ''
-                          });
-                        }}
-                        className="w-full bg-white border border-blue-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
-                        disabled={!((Number(serviceFormData.outsourcePaidAmount) || 0) > 0)}
-                      >
-                        <option value="">
-                          {(Number(serviceFormData.outsourcePaidAmount) || 0) > 0 ? '-- Select Payment Account --' : '-- No Payment (Full Due) --'}
-                        </option>
-                        {paymentAccounts?.map((acc: any) => {
-                          const bal = calculateAccountBalance(acc, transactions);
-                          return (
-                            <option key={acc.id} value={acc.id}>
-                              {acc.name} ({acc.type || 'account'}) — ব্যালেন্স: ৳{Math.round(bal).toLocaleString()}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                            Amount Paid to Vendor (৳)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={serviceFormData.outsourcePaidAmount || ''}
+                            onChange={e => setServiceFormData({ ...serviceFormData, outsourcePaidAmount: Number(e.target.value) || 0 })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:bg-white focus:ring-blue-500"
+                            placeholder="0"
+                          />
+                          {(serviceFormData.outsourceCost || 0) > 0 && (
+                            <span className="text-[10px] text-slate-500 font-semibold block mt-1">
+                              {(Number(serviceFormData.outsourcePaidAmount) || 0) === 0
+                                ? `Full Due: ৳${serviceFormData.outsourceCost} (বকেয়া)`
+                                : (Number(serviceFormData.outsourcePaidAmount) || 0) < (serviceFormData.outsourceCost || 0)
+                                ? `Partial Paid. Remaining Due: ৳${(serviceFormData.outsourceCost || 0) - (Number(serviceFormData.outsourcePaidAmount) || 0)}`
+                                : 'Fully Paid (পরিশোধিত)'}
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                            Paid From Account {(Number(serviceFormData.outsourcePaidAmount) || 0) > 0 && <span className="text-red-500">*</span>}
+                          </label>
+                          <select
+                            value={serviceFormData.outsourcePaymentAccountId || ''}
+                            onChange={e => {
+                              const accId = e.target.value;
+                              const acc = paymentAccounts.find(a => a.id === accId);
+                              setServiceFormData({
+                                ...serviceFormData,
+                                outsourcePaymentAccountId: accId,
+                                outsourcePaymentMethod: acc ? (acc.type || acc.name) : ''
+                              });
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-blue-500"
+                            disabled={!((Number(serviceFormData.outsourcePaidAmount) || 0) > 0)}
+                          >
+                            <option value="">
+                              {(Number(serviceFormData.outsourcePaidAmount) || 0) > 0 ? '-- Select Account --' : '-- No Payment (Full Due) --'}
                             </option>
-                          );
-                        })}
-                      </select>
-                      {serviceFormData.outsourcePaymentAccountId && (() => {
-                        const targetAcc = paymentAccounts.find(a => a.id === serviceFormData.outsourcePaymentAccountId);
-                        const selBal = targetAcc ? calculateAccountBalance(targetAcc, transactions) : 0;
-                        const isOver = (Number(serviceFormData.outsourcePaidAmount) || 0) > selBal;
-                        return (
-                          <div className="mt-2 space-y-1.5">
-                            <div className={`text-xs px-2.5 py-1.5 rounded-lg flex items-center justify-between font-bold ${
-                              selBal > 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'
-                            }`}>
-                              <span>অ্যাকাউন্ট ব্যালেন্স:</span>
-                              <span>৳{Math.round(selBal).toLocaleString()}</span>
-                            </div>
-                            {isOver && (
-                              <div className="bg-red-50 border border-red-200 text-red-800 p-2.5 rounded-lg text-xs space-y-1.5">
-                                <div className="font-black text-red-900 flex items-center gap-1">
-                                  <AlertCircle className="w-4 h-4 shrink-0" />
-                                  <span>অপর্যাপ্ত ব্যালেন্স! নির্বাচিত অ্যাকাউন্টে পর্যাপ্ত টাকা নেই।</span>
-                                </div>
-                                <p className="text-[11px] text-red-700">
-                                  বর্তমান ব্যালেন্স <b>৳{Math.round(selBal).toLocaleString()}</b>, কিন্তু পরিশোধ চাওয়া হয়েছে <b>৳{Number(serviceFormData.outsourcePaidAmount).toLocaleString()}</b>। ব্যালেন্স নেগেটিভ করা যাবে না। আপনি চাইলে বাকি বা পুরো টাকা ডিউ রাখতে পারেন:
-                                </p>
-                                <div className="flex flex-wrap gap-2 pt-0.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => setServiceFormData(prev => ({ ...prev, outsourcePaidAmount: 0 }))}
-                                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-bold text-[10px] shadow-xs cursor-pointer"
-                                  >
-                                    সম্পূর্ণ টাকা ডিউ রাখুন (৳0 পরিশোধ)
-                                  </button>
-                                  {selBal > 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setServiceFormData(prev => ({ ...prev, outsourcePaidAmount: Math.floor(selBal) }))}
-                                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-[10px] shadow-xs cursor-pointer"
-                                    >
-                                      সর্বোচ্চ ৳{Math.floor(selBal).toLocaleString()} পরিশোধ করুন
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
+                            {paymentAccounts?.map((acc: any) => {
+                              const bal = calculateAccountBalance(acc, transactions);
+                              return (
+                                <option key={acc.id} value={acc.id}>
+                                  {acc.name} ({acc.type || 'account'}) — ৳{Math.round(bal).toLocaleString()}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
               {/* 3-Column Horizontal Form Layout */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
