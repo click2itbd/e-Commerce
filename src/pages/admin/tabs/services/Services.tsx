@@ -8,7 +8,7 @@ import { formatCurrency, cn } from '../../../../lib/utils';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { AIPolishButton } from '../../../../components/common/AIPolishButton';
-import {  ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle, Clock, AlertCircle, Package, MessageCircle, ShoppingCart , Trash2, Eye, Receipt } from 'lucide-react';
+import {  ShieldCheck, Search, Filter, Wrench, Printer, RefreshCw, X, Plus, Settings, FileText, Download, Edit2, Truck, CheckCircle, Clock, AlertCircle, Package, MessageCircle, ShoppingCart , Trash2, Eye, Receipt, XCircle, Undo2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Transaction, PaymentAccount } from '../../../../types';
@@ -50,6 +50,8 @@ interface ServiceRecord {
   referrerCustomerId?: string;
   referrerName?: string;
   referrerPhone?: string;
+  returnReason?: string;
+  returnedAt?: string;
 }
 
 interface SoldSerial {
@@ -132,10 +134,15 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     referrerCustomerId: '',
     referrerName: '',
     referrerPhone: '',
+    returnReason: '',
   };
   
   const [serviceFormData, setServiceFormData] = useState(defaultFormData);
   const [viewingRecord, setViewingRecord] = useState<ServiceRecord | null>(null);
+  const [returnModalRecord, setReturnModalRecord] = useState<ServiceRecord | null>(null);
+  const [returnReason, setReturnReason] = useState<string>('Not repairable / Parts unavailable');
+  const [zeroChargeOnReturn, setZeroChargeOnReturn] = useState<boolean>(true);
+  const [returnType, setReturnType] = useState<'returned_unrepaired' | 'cancelled'>('returned_unrepaired');
   const [ledgerView, setLedgerView] = useState<'ledger' | 'products'>('products');
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
 
@@ -405,7 +412,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       doc.text(`Date: ${new Date(record.receivedAt).toLocaleDateString("en-US", { month: 'long', day: 'numeric', year: 'numeric' })}`, (pageWidth / 2) + 6, boxY);
 
       boxY += 7;
-      doc.text(`Status: ${record.status.toUpperCase()}`, (pageWidth / 2) + 6, boxY);
+      const statusLabel = record.status === 'returned_unrepaired' ? 'RETURNED UNREPAIRED' : record.status === 'cancelled' ? 'CANCELLED' : record.status.replace('_', ' ').toUpperCase();
+      doc.text(`Status: ${statusLabel}`, (pageWidth / 2) + 6, boxY);
 
       currentY += 45;
 
@@ -418,7 +426,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
           ['2', 'Serial / IMEI', record.serialNumber || ''],
           ['3', 'Equipment Type', record.equipmentType || 'N/A'],
           ['4', 'Service Type', record.isWarranty ? 'Warranty Service' : (record.serviceType === 'rma' ? 'Warranty / RMA' : (record.serviceType === 'outsourced' ? 'Outsourced Repair' : 'Paid Service'))],
-          ['5', 'Issue Description', record.issueDescription || '']
+          ['5', 'Issue Description', record.issueDescription || ''],
+          ...(record.returnReason ? [['6', 'Return Reason / Note', record.returnReason]] : [])
         ],
         theme: 'plain',
         headStyles: {
@@ -469,8 +478,16 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       
       // Note
       doc.setFontSize(9);
-      doc.setTextColor(100, 116, 139);
-      doc.text("* Note: There is no warranty in case of Burning or Physical Damages.", 14, finalY);
+      if (record.status === 'returned_unrepaired' || record.status === 'cancelled') {
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(225, 29, 72);
+        doc.text(`* Product returned without repair. Reason: ${record.returnReason || 'Unrepaired / Cancelled'}`, 14, finalY);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100, 116, 139);
+      } else {
+        doc.setTextColor(100, 116, 139);
+        doc.text("* Note: There is no warranty in case of Burning or Physical Damages.", 14, finalY);
+      }
 
       finalY += 15;
       doc.setFontSize(11);
@@ -1163,6 +1180,41 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     }
   };
 
+  const openReturnModal = (record: ServiceRecord, type: 'returned_unrepaired' | 'cancelled' = 'returned_unrepaired') => {
+    setReturnModalRecord(record);
+    setReturnType(type);
+    setReturnReason(type === 'cancelled' ? 'Customer cancelled service request' : 'Parts unavailable / Not repairable');
+    setZeroChargeOnReturn(Number(record.serviceCharge || 0) > 0);
+  };
+
+  const handleConfirmReturn = async () => {
+    if (!returnModalRecord) return;
+    try {
+      const updates: any = {
+        status: returnType,
+        returnReason: returnReason.trim() || (returnType === 'cancelled' ? 'Service cancelled' : 'Returned without repair'),
+        returnedAt: new Date().toISOString()
+      };
+      if (zeroChargeOnReturn) {
+        updates.serviceCharge = 0;
+        updates.paymentStatus = 'paid'; // Cleared charge so no pending due exists
+      }
+      await updateDoc(doc(db, 'services', returnModalRecord.id), updates);
+      await logAudit(
+        'RETURN',
+        'Service',
+        `Ticket #${returnModalRecord.serialNumber || returnModalRecord.id.slice(-6).toUpperCase()} marked as ${returnType} (${returnReason})`,
+        profile?.displayName || profile?.email || 'Admin'
+      );
+      toast.success(returnType === 'cancelled' ? 'সার্ভিস টিকিট বাতিল করা হয়েছে।' : 'প্রোডাক্টটি মেরামত ছাড়া ফেরত হিসেবে আপডেট করা হয়েছে।');
+      setReturnModalRecord(null);
+      fetchData();
+    } catch (error) {
+      console.error('Error returning service:', error);
+      toast.error('Failed to update status');
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1845,16 +1897,42 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                         <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Service Status</label>
                         <select
                           value={serviceFormData.status || 'received'}
-                          onChange={e => setServiceFormData({ ...serviceFormData, status: e.target.value })}
+                          onChange={e => {
+                            const newSt = e.target.value;
+                            const isReturned = newSt === 'returned_unrepaired' || newSt === 'cancelled';
+                            setServiceFormData({
+                              ...serviceFormData,
+                              status: newSt,
+                              ...(isReturned && !serviceFormData.returnReason ? { returnReason: 'Parts unavailable / Not repairable' } : {}),
+                              ...(isReturned && Number(serviceFormData.serviceCharge) > 0 ? { serviceCharge: 0, paymentStatus: 'paid' } : {})
+                            });
+                          }}
                           className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 focus:ring-[#EF4444] focus:border-[#EF4444]"
                         >
-                          <option value="received">Received</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="ready">Ready for Pickup</option>
-                          <option value="delivered">Delivered</option>
+                          <option value="received">Received (জমা নেওয়া হয়েছে)</option>
+                          <option value="in_progress">In Progress (মেরামত চলছে)</option>
+                          <option value="ready">Ready for Pickup (প্রস্তুত)</option>
+                          <option value="delivered">Delivered (ডেলিভারি সম্পন্ন)</option>
+                          <option value="returned_unrepaired">Returned Unrepaired (মেরামত ছাড়া ফেরত)</option>
+                          <option value="cancelled">Cancelled (বাতিল)</option>
                         </select>
                       </div>
                     </div>
+
+                    {(serviceFormData.status === 'returned_unrepaired' || serviceFormData.status === 'cancelled') && (
+                      <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg space-y-1">
+                        <label className="block text-[10px] font-black text-rose-800 uppercase">
+                          Return / Cancellation Reason (ফেরতের কারণ)
+                        </label>
+                        <input
+                          type="text"
+                          value={serviceFormData.returnReason || ''}
+                          onChange={e => setServiceFormData({ ...serviceFormData, returnReason: e.target.value })}
+                          placeholder="e.g. Parts not available / Customer took back"
+                          className="w-full border border-rose-200 rounded p-1.5 text-xs text-rose-950 font-medium bg-white focus:ring-rose-500 focus:border-rose-500"
+                        />
+                      </div>
+                    )}
 
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
@@ -2055,33 +2133,40 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       {ledgerView === 'products' && (
         <div className="flex flex-col bg-gray-50/30">
           {/* Dashboard Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 border-b border-gray-100 bg-white">
-            <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl shadow-sm flex items-center gap-4">
-              <div className="bg-amber-100 p-3 rounded-lg text-amber-600"><Clock size={24} /></div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-5 border-b border-gray-100 bg-white">
+            <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl shadow-sm flex items-center gap-3">
+              <div className="bg-amber-100 p-3 rounded-lg text-amber-600 shrink-0"><Clock size={22} /></div>
               <div>
-                <p className="text-sm text-amber-800 font-medium">Pending</p>
-                <h4 className="text-2xl font-bold text-amber-900">{serviceRecords.filter(r => r.status === 'received' || r.rmaStatus === 'Pending Vendor').length}</h4>
+                <p className="text-xs text-amber-800 font-bold uppercase tracking-wider">Pending</p>
+                <h4 className="text-xl font-black text-amber-900">{serviceRecords.filter(r => r.status === 'received' || r.rmaStatus === 'Pending Vendor').length}</h4>
               </div>
             </div>
-            <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl shadow-sm flex items-center gap-4">
-              <div className="bg-blue-100 p-3 rounded-lg text-blue-600"><Wrench size={24} /></div>
+            <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl shadow-sm flex items-center gap-3">
+              <div className="bg-blue-100 p-3 rounded-lg text-blue-600 shrink-0"><Wrench size={22} /></div>
               <div>
-                <p className="text-sm text-blue-800 font-medium">In Repair</p>
-                <h4 className="text-2xl font-bold text-blue-900">{serviceRecords.filter(r => r.status === 'in_progress' || r.rmaStatus === 'Sent to Vendor').length}</h4>
+                <p className="text-xs text-blue-800 font-bold uppercase tracking-wider">In Repair</p>
+                <h4 className="text-xl font-black text-blue-900">{serviceRecords.filter(r => r.status === 'in_progress' || r.rmaStatus === 'Sent to Vendor').length}</h4>
               </div>
             </div>
-            <div className="bg-green-50 border border-green-100 p-4 rounded-xl shadow-sm flex items-center gap-4">
-              <div className="bg-green-100 p-3 rounded-lg text-green-600"><CheckCircle size={24} /></div>
+            <div className="bg-green-50 border border-green-100 p-4 rounded-xl shadow-sm flex items-center gap-3">
+              <div className="bg-green-100 p-3 rounded-lg text-green-600 shrink-0"><CheckCircle size={22} /></div>
               <div>
-                <p className="text-sm text-green-800 font-medium">Ready</p>
-                <h4 className="text-2xl font-bold text-green-900">{serviceRecords.filter(r => r.status === 'ready' || r.rmaStatus === 'Received from Vendor').length}</h4>
+                <p className="text-xs text-green-800 font-bold uppercase tracking-wider">Ready</p>
+                <h4 className="text-xl font-black text-green-900">{serviceRecords.filter(r => r.status === 'ready' || r.rmaStatus === 'Received from Vendor').length}</h4>
               </div>
             </div>
-            <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl shadow-sm flex items-center gap-4">
-              <div className="bg-purple-100 p-3 rounded-lg text-purple-600"><Package size={24} /></div>
+            <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl shadow-sm flex items-center gap-3">
+              <div className="bg-purple-100 p-3 rounded-lg text-purple-600 shrink-0"><Package size={22} /></div>
               <div>
-                <p className="text-sm text-purple-800 font-medium">Delivered</p>
-                <h4 className="text-2xl font-bold text-purple-900">{serviceRecords.filter(r => r.status === 'delivered' || r.rmaStatus === 'Delivered').length}</h4>
+                <p className="text-xs text-purple-800 font-bold uppercase tracking-wider">Delivered</p>
+                <h4 className="text-xl font-black text-purple-900">{serviceRecords.filter(r => r.status === 'delivered' || r.rmaStatus === 'Delivered').length}</h4>
+              </div>
+            </div>
+            <div className="bg-rose-50 border border-rose-100 p-4 rounded-xl shadow-sm flex items-center gap-3 col-span-2 sm:col-span-1">
+              <div className="bg-rose-100 p-3 rounded-lg text-rose-600 shrink-0"><XCircle size={22} /></div>
+              <div>
+                <p className="text-xs text-rose-800 font-bold uppercase tracking-wider">Unrepaired / Cancel</p>
+                <h4 className="text-xl font-black text-rose-900">{serviceRecords.filter(r => r.status === 'returned_unrepaired' || r.status === 'cancelled').length}</h4>
               </div>
             </div>
           </div>
@@ -2089,7 +2174,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
           {/* Filters & Search */}
           <div className="p-4 bg-white border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center">
             <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
-              {['All', 'Pending', 'In Progress', 'Ready', 'Delivered', 'RMA'].map(f => (
+              {['All', 'Pending', 'In Progress', 'Ready', 'Delivered', 'Unrepaired / Return', 'RMA'].map(f => (
                 <button
                   key={f}
                   onClick={() => setFilterStatus(f)}
@@ -2141,6 +2226,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     if (filterStatus === 'In Progress') return r.status === 'in_progress' || r.rmaStatus === 'Sent to Vendor';
                     if (filterStatus === 'Ready') return r.status === 'ready' || r.rmaStatus === 'Received from Vendor';
                     if (filterStatus === 'Delivered') return r.status === 'delivered' || r.rmaStatus === 'Delivered';
+                    if (filterStatus === 'Unrepaired / Return') return r.status === 'returned_unrepaired' || r.status === 'cancelled';
                     if (filterStatus === 'RMA') return r.serviceType === 'rma';
                     
                     return true;
@@ -2204,10 +2290,18 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                               record.status === 'received' ? "bg-amber-100 text-amber-800" :
                               record.status === 'in_progress' ? "bg-blue-100 text-blue-800" :
                               record.status === 'ready' ? "bg-green-100 text-green-800" :
+                              record.status === 'delivered' ? "bg-emerald-100 text-emerald-800" :
+                              record.status === 'returned_unrepaired' ? "bg-rose-100 text-rose-800 border border-rose-200" :
+                              record.status === 'cancelled' ? "bg-slate-100 text-slate-800 border border-slate-300" :
                               "bg-gray-100 text-gray-800"
                             )}>
-                              {record.status.replace('_', ' ').toUpperCase()}
+                              {record.status === 'returned_unrepaired' ? 'RETURNED (NO FIX)' : record.status.replace('_', ' ').toUpperCase()}
                             </span>
+                            {record.returnReason && (
+                              <span className="text-[10px] text-rose-700 font-medium italic block max-w-[190px] truncate" title={record.returnReason}>
+                                ↳ {record.returnReason}
+                              </span>
+                            )}
                             <div className="flex flex-wrap items-center gap-1">
                               <span className={cn(
                                 "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
@@ -2264,11 +2358,16 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     </td>
                     <td className="px-6 py-4 text-right flex items-center justify-end">
                        {record.serviceType === 'rma' ? (
-                         <>
+                         <div className="flex flex-wrap items-center gap-1">
                            {record.rmaStatus === 'Pending Vendor' && (
-                             <button onClick={() => updateRmaStatus(record, 'Sent to Vendor')} className="text-orange-500 hover:text-orange-700 mx-1 bg-orange-50 hover:bg-orange-100 p-1.5 rounded shadow-sm transition-all" title="Send to Vendor">
-                               <Truck size={16} />
-                             </button>
+                             <>
+                               <button onClick={() => updateRmaStatus(record, 'Sent to Vendor')} className="text-orange-500 hover:text-orange-700 mx-1 bg-orange-50 hover:bg-orange-100 p-1.5 rounded shadow-sm transition-all cursor-pointer" title="Send to Vendor">
+                                 <Truck size={16} />
+                               </button>
+                               <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 p-1.5 rounded shadow-sm transition-all cursor-pointer" title="Return Unrepaired (Vendor Rejected / Cancelled)">
+                                 <XCircle size={16} />
+                               </button>
+                             </>
                            )}
                            {record.rmaStatus === 'Sent to Vendor' && (
                              <button onClick={() => {
@@ -2276,39 +2375,74 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                                if (newSerial !== null) {
                                  updateRmaStatus(record, 'Received from Vendor', newSerial);
                                }
-                             }} className="text-blue-500 hover:text-blue-700 mx-1 bg-blue-50 hover:bg-blue-100 p-1.5 rounded shadow-sm transition-all" title="Receive from Vendor">
+                             }} className="text-blue-500 hover:text-blue-700 mx-1 bg-blue-50 hover:bg-blue-100 p-1.5 rounded shadow-sm transition-all cursor-pointer" title="Receive from Vendor">
                                <RefreshCw size={16} />
                              </button>
                            )}
                            {record.rmaStatus === 'Received from Vendor' && (
-                             <button onClick={() => updateRmaStatus(record, 'Delivered')} className="text-green-600 hover:text-green-800 mx-1 bg-green-50 hover:bg-green-100 p-1.5 rounded shadow-sm transition-all" title="Deliver to Customer">
-                               <CheckCircle size={16} />
-                             </button>
+                             <>
+                               <button onClick={() => updateRmaStatus(record, 'Delivered')} className="text-green-600 hover:text-green-800 mx-1 bg-green-50 hover:bg-green-100 p-1.5 rounded shadow-sm transition-all cursor-pointer" title="Deliver to Customer">
+                                 <CheckCircle size={16} />
+                               </button>
+                               <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 p-1.5 rounded shadow-sm transition-all cursor-pointer" title="Return Unrepaired (Vendor Rejected)">
+                                 <XCircle size={16} />
+                               </button>
+                             </>
                            )}
-                         </>
+                           {record.rmaStatus === 'Delivered' && (
+                             <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded shadow-2xs">
+                               <CheckCircle size={12} className="text-emerald-600" /> Delivered
+                             </span>
+                           )}
+                         </div>
                        ) : (
                          <div className="flex flex-wrap items-center gap-1.5">
                            {record.status === 'received' && (
-                             <button onClick={() => updateServiceStatus(record, 'in_progress')} className="flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded transition-colors" title="Mark In Progress">
-                               <Wrench size={12} /> Start Repair
-                             </button>
+                             <>
+                               <button onClick={() => updateServiceStatus(record, 'in_progress')} className="flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Mark In Progress">
+                                 <Wrench size={12} /> Start Repair
+                               </button>
+                               <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Return Unrepaired (মেরামত ছাড়া ফেরত)">
+                                 <XCircle size={12} /> Return (No Fix)
+                               </button>
+                             </>
                            )}
                            {record.status === 'in_progress' && (
-                             <button onClick={() => updateServiceStatus(record, 'ready')} className="flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-2 py-1 rounded transition-colors" title="Mark Ready">
-                               <CheckCircle size={12} /> Mark Ready
-                             </button>
+                             <>
+                               <button onClick={() => updateServiceStatus(record, 'ready')} className="flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Mark Ready">
+                                 <CheckCircle size={12} /> Mark Ready
+                               </button>
+                               <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Return Unrepaired (মেরামত ছাড়া ফেরত)">
+                                 <XCircle size={12} /> Return (No Fix)
+                               </button>
+                             </>
                            )}
                            {record.status === 'ready' && (
-                             <button onClick={() => updateServiceStatus(record, 'delivered')} className="flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-1 rounded transition-colors" title="Mark Delivered">
-                               <Package size={12} /> Deliver
-                             </button>
+                             <>
+                               <button onClick={() => updateServiceStatus(record, 'delivered')} className="flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Mark Delivered">
+                                 <Package size={12} /> Deliver
+                               </button>
+                               <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Return Unrepaired (মেরামত ছাড়া ফেরত)">
+                                 <XCircle size={12} /> Return (No Fix)
+                               </button>
+                             </>
                            )}
                            {record.status === 'delivered' && (
                               <div className="flex items-center gap-1.5">
                                 <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded shadow-2xs">
                                   <CheckCircle size={12} className="text-emerald-600" /> Delivered
                                 </span>
-                                <button onClick={() => updateServiceStatus(record, 'received')} className="text-gray-400 hover:text-amber-700 p-1 rounded hover:bg-amber-50 transition-colors" title="Revert to Received / In Progress">
+                                <button onClick={() => updateServiceStatus(record, 'received')} className="text-gray-400 hover:text-amber-700 p-1 rounded hover:bg-amber-50 transition-colors cursor-pointer" title="Revert to Received / In Progress">
+                                  <RefreshCw size={11} />
+                                </button>
+                              </div>
+                           )}
+                           {(record.status === 'returned_unrepaired' || record.status === 'cancelled') && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded shadow-2xs">
+                                  <XCircle size={12} className="text-rose-600" /> {record.status === 'cancelled' ? 'Cancelled' : 'Returned (No Fix)'}
+                                </span>
+                                <button onClick={() => updateServiceStatus(record, 'received')} className="text-gray-400 hover:text-amber-700 p-1 rounded hover:bg-amber-50 transition-colors cursor-pointer" title="Revert to Received / In Progress">
                                   <RefreshCw size={11} />
                                 </button>
                               </div>
@@ -2413,9 +2547,11 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     viewingRecord.status === 'delivered' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
                     viewingRecord.status === 'ready' ? 'bg-green-100 text-green-800 border border-green-200' :
                     viewingRecord.status === 'in_progress' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                    viewingRecord.status === 'returned_unrepaired' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                    viewingRecord.status === 'cancelled' ? 'bg-slate-200 text-slate-800 border border-slate-300' :
                     'bg-amber-100 text-amber-800 border border-amber-200'
                   }`}>
-                    {viewingRecord.status?.replace('_', ' ')}
+                    {viewingRecord.status === 'returned_unrepaired' ? 'RETURNED (NO FIX)' : viewingRecord.status?.replace('_', ' ')}
                   </span>
                 </div>
 
@@ -2430,6 +2566,26 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   </span>
                 </div>
               </div>
+
+              {/* Return / Cancellation Notice */}
+              {(viewingRecord.returnReason || viewingRecord.status === 'returned_unrepaired' || viewingRecord.status === 'cancelled') && (
+                <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-200 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
+                      <XCircle size={13} className="text-rose-600" />
+                      <span>{viewingRecord.status === 'cancelled' ? 'Service Cancelled' : 'Returned Unrepaired (সার্ভিস ছাড়া ফেরত)'}</span>
+                    </span>
+                    {viewingRecord.returnedAt && (
+                      <span className="text-[10px] font-semibold text-rose-600">
+                        Date: {new Date(viewingRecord.returnedAt).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-bold text-rose-950">
+                    Reason: {viewingRecord.returnReason || 'Product returned to customer without repair.'}
+                  </p>
+                </div>
+              )}
 
               {/* Customer & Product Information (2 Columns) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -2683,6 +2839,182 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── RETURN UNREPAIRED / CANCEL SERVICE MODAL ── */}
+      {returnModalRecord && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-rose-900 via-rose-800 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center border border-white/20">
+                  <XCircle size={20} className="text-rose-300" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm tracking-wide text-white">
+                    Return Device / Cancel Service (মেরামত ছাড়া ফেরত)
+                  </h3>
+                  <p className="text-[11px] text-rose-200">
+                    Ticket #{returnModalRecord.serialNumber || returnModalRecord.id.slice(-6).toUpperCase()} • {returnModalRecord.productName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReturnModalRecord(null)}
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-rose-200 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 text-xs">
+              {/* Customer summary */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Customer</span>
+                  <strong className="text-slate-900 font-bold">{returnModalRecord.customerName}</strong>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Phone</span>
+                  <span className="font-mono font-bold text-slate-800">{returnModalRecord.customerPhone}</span>
+                </div>
+              </div>
+
+              {/* Action Type: Return Unrepaired vs Cancel */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Action Type (ধরন নির্ধারণ করুন)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReturnType('returned_unrepaired');
+                      setReturnReason('Parts unavailable / Not repairable');
+                    }}
+                    className={cn(
+                      "p-2.5 rounded-xl border text-left transition-all cursor-pointer font-bold",
+                      returnType === 'returned_unrepaired'
+                        ? "bg-rose-50 border-rose-300 text-rose-900 ring-2 ring-rose-400/30"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <div className="text-xs">🔄 Returned Unrepaired</div>
+                    <div className="text-[10px] font-normal text-slate-500 mt-0.5">মেরামত ছাড়া ফেরত</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReturnType('cancelled');
+                      setReturnReason('Customer cancelled service request');
+                    }}
+                    className={cn(
+                      "p-2.5 rounded-xl border text-left transition-all cursor-pointer font-bold",
+                      returnType === 'cancelled'
+                        ? "bg-slate-100 border-slate-400 text-slate-900 ring-2 ring-slate-400/30"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <div className="text-xs">❌ Cancelled</div>
+                    <div className="text-[10px] font-normal text-slate-500 mt-0.5">অর্ডার/টিকিট বাতিল</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Preset Reasons */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">
+                  Reason for Return / Cancellation (ফেরত দেওয়ার কারণ)
+                </label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {[
+                    'যন্ত্রাংশ পাওয়া যায়নি (No Parts)',
+                    'মেরামত সম্ভব নয় (Unrepairable)',
+                    'কাস্টমার ফেরত চেয়েছেন (Customer Withdrew)',
+                    'খরচ বেশি হওয়ায় অমত (High Cost)',
+                    'অন্যত্র মেরামত করাবেন (Going Elsewhere)'
+                  ].map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setReturnReason(preset)}
+                      className={cn(
+                        "px-2 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer",
+                        returnReason === preset
+                          ? "bg-rose-100 text-rose-800 border-rose-300"
+                          : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                      )}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={returnReason}
+                  onChange={e => setReturnReason(e.target.value)}
+                  placeholder="ফেরতের সুনির্দিষ্ট কারণ বা মন্তব্য লিখুন..."
+                  rows={2}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-medium text-slate-900 focus:ring-rose-500 focus:border-rose-500"
+                />
+              </div>
+
+              {/* Billing & Service Charge Adjustment */}
+              {Number(returnModalRecord.serviceCharge || 0) > 0 && (
+                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-900">বর্তমান নির্ধারিত সার্ভিস চার্জ:</span>
+                    <strong className="text-sm font-black text-amber-900">৳{Number(returnModalRecord.serviceCharge).toLocaleString()}</strong>
+                  </div>
+                  <label className="flex items-start gap-2 pt-1 border-t border-amber-200/80 cursor-pointer text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={zeroChargeOnReturn}
+                      onChange={e => setZeroChargeOnReturn(e.target.checked)}
+                      className="w-4 h-4 text-rose-600 rounded mt-0.5"
+                    />
+                    <div>
+                      <strong className="text-xs font-bold block text-slate-900">সার্ভিস চার্জ ৳০ (শূন্য) করে দিন</strong>
+                      <span className="text-[10px] text-slate-600 block">
+                        যেহেতু সার্ভিস সম্পন্ন হয়নি, তাই কোনো বকেয়া বা বিল থাকবে না।
+                      </span>
+                    </div>
+                  </label>
+                  {returnModalRecord.paymentStatus === 'paid' && (
+                    <div className="text-[10px] font-medium text-amber-800 bg-white/90 p-1.5 rounded border border-amber-200">
+                      ⚠️ কাস্টমার পূর্বে এই বিল পরিশোধ করেছিলেন। যদি পুরো টাকা রিফান্ড দিয়ে থাকেন, তবে চার্জ ০ করে দিন।
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Informational banner */}
+              <div className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+                ℹ️ ফেরত সম্পন্ন হওয়ার পর টিকিট হিস্টোরিতে সংরক্ষিত থাকবে এবং কাস্টমারের জন্য <strong>ফেরত রিসিট (Return Slip)</strong> প্রিন্ট করা যাবে।
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setReturnModalRecord(null)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReturn}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <CheckCircle size={15} />
+                <span>Confirm Return (ফেরত নিশ্চিত করুন)</span>
+              </button>
             </div>
           </div>
         </div>
