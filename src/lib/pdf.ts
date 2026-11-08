@@ -590,9 +590,11 @@ export const generatePDF = async (
       let warranty = "-";
       if (item.warranty) {
         warranty = item.warranty;
-        if (/^\d+$/.test(warranty)) warranty += ' Years';
-      } else if (item.warrantyMonths) {
-        warranty = formatWarranty(item.warrantyMonths, item.warrantyUnit);
+        if (/^\d+$/.test(warranty)) {
+          warranty = Number(warranty) === 0 ? 'No Warranty' : warranty + ' Years';
+        }
+      } else if (item.warrantyMonths !== undefined && item.warrantyMonths !== null) {
+        warranty = Number(item.warrantyMonths) <= 0 ? 'No Warranty' : formatWarranty(item.warrantyMonths, item.warrantyUnit);
       } else if (item.specs?.Warranty) {
         warranty = item.specs.Warranty;
       }

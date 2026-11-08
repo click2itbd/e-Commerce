@@ -635,9 +635,11 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
       name: customItemForm.name.trim(),
       description: customItemForm.description.trim(),
       brand: customItemForm.brand.trim() || '',
-      warranty: customItemForm.warrantyUnit === 'Life Time' 
-        ? 'Life Time' 
-        : (customItemForm.warrantyValue ? `${customItemForm.warrantyValue} ${customItemForm.warrantyUnit}` : ''),
+      warranty: (customItemForm.warrantyUnit === 'No Warranty' || customItemForm.warrantyValue === '0' || Number(customItemForm.warrantyValue) === 0)
+        ? 'No Warranty'
+        : (customItemForm.warrantyUnit === 'Life Time'
+          ? 'Life Time'
+          : (customItemForm.warrantyValue ? `${customItemForm.warrantyValue} ${customItemForm.warrantyUnit}` : 'No Warranty')),
       price: Number(customItemForm.price) || 0,
       quantity: Number(customItemForm.quantity) || 1,
       unit: customItemForm.unit || 'pcs',
@@ -2298,23 +2300,33 @@ export const QuotationManager: React.FC<{ users?: any[] }> = ({ users = [] }) =>
                   <div className="flex gap-1.5">
                     <input 
                       type="number"
-                      min="1"
-                      className="w-1/2 border border-slate-200 p-2.5 rounded-xl text-xs text-center font-bold focus:border-indigo-500 outline-none disabled:bg-slate-100" 
-                      value={customItemForm.warrantyValue}
-                      onChange={e => setCustomItemForm({ ...customItemForm, warrantyValue: e.target.value })}
-                      placeholder="1"
-                      disabled={customItemForm.warrantyUnit === 'Life Time'}
+                      min="0"
+                      className="w-1/2 border border-slate-200 p-2.5 rounded-xl text-xs text-center font-bold focus:border-indigo-500 outline-none disabled:bg-slate-100 disabled:text-slate-400" 
+                      value={customItemForm.warrantyUnit === 'No Warranty' ? '0' : customItemForm.warrantyValue}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setCustomItemForm({ 
+                          ...customItemForm, 
+                          warrantyValue: val,
+                          warrantyUnit: val === '0' ? 'No Warranty' : (customItemForm.warrantyUnit === 'No Warranty' ? 'Years' : customItemForm.warrantyUnit)
+                        });
+                      }}
+                      placeholder="0"
+                      disabled={customItemForm.warrantyUnit === 'Life Time' || customItemForm.warrantyUnit === 'No Warranty'}
                     />
                     <select
-                      className="w-1/2 border border-slate-200 p-2 rounded-xl text-xs font-bold focus:border-indigo-500 outline-none bg-white"
+                      className="w-1/2 border border-slate-200 p-2 rounded-xl text-xs font-bold focus:border-indigo-500 outline-none bg-white cursor-pointer"
                       value={customItemForm.warrantyUnit}
                       onChange={e => {
                         const unit = e.target.value;
                         const updates: any = { warrantyUnit: unit };
                         if (unit === 'Life Time') updates.warrantyValue = '';
+                        if (unit === 'No Warranty') updates.warrantyValue = '0';
+                        if (unit !== 'No Warranty' && unit !== 'Life Time' && customItemForm.warrantyValue === '0') updates.warrantyValue = '1';
                         setCustomItemForm({ ...customItemForm, ...updates });
                       }}
                     >
+                      <option value="No Warranty">No Warranty (0)</option>
                       <option value="Days">Days</option>
                       <option value="Months">Months</option>
                       <option value="Years">Years</option>
