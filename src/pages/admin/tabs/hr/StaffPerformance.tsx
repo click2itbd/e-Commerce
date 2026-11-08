@@ -110,7 +110,7 @@ export const StaffPerformanceTab: React.FC<StaffPerformanceProps> = ({ orders })
         setServices(servicesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         setTasks(tasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         setEmployees(empSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        setUsers(usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setUsers(usersSnap.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data() })));
       } catch (err) {
         console.error('Error fetching staff performance dependencies', err);
       } finally {
@@ -120,28 +120,107 @@ export const StaffPerformanceTab: React.FC<StaffPerformanceProps> = ({ orders })
     fetchAllData();
   }, []);
 
+  const stripPrefix = (str: string) => {
+    return (str || '')
+      .toLowerCase()
+      .replace(/^md\.?\s+/i, '')
+      .replace(/^mohammad\s+/i, '')
+      .replace(/^mohammed\s+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const resolveStaffName = (raw: string): string => {
+    if (!raw) return 'System Admin';
+    const clean = raw.trim();
+
+    if (clean === 'Admin' || clean === 'Admin / Unknown' || clean.toLowerCase() === 'system admin') {
+      return 'System Admin';
+    }
+
+    // 1. Check if clean matches a user by UID, id or email
+    const matchedUser = users.find(u => 
+      u.uid === clean || 
+      (u as any)?.id === clean || 
+      u.email?.toLowerCase() === clean.toLowerCase()
+    );
+    if (matchedUser) {
+      const uName = matchedUser.displayName || (matchedUser as any)?.name || matchedUser.email;
+      if (uName) return uName.trim();
+    }
+
+    // 2. Check if clean matches an employee by UID, id, or email
+    const matchedEmp = employees.find(e => 
+      (e as any)?.uid === clean || 
+      e.id === clean || 
+      e.email?.toLowerCase() === clean.toLowerCase()
+    );
+    if (matchedEmp && matchedEmp.name) {
+      return matchedEmp.name.trim();
+    }
+
+    // 3. If clean is a raw Firebase UID string (length >= 20, no spaces, no @) that wasn't found:
+    if (/^[a-zA-Z0-9_-]{20,}$/.test(clean)) {
+      return ''; // Discard unknown raw UID so it doesn't create a ghost staff row
+    }
+
+    return clean;
+  };
+
   // Helper: Normalize staff names to prevent duplicate rows for the same person
   const normalizeStaffKey = (raw: string): string => {
-    if (!raw) return 'system admin';
-    let clean = raw.trim().replace(/\s+/g, ' ');
-    if (clean.toLowerCase() === 'admin' || clean.toLowerCase() === 'admin / unknown') return 'system admin';
-    return clean.toLowerCase();
+    const resolved = resolveStaffName(raw);
+    if (!resolved) return '';
+
+    const clean = resolved.trim().replace(/\s+/g, ' ');
+    if (clean.toLowerCase() === 'admin' || clean.toLowerCase() === 'admin / unknown' || clean.toLowerCase() === 'system admin') {
+      return 'system admin';
+    }
+
+    const stripped = stripPrefix(clean);
+
+    // Look for matching employee by stripped name
+    const matchedEmp = employees.find(e => stripPrefix(e.name || '') === stripped);
+    if (matchedEmp && matchedEmp.name) {
+      return stripPrefix(matchedEmp.name);
+    }
+
+    // Look for matching user by stripped name
+    const matchedUser = users.find(u => stripPrefix(u.displayName || (u as any)?.name || '') === stripped);
+    if (matchedUser) {
+      const uName = matchedUser.displayName || (matchedUser as any)?.name;
+      if (uName) return stripPrefix(uName);
+    }
+
+    return stripped;
   };
 
   const getStaffDetails = (key: string, fallbackName: string) => {
+    if (key === 'system admin') {
+      return {
+        displayName: 'System Admin',
+        email: '',
+        phone: '',
+        role: 'Admin / Direct POS',
+        avatar: '',
+        status: 'active'
+      };
+    }
+
     const emp = employees.find(e =>
-      e.name?.trim().toLowerCase() === key ||
+      stripPrefix(e.name || '') === key ||
       e.email?.trim().toLowerCase() === key ||
       e.id === key
     );
     const usr = users.find(u =>
-      (u.displayName || u.name)?.trim().toLowerCase() === key ||
+      stripPrefix(u.displayName || (u as any)?.name || '') === key ||
       u.email?.trim().toLowerCase() === key ||
-      u.id === key
+      u.uid === key ||
+      (u as any)?.id === key
     );
 
     return {
-      displayName: emp?.name || usr?.displayName || usr?.name || fallbackName,
+      displayName: emp?.name || usr?.displayName || (usr as any)?.name || fallbackName,
       email: emp?.email || usr?.email || '',
       phone: emp?.phone || '',
       role: emp?.role || usr?.role || 'Staff Member',
@@ -209,8 +288,9 @@ export const StaffPerformanceTab: React.FC<StaffPerformanceProps> = ({ orders })
     let totalSystemWonQuotations = 0;
 
     // Helper to ensure staff record initialized
-    const ensureStaff = (rawName: string): StaffPerformanceRecord => {
+    const ensureStaff = (rawName: string): StaffPerformanceRecord | null => {
       const key = normalizeStaffKey(rawName);
+      if (!key) return null;
       if (!staffMap[key]) {
         const details = getStaffDetails(key, rawName.trim() || 'System Admin');
         staffMap[key] = {
@@ -260,6 +340,7 @@ export const StaffPerformanceTab: React.FC<StaffPerformanceProps> = ({ orders })
 
       const rawStaffName = o.preparedBy || o.createdBy || 'System Admin';
       const staff = ensureStaff(rawStaffName);
+      if (!staff) return;
 
       // Check if this is a quotation
       if (o.type === 'quotation') {
@@ -299,6 +380,7 @@ export const StaffPerformanceTab: React.FC<StaffPerformanceProps> = ({ orders })
 
       const rawStaffName = s.preparedBy || s.receivedBy || 'System Admin';
       const staff = ensureStaff(rawStaffName);
+      if (!staff) return;
 
       staff.totalServicesReceived += 1;
       totalSystemServicesCount += 1;
@@ -323,6 +405,8 @@ export const StaffPerformanceTab: React.FC<StaffPerformanceProps> = ({ orders })
       if (!rawStaffName) return;
 
       const staff = ensureStaff(rawStaffName);
+      if (!staff) return;
+
       staff.totalTasksAssigned += 1;
 
       if (t.status === 'completed') {
@@ -367,8 +451,14 @@ export const StaffPerformanceTab: React.FC<StaffPerformanceProps> = ({ orders })
       else s.performanceGrade = 'D';
     });
 
-    // Sort by Total Revenue descending (or by Performance Score)
-    const sortedStats = staffList.sort((a, b) => b.totalRevenue - a.totalRevenue);
+    // Sort by Total Revenue descending, only showing real staff with activities
+    const sortedStats = staffList
+      .filter(s => 
+        (s.totalSales > 0 || s.totalServicesReceived > 0 || s.totalQuotations > 0 || s.tasksCompleted > 0) &&
+        s.key !== '' &&
+        !/^[a-zA-Z0-9_-]{20,}$/.test(s.displayName)
+      )
+      .sort((a, b) => b.totalRevenue - a.totalRevenue);
 
     return {
       stats: sortedStats,
