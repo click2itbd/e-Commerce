@@ -46,6 +46,10 @@ interface ServiceRecord {
   outsourceTxPaymentId?: string;
   outsourcePurchaseId?: string;
   isOutsourced?: boolean;
+  hasReference?: boolean;
+  referrerCustomerId?: string;
+  referrerName?: string;
+  referrerPhone?: string;
 }
 
 interface SoldSerial {
@@ -75,6 +79,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [isAddingService, setIsAddingService] = useState(false);
@@ -123,6 +128,10 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     isOutsourced: false,
     rmaStatus: 'Pending Vendor' as any,
     newSerialNumber: '',
+    hasReference: false,
+    referrerCustomerId: '',
+    referrerName: '',
+    referrerPhone: '',
   };
   
   const [serviceFormData, setServiceFormData] = useState(defaultFormData);
@@ -386,6 +395,13 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       doc.setFont("helvetica", "normal");
       doc.setTextColor(71, 85, 105); // slate-600
       doc.text(`Phone: ${record.customerPhone || "N/A"}`, 20, boxY);
+      if (record.referrerName) {
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(79, 70, 229);
+        doc.text(`Ref: ${record.referrerName} (${record.referrerPhone || 'No Phone'})`, 20, boxY + 5.5);
+      }
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
       doc.text(`Date: ${new Date(record.receivedAt).toLocaleDateString("en-US", { month: 'long', day: 'numeric', year: 'numeric' })}`, (pageWidth / 2) + 6, boxY);
 
       boxY += 7;
@@ -651,7 +667,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       if (record.customerPhone) {
         doc.setFont("helvetica", "normal");
         doc.setTextColor(100, 116, 139);
-        doc.text(`(Phone: ${record.customerPhone})`, 140, rowY);
+        const refLabel = record.referrerName ? ` (Ref: ${record.referrerName}${record.referrerPhone ? ' - ' + record.referrerPhone : ''})` : '';
+        doc.text(`(Phone: ${record.customerPhone})${refLabel}`, 125, rowY);
       }
       doc.setDrawColor(203, 213, 225); // slate-300
       doc.setLineWidth(0.3);
@@ -787,6 +804,76 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   const handleSaveService = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // 1. Validate Customer Phone is mandatory
+      const cPhone = (serviceFormData.customerPhone || '').trim();
+      const cName = (serviceFormData.customerName || '').trim();
+      if (!cPhone) {
+        toast.error('কাস্টমারের ফোন নম্বর অবশ্যই দিতে হবে! (Customer phone number is required)');
+        return;
+      }
+
+      // 2. Validate Reference: If reference is specified, name & phone are mandatory
+      const rName = (serviceFormData.referrerName || '').trim();
+      const rPhone = (serviceFormData.referrerPhone || '').trim();
+      const hasRef = Boolean(serviceFormData.hasReference || rName || rPhone);
+
+      if (hasRef) {
+        if (!rName) {
+          toast.error('রেফারেন্স ব্যক্তির নাম অবশ্যই দিতে হবে!');
+          return;
+        }
+        if (!rPhone) {
+          toast.error('রেফারেন্স ব্যক্তির ফোন নম্বর অবশ্যই দিতে হবে! (Reference customer phone is required)');
+          return;
+        }
+      }
+
+      // 3. Auto-register reference person as a customer in Firestore if not already registered
+      let resolvedRefCustId = serviceFormData.referrerCustomerId || '';
+      if (hasRef && rName && rPhone) {
+        const existingRef = customers.find(c => 
+          (c.phone && c.phone.trim() === rPhone) ||
+          (c.name && c.name.toLowerCase().trim() === rName.toLowerCase() && c.phone)
+        );
+        if (existingRef) {
+          resolvedRefCustId = existingRef.id;
+        } else {
+          try {
+            const newCustDoc = await addDoc(collection(db, 'customers'), {
+              name: rName,
+              phone: rPhone,
+              address: '',
+              notes: `Registered via Service Reference for ticket (${serviceFormData.serialNumber || 'New'})`,
+              source: 'service_reference',
+              createdAt: new Date().toISOString(),
+              createdBy: profile?.displayName || profile?.email || 'Admin',
+            });
+            resolvedRefCustId = newCustDoc.id;
+          } catch (rCustErr) {
+            console.warn('Could not auto-create reference customer doc:', rCustErr);
+          }
+        }
+      }
+
+      // 4. Auto-register main customer in Firestore if not already registered
+      if (cName && cPhone) {
+        const existingMain = customers.find(c => c.phone && c.phone.trim() === cPhone);
+        if (!existingMain) {
+          try {
+            await addDoc(collection(db, 'customers'), {
+              name: cName,
+              phone: cPhone,
+              address: '',
+              source: 'service_intake',
+              createdAt: new Date().toISOString(),
+              createdBy: profile?.displayName || profile?.email || 'Admin',
+            });
+          } catch (mCustErr) {
+            console.warn('Could not auto-create main customer doc:', mCustErr);
+          }
+        }
+      }
+
       const isPaidOrZero = Number(serviceFormData.serviceCharge || 0) <= 0 || serviceFormData.paymentStatus === "paid";
       const isOutsourcedMode = Boolean(
         serviceFormData.serviceType === 'outsourced' ||
@@ -864,6 +951,13 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       const cleanData: any = {};
       Object.entries({
         ...serviceFormData,
+        hasReference: Boolean(hasRef && rName && rPhone),
+        referrerCustomerId: resolvedRefCustId || '',
+        referrerName: hasRef ? rName : '',
+        referrerPhone: hasRef ? rPhone : '',
+        customerName: cName,
+        customerPhone: cPhone,
+        isOutsourced: isOutsourcedMode,
         vendorId: vId,
         vendorName: vName || serviceFormData.vendorName || '',
         paymentMethod: pMethod,
@@ -1142,93 +1236,91 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
 
             {/* Modal Body */}
             <form onSubmit={handleSaveService} className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50/60 space-y-4">
-              {/* Top Controls: Horizontal Pill Selectors */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {/* Service Type Selection */}
-                <div className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs">
-                  <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
-                    <span>Service Execution Mode</span>
-                    <span className="text-[10px] font-bold text-slate-400">Choose where repair is done</span>
+              {/* Unified Service Header: All services received In-House, with unified billing & outsource options */}
+              <div className="p-3.5 bg-white rounded-xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-900 text-white uppercase tracking-wider">
+                      🛠️ In-House Intake & Reception
+                    </span>
+                    <span className="text-xs font-bold text-slate-700">
+                      দোকানের নিজস্ব ইনটেক ও সার্ভিসিং রেকর্ড
+                    </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setServiceFormData({ ...serviceFormData, serviceType: 'in_house', isOutsourced: false })}
-                      className={cn(
-                        "py-2 px-2 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 cursor-pointer",
-                        serviceFormData.serviceType === 'in_house' && !serviceFormData.isOutsourced
-                          ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                      )}
-                    >
-                      🛠️ In-House
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setServiceFormData({ ...serviceFormData, serviceType: 'outsourced', isOutsourced: true })}
-                      className={cn(
-                        "py-2 px-2 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 cursor-pointer",
-                        serviceFormData.serviceType === 'outsourced' || serviceFormData.isOutsourced
-                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-700"
-                      )}
-                    >
-                      🤝 Outsourced
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setServiceFormData({ ...serviceFormData, serviceType: 'rma', isOutsourced: false })}
-                      className={cn(
-                        "py-2 px-2 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 cursor-pointer",
-                        serviceFormData.serviceType === 'rma'
-                          ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-purple-50 hover:text-purple-700"
-                      )}
-                    >
-                      🏷️ Warranty / RMA
-                    </button>
-                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                    প্রতিটি প্রোডাক্ট দোকানে ইন-হাউস রিসিভ করা হয় এবং প্রয়োজন অনুযায়ী সরাসরি বা বাইরের ভেন্ডরে মেরামত করা যায়।
+                  </p>
                 </div>
 
                 {/* Billing / Warranty Selection */}
-                <div className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs">
-                  <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
-                    <span>Billing & Warranty Policy</span>
-                    <span className="text-[10px] font-bold text-slate-400">Customer charge policy</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setServiceFormData({ ...serviceFormData, isWarranty: false })}
-                      className={cn(
-                        "py-2 px-2 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 cursor-pointer",
-                        !serviceFormData.isWarranty
-                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700"
-                      )}
-                    >
-                      💵 Paid Service
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setServiceFormData({ ...serviceFormData, isWarranty: true, serviceCharge: 0, paymentStatus: 'paid' })}
-                      className={cn(
-                        "py-2 px-2 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 cursor-pointer",
-                        serviceFormData.isWarranty
-                          ? "bg-purple-700 text-white border-purple-700 shadow-xs"
-                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-purple-50 hover:text-purple-700"
-                      )}
-                    >
-                      🛡️ Warranty / Free Service
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setServiceFormData({ ...serviceFormData, isWarranty: false })}
+                    className={cn(
+                      "py-2 px-3 rounded-lg text-xs font-bold text-center transition-all border flex items-center gap-1.5 cursor-pointer",
+                      !serviceFormData.isWarranty
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700"
+                    )}
+                  >
+                    💵 Paid Service
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setServiceFormData({ ...serviceFormData, isWarranty: true, serviceCharge: 0, paymentStatus: 'paid' })}
+                    className={cn(
+                      "py-2 px-3 rounded-lg text-xs font-bold text-center transition-all border flex items-center gap-1.5 cursor-pointer",
+                      serviceFormData.isWarranty
+                        ? "bg-purple-700 text-white border-purple-700 shadow-xs"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-purple-50 hover:text-purple-700"
+                    )}
+                  >
+                    🛡️ Warranty / Free
+                  </button>
                 </div>
               </div>
 
-              {/* Outsourced Repair / RMA Partner Section */}
-              {(serviceFormData.serviceType === 'outsourced' || serviceFormData.serviceType === 'rma' || serviceFormData.isOutsourced) && (
-                <div className="p-4 bg-gradient-to-r from-blue-50/90 to-indigo-50/70 rounded-xl border border-blue-200 space-y-3.5 shadow-2xs">
-                  <div className="flex items-center justify-between border-b border-blue-200/70 pb-2">
+              {/* Integrated Outsource / 3rd-Party Repair Routing Section */}
+              <div className="p-4 bg-gradient-to-r from-blue-50/90 to-indigo-50/70 rounded-xl border border-blue-200 space-y-3.5 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/70 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className={cn("w-2.5 h-2.5 rounded-full", (serviceFormData.isOutsourced || serviceFormData.vendorName || (serviceFormData.outsourceCost || 0) > 0) ? "bg-blue-600 animate-pulse" : "bg-slate-400")}></span>
+                    <h4 className="text-xs font-black text-blue-950 uppercase tracking-wider">
+                      🤝 Outsource Workshop / 3rd-Party Vendor Routing (আউটসোর্স মেরামত)
+                    </h4>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-blue-200 shadow-2xs hover:bg-blue-50/80 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(serviceFormData.isOutsourced || serviceFormData.serviceType === 'outsourced' || serviceFormData.serviceType === 'rma' || (serviceFormData.vendorName && serviceFormData.vendorName.trim() !== '') || (serviceFormData.outsourceCost || 0) > 0)}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setServiceFormData({
+                          ...serviceFormData,
+                          isOutsourced: checked,
+                          serviceType: checked ? 'outsourced' : 'in_house',
+                          ...(!checked ? { outsourceCost: 0, outsourcePaidAmount: 0, vendorName: '', vendorId: '' } : {})
+                        });
+                      }}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-xs font-bold text-blue-900">
+                      Send to Outsource / Vendor (বাইরের ভেন্ডরে পাঠানো হয়েছে?)
+                    </span>
+                  </label>
+                </div>
+
+                {!Boolean(serviceFormData.isOutsourced || serviceFormData.serviceType === 'outsourced' || serviceFormData.serviceType === 'rma' || (serviceFormData.vendorName && serviceFormData.vendorName.trim() !== '') || (serviceFormData.outsourceCost || 0) > 0) ? (
+                  <div className="text-xs text-slate-600 font-medium flex items-center justify-between py-1 bg-white/70 px-3.5 rounded-lg border border-blue-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">🛠️</span>
+                      <span><strong>ইন-হাউস সার্ভিস (In-House Repair):</strong> এটি দোকানের নিজস্ব ল্যাবে মেরামত হবে। যদি বাইরে কোনো ভেন্ডর বা আউটসোর্সে পাঠাতে চান, উপরের বক্সে টিক দিন।</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3.5 pt-1">
+                    <div className="flex items-center justify-between border-b border-blue-200/70 pb-2">
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
                       <h4 className="text-xs font-black text-blue-950 uppercase tracking-wider">
@@ -1410,6 +1502,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   </div>
                 </div>
               )}
+            </div>
 
               {/* 3-Column Horizontal Form Layout */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1488,7 +1581,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
 
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                        Customer Phone <span className="text-red-500">*</span>
+                        Customer Phone <span className="text-red-500">* (আবশ্যক)</span>
                       </label>
                       <input
                         type="tel"
@@ -1498,6 +1591,132 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                         className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-900 focus:ring-[#EF4444] focus:border-[#EF4444]"
                         placeholder="01XXXXXXXXX"
                       />
+                    </div>
+
+                    {/* Reference System (রেফারেন্স গ্রাহক) */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-[11px] font-bold text-slate-700 uppercase flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(serviceFormData.hasReference || (serviceFormData.referrerName && serviceFormData.referrerName.trim() !== ''))}
+                            onChange={e => {
+                              const checked = e.target.checked;
+                              setServiceFormData({
+                                ...serviceFormData,
+                                hasReference: checked,
+                                ...(!checked ? { referrerCustomerId: '', referrerName: '', referrerPhone: '' } : {})
+                              });
+                            }}
+                            className="w-3.5 h-3.5 text-indigo-600 rounded"
+                          />
+                          <span>🤝 Reference / রেফারেন্স আছে?</span>
+                        </label>
+                        {Boolean(serviceFormData.hasReference || serviceFormData.referrerName) && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            Must be a Customer
+                          </span>
+                        )}
+                      </div>
+
+                      {Boolean(serviceFormData.hasReference || (serviceFormData.referrerName && serviceFormData.referrerName.trim() !== '')) && (
+                        <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-200/80 space-y-2.5">
+                          <div className="relative">
+                            <label className="block text-[10px] font-black text-indigo-900 uppercase mb-1">
+                              Search Reference Customer (রেফারেন্স কাস্টমার খুঁজুন) <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              autoComplete="off"
+                              value={serviceFormData.referrerName || ''}
+                              onFocus={() => setShowReferrerDropdown(true)}
+                              onBlur={() => setTimeout(() => setShowReferrerDropdown(false), 200)}
+                              onChange={e => {
+                                const val = e.target.value;
+                                const matched = customers.find(c => 
+                                  c.name.toLowerCase() === val.toLowerCase() ||
+                                  (c.phone && c.phone === val)
+                                );
+                                setServiceFormData({
+                                  ...serviceFormData,
+                                  hasReference: true,
+                                  referrerName: val,
+                                  referrerPhone: matched ? (matched.phone || serviceFormData.referrerPhone) : serviceFormData.referrerPhone,
+                                  referrerCustomerId: matched ? matched.id : ''
+                                });
+                              }}
+                              className="w-full border border-indigo-200 rounded-lg p-2 text-xs font-bold text-slate-900 bg-white focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="Type reference name or phone..."
+                            />
+                            {showReferrerDropdown && (
+                              <div className="absolute z-50 w-full mt-1 bg-white border border-indigo-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                                {customers.filter(c => 
+                                  c.name.toLowerCase().includes((serviceFormData.referrerName || '').toLowerCase()) ||
+                                  (c.phone && c.phone.includes(serviceFormData.referrerName || ''))
+                                ).length > 0 ? (
+                                  customers.filter(c => 
+                                    c.name.toLowerCase().includes((serviceFormData.referrerName || '').toLowerCase()) ||
+                                    (c.phone && c.phone.includes(serviceFormData.referrerName || ''))
+                                  ).map(c => (
+                                    <div
+                                      key={c.id}
+                                      className="px-3 py-2 cursor-pointer hover:bg-indigo-50 border-b border-slate-50 last:border-0"
+                                      onClick={() => {
+                                        setServiceFormData({
+                                          ...serviceFormData,
+                                          hasReference: true,
+                                          referrerCustomerId: c.id,
+                                          referrerName: c.name,
+                                          referrerPhone: c.phone || ''
+                                        });
+                                        setShowReferrerDropdown(false);
+                                      }}
+                                    >
+                                      <div className="font-bold text-xs text-slate-800">{c.name}</div>
+                                      {c.phone && <div className="text-[10px] text-slate-500 font-medium">📞 {c.phone}</div>}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="px-3 py-2 text-[11px] text-slate-500 italic">
+                                    নতুন রেফারেন্স — ফোন নম্বর দিলে স্বয়ংক্রিয়ভাবে কাস্টমার হিসেবে সেভ হবে।
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-black text-indigo-900 uppercase mb-1">
+                              Reference Customer Phone (রেফারেন্সকারীর ফোন নম্বর) <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="tel"
+                              required={Boolean(serviceFormData.hasReference || serviceFormData.referrerName)}
+                              value={serviceFormData.referrerPhone || ''}
+                              onChange={e => setServiceFormData({ ...serviceFormData, referrerPhone: e.target.value })}
+                              className="w-full border border-indigo-200 rounded-lg p-2 text-xs font-bold text-slate-900 bg-white focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="01XXXXXXXXX"
+                            />
+                          </div>
+
+                          {serviceFormData.referrerCustomerId ? (
+                            <div className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded border border-emerald-200 flex items-center justify-between">
+                              <span>✅ রেজিস্টার্ড কাস্টমার: {serviceFormData.referrerName}</span>
+                              <button
+                                type="button"
+                                onClick={() => setServiceFormData({ ...serviceFormData, referrerCustomerId: '', referrerName: '', referrerPhone: '', hasReference: false })}
+                                className="text-rose-600 hover:text-rose-800 font-bold text-[9px]"
+                              >
+                                ✕ Remove
+                              </button>
+                            </div>
+                          ) : (serviceFormData.referrerName && serviceFormData.referrerPhone) ? (
+                            <div className="text-[10px] font-medium text-indigo-800 bg-white/80 p-1.5 rounded border border-indigo-200">
+                              ℹ️ রেফারেন্স ব্যক্তি স্বয়ংক্রিয়ভাবে নতুন কাস্টমার হিসেবে সেভ হয়ে যাবে।
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1963,8 +2182,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                       <div className="text-xs text-gray-500">{new Date(record.receivedAt).toLocaleDateString()}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-bold">{record.customerName}</div>
-                      <div className="text-xs text-gray-500">{record.customerPhone}</div>
+                      <div className="font-bold text-slate-900">{record.customerName}</div>
+                      <div className="text-xs text-slate-500 font-medium">{record.customerPhone}</div>
+                      {record.referrerName && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1.5 py-0.5 rounded w-fit" title={`Referred by: ${record.referrerName} (${record.referrerPhone || 'No Phone'})`}>
+                          <span>🤝 Ref: {record.referrerName}</span>
+                          {record.referrerPhone && <span className="opacity-75 font-mono">({record.referrerPhone})</span>}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="font-bold line-clamp-1">{record.productName}</div>
@@ -2006,14 +2231,25 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                             )}>
                               {record.status.replace('_', ' ').toUpperCase()}
                             </span>
-                            <span className={cn(
-                              "px-2 py-1 rounded text-[10px] font-bold w-fit",
-                              record.isWarranty ? "bg-purple-100 text-purple-800" :
-                              Number(record.serviceCharge) <= 0 ? "bg-slate-100 text-slate-700" :
-                              "bg-orange-100 text-orange-800"
-                            )}>
-                              {record.isWarranty ? "WARRANTY" : Number(record.serviceCharge) <= 0 ? "FREE / COMPLIMENTARY" : "PAID SERVICE"}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className={cn(
+                                "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
+                                record.isWarranty ? "bg-purple-100 text-purple-800" :
+                                Number(record.serviceCharge) <= 0 ? "bg-slate-100 text-slate-700" :
+                                "bg-orange-100 text-orange-800"
+                              )}>
+                                {record.isWarranty ? "WARRANTY" : Number(record.serviceCharge) <= 0 ? "FREE" : "PAID"}
+                              </span>
+                              {(record.serviceType === 'outsourced' || record.isOutsourced || (record.outsourceCost || 0) > 0 || record.vendorName) ? (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-blue-100 text-blue-800 border border-blue-200">
+                                  🤝 OUTSOURCED: {record.vendorName || 'VENDOR'}
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-100 text-slate-600 border border-slate-200">
+                                  🛠️ IN-HOUSE
+                                </span>
+                              )}
+                            </div>
                           </>
                         )}
                       </div>
@@ -2140,7 +2376,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                              <ShoppingCart size={14} />
                            </button>
                          )}
-                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, receivedAt: record.receivedAt ? record.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0], vendorId: record.vendorId || '', vendorName: record.vendorName || '', serviceType: record.serviceType || (record.vendorId || record.vendorName || record.isOutsourced ? 'outsourced' : 'in_house'), rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || suggestEquipmentType(record.productName) || '', isWarranty: !!record.isWarranty, status: record.status || 'received', paymentMethod: record.paymentMethod || '', paymentAccountId: record.paymentAccountId || '', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || '', outsourceCost: record.outsourceCost || 0, outsourcePaidAmount: record.outsourcePaidAmount || 0, outsourcePaymentMethod: record.outsourcePaymentMethod || '', outsourcePaymentAccountId: record.outsourcePaymentAccountId || '', outsourcePurchaseId: record.outsourcePurchaseId || '', isOutsourced: record.isOutsourced || ((record.outsourceCost || 0) > 0)}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
+                         <button onClick={() => { setEditingService(record); setServiceFormData({...record, receivedAt: record.receivedAt ? record.receivedAt.split('T')[0] : new Date().toISOString().split('T')[0], vendorId: record.vendorId || '', vendorName: record.vendorName || '', serviceType: record.serviceType || (record.vendorId || record.vendorName || record.isOutsourced ? 'outsourced' : 'in_house'), rmaStatus: record.rmaStatus || 'Pending Vendor', equipmentType: record.equipmentType || suggestEquipmentType(record.productName) || '', isWarranty: !!record.isWarranty, status: record.status || 'received', paymentMethod: record.paymentMethod || '', paymentAccountId: record.paymentAccountId || '', paymentStatus: record.paymentStatus || 'pending', medeaPayment: (record as any).medeaPayment || '', outsourceCost: record.outsourceCost || 0, outsourcePaidAmount: record.outsourcePaidAmount || 0, outsourcePaymentMethod: record.outsourcePaymentMethod || '', outsourcePaymentAccountId: record.outsourcePaymentAccountId || '', outsourcePurchaseId: record.outsourcePurchaseId || '', isOutsourced: record.isOutsourced || ((record.outsourceCost || 0) > 0), hasReference: Boolean(record.hasReference || record.referrerName), referrerCustomerId: record.referrerCustomerId || '', referrerName: record.referrerName || '', referrerPhone: record.referrerPhone || ''}); setIsAddingService(true); }} className="text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 p-1.5 rounded shadow-sm transition-all ml-auto" title="Edit Service/Payment">
                            <Edit2 size={14} />
                          </button>
                           <button onClick={() => handleDeleteService(record.id)} className="text-gray-500 hover:text-red-700 bg-gray-50 hover:bg-red-50 p-1.5 rounded shadow-sm transition-all" title="Delete Service">
@@ -2238,6 +2474,23 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   {viewingRecord.customerAddress && (
                     <div className="text-gray-600">
                       <span>Address:</span> <span className="text-gray-900">{viewingRecord.customerAddress}</span>
+                    </div>
+                  )}
+                  {viewingRecord.referrerName && (
+                    <div className="mt-2 p-2 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900">
+                      <div className="font-bold flex items-center justify-between">
+                        <span>🤝 Referred By (রেফারেন্স):</span>
+                        <span className="text-indigo-800 font-extrabold">{viewingRecord.referrerName}</span>
+                      </div>
+                      {viewingRecord.referrerPhone && (
+                        <div className="text-[11px] text-indigo-700 font-medium mt-0.5 flex items-center gap-1">
+                          <span>Phone:</span>
+                          <span className="font-mono font-bold">{viewingRecord.referrerPhone}</span>
+                          <span className="ml-auto text-[9px] font-bold bg-white px-1.5 py-0.2 rounded border border-indigo-200 text-indigo-600">
+                            Registered Customer
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2432,6 +2685,10 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                       outsourcePaymentAccountId: rec.outsourcePaymentAccountId || '',
                       outsourcePurchaseId: rec.outsourcePurchaseId || '',
                       isOutsourced: rec.isOutsourced || ((rec.outsourceCost || 0) > 0),
+                      hasReference: Boolean(rec.hasReference || rec.referrerName),
+                      referrerCustomerId: rec.referrerCustomerId || '',
+                      referrerName: rec.referrerName || '',
+                      referrerPhone: rec.referrerPhone || '',
                     });
                     setIsAddingService(true);
                   }}
