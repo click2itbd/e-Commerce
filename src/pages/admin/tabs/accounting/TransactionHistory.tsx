@@ -116,11 +116,11 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
 
   // Metrics
   const totalInflow = filteredTx
-    .filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return'].includes(tx.type))
+    .filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type))
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
   const totalOutflow = filteredTx
-    .filter(tx => !['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return'].includes(tx.type))
+    .filter(tx => !['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type))
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
   const netBalance = totalInflow - totalOutflow;
@@ -342,6 +342,10 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
             <option value="income">Other Income</option>
             <option value="salary">Employee Salary</option>
             <option value="conveyance">Conveyance</option>
+            <option value="deposit">Capital / Fund Deposit</option>
+            <option value="withdrawal">Owner Withdrawal / Drawing</option>
+            <option value="transfer_in">Fund Transfer In</option>
+            <option value="transfer_out">Fund Transfer Out</option>
           </select>
         </div>
 
@@ -388,7 +392,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
               </tr>
             ) : (
               filteredTx.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((tx, idx) => {
-                const isCredit = ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return'].includes(tx.type);
+                const isCredit = ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type);
                 return (
                   <tr key={tx.id || idx} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-3.5 text-gray-500 whitespace-nowrap">

@@ -86,10 +86,22 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
       const mappedTx = txSnap.docs.map(d => {
         const data = d.data();
         let type = data.type;
-        if (data.category === 'Capital / Fund Deposit') type = 'deposit';
-        if (data.category === 'Owner Withdrawal / Drawing') type = 'withdrawal';
-        if (data.category === 'Fund Transfer') {
-          type = data.type === 'expense' ? 'transfer_out' : 'transfer_in';
+        if (data.category === 'Capital / Fund Deposit') {
+          type = 'deposit';
+        } else if (data.category === 'Owner Withdrawal / Drawing') {
+          type = 'withdrawal';
+        } else if (data.category === 'Fund Transfer' || (data as any).transferBatchId) {
+          if (data.type === 'transfer_out' || data.type === 'expense') {
+            type = 'transfer_out';
+          } else if (data.type === 'transfer_in' || data.type === 'income') {
+            type = 'transfer_in';
+          } else if ((data.description || '').toLowerCase().includes('transferred to')) {
+            type = 'transfer_out';
+          } else if ((data.description || '').toLowerCase().includes('transferred from')) {
+            type = 'transfer_in';
+          } else {
+            type = data.type || 'transfer_in';
+          }
         }
         return { id: d.id, ...data, type } as Transaction;
       });
@@ -248,10 +260,34 @@ const DepositsWithdrawals: React.FC<DepositsWithdrawalsProps> = () => {
 
   // Void/Delete Transaction
   const handleDeleteTx = async (tx: Transaction) => {
-    if (!window.confirm('Are you sure you want to delete/void this transaction?')) return;
+    const isTransfer = tx.category === 'Fund Transfer' || Boolean((tx as any).transferBatchId);
+    const confirmMsg = isTransfer 
+      ? 'Are you sure you want to delete/void this Fund Transfer? Both source (outflow) and destination (inflow) records will be removed, restoring both account balances.'
+      : 'Are you sure you want to delete/void this transaction?';
+
+    if (!window.confirm(confirmMsg)) return;
     try {
-      await deleteDoc(doc(db, 'transactions', tx.id));
-      toast.success('Transaction voided successfully');
+      const batchId = (tx as any).transferBatchId;
+      if (batchId) {
+        const pairedTx = transactions.filter(t => (t as any).transferBatchId === batchId);
+        await Promise.all(pairedTx.map(t => deleteDoc(doc(db, 'transactions', t.id))));
+        toast.success('Fund transfer records (both accounts) voided successfully');
+      } else if (tx.reference && (tx.category === 'Fund Transfer' || ['transfer_in', 'transfer_out'].includes(tx.type))) {
+        const pairedTx = transactions.filter(t => 
+          (t.category === 'Fund Transfer' || ['transfer_in', 'transfer_out'].includes(t.type)) && 
+          t.reference === tx.reference
+        );
+        if (pairedTx.length > 0) {
+          await Promise.all(pairedTx.map(t => deleteDoc(doc(db, 'transactions', t.id))));
+          toast.success('Fund transfer records voided successfully');
+        } else {
+          await deleteDoc(doc(db, 'transactions', tx.id));
+          toast.success('Transaction voided successfully');
+        }
+      } else {
+        await deleteDoc(doc(db, 'transactions', tx.id));
+        toast.success('Transaction voided successfully');
+      }
       fetchData();
     } catch (err) {
       console.error(err);

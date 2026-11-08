@@ -138,7 +138,7 @@ const AccountStatement: React.FC<AccountStatementProps> = ({
   // 3. Compute running balances
   let running = calculatedOpeningBalance;
   const statementRows = filteredPeriodTx.map(tx => {
-    const isCredit = ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit'].includes(tx.type);
+    const isCredit = ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type);
     const debitAmt = !isCredit ? tx.amount : 0;
     const creditAmt = isCredit ? tx.amount : 0;
     running += creditAmt - debitAmt;
