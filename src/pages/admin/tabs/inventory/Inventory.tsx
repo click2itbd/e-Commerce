@@ -128,6 +128,7 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [inventorySearchQuery, setInventorySearchQuery] = useState("");
+  const [searchCriteria, setSearchCriteria] = useState<'all' | 'id' | 'name' | 'sku' | 'model'>('all');
   const [stockFilter, setStockFilter] = useState('all');
   const [brandFilter, setBrandFilter] = useState('all');
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
@@ -240,6 +241,85 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
   const [specTemplates, setSpecTemplates] = useState<any[]>([]);
   const [viewingProduct, setViewingProduct] = useState<any>(null);
   const [bulkSpecInput, setBulkSpecInput] = useState('');
+
+  // Filtered and sorted products for table & pagination
+  const filteredProducts = useMemo(() => {
+    return [...products]
+      .filter(p => inventoryCategoryFilter === 'all' || p.category === inventoryCategoryFilter)
+      .filter(p => {
+        if (!inventorySearchQuery.trim()) return true;
+        const rawQ = inventorySearchQuery.trim().toLowerCase();
+        // Strip common prefixes when searching/pasting ID (e.g. "ID: 2HRB8ALU", "#2HRB8ALU")
+        const cleanIdQ = rawQ.replace(/^id\s*:?\s*/i, '').replace(/^#/, '').trim();
+
+        const pId = (p.id || '').toLowerCase();
+        const pShortId = (p.id || '').slice(0, 8).toLowerCase();
+        const pCustomId = (p.customId || '').toLowerCase();
+        const pName = (p.name || '').toLowerCase();
+        const pSku = (p.sku || '').toLowerCase();
+        const pModel = (p.model || '').toLowerCase();
+        const pBarcode = (p.barcode || '').toLowerCase();
+        const pBrand = (p.brand || '').toLowerCase();
+
+        if (searchCriteria === 'id') {
+          return pId.includes(cleanIdQ) || pShortId.includes(cleanIdQ) || pCustomId.includes(cleanIdQ);
+        }
+        if (searchCriteria === 'name') {
+          return pName.includes(rawQ);
+        }
+        if (searchCriteria === 'sku') {
+          return pSku.includes(rawQ);
+        }
+        if (searchCriteria === 'model') {
+          return pModel.includes(rawQ) || pBarcode.includes(rawQ);
+        }
+        // 'all': match any field including ID (full & short), name, SKU, model, barcode, brand
+        return (
+          pName.includes(rawQ) ||
+          pSku.includes(rawQ) ||
+          pModel.includes(rawQ) ||
+          pBarcode.includes(rawQ) ||
+          pBrand.includes(rawQ) ||
+          pId.includes(cleanIdQ) ||
+          pShortId.includes(cleanIdQ) ||
+          pCustomId.includes(cleanIdQ)
+        );
+      })
+      .filter(p => {
+        if (stockFilter === 'all') return true;
+        if (stockFilter === 'in_stock') return (Number(p.stock) || 0) > 0;
+        if (stockFilter === 'low_stock') return (Number(p.stock) || 0) > 0 && (Number(p.stock) || 0) < (p.lowStockThreshold || 10);
+        if (stockFilter === 'out_of_stock') return (Number(p.stock) || 0) <= 0;
+
+        const saleInfo = productSalesMap[p.id];
+        const days = saleInfo?.lastSoldDate
+          ? saleInfo.daysSinceSale
+          : (p.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60 * 24))) : 999);
+
+        if (stockFilter === 'slow_moving_30') return (p.stock || 0) > 0 && days >= 30 && days < 60;
+        if (stockFilter === 'stagnant_60') return (p.stock || 0) > 0 && days >= 60 && days < 90;
+        if (stockFilter === 'dead_stock_90') return (p.stock || 0) > 0 && days >= 90;
+        return true;
+      })
+      .filter(p => brandFilter === 'all' || p.brand === brandFilter)
+      .sort((a, b) => {
+        if (sortBy === 'newest') {
+          const tA = a.createdAt?.toMillis?.() || a.createdAt || 0;
+          const tB = b.createdAt?.toMillis?.() || b.createdAt || 0;
+          return tB - tA;
+        }
+        if (sortBy === 'oldest') {
+          const tA = a.createdAt?.toMillis?.() || a.createdAt || 0;
+          const tB = b.createdAt?.toMillis?.() || b.createdAt || 0;
+          return tA - tB;
+        }
+        if (sortBy === 'price_desc') return (b.price || b.costPrice || 0) - (a.price || a.costPrice || 0);
+        if (sortBy === 'price_asc') return (a.price || a.costPrice || 0) - (b.price || b.costPrice || 0);
+        if (sortBy === 'stock_desc') return (b.stock || 0) - (a.stock || 0);
+        if (sortBy === 'stock_asc') return (a.stock || 0) - (b.stock || 0);
+        return a.name.localeCompare(b.name);
+      });
+  }, [products, inventoryCategoryFilter, inventorySearchQuery, searchCriteria, stockFilter, brandFilter, sortBy, productSalesMap]);
 
   // Auto-populate specs when category is chosen or product is opened
   React.useEffect(() => {
@@ -453,15 +533,55 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
             
             <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex flex-col gap-4">
               <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    placeholder="Search products by name, SKU, model..."
-                    value={inventorySearchQuery}
-                    onChange={(e) => { setInventorySearchQuery(e.target.value); setCurrentPage(1); }}
-                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#EF4444]"
-                  />
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <div className="flex flex-1 items-stretch rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-[#EF4444] focus-within:border-transparent transition-all shadow-sm">
+                  {/* Search Criteria Selector */}
+                  <div className="flex items-center bg-gray-50 border-r border-gray-200 px-2.5 text-xs font-semibold text-slate-700 shrink-0 rounded-l-lg">
+                    <span className="text-gray-400 mr-1.5 text-[11px] hidden sm:inline">Search:</span>
+                    <select
+                      value={searchCriteria}
+                      onChange={(e) => { setSearchCriteria(e.target.value as any); setCurrentPage(1); }}
+                      className="bg-transparent border-none text-xs font-bold text-slate-800 outline-none cursor-pointer py-2 pr-1"
+                      title="Search Field"
+                    >
+                      <option value="all">🔍 All Fields (সব)</option>
+                      <option value="id">🆔 Product ID (আইডি)</option>
+                      <option value="name">📦 Product Name (নাম)</option>
+                      <option value="sku">🏷️ SKU</option>
+                      <option value="model">🔢 Model / Barcode</option>
+                    </select>
+                  </div>
+
+                  {/* Search Input Box */}
+                  <div className="relative flex-1 flex items-center">
+                    <Search className="absolute left-3 text-gray-400" size={15} />
+                    <input
+                      type="text"
+                      placeholder={
+                        searchCriteria === 'id'
+                          ? "Search by Product ID (e.g. 2HRB8ALU or full ID)..."
+                          : searchCriteria === 'name'
+                          ? "Search by product name..."
+                          : searchCriteria === 'sku'
+                          ? "Search by SKU..."
+                          : searchCriteria === 'model'
+                          ? "Search by model or barcode..."
+                          : "Search products by ID, name, SKU, model..."
+                      }
+                      value={inventorySearchQuery}
+                      onChange={(e) => { setInventorySearchQuery(e.target.value); setCurrentPage(1); }}
+                      className="w-full pl-9 pr-8 py-2 text-sm bg-transparent outline-none placeholder:text-gray-400 text-slate-800"
+                    />
+                    {inventorySearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => { setInventorySearchQuery(''); setCurrentPage(1); }}
+                        className="absolute right-2 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors"
+                        title="Clear search"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="flex flex-wrap gap-3">
@@ -1459,51 +1579,7 @@ Storage: 512GB SSD"
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {(() => {
-                    const filtered = [...products]
-                      .filter(p => inventoryCategoryFilter === 'all' || p.category === inventoryCategoryFilter)
-                      .filter(p => {
-                        if (!inventorySearchQuery.trim()) return true;
-                        const q = inventorySearchQuery.toLowerCase();
-                        return (p.name || '').toLowerCase().includes(q) ||
-                               (p.sku || p.id || '').toLowerCase().includes(q) ||
-                               (p.model || '').toLowerCase().includes(q);
-                      })
-                      .filter(p => {
-                        if (stockFilter === 'all') return true;
-                        if (stockFilter === 'in_stock') return (Number(p.stock) || 0) > 0;
-                        if (stockFilter === 'low_stock') return (Number(p.stock) || 0) > 0 && (Number(p.stock) || 0) < (p.lowStockThreshold || 10);
-                        if (stockFilter === 'out_of_stock') return (Number(p.stock) || 0) <= 0;
-
-                        const saleInfo = productSalesMap[p.id];
-                        const days = saleInfo?.lastSoldDate
-                          ? saleInfo.daysSinceSale
-                          : (p.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60 * 24))) : 999);
-
-                        if (stockFilter === 'slow_moving_30') return (p.stock || 0) > 0 && days >= 30 && days < 60;
-                        if (stockFilter === 'stagnant_60') return (p.stock || 0) > 0 && days >= 60 && days < 90;
-                        if (stockFilter === 'dead_stock_90') return (p.stock || 0) > 0 && days >= 90;
-                        return true;
-                      })
-                      .filter(p => brandFilter === 'all' || p.brand === brandFilter)
-                      .sort((a, b) => {
-                        if (sortBy === 'newest') {
-                           const tA = a.createdAt?.toMillis?.() || a.createdAt || 0;
-                           const tB = b.createdAt?.toMillis?.() || b.createdAt || 0;
-                           return tB - tA;
-                        }
-                        if (sortBy === 'oldest') {
-                           const tA = a.createdAt?.toMillis?.() || a.createdAt || 0;
-                           const tB = b.createdAt?.toMillis?.() || b.createdAt || 0;
-                           return tA - tB;
-                        }
-                        if (sortBy === 'price_desc') return (b.price || b.costPrice || 0) - (a.price || a.costPrice || 0);
-                        if (sortBy === 'price_asc') return (a.price || a.costPrice || 0) - (b.price || b.costPrice || 0);
-                        if (sortBy === 'stock_desc') return (b.stock || 0) - (a.stock || 0);
-                        if (sortBy === 'stock_asc') return (a.stock || 0) - (b.stock || 0);
-                        return a.name.localeCompare(b.name);
-                      });
-                    return filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((product, index) => (
+                  {filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((product, index) => (
                     <tr key={product.id} className={cn(
                       "hover:bg-gray-50 transition-colors",
                       selectedProductIds.includes(product.id) && "bg-red-50/50"
@@ -1536,7 +1612,34 @@ Storage: 512GB SSD"
                           </div>
                           <div className="flex flex-col">
                             <span className="font-bold text-sm text-gray-900">{product.name}</span>
-                            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">ID: {product.id.slice(0, 8)}</span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard?.writeText(product.id.slice(0, 8));
+                                  toast.success(`Copied ID: ${product.id.slice(0, 8)}`, { id: 'copy-pid' });
+                                }}
+                                title="Click to copy ID"
+                                className="text-[10px] text-gray-400 hover:text-indigo-600 font-mono font-semibold uppercase tracking-wider text-left transition-colors flex items-center gap-1 group"
+                              >
+                                <span>ID: <span className="underline decoration-dotted">{product.id.slice(0, 8)}</span></span>
+                                <span className="opacity-0 group-hover:opacity-100 text-[9px] text-indigo-500 font-sans">copy</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSearchCriteria('id');
+                                  setInventorySearchQuery(product.id.slice(0, 8));
+                                  setCurrentPage(1);
+                                }}
+                                title="Filter by this ID"
+                                className="text-[9px] bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-500 font-medium px-1.5 py-0.5 rounded transition-colors"
+                              >
+                                Filter ID
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -1662,40 +1765,14 @@ Storage: 512GB SSD"
                         </div>
                       </td>
                     </tr>
-                  ));
-                })()}
+                  ))}
                 </tbody>
               </table>
             </div>
 
             <Pagination
               currentPage={currentPage}
-              totalItems={products
-                .filter(p => inventoryCategoryFilter === 'all' || p.category === inventoryCategoryFilter)
-                .filter(p => {
-                  if (!inventorySearchQuery.trim()) return true;
-                  const q = inventorySearchQuery.toLowerCase();
-                  return (p.name || '').toLowerCase().includes(q) ||
-                         (p.sku || p.id || '').toLowerCase().includes(q) ||
-                         (p.model || '').toLowerCase().includes(q);
-                })
-                .filter(p => {
-                  if (stockFilter === 'all') return true;
-                  if (stockFilter === 'in_stock') return (Number(p.stock) || 0) > 0;
-                  if (stockFilter === 'low_stock') return (Number(p.stock) || 0) > 0 && (Number(p.stock) || 0) < (p.lowStockThreshold || 10);
-                  if (stockFilter === 'out_of_stock') return (Number(p.stock) || 0) <= 0;
-
-                  const saleInfo = productSalesMap[p.id];
-                  const days = saleInfo?.lastSoldDate
-                    ? saleInfo.daysSinceSale
-                    : (p.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60 * 24))) : 999);
-
-                  if (stockFilter === 'slow_moving_30') return (p.stock || 0) > 0 && days >= 30 && days < 60;
-                  if (stockFilter === 'stagnant_60') return (p.stock || 0) > 0 && days >= 60 && days < 90;
-                  if (stockFilter === 'dead_stock_90') return (p.stock || 0) > 0 && days >= 90;
-                  return true;
-                })
-                .filter(p => brandFilter === 'all' || p.brand === brandFilter).length}
+              totalItems={filteredProducts.length}
               itemsPerPage={itemsPerPage}
               onPageChange={setCurrentPage}
               onItemsPerPageChange={setItemsPerPage}
