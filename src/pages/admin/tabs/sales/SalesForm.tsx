@@ -350,6 +350,48 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   };
 
 
+  // Check and apply pending service item transferred from Service Tracking / RMA
+  const applyPendingServiceItem = (currentCusts: Customer[] = customers, currentAccs: PaymentAccount[] = paymentAccounts) => {
+    const pendingService = localStorage.getItem('pos_pending_service_item');
+    if (!pendingService) return;
+    try {
+      const parsed = JSON.parse(pendingService);
+      const serviceItem = parsed.item || parsed;
+
+      const custPhoneClean = String(parsed.customerPhone || '').replace(/\D/g, '');
+      const matchedCust = currentCusts.find(c => 
+        (parsed.customerId && c.id === parsed.customerId) ||
+        (custPhoneClean.length >= 8 && String(c.phone || '').replace(/\D/g, '').includes(custPhoneClean)) ||
+        (parsed.customerName && c.name && c.name.toLowerCase().trim() === String(parsed.customerName).toLowerCase().trim())
+      );
+
+      const isPaid = parsed.isPaid === true;
+      const defaultAcc = currentAccs.find(a => a.isDefault) || currentAccs[0];
+
+      setSaleData(prev => ({
+        ...prev,
+        items: [...prev.items, serviceItem],
+        customerId: matchedCust?.id || parsed.customerId || prev.customerId,
+        customerName: matchedCust?.name || parsed.customerName || prev.customerName,
+        customerPhone: matchedCust?.phone || parsed.customerPhone || prev.customerPhone,
+        customerEmail: matchedCust?.email || prev.customerEmail,
+        shippingAddress: matchedCust?.address || prev.shippingAddress,
+        workOrderNumber: parsed.workOrderNumber || prev.workOrderNumber || (parsed.ticketId ? `SVC-${parsed.ticketId}` : ''),
+        paidAmount: isPaid ? Number(serviceItem.price || 0) : 0,
+        paymentAccountId: isPaid ? (defaultAcc?.id || prev.paymentAccountId) : prev.paymentAccountId,
+        paymentMethod: isPaid ? (defaultAcc?.type || prev.paymentMethod || 'cash') : prev.paymentMethod,
+        referenceCustomerId: parsed.referrerCustomerId || prev.referenceCustomerId,
+        referenceCustomerName: parsed.referrerName || prev.referenceCustomerName,
+      }));
+
+      localStorage.removeItem('pos_pending_service_item');
+      playBeep('success');
+      toast.success(`Service Ticket ${parsed.ticketId ? `#${parsed.ticketId}` : ''} loaded into Sales Invoice!`, { duration: 4000 });
+    } catch (e) {
+      console.error('Failed to parse pending service item', e);
+    }
+  };
+
   // Sync customers and fetch accounts
   const loadData = async () => {
     try {
@@ -375,6 +417,9 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         }
         return prev;
       });
+
+      // Apply pending service item once customers & accounts are loaded
+      applyPendingServiceItem(fetchedCusts, accs);
       
     } catch (err) {
       console.error(err);
@@ -383,20 +428,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
   useEffect(() => {
     loadData();
-    const pendingService = localStorage.getItem('pos_pending_service_item');
-    if (pendingService) {
-      try {
-        const parsedService = JSON.parse(pendingService);
-        setSaleData(prev => ({
-          ...prev,
-          items: [...prev.items, parsedService]
-        }));
-        localStorage.removeItem('pos_pending_service_item');
-        toast.success(`Added ${parsedService.name} to invoice`);
-      } catch (e) {
-        console.error('Failed to parse pending service item', e);
-      }
-    }
+
+    const handleServiceEvent = () => applyPendingServiceItem();
+    window.addEventListener('pos_load_service', handleServiceEvent);
+    return () => window.removeEventListener('pos_load_service', handleServiceEvent);
   }, []);
 
   const playBeep = (type: 'success' | 'error') => {

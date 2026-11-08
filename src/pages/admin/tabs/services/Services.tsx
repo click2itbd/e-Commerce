@@ -145,6 +145,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
   const [returnType, setReturnType] = useState<'returned_unrepaired' | 'cancelled'>('returned_unrepaired');
   const [ledgerView, setLedgerView] = useState<'ledger' | 'products'>('products');
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
+  const [deliveryModalRecord, setDeliveryModalRecord] = useState<ServiceRecord | null>(null);
+  const [deliveryPaymentOption, setDeliveryPaymentOption] = useState<'paid' | 'due'>('paid');
 
   const fetchData = async () => {
     try {
@@ -1102,47 +1104,100 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
     }
   };
 
-  const handleDeliverToPOS = (record: ServiceRecord) => {
-    if (record.serviceCharge > 0 && !record.isWarranty) {
-      if (window.confirm('Do you want to send this service charge to the Sales form for billing?')) {
-        const pendingServiceItem = {
-          id: `svc-${record.id}`,
-          name: `Service: ${record.productName} (Ticket: ${record.serialNumber || record.id.slice(-6).toUpperCase()})`,
-          price: record.serviceCharge,
-          costPrice: 0,
-          stock: 999,
-          quantity: 1,
-          isCustomService: true,
-          hasSerialTracking: false,
-          hasWarranty: false,
-          selectedSerials: [],
+  const openDeliveryModal = (record: ServiceRecord) => {
+    setDeliveryModalRecord(record);
+    // If ticket was already paid, default to paid; otherwise default to paid as standard
+    setDeliveryPaymentOption(record.paymentStatus === 'paid' ? 'paid' : 'paid');
+  };
+
+  const handleConfirmDelivery = async (sendToSales: boolean = true) => {
+    if (!deliveryModalRecord) return;
+    const record = deliveryModalRecord;
+    try {
+      const isChargeable = Number(record.serviceCharge || 0) > 0 && !record.isWarranty;
+      const finalPaymentStatus = !isChargeable ? 'paid' : deliveryPaymentOption;
+
+      const updates: any = {
+        status: 'delivered',
+        paymentStatus: finalPaymentStatus,
+        deliveredAt: new Date().toISOString()
+      };
+      if (record.serviceType === 'rma') {
+        updates.rmaStatus = 'Delivered';
+      }
+
+      await updateDoc(doc(db, 'services', record.id), updates);
+      await logAudit(
+        'DELIVER',
+        'Service',
+        `Ticket #${record.serialNumber || record.id.slice(-6).toUpperCase()} (${record.productName}) marked Delivered. Payment: ${finalPaymentStatus.toUpperCase()}`,
+        profile?.displayName || profile?.email || 'Admin'
+      );
+
+      toast.success(`Service marked as Delivered!`);
+      setDeliveryModalRecord(null);
+      fetchData();
+
+      if (sendToSales && isChargeable) {
+        const pendingServicePayload = {
+          item: {
+            id: `svc-${record.id}`,
+            name: `Service: ${record.productName} (Ticket: ${record.id.slice(-6).toUpperCase()})`,
+            price: Number(record.serviceCharge || 0),
+            costPrice: Number(record.outsourceCost || 0),
+            stock: 999,
+            quantity: 1,
+            isCustomService: true,
+            hasSerialTracking: false,
+            hasWarranty: false,
+            warranty: 'No Warranty',
+            serviceTicketId: record.id,
+            serviceTicketRef: record.id.slice(-6).toUpperCase(),
+            deviceSerial: record.serialNumber || '',
+          },
+          customerId: record.customerId || '',
+          customerName: record.customerName || '',
+          customerPhone: record.customerPhone || '',
+          workOrderNumber: `SVC-${record.id.slice(-6).toUpperCase()}`,
+          ticketId: record.id.slice(-6).toUpperCase(),
+          isPaid: deliveryPaymentOption === 'paid',
+          serviceCharge: Number(record.serviceCharge || 0),
+          paidAmount: deliveryPaymentOption === 'paid' ? Number(record.serviceCharge || 0) : 0,
+          referrerCustomerId: record.referrerCustomerId || '',
+          referrerName: record.referrerName || '',
+          referrerPhone: record.referrerPhone || ''
         };
-        localStorage.setItem('pos_pending_service_item', JSON.stringify(pendingServiceItem));
+        localStorage.setItem('pos_pending_service_item', JSON.stringify(pendingServicePayload));
+        window.dispatchEvent(new CustomEvent('pos_load_service'));
         if (setActiveTab) {
           setActiveTab('sales');
         } else {
-          navigate('/pos');
+          navigate('/admin/sales');
         }
       }
+    } catch (error) {
+      console.error('Error delivering service:', error);
+      toast.error('Failed to deliver service');
     }
+  };
+
+  const handleDeliverToPOS = (record: ServiceRecord) => {
+    openDeliveryModal(record);
   };
 
   const updateRmaStatus = async (record: ServiceRecord, newStatus: string, newSerial?: string) => {
     try {
+      if (newStatus === 'Delivered') {
+        openDeliveryModal(record);
+        return;
+      }
       const updates: any = { rmaStatus: newStatus };
       if (newSerial) {
         updates.newSerialNumber = newSerial;
       }
-      if (newStatus === 'Delivered') {
-        updates.status = 'delivered'; // Also update the generic status
-      }
       await updateDoc(doc(db, 'services', record.id), updates);
       toast.success(`RMA Status updated to ${newStatus}`);
       fetchData();
-
-      if (newStatus === 'Delivered') {
-        handleDeliverToPOS(record);
-      }
     } catch (error) {
       console.error('Error updating RMA status:', error);
       toast.error('Failed to update status');
@@ -1163,17 +1218,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
 
   const updateServiceStatus = async (record: ServiceRecord, newStatus: string) => {
     try {
-      const updates: any = { status: newStatus };
-      if (newStatus === "delivered" && Number(record.serviceCharge || 0) <= 0) {
-        updates.paymentStatus = "paid";
+      if (newStatus === 'delivered') {
+        openDeliveryModal(record);
+        return;
       }
+      const updates: any = { status: newStatus };
       await updateDoc(doc(db, 'services', record.id), updates);
       toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
       fetchData();
-
-      if (newStatus === 'delivered') {
-        handleDeliverToPOS(record);
-      }
     } catch (error) {
       console.error('Error updating status:', error);
       toast.error('Failed to update status');
@@ -2215,10 +2267,21 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
               <tbody>
                 {serviceRecords
                   .filter(r => {
-                    const searchLower = serviceSearchQuery.toLowerCase();
-                    const matchesSearch = r.serialNumber?.toLowerCase().includes(searchLower) || 
-                                          r.customerName?.toLowerCase().includes(searchLower) ||
-                                          r.id.toLowerCase().includes(searchLower);
+                    const rawSearch = serviceSearchQuery.toLowerCase().trim();
+                    if (!rawSearch) return filterStatus === 'All' ? true : (
+                      filterStatus === 'Pending' ? (r.status === 'received' || r.rmaStatus === 'Pending Vendor') :
+                      filterStatus === 'In Progress' ? (r.status === 'in_progress' || r.rmaStatus === 'Sent to Vendor') :
+                      filterStatus === 'Ready' ? (r.status === 'ready' || r.rmaStatus === 'Received from Vendor') :
+                      filterStatus === 'Delivered' ? (r.status === 'delivered' || r.rmaStatus === 'Delivered') :
+                      filterStatus === 'Unrepaired / Return' ? (r.status === 'returned_unrepaired' || r.status === 'cancelled') :
+                      filterStatus === 'RMA' ? (r.serviceType === 'rma') : true
+                    );
+                    const searchDigits = rawSearch.replace(/\D/g, '');
+                    const matchesSearch = (r.serialNumber || '').toLowerCase().includes(rawSearch) || 
+                                          (r.customerName || '').toLowerCase().includes(rawSearch) ||
+                                          (r.productName || '').toLowerCase().includes(rawSearch) ||
+                                          (r.id || '').toLowerCase().includes(rawSearch) ||
+                                          (searchDigits.length >= 3 && String(r.customerPhone || '').replace(/\D/g, '').includes(searchDigits));
                     if (!matchesSearch) return false;
                     
                     if (filterStatus === 'All') return true;
@@ -2309,7 +2372,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                                 Number(record.serviceCharge) <= 0 ? "bg-slate-100 text-slate-700" :
                                 "bg-orange-100 text-orange-800"
                               )}>
-                                {record.isWarranty ? "WARRANTY" : Number(record.serviceCharge) <= 0 ? "FREE" : "PAID"}
+                                {record.isWarranty ? "WARRANTY" : Number(record.serviceCharge) <= 0 ? "FREE SERVICE" : "PAID SERVICE"}
                               </span>
                               {(record.serviceType === 'outsourced' || record.isOutsourced || (record.outsourceCost || 0) > 0 || record.vendorName) ? (
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-blue-100 text-blue-800 border border-blue-200">
@@ -2419,8 +2482,8 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                            )}
                            {record.status === 'ready' && (
                              <>
-                               <button onClick={() => updateServiceStatus(record, 'delivered')} className="flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Mark Delivered">
-                                 <Package size={12} /> Deliver
+                               <button onClick={() => updateServiceStatus(record, 'delivered')} className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-1 rounded transition-colors cursor-pointer shadow-2xs" title="Deliver & Create Sales Invoice">
+                                 <Package size={12} /> Deliver & Invoice
                                </button>
                                <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Return Unrepaired (মেরামত ছাড়া ফেরত)">
                                  <XCircle size={12} /> Return (No Fix)
@@ -2483,7 +2546,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                             </>
                           )}
                          {!record.isWarranty && record.serviceCharge > 0 && (record.status === 'delivered' || record.rmaStatus === 'Delivered') && (
-                           <button onClick={() => handleDeliverToPOS(record)} className="text-gray-500 hover:text-purple-700 bg-gray-50 hover:bg-purple-50 p-1.5 rounded shadow-sm transition-all" title="Send to Sales">
+                           <button onClick={() => openDeliveryModal(record)} className="text-gray-500 hover:text-purple-700 bg-gray-50 hover:bg-purple-50 p-1.5 rounded shadow-sm transition-all" title="Create / Open Sales Invoice (সেলস ইনভয়েস তৈরি করুন)">
                              <ShoppingCart size={14} />
                            </button>
                          )}
@@ -2839,6 +2902,172 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELIVERY & SALES INVOICING MODAL ── */}
+      {deliveryModalRecord && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center border border-white/20">
+                  <Package size={20} className="text-emerald-300" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm tracking-wide text-white">
+                    Deliver Service & Generate Sales Invoice
+                  </h3>
+                  <p className="text-[11px] text-teal-200/90 font-medium">
+                    সার্ভিস ডেলিভারি ও সেলস ইনভয়েস জেনারেশন
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeliveryModalRecord(null)}
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4">
+              {/* Ticket & Customer Summary Card */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200/90 rounded-xl space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">Ticket ID:</span>
+                  <span className="font-mono font-black text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
+                    #{deliveryModalRecord.id.slice(-6).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-500">Customer:</span>
+                  <div className="text-right">
+                    <strong className="text-slate-900 block font-bold">{deliveryModalRecord.customerName}</strong>
+                    <span className="text-[11px] text-slate-500 font-mono">{deliveryModalRecord.customerPhone}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-200/80">
+                  <span className="font-bold text-slate-500">Product / Device:</span>
+                  <div className="text-right max-w-[240px]">
+                    <span className="font-semibold text-slate-800 truncate block">{deliveryModalRecord.productName}</span>
+                    {deliveryModalRecord.serialNumber && (
+                      <span className="text-[10px] text-slate-400 font-mono">SN: {deliveryModalRecord.serialNumber}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-200/80">
+                  <span className="font-bold text-slate-700">Service Charge (সার্ভিস বিল):</span>
+                  <strong className="text-base font-black text-emerald-700">
+                    {deliveryModalRecord.isWarranty ? 'Free (Warranty)' : `৳${Number(deliveryModalRecord.serviceCharge || 0).toLocaleString()}`}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Payment Condition Selection */}
+              {Number(deliveryModalRecord.serviceCharge || 0) > 0 && !deliveryModalRecord.isWarranty ? (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-2">
+                    পেমেন্ট কি আদায় হয়েছে নাকি বাকি? (Payment Condition) *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryPaymentOption('paid')}
+                      className={cn(
+                        "p-3 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between",
+                        deliveryPaymentOption === 'paid'
+                          ? "border-emerald-600 bg-emerald-50/80 shadow-xs"
+                          : "border-slate-200 hover:border-slate-300 bg-white"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                          💰 পেইড (Paid)
+                        </span>
+                        {deliveryPaymentOption === 'paid' && (
+                          <CheckCircle size={14} className="text-emerald-600" />
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-600 mt-1 leading-relaxed">
+                        কাস্টমার এখনই সম্পূর্ণ বিল পরিশোধ করেছে। সেলসে <strong>পেইড ইনভয়েস</strong> জেনারেট হবে।
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryPaymentOption('due')}
+                      className={cn(
+                        "p-3 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between",
+                        deliveryPaymentOption === 'due'
+                          ? "border-amber-600 bg-amber-50/80 shadow-xs"
+                          : "border-slate-200 hover:border-slate-300 bg-white"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                          ⏳ বাকি (Due / Unpaid)
+                        </span>
+                        {deliveryPaymentOption === 'due' && (
+                          <CheckCircle size={14} className="text-amber-600" />
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-600 mt-1 leading-relaxed">
+                        পণ্য ডেলিভারি দেওয়া হচ্ছে কিন্তু টাকা বাকি। সেলসে <strong>বকেয়া ইনভয়েস</strong> জেনারেট হবে।
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-900 text-xs font-semibold flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-purple-600 shrink-0" />
+                  <span>এটি ওয়ারেন্টি / ফ্রি সার্ভিস। কোনো চার্জ ছাড়াই সরাসরি ডেলিভার্ড হিসেবে সম্পন্ন হবে।</span>
+                </div>
+              )}
+
+              {/* Informational Guidance */}
+              <div className="text-[11px] text-slate-600 bg-blue-50/70 p-2.5 rounded-xl border border-blue-200/80 flex items-start gap-2">
+                <span className="text-blue-600 font-bold shrink-0">ℹ️</span>
+                <span>
+                  <strong>"ডেলিভার করুন ও ইনভয়েস তৈরি করুন"</strong> দিলে টিকিটটি ডেলিভার্ড মার্ক হয়ে সরাসরি <strong>সেলস ফর্মে</strong> চলে যাবে। কাস্টমারের নাম, ফোন, রেফারেন্স ও সার্ভিস চার্জ স্বয়ংক্রিয়ভাবে ইনভয়েসে যুক্ত হয়ে যাবে।
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeliveryModalRecord(null)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              {Number(deliveryModalRecord.serviceCharge || 0) > 0 && !deliveryModalRecord.isWarranty && (
+                <button
+                  type="button"
+                  onClick={() => handleConfirmDelivery(false)}
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition-all cursor-pointer"
+                  title="Mark delivered without opening sales"
+                >
+                  শুধু ডেলিভার্ড মার্ক করুন
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleConfirmDelivery(true)}
+                className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Package size={15} />
+                <span>ডেলিভার করুন ও ইনভয়েস তৈরি করুন ➔</span>
+              </button>
             </div>
           </div>
         </div>
