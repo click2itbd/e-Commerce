@@ -8,13 +8,15 @@ import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency, cn, formatWarranty } from '../../lib/utils';
 import { Helmet } from 'react-helmet-async';
-import { ShoppingCart, Truck, ChevronRight, ChevronDown, GitCompare, Minus, Plus, Share2, Facebook, Twitter, MessageCircle, Star, ShieldCheck, X, Copy, Check, Bell } from 'lucide-react';
+import { ShoppingCart, Truck, ChevronRight, ChevronDown, GitCompare, Minus, Plus, Share2, Facebook, Twitter, MessageCircle, Star, ShieldCheck, X, Copy, Check, Bell, CreditCard } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useCompare } from '../../context/CompareContext';
 import { ProductCard } from '../../components/ProductCard';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 import { SEO } from '../../components/SEO';
 import { PriceAlertModal } from '../../components/PriceAlertModal';
+import { EMIModal } from '../../components/shop/EMIModal';
+import { getLowestMonthlyEMI, isEligibleForEMI } from '../../data/emiPlans';
 
 
 const SPEC_PRIORITY = [
@@ -129,6 +131,7 @@ export const ProductDetails: React.FC = () => {
   const [reviewText, setReviewText] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [isPriceAlertOpen, setIsPriceAlertOpen] = useState(false);
+  const [isEmiModalOpen, setIsEmiModalOpen] = useState(false);
   
   const { addRecentlyViewed, recentlyViewed } = useRecentlyViewed();
   
@@ -463,6 +466,47 @@ export const ProductDetails: React.FC = () => {
               </div>
 
               </div>
+
+            {/* EMI Option Banner */}
+            <div className="mb-6 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-emerald-50/90 via-teal-50/50 to-indigo-50/40 border border-emerald-200/80 shadow-xs flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <CreditCard size={20} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs sm:text-sm font-black text-slate-900 tracking-tight">
+                      {displayPrice >= 5000 ? (
+                        <>
+                          EMI Available from <span className="text-emerald-700 font-extrabold">{formatCurrency(getLowestMonthlyEMI(displayPrice), settings)}/mo</span>
+                        </>
+                      ) : (
+                        'Credit Card EMI Available'
+                      )}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      16 Banks
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                      3 to 36 Months
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 truncate mt-0.5">
+                    {displayPrice >= 5000 
+                      ? 'Leading credit cards with flexible installment plans'
+                      : 'Applicable on orders of BDT 5,000 or above'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEmiModalOpen(true)}
+                className="shrink-0 px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 hover:border-emerald-600 text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 flex items-center gap-1.5"
+              >
+                <span>View Plans</span>
+                <ChevronRight size={14} />
+              </button>
+            </div>
 
             {/* Short Description */}
             {product.shortDescription && (
@@ -1112,6 +1156,15 @@ export const ProductDetails: React.FC = () => {
           isOpen={isPriceAlertOpen}
           onClose={() => setIsPriceAlertOpen(false)}
           product={product}
+        />
+      )}
+
+      {product && (
+        <EMIModal
+          isOpen={isEmiModalOpen}
+          onClose={() => setIsEmiModalOpen(false)}
+          productPrice={displayPrice}
+          productName={product.name}
         />
       )}
 
