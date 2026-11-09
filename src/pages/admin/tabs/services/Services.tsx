@@ -827,7 +827,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       const cPhone = (serviceFormData.customerPhone || '').trim();
       const cName = (serviceFormData.customerName || '').trim();
       if (!cPhone) {
-        toast.error('কাস্টমারের ফোন নম্বর অবশ্যই দিতে হবে! (Customer phone number is required)');
+        toast.error('Customer phone number is required!');
         return;
       }
 
@@ -838,11 +838,11 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
 
       if (hasRef) {
         if (!rName) {
-          toast.error('রেফারেন্স ব্যক্তির নাম অবশ্যই দিতে হবে!');
+          toast.error('Reference customer name is required!');
           return;
         }
         if (!rPhone) {
-          toast.error('রেফারেন্স ব্যক্তির ফোন নম্বর অবশ্যই দিতে হবে! (Reference customer phone is required)');
+          toast.error('Reference customer phone number is required!');
           return;
         }
       }
@@ -908,13 +908,13 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
       // Balance validation for outsource payment
       if (isOutsourcedMode && oPaid > 0) {
         if (!serviceFormData.outsourcePaymentAccountId) {
-          toast.error('আউটসোর্স মেরামতের টাকা পরিশোধ করতে অনুগ্রহ করে একটি পেমেন্ট অ্যাকাউন্ট (Paid From Account) সিলেক্ট করুন অথবা সম্পূর্ণ টাকা ডিউ হিসেবে রাখুন!');
+          toast.error('Please select a payment account (Paid From Account) to pay outsource repair cost or keep as full due!');
           return;
         }
         const targetAcc = paymentAccounts.find(a => a.id === serviceFormData.outsourcePaymentAccountId);
         const balanceCheck = validateSufficientBalance(targetAcc, transactions, oPaid);
         if (!balanceCheck.valid) {
-          toast.error(balanceCheck.error || 'নির্বাচিত পেমেন্ট অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই!');
+          toast.error(balanceCheck.error || 'Selected payment account does not have sufficient balance!');
           return;
         }
       }
@@ -1258,7 +1258,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
         `Ticket #${returnModalRecord.serialNumber || returnModalRecord.id.slice(-6).toUpperCase()} marked as ${returnType} (${returnReason})`,
         profile?.displayName || profile?.email || 'Admin'
       );
-      toast.success(returnType === 'cancelled' ? 'সার্ভিস টিকিট বাতিল করা হয়েছে।' : 'প্রোডাক্টটি মেরামত ছাড়া ফেরত হিসেবে আপডেট করা হয়েছে।');
+      toast.success(returnType === 'cancelled' ? 'Service ticket cancelled successfully.' : 'Product marked as returned unrepaired.');
       setReturnModalRecord(null);
       fetchData();
     } catch (error) {
@@ -1540,10 +1540,10 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                           {(serviceFormData.outsourceCost || 0) > 0 && (
                             <span className="text-[10px] text-slate-500 font-semibold block mt-1">
                               {(Number(serviceFormData.outsourcePaidAmount) || 0) === 0
-                                ? `Full Due: ৳${serviceFormData.outsourceCost} (বকেয়া)`
+                                ? `Full Due: ৳${serviceFormData.outsourceCost}`
                                 : (Number(serviceFormData.outsourcePaidAmount) || 0) < (serviceFormData.outsourceCost || 0)
                                 ? `Partial Paid. Remaining Due: ৳${(serviceFormData.outsourceCost || 0) - (Number(serviceFormData.outsourcePaidAmount) || 0)}`
-                                : 'Fully Paid (পরিশোধিত)'}
+                                : 'Fully Paid'}
                             </span>
                           )}
                         </div>
@@ -1662,7 +1662,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
 
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                        Customer Phone <span className="text-red-500">* (আবশ্যক)</span>
+                        Customer Phone <span className="text-red-500">* (Required)</span>
                       </label>
                       <input
                         type="tel"
@@ -1674,7 +1674,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                       />
                     </div>
 
-                    {/* Reference System (রেফারেন্স গ্রাহক) */}
+                    {/* Reference System */}
                     <div className="pt-2 border-t border-slate-100">
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-[11px] font-bold text-slate-700 uppercase flex items-center gap-1.5 cursor-pointer">
@@ -1691,7 +1691,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                             }}
                             className="w-3.5 h-3.5 text-indigo-600 rounded"
                           />
-                          <span>🤝 Reference / রেফারেন্স আছে?</span>
+                          <span>🤝 Reference / Referred By?</span>
                         </label>
                         {Boolean(serviceFormData.hasReference || serviceFormData.referrerName) && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
@@ -1704,7 +1704,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                         <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-200/80 space-y-2.5">
                           <div className="relative">
                             <label className="block text-[10px] font-black text-indigo-900 uppercase mb-1">
-                              Search Reference Customer (রেফারেন্স কাস্টমার খুঁজুন) <span className="text-red-500">*</span>
+                              Search Reference Customer <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
@@ -1759,7 +1759,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                                   ))
                                 ) : (
                                   <div className="px-3 py-2 text-[11px] text-slate-500 italic">
-                                    নতুন রেফারেন্স — ফোন নম্বর দিলে স্বয়ংক্রিয়ভাবে কাস্টমার হিসেবে সেভ হবে।
+                                    New reference — will be auto-saved as a customer upon saving.
                                   </div>
                                 )}
                               </div>
@@ -1768,7 +1768,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
 
                           <div>
                             <label className="block text-[10px] font-black text-indigo-900 uppercase mb-1">
-                              Reference Customer Phone (রেফারেন্সকারীর ফোন নম্বর) <span className="text-red-500">*</span>
+                              Reference Customer Phone <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="tel"
@@ -1782,7 +1782,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
 
                           {serviceFormData.referrerCustomerId ? (
                             <div className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded border border-emerald-200 flex items-center justify-between">
-                              <span>✅ রেজিস্টার্ড কাস্টমার: {serviceFormData.referrerName}</span>
+                              <span>✅ Registered Customer: {serviceFormData.referrerName}</span>
                               <button
                                 type="button"
                                 onClick={() => setServiceFormData({ ...serviceFormData, referrerCustomerId: '', referrerName: '', referrerPhone: '', hasReference: false })}
@@ -1793,7 +1793,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                             </div>
                           ) : (serviceFormData.referrerName && serviceFormData.referrerPhone) ? (
                             <div className="text-[10px] font-medium text-indigo-800 bg-white/80 p-1.5 rounded border border-indigo-200">
-                              ℹ️ রেফারেন্স ব্যক্তি স্বয়ংক্রিয়ভাবে নতুন কাস্টমার হিসেবে সেভ হয়ে যাবে।
+                              ℹ️ Reference contact will automatically be registered as a new customer.
                             </div>
                           ) : null}
                         </div>
@@ -1961,12 +1961,12 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                           }}
                           className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 focus:ring-[#EF4444] focus:border-[#EF4444]"
                         >
-                          <option value="received">Received (জমা নেওয়া হয়েছে)</option>
-                          <option value="in_progress">In Progress (মেরামত চলছে)</option>
-                          <option value="ready">Ready for Pickup (প্রস্তুত)</option>
-                          <option value="delivered">Delivered (ডেলিভারি সম্পন্ন)</option>
-                          <option value="returned_unrepaired">Returned Unrepaired (মেরামত ছাড়া ফেরত)</option>
-                          <option value="cancelled">Cancelled (বাতিল)</option>
+                          <option value="received">Received</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="ready">Ready for Pickup</option>
+                          <option value="delivered">Delivered</option>
+                          <option value="returned_unrepaired">Returned Unrepaired</option>
+                          <option value="cancelled">Cancelled</option>
                         </select>
                       </div>
                     </div>
@@ -1974,7 +1974,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     {(serviceFormData.status === 'returned_unrepaired' || serviceFormData.status === 'cancelled') && (
                       <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg space-y-1">
                         <label className="block text-[10px] font-black text-rose-800 uppercase">
-                          Return / Cancellation Reason (ফেরতের কারণ)
+                          Return / Cancellation Reason
                         </label>
                         <input
                           type="text"
@@ -2008,7 +2008,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                           const bal = calculateAccountBalance(acc, transactions);
                           return (
                             <option key={acc.id} value={acc.id}>
-                              {acc.name} ({acc.type || 'account'}) — ব্যালেন্স: ৳{Math.round(bal).toLocaleString()}
+                              {acc.name} ({acc.type || 'account'}) — Balance: ৳{Math.round(bal).toLocaleString()}
                             </option>
                           );
                         })}
@@ -2465,7 +2465,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                                <button onClick={() => updateServiceStatus(record, 'in_progress')} className="flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Mark In Progress">
                                  <Wrench size={12} /> Start Repair
                                </button>
-                               <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Return Unrepaired (মেরামত ছাড়া ফেরত)">
+                               <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Return Unrepaired">
                                  <XCircle size={12} /> Return (No Fix)
                                </button>
                              </>
@@ -2475,7 +2475,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                                <button onClick={() => updateServiceStatus(record, 'ready')} className="flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Mark Ready">
                                  <CheckCircle size={12} /> Mark Ready
                                </button>
-                               <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Return Unrepaired (মেরামত ছাড়া ফেরত)">
+                               <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Return Unrepaired">
                                  <XCircle size={12} /> Return (No Fix)
                                </button>
                              </>
@@ -2485,7 +2485,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                                <button onClick={() => updateServiceStatus(record, 'delivered')} className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-1 rounded transition-colors cursor-pointer shadow-2xs" title="Deliver & Create Sales Invoice">
                                  <Package size={12} /> Deliver & Invoice
                                </button>
-                               <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Return Unrepaired (মেরামত ছাড়া ফেরত)">
+                               <button onClick={() => openReturnModal(record, 'returned_unrepaired')} className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded transition-colors cursor-pointer" title="Return Unrepaired">
                                  <XCircle size={12} /> Return (No Fix)
                                </button>
                              </>
@@ -2539,14 +2539,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                                 type="button"
                                 onClick={() => printServiceMoneyReceipt(record)}
                                 className="text-gray-500 hover:text-emerald-700 bg-gray-50 hover:bg-emerald-50 p-1.5 rounded shadow-sm transition-all"
-                                title="Print Money Receipt (মানি রিসিট)"
+                                title="Print Money Receipt"
                               >
                                 <Receipt size={14} />
                               </button>
                             </>
                           )}
                          {!record.isWarranty && record.serviceCharge > 0 && (record.status === 'delivered' || record.rmaStatus === 'Delivered') && (
-                           <button onClick={() => openDeliveryModal(record)} className="text-gray-500 hover:text-purple-700 bg-gray-50 hover:bg-purple-50 p-1.5 rounded shadow-sm transition-all" title="Create / Open Sales Invoice (সেলস ইনভয়েস তৈরি করুন)">
+                           <button onClick={() => openDeliveryModal(record)} className="text-gray-500 hover:text-purple-700 bg-gray-50 hover:bg-purple-50 p-1.5 rounded shadow-sm transition-all" title="Create / Open Sales Invoice">
                              <ShoppingCart size={14} />
                            </button>
                          )}
@@ -2636,7 +2636,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-black uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
                       <XCircle size={13} className="text-rose-600" />
-                      <span>{viewingRecord.status === 'cancelled' ? 'Service Cancelled' : 'Returned Unrepaired (সার্ভিস ছাড়া ফেরত)'}</span>
+                      <span>{viewingRecord.status === 'cancelled' ? 'Service Cancelled' : 'Returned Unrepaired'}</span>
                     </span>
                     {viewingRecord.returnedAt && (
                       <span className="text-[10px] font-semibold text-rose-600">
@@ -2675,7 +2675,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   {viewingRecord.referrerName && (
                     <div className="mt-2 p-2 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900">
                       <div className="font-bold flex items-center justify-between">
-                        <span>🤝 Referred By (রেফারেন্স):</span>
+                        <span>🤝 Referred By:</span>
                         <span className="text-indigo-800 font-extrabold">{viewingRecord.referrerName}</span>
                       </div>
                       {viewingRecord.referrerPhone && (
@@ -2922,7 +2922,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     Deliver Service & Generate Sales Invoice
                   </h3>
                   <p className="text-[11px] text-teal-200/90 font-medium">
-                    সার্ভিস ডেলিভারি ও সেলস ইনভয়েস জেনারেশন
+                    Complete service delivery and generate sales invoice
                   </p>
                 </div>
               </div>
@@ -2962,7 +2962,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-200/80">
-                  <span className="font-bold text-slate-700">Service Charge (সার্ভিস বিল):</span>
+                  <span className="font-bold text-slate-700">Service Charge:</span>
                   <strong className="text-base font-black text-emerald-700">
                     {deliveryModalRecord.isWarranty ? 'Free (Warranty)' : `৳${Number(deliveryModalRecord.serviceCharge || 0).toLocaleString()}`}
                   </strong>
@@ -2973,7 +2973,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
               {Number(deliveryModalRecord.serviceCharge || 0) > 0 && !deliveryModalRecord.isWarranty ? (
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-2">
-                    পেমেন্ট কি আদায় হয়েছে নাকি বাকি? (Payment Condition) *
+                    Payment Condition (Paid vs Due) *
                   </label>
                   <div className="grid grid-cols-2 gap-2.5">
                     <button
@@ -2988,14 +2988,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                          💰 পেইড (Paid)
+                          💰 Paid
                         </span>
                         {deliveryPaymentOption === 'paid' && (
                           <CheckCircle size={14} className="text-emerald-600" />
                         )}
                       </div>
                       <p className="text-[10px] text-slate-600 mt-1 leading-relaxed">
-                        কাস্টমার এখনই সম্পূর্ণ বিল পরিশোধ করেছে। সেলসে <strong>পেইড ইনভয়েস</strong> জেনারেট হবে।
+                        Customer paid the full bill. Generates a <strong>Paid Sales Invoice</strong>.
                       </p>
                     </button>
 
@@ -3011,14 +3011,14 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                          ⏳ বাকি (Due / Unpaid)
+                          ⏳ Due / Unpaid
                         </span>
                         {deliveryPaymentOption === 'due' && (
                           <CheckCircle size={14} className="text-amber-600" />
                         )}
                       </div>
                       <p className="text-[10px] text-slate-600 mt-1 leading-relaxed">
-                        পণ্য ডেলিভারি দেওয়া হচ্ছে কিন্তু টাকা বাকি। সেলসে <strong>বকেয়া ইনভয়েস</strong> জেনারেট হবে।
+                        Device delivered with payment pending. Generates a <strong>Due Sales Invoice</strong>.
                       </p>
                     </button>
                   </div>
@@ -3026,7 +3026,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
               ) : (
                 <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-900 text-xs font-semibold flex items-center gap-2">
                   <ShieldCheck size={16} className="text-purple-600 shrink-0" />
-                  <span>এটি ওয়ারেন্টি / ফ্রি সার্ভিস। কোনো চার্জ ছাড়াই সরাসরি ডেলিভার্ড হিসেবে সম্পন্ন হবে।</span>
+                  <span>This is a free / warranty service. It will be marked delivered directly without charge.</span>
                 </div>
               )}
 
@@ -3034,7 +3034,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
               <div className="text-[11px] text-slate-600 bg-blue-50/70 p-2.5 rounded-xl border border-blue-200/80 flex items-start gap-2">
                 <span className="text-blue-600 font-bold shrink-0">ℹ️</span>
                 <span>
-                  <strong>"ডেলিভার করুন ও ইনভয়েস তৈরি করুন"</strong> দিলে টিকিটটি ডেলিভার্ড মার্ক হয়ে সরাসরি <strong>সেলস ফর্মে</strong> চলে যাবে। কাস্টমারের নাম, ফোন, রেফারেন্স ও সার্ভিস চার্জ স্বয়ংক্রিয়ভাবে ইনভয়েসে যুক্ত হয়ে যাবে।
+                  Clicking <strong>"Deliver & Generate Sales Invoice"</strong> marks this ticket as delivered and loads it into the <strong>Sales checkout</strong> with customer details, reference and service charge automatically pre-filled.
                 </span>
               </div>
             </div>
@@ -3056,7 +3056,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                   className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition-all cursor-pointer"
                   title="Mark delivered without opening sales"
                 >
-                  শুধু ডেলিভার্ড মার্ক করুন
+                  Mark Delivered Only
                 </button>
               )}
 
@@ -3066,7 +3066,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                 className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
                 <Package size={15} />
-                <span>ডেলিভার করুন ও ইনভয়েস তৈরি করুন ➔</span>
+                <span>Deliver & Generate Sales Invoice ➔</span>
               </button>
             </div>
           </div>
@@ -3085,7 +3085,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                 </div>
                 <div>
                   <h3 className="font-black text-sm tracking-wide text-white">
-                    Return Device / Cancel Service (মেরামত ছাড়া ফেরত)
+                    Return Device / Cancel Service
                   </h3>
                   <p className="text-[11px] text-rose-200">
                     Ticket #{returnModalRecord.serialNumber || returnModalRecord.id.slice(-6).toUpperCase()} • {returnModalRecord.productName}
@@ -3117,7 +3117,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
 
               {/* Action Type: Return Unrepaired vs Cancel */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Action Type (ধরন নির্ধারণ করুন)</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Action Type</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -3133,7 +3133,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     )}
                   >
                     <div className="text-xs">🔄 Returned Unrepaired</div>
-                    <div className="text-[10px] font-normal text-slate-500 mt-0.5">মেরামত ছাড়া ফেরত</div>
+                    <div className="text-[10px] font-normal text-slate-500 mt-0.5">No repair done / Returned</div>
                   </button>
 
                   <button
@@ -3150,7 +3150,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                     )}
                   >
                     <div className="text-xs">❌ Cancelled</div>
-                    <div className="text-[10px] font-normal text-slate-500 mt-0.5">অর্ডার/টিকিট বাতিল</div>
+                    <div className="text-[10px] font-normal text-slate-500 mt-0.5">Ticket / Request cancelled</div>
                   </button>
                 </div>
               </div>
@@ -3158,15 +3158,15 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
               {/* Quick Preset Reasons */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">
-                  Reason for Return / Cancellation (ফেরত দেওয়ার কারণ)
+                  Reason for Return / Cancellation
                 </label>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {[
-                    'যন্ত্রাংশ পাওয়া যায়নি (No Parts)',
-                    'মেরামত সম্ভব নয় (Unrepairable)',
-                    'কাস্টমার ফেরত চেয়েছেন (Customer Withdrew)',
-                    'খরচ বেশি হওয়ায় অমত (High Cost)',
-                    'অন্যত্র মেরামত করাবেন (Going Elsewhere)'
+                    'Parts Unavailable',
+                    'Unrepairable Device',
+                    'Customer Withdrew / Took Back',
+                    'Repair Cost Too High',
+                    'Customer Going Elsewhere'
                   ].map(preset => (
                     <button
                       key={preset}
@@ -3186,7 +3186,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                 <textarea
                   value={returnReason}
                   onChange={e => setReturnReason(e.target.value)}
-                  placeholder="ফেরতের সুনির্দিষ্ট কারণ বা মন্তব্য লিখুন..."
+                  placeholder="Enter specific return reason or internal notes..."
                   rows={2}
                   className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-medium text-slate-900 focus:ring-rose-500 focus:border-rose-500"
                 />
@@ -3196,7 +3196,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
               {Number(returnModalRecord.serviceCharge || 0) > 0 && (
                 <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-amber-900">বর্তমান নির্ধারিত সার্ভিস চার্জ:</span>
+                    <span className="text-xs font-bold text-amber-900">Current Service Charge:</span>
                     <strong className="text-sm font-black text-amber-900">৳{Number(returnModalRecord.serviceCharge).toLocaleString()}</strong>
                   </div>
                   <label className="flex items-start gap-2 pt-1 border-t border-amber-200/80 cursor-pointer text-slate-800">
@@ -3207,15 +3207,15 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                       className="w-4 h-4 text-rose-600 rounded mt-0.5"
                     />
                     <div>
-                      <strong className="text-xs font-bold block text-slate-900">সার্ভিস চার্জ ৳০ (শূন্য) করে দিন</strong>
+                      <strong className="text-xs font-bold block text-slate-900">Clear Service Charge (Set to ৳0)</strong>
                       <span className="text-[10px] text-slate-600 block">
-                        যেহেতু সার্ভিস সম্পন্ন হয়নি, তাই কোনো বকেয়া বা বিল থাকবে না।
+                        Since service was not completed, remove any due charge.
                       </span>
                     </div>
                   </label>
                   {returnModalRecord.paymentStatus === 'paid' && (
                     <div className="text-[10px] font-medium text-amber-800 bg-white/90 p-1.5 rounded border border-amber-200">
-                      ⚠️ কাস্টমার পূর্বে এই বিল পরিশোধ করেছিলেন। যদি পুরো টাকা রিফান্ড দিয়ে থাকেন, তবে চার্জ ০ করে দিন।
+                      ⚠️ Customer previously paid this charge. If refunded, check this option to zero out the bill.
                     </div>
                   )}
                 </div>
@@ -3223,7 +3223,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
 
               {/* Informational banner */}
               <div className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-                ℹ️ ফেরত সম্পন্ন হওয়ার পর টিকিট হিস্টোরিতে সংরক্ষিত থাকবে এবং কাস্টমারের জন্য <strong>ফেরত রিসিট (Return Slip)</strong> প্রিন্ট করা যাবে।
+                ℹ️ After return, ticket remains in history and a <strong>Return Slip</strong> can be printed for the customer.
               </div>
             </div>
 
@@ -3242,7 +3242,7 @@ const Services: React.FC<ServicesProps> = ({ setActiveTab }) => {
                 className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
                 <CheckCircle size={15} />
-                <span>Confirm Return (ফেরত নিশ্চিত করুন)</span>
+                <span>Confirm Return</span>
               </button>
             </div>
           </div>

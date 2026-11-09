@@ -65,6 +65,7 @@ interface PurchaseItem {
 
 interface PurchaseRecord {
   shippingCost?: number;
+  discountAmount?: number;
   createdBy?: string;
   id: string;
   documentNumber: string;
@@ -184,6 +185,7 @@ const Purchases: React.FC<PurchasesProps> = ({
       isChequePayment: false,
       chequeNumber: '',
       chequeClearingDate: new Date().toISOString().split('T')[0],
+      discountAmount: 0,
       shippingCost: 0,
       attachmentUrl: '',
       notes: '',
@@ -499,7 +501,7 @@ const Purchases: React.FC<PurchasesProps> = ({
     const scannedCode = (barcode || '').trim();
 
     if (!category) {
-      toast.error('অনুগ্রহ করে প্রথমে একটি ক্যাটাগরি সিলেক্ট করুন');
+      toast.error('Please select a category first');
       return;
     }
 
@@ -522,7 +524,7 @@ const Purchases: React.FC<PurchasesProps> = ({
           return { ...prev, items: newItems };
         });
         setPickForm(prev => ({ ...prev, barcode: '' }));
-        toast.success('পরিমাণ ১ বাড়ানো হয়েছে');
+        toast.success('Quantity increased by 1');
         return;
       }
 
@@ -549,12 +551,12 @@ const Purchases: React.FC<PurchasesProps> = ({
           }]
         }));
         setPickForm(prev => ({ ...prev, barcode: '' }));
-        toast.success('"' + existingProduct.name + '" পারচেজে যোগ করা হয়েছে');
+        toast.success(`"${existingProduct.name}" added to purchase`);
         return;
       }
 
       if (!name || !name.trim()) {
-        toast.error('নতুন প্রোডাক্টের জন্য নাম লিখুন');
+        toast.error('Please enter product name for new item');
         return;
       }
 
@@ -582,13 +584,13 @@ const Purchases: React.FC<PurchasesProps> = ({
         }]
       }));
       setPickForm(prev => ({ ...prev, name: '', model: '', variant: '', costPrice: '', salesPrice: '', barcode: '' }));
-      toast.success('"' + combinedName + '" পারচেজে ড্রাফট করা হয়েছে');
+      toast.success(`"${combinedName}" drafted for purchase`);
       return;
     }
 
     // 2. If Barcode/SKU is NOT provided (Normal Product Name & Category add)
     if (!name || !name.trim()) {
-      toast.error('প্রোডাক্টের নাম লিখুন অথবা বারকোড স্ক্যান করুন');
+      toast.error('Please enter product name or scan barcode');
       return;
     }
 
@@ -614,7 +616,7 @@ const Purchases: React.FC<PurchasesProps> = ({
           };
           return { ...prev, items: newItems };
         });
-        toast.success('"' + existingProductByName.name + '" পরিমাণ ১ বাড়ানো হয়েছে');
+        toast.success(`"${existingProductByName.name}" quantity increased by 1`);
       } else {
         setPurchaseForm(prev => ({
           ...prev, 
@@ -636,7 +638,7 @@ const Purchases: React.FC<PurchasesProps> = ({
             newSerials: [],
           }]
         }));
-        toast.success('"' + existingProductByName.name + '" পারচেজে যোগ করা হয়েছে');
+        toast.success(`"${existingProductByName.name}" added to purchase`);
       }
       setPickForm(prev => ({ ...prev, name: '', model: '', variant: '', costPrice: '', salesPrice: '', barcode: '' }));
       return;
@@ -667,7 +669,7 @@ const Purchases: React.FC<PurchasesProps> = ({
       }]
     }));
     setPickForm(prev => ({ ...prev, name: '', model: '', variant: '', costPrice: '', salesPrice: '', barcode: '' }));
-    toast.success('"' + combinedName + '" পারচেজে যোগ করা হয়েছে (অটো SKU: ' + autoSku + ')');
+    toast.success(`"${combinedName}" added to purchase (Auto SKU: ${autoSku})`);
   };
 
   const handleQuickAddProduct = async (e: React.FormEvent) => {
@@ -704,8 +706,11 @@ const Purchases: React.FC<PurchasesProps> = ({
     }
   };
 
-  // Compute bill total
-  const billTotal = purchaseForm.items.reduce((sum, item) => sum + (item.purchasePrice * item.quantity), 0) + (Number(purchaseForm.shippingCost) || 0);
+  // Compute bill subtotal, discount, shipping, and total
+  const itemsSubtotal = purchaseForm.items.reduce((sum, item) => sum + (item.purchasePrice * item.quantity), 0);
+  const totalShippingCost = Number(purchaseForm.shippingCost) || 0;
+  const totalDiscount = Number(purchaseForm.discountAmount) || 0;
+  const billTotal = Math.max(0, itemsSubtotal + totalShippingCost - totalDiscount);
 
   // Bill total computed
 
@@ -811,7 +816,7 @@ const Purchases: React.FC<PurchasesProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('ফাইলের সাইজ ১০MB এর কম হতে হবে!');
+      toast.error('File size must be under 10MB!');
       return;
     }
     try {
@@ -821,10 +826,10 @@ const Purchases: React.FC<PurchasesProps> = ({
       await uploadBytes(storageRef, file);
       const downloadUrl = await getDownloadURL(storageRef);
       setPurchaseForm(prev => ({ ...prev, attachmentUrl: downloadUrl }));
-      toast.success('ভেন্ডরের চালান/মেমো কপি সফলভাবে আপলোড হয়েছে!');
+      toast.success('Vendor bill/memo copy uploaded successfully!');
     } catch (err) {
       console.error('Bill upload failed:', err);
-      toast.error('মেমো আপলোড ব্যর্থ হয়েছে! অনুগ্রহ করে আবার চেষ্টা করুন।');
+      toast.error('Failed to upload memo! Please try again.');
     } finally {
       setUploadingAttachment(false);
       e.target.value = '';
@@ -844,39 +849,47 @@ const Purchases: React.FC<PurchasesProps> = ({
       return;
     }
 
-    // 1. Zero and Negative Value Blocking (জিরো ও নেগেটিভ ভ্যালু ব্লকিং)
+    // 1. Zero and Negative Value Blocking
     for (const item of purchaseForm.items) {
       const qty = Number(item.quantity);
       if (isNaN(qty) || qty <= 0) {
-        toast.error(`"${item.name}": পণ্যের পরিমাণ (Quantity) অবশ্যই ০ এর বেশি হতে হবে!`);
+        toast.error(`"${item.name}": Product quantity must be greater than 0!`);
         return;
       }
       const cost = Number(item.purchasePrice);
       if (isNaN(cost) || cost <= 0) {
-        toast.error(`"${item.name}": ক্রয়মূল্য (Cost Price) অবশ্যই ০ এর বেশি হতে হবে!`);
+        toast.error(`"${item.name}": Purchase cost price must be greater than 0!`);
         return;
       }
       if (item.salesPrice !== undefined && Number(item.salesPrice) < 0) {
-        toast.error(`"${item.name}": বিক্রয়মূল্য (Sales Price) নেগেটিভ হতে পারে না!`);
+        toast.error(`"${item.name}": Sales price cannot be negative!`);
         return;
       }
     }
     if (Number(purchaseForm.shippingCost) < 0) {
-      toast.error('পরিবহন খরচ (Shipping Cost) নেগেটিভ হতে পারে না!');
+      toast.error('Shipping cost cannot be negative!');
+      return;
+    }
+    if (Number(purchaseForm.discountAmount) < 0) {
+      toast.error('Discount cannot be negative!');
+      return;
+    }
+    if (Number(purchaseForm.discountAmount) > itemsSubtotal) {
+      toast.error('Discount cannot exceed items subtotal!');
       return;
     }
 
-    // 2. Cost Price vs Sales Price (মার্জিন ভ্যালিডেশন)
+    // 2. Cost Price vs Sales Price (Margin validation)
     for (const item of purchaseForm.items) {
       const cost = Number(item.purchasePrice) || 0;
       const sale = Number(item.salesPrice) || 0;
       if (sale > 0 && cost > sale) {
-        toast.error(`"${item.name}": কেনা মূল্য (৳${cost}) বিক্রয় মূল্যের (৳${sale}) চেয়ে বেশি হতে পারে না!`);
+        toast.error(`"${item.name}": Purchase cost (${formatCurrency(cost, settings)}) cannot exceed sales price (${formatCurrency(sale, settings)})!`);
         return;
       }
     }
 
-    // 3. Serial Number & Quantity Match (সিরিয়াল নম্বর ও পরিমাণের মিল)
+    // 3. Serial Number & Quantity Match
     for (const item of purchaseForm.items) {
       if (item.hasSerialTracking || (Array.isArray(item.newSerials) && item.newSerials.length > 0)) {
         const serials = Array.isArray(item.newSerials)
@@ -884,13 +897,13 @@ const Purchases: React.FC<PurchasesProps> = ({
           : String(item.newSerials || '').split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
         const qty = Number(item.quantity) || 0;
         if (serials.length !== qty) {
-          toast.error(`"${item.name}": কোয়ান্টিটি (${qty} টি) এবং স্ক্যান করা সিরিয়াল সংখ্যার (${serials.length} টি) মিল নেই!`);
+          toast.error(`"${item.name}": Quantity (${qty}) does not match scanned serials count (${serials.length})!`);
           return;
         }
       }
     }
 
-    // 4. Duplicate Serial Number Check (ডুপ্লিকেট সিরিয়াল নম্বর রোধ)
+    // 4. Duplicate Serial Number Check
     const seenSerials = new Set<string>();
     for (const item of purchaseForm.items) {
       if (item.hasSerialTracking || (Array.isArray(item.newSerials) && item.newSerials.length > 0)) {
@@ -902,7 +915,7 @@ const Purchases: React.FC<PurchasesProps> = ({
           const lowerS = s.toLowerCase();
           // Check duplicate within the same purchase
           if (seenSerials.has(lowerS)) {
-            toast.error(`ডুপ্লিকেট সিরিয়াল নম্বর পাওয়া গেছে: "${s}"! একই পারচেজে একই সিরিয়াল একাধিকবার ব্যবহার করা যাবে না।`);
+            toast.error(`Duplicate serial number found: "${s}"! Cannot use duplicate serials in the same purchase.`);
             return;
           }
           seenSerials.add(lowerS);
@@ -914,14 +927,14 @@ const Purchases: React.FC<PurchasesProps> = ({
             p.availableSerials.some((existingS: string) => existingS.trim().toLowerCase() === lowerS)
           );
           if (existingProd) {
-            toast.error(`সিরিয়াল নম্বর "${s}" ইতিমধ্যে "${existingProd.name}" প্রোডাক্টে বিদ্যমান!`);
+            toast.error(`Serial number "${s}" already exists for product "${existingProd.name}" in database!`);
             return;
           }
         }
       }
     }
 
-    // 5. Vendor Memo / Challan Duplication Check (ভেন্ডর মেমো/চালান ডুপ্লিকেশন চেক)
+    // 5. Vendor Memo / Challan Duplication Check
     if (purchaseForm.reference && purchaseForm.reference.trim()) {
       const trimmedRef = purchaseForm.reference.trim().toLowerCase();
       const duplicateChallan = purchaseHistory.find(p => 
@@ -931,30 +944,30 @@ const Purchases: React.FC<PurchasesProps> = ({
         p.reference.trim().toLowerCase() === trimmedRef
       );
       if (duplicateChallan) {
-        toast.error(`এই ভেন্ডরের চালান/মেমো নম্বর "${purchaseForm.reference}" ইতিমধ্যে এন্ট্রি করা আছে (তারিখ: ${new Date(duplicateChallan.date).toLocaleDateString()})!`);
+        toast.error(`Challan/Memo reference "${purchaseForm.reference}" already exists for this supplier (Date: ${new Date(duplicateChallan.date).toLocaleDateString()})!`);
         return;
       }
     }
 
-    // 6. Paid Amount Limit (পেইড অ্যামাউন্ট লিমিট)
+    // 6. Paid Amount Limit
     const paid = Number(purchaseForm.paidAmount) || 0;
     if (paid < 0) {
-      toast.error('পরিশোধিত টাকা (Paid Amount) নেগেটিভ হতে পারে না!');
+      toast.error('Paid amount cannot be negative!');
       return;
     }
     if (paid > billTotal) {
-      toast.error(`পরিশোধিত টাকা (৳${paid}) মোট বিলের (৳${billTotal}) চেয়ে বেশি হতে পারে না!`);
+      toast.error(`Paid amount (${formatCurrency(paid, settings)}) cannot exceed total bill (${formatCurrency(billTotal, settings)})!`);
       return;
     }
     if (paid > 0) {
       if (!purchaseForm.paymentAccountId) {
-      toast.error('টাকা পরিশোধের জন্য একটি পেমেন্ট অ্যাকাউন্ট (Paid From Account) সিলেক্ট করুন!');
-      return;
+        toast.error('Please select a payment account to disburse funds from!');
+        return;
       }
       const selectedAcc = paymentAccounts.find(a => a.id === purchaseForm.paymentAccountId);
       const validation = validateSufficientBalance(selectedAcc, transactions, paid);
       if (!validation.valid) {
-        toast.error(validation.error || 'অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই!');
+        toast.error(validation.error || 'Insufficient account balance!');
         return;
       }
     }
@@ -1009,7 +1022,8 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
       
       const totalQuantity = updatedItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
       const totalShippingCost = Number(purchaseForm.shippingCost) || 0;
-      const shippingPerUnit = totalQuantity > 0 ? totalShippingCost / totalQuantity : 0;
+      const totalDiscount = Number(purchaseForm.discountAmount) || 0;
+      const netPerUnitAdjustment = totalQuantity > 0 ? (totalShippingCost - totalDiscount) / totalQuantity : 0;
       
       
       // Map to hold newly created/updated products within this transaction
@@ -1018,7 +1032,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
       for (let i = 0; i < updatedItems.length; i++) {
         const item = updatedItems[i];
         
-        const effectivePurchasePrice = Number(item.purchasePrice) + shippingPerUnit;
+        const effectivePurchasePrice = Math.max(0, Number(item.purchasePrice) + netPerUnitAdjustment);
         updatedItems[i].purchasePrice = effectivePurchasePrice;
         
         let currentProduct = localProductsMap.get(item.id) || products.find(p => p.id === item.id);
@@ -1156,7 +1170,8 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
         vendorName: purchaseForm.vendorName,
         date: new Date(purchaseForm.date).toISOString(),
         items: updatedItems,
-        subtotal: billTotal,
+        subtotal: itemsSubtotal,
+        discountAmount: totalDiscount,
         total: billTotal,
         shippingCost: totalShippingCost,
         paidAmount: paid,
@@ -1572,20 +1587,20 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                     />
                     {purchaseForm.vendorId && purchaseForm.reference && purchaseHistory.some(p => p.id !== purchaseForm.id && p.vendorId === purchaseForm.vendorId && p.reference?.trim().toLowerCase() === purchaseForm.reference.trim().toLowerCase()) && (
                       <p className="text-[11px] text-amber-700 font-bold mt-1 flex items-center gap-1">
-                        <AlertCircle size={12} className="shrink-0" /> এই ভেন্ডরের এই চালান নম্বর পূর্বে এন্ট্রি করা হয়েছে!
+                        <AlertCircle size={12} className="shrink-0" /> Challan/Memo reference already recorded for this vendor!
                       </p>
                     )}
                   </div>
 
-                  {/* Vendor Bill Attachment (ভেন্ডরের কাগজের মেমো/চালান ছবি আপলোড) */}
+                  {/* Vendor Bill Attachment */}
                   <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-3">
                     <div className="flex items-center justify-between mb-2">
                       <label className="block font-bold text-gray-700 uppercase flex items-center gap-1.5 text-[11px]">
-                        <Paperclip size={13} className="text-blue-600" /> ভেন্ডরের কাগজের মেমো / বিল রসিদ (Bill Attachment)
+                        <Paperclip size={13} className="text-blue-600" /> Vendor Paper Bill / Memo (Attachment)
                       </label>
                       {uploadingAttachment && (
                         <span className="text-blue-600 font-bold flex items-center gap-1 text-[11px] animate-pulse">
-                          <Upload size={12} className="animate-bounce" /> ফাইল আপলোড হচ্ছে...
+                          <Upload size={12} className="animate-bounce" /> Uploading file...
                         </span>
                       )}
                     </div>
@@ -1595,14 +1610,14 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                         <div className="flex items-center gap-2.5 overflow-hidden">
                           <ImageIcon size={20} className="text-emerald-600 shrink-0" />
                           <div className="truncate">
-                            <span className="text-xs font-bold text-slate-800 block">কাগজের মেমো / চালান সংযুক্ত আছে ✓</span>
+                            <span className="text-xs font-bold text-slate-800 block">Vendor Memo / Challan Attached ✓</span>
                             <a 
                               href={purchaseForm.attachmentUrl} 
                               target="_blank" 
                               rel="noopener noreferrer" 
                               className="text-[11px] text-blue-600 hover:underline inline-flex items-center gap-1 font-semibold"
                             >
-                              ব্রাউজারে বড় করে দেখুন <ExternalLink size={10} />
+                              View in Full Size <ExternalLink size={10} />
                             </a>
                           </div>
                         </div>
@@ -1611,13 +1626,13 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                           onClick={() => setPurchaseForm(prev => ({ ...prev, attachmentUrl: '' }))}
                           className="text-xs text-rose-600 hover:bg-rose-50 px-2.5 py-1 rounded-md font-bold border border-rose-200 transition-colors"
                         >
-                          মুছে ফেলুন
+                          Remove
                         </button>
                       </div>
                     ) : (
                       <label className="flex items-center justify-center gap-2 border border-dashed border-slate-300 hover:border-blue-400 bg-white hover:bg-blue-50/50 p-2.5 rounded-lg cursor-pointer transition-colors text-slate-600 hover:text-blue-700 font-bold text-xs">
                         <Upload size={14} className="text-blue-600" />
-                        <span>{uploadingAttachment ? 'ফাইল আপলোড হচ্ছে...' : 'কাগজের মেমো বা চালানের ছবি / PDF আপলোড করুন (১০MB পর্যন্ত)'}</span>
+                        <span>{uploadingAttachment ? 'Uploading file...' : 'Upload vendor bill/memo image or PDF (up to 10MB)'}</span>
                         <input
                           type="file"
                           accept="image/*,application/pdf"
@@ -1677,14 +1692,14 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                               {(() => {
                                 const lastPur = getLastPurchaseInfo(item.id, item.name);
                                 if (!lastPur) return null;
-                                const formattedDate = lastPur.date ? new Date(lastPur.date).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short' }) : '';
+                                const formattedDate = lastPur.date ? new Date(lastPur.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : '';
                                 return (
                                   <div 
                                     className="mt-1 text-[9px] text-blue-800 bg-blue-50/80 border border-blue-200/60 rounded px-1 py-0.5 flex items-center gap-0.5 whitespace-nowrap cursor-help"
-                                    title={`সর্বশেষ কেনা হয়েছিল: ৳${lastPur.price}${lastPur.vendorName ? ` (ভেন্ডর: ${lastPur.vendorName})` : ''}${lastPur.documentNumber ? ` [ভাউচার #${lastPur.documentNumber}]` : ''}`}
+                                    title={`Last purchased at: ৳${lastPur.price}${lastPur.vendorName ? ` (Vendor: ${lastPur.vendorName})` : ''}${lastPur.documentNumber ? ` [Bill #${lastPur.documentNumber}]` : ''}`}
                                   >
                                     <History size={10} className="text-blue-600 shrink-0" />
-                                    <span>লাস্ট: <strong>৳{lastPur.price}</strong>{formattedDate ? ` (${formattedDate})` : ''}</span>
+                                    <span>Last: <strong>৳{lastPur.price}</strong>{formattedDate ? ` (${formattedDate})` : ''}</span>
                                   </div>
                                 );
                               })()}
@@ -1791,25 +1806,26 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                           {item.salesPrice !== undefined && Number(item.salesPrice) > 0 && Number(item.purchasePrice) > Number(item.salesPrice) && (
                             <div className="w-full text-[11px] text-red-600 font-bold bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 mt-1">
                               <AlertCircle size={13} className="shrink-0 text-red-500" />
-                              <span>সতর্কতা: কেনা মূল্য (৳{item.purchasePrice}) বিক্রয় মূল্যের (৳{item.salesPrice}) চেয়ে বেশি!</span>
+                              <span>Warning: Purchase cost (৳{item.purchasePrice}) exceeds selling price (৳{item.salesPrice})!</span>
                             </div>
                           )}
 
-                          {/* Landed Cost breakdown when shipping/other expenses added */}
+                          {/* Landed Cost breakdown when shipping/discount added */}
                           {(() => {
                             const totalQty = purchaseForm.items.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
                             const shipCost = Number(purchaseForm.shippingCost) || 0;
-                            if (shipCost <= 0 || totalQty <= 0) return null;
-                            const perUnitShip = shipCost / totalQty;
-                            const effectiveCost = Number(item.purchasePrice) + perUnitShip;
+                            const discCost = Number(purchaseForm.discountAmount) || 0;
+                            if ((shipCost <= 0 && discCost <= 0) || totalQty <= 0) return null;
+                            const perUnitAdjustment = (shipCost - discCost) / totalQty;
+                            const effectiveCost = Math.max(0, Number(item.purchasePrice) + perUnitAdjustment);
                             return (
                               <div className="w-full text-[11px] text-indigo-700 font-medium bg-indigo-50 border border-indigo-100 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-1.5 mt-1">
                                 <span className="flex items-center gap-1.5">
                                   <Truck size={13} className="shrink-0 text-indigo-600" />
-                                  <span>অতিরিক্ত খরচসহ ল্যান্ডেড কস্ট: <strong className="font-bold text-indigo-900">৳{effectiveCost.toFixed(2)}</strong> / ইউনিট</span>
+                                  <span>Net Landed Unit Cost: <strong className="font-bold text-indigo-900">৳{effectiveCost.toFixed(2)}</strong> / unit</span>
                                 </span>
                                 <span className="text-[10px] text-indigo-600 font-bold bg-white px-2 py-0.5 rounded border border-indigo-200">
-                                  +৳{perUnitShip.toFixed(2)} / ইউনিট পরিবহন/লেবার খরচ
+                                  {perUnitAdjustment >= 0 ? `+৳${perUnitAdjustment.toFixed(2)}` : `-৳${Math.abs(perUnitAdjustment).toFixed(2)}`} / unit overhead adjustment
                                 </span>
                               </div>
                             );
@@ -1838,7 +1854,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                   continue;
                                 }
                                 if (otherItemSerials.some(os => os.toLowerCase() === cleanS.toLowerCase())) {
-                                  toast.error(`বারকোড "${cleanS}" এই পারচেজের অন্য আইটেমে স্ক্যান করা হয়েছে!`);
+                                  toast.error(`Barcode "${cleanS}" has already been scanned for another item in this purchase!`);
                                   continue;
                                 }
                                 const existingInDb = products.find(p => 
@@ -1847,7 +1863,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                   p.availableSerials.some((existingS: string) => existingS.trim().toLowerCase() === cleanS.toLowerCase())
                                 );
                                 if (existingInDb) {
-                                  toast.error(`বারকোড "${cleanS}" ইতিমধ্যে "${existingInDb.name}" প্রোডাক্টে বিদ্যমান!`);
+                                  toast.error(`Barcode "${cleanS}" already exists under product "${existingInDb.name}"!`);
                                   continue;
                                 }
                                 validNew.push(cleanS);
@@ -1872,12 +1888,12 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                   )
                                 }));
                                 if (validNew.length === 1) {
-                                  toast.success(`বারকোড "${validNew[0]}" যোগ হয়েছে (পরিমাণ: ${newQty})`);
+                                  toast.success(`Barcode "${validNew[0]}" added (Quantity: ${newQty})`);
                                 } else {
-                                  toast.success(`${validNew.length} টি বারকোড যোগ হয়েছে (মোট পরিমাণ: ${newQty})`);
+                                  toast.success(`${validNew.length} barcodes added (Total Quantity: ${newQty})`);
                                 }
                               } else if (tokens.length > 0) {
-                                toast.error('বারকোড ইতিমধ্যে স্ক্যান করা হয়েছে বা ডাটাবেজে বিদ্যমান!');
+                                toast.error('Barcodes already scanned or exist in database!');
                               }
                             };
 
@@ -1887,7 +1903,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                                   <label className="text-xs font-bold text-gray-700 uppercase flex items-center gap-1.5">
                                     <Barcode size={15} className="text-blue-600" />
-                                    <span>বারকোড স্ক্যানিং (Barcode / Serial Scanning)</span>
+                                    <span>Barcode / Serial Scanning</span>
                                   </label>
 
                                   <div className="flex items-center gap-2">
@@ -1903,11 +1919,11 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                                 : i
                                             )
                                           }));
-                                          toast.success('সকল বারকোড মুছে দেওয়া হয়েছে');
+                                          toast.success('All scanned barcodes cleared');
                                         }}
                                         className="text-[10px] text-red-600 hover:text-red-700 hover:underline font-bold"
                                       >
-                                        সব মুছুন
+                                        Clear All
                                       </button>
                                     )}
                                     <span className={cn(
@@ -1921,12 +1937,12 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                             : "bg-blue-100 text-blue-800 border border-blue-200"
                                     )}>
                                       {serials.length === 0
-                                        ? `স্ক্যান বাকি: 0 / ${item.quantity}`
+                                        ? `Pending: 0 / ${item.quantity}`
                                         : isMatch
-                                          ? `✓ মিল রয়েছে: ${serials.length} / ${item.quantity}`
+                                          ? `✓ Matched: ${serials.length} / ${item.quantity}`
                                           : isOver
-                                            ? `⚠️ অতিরিক্ত: ${serials.length} / ${item.quantity}`
-                                            : `স্ক্যান করা: ${serials.length} / ${item.quantity}`}
+                                            ? `⚠️ Excess: ${serials.length} / ${item.quantity}`
+                                            : `Scanned: ${serials.length} / ${item.quantity}`}
                                     </span>
                                   </div>
                                 </div>
@@ -1936,7 +1952,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                   <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                                   <input
                                     type="text"
-                                    placeholder="বারকোড স্ক্যান করুন বা পেস্ট করুন (কমা বা স্পেস দিয়ে একাধিক)..."
+                                    placeholder="Scan barcode or paste serials (comma, space or newline separated)..."
                                     className="w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
                                     onPaste={(e) => {
                                       e.preventDefault();
@@ -1978,7 +1994,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                         <button
                                           type="button"
                                           className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-0.5 rounded transition-colors"
-                                          title="মুছে ফেলুন"
+                                          title="Remove"
                                           onClick={() => {
                                             const updatedSerials = serials.filter((_, idx) => idx !== sIdx);
                                             const newQty = Math.max(1, updatedSerials.length);
@@ -2005,18 +2021,18 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                   </div>
                                 ) : item.sku ? (
                                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-2.5 py-1.5">
-                                    <span className="font-medium text-gray-500">ডিফল্ট বারকোড / SKU:</span>
+                                    <span className="font-medium text-gray-500">Default Barcode / SKU:</span>
                                     <span className="font-mono font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-200">{item.sku}</span>
                                     {item.sku.startsWith('PRD-') ? (
-                                      <span className="text-[10px] text-blue-600 font-sans">(অটো SKU — স্পেস বা কমা দিয়ে একাধিক বারকোড দিলে আলাদা হবে ও পরিমাণ বাড়বে)</span>
+                                      <span className="text-[10px] text-blue-600 font-sans">(Auto SKU — scanning or pasting multiple serials will expand quantity)</span>
                                     ) : (
-                                      <span className="text-[10px] text-gray-500 font-sans">(নতুন বারকোড স্ক্যান করলে স্বয়ংক্রিয়ভাবে আপডেট হবে)</span>
+                                      <span className="text-[10px] text-gray-500 font-sans">(Automatically updates when a new barcode is scanned)</span>
                                     )}
                                   </div>
                                 ) : null}
 
                                 <p className="text-[10px] text-gray-500 mt-1.5">
-                                  💡 স্পেস, কমা বা নতুন লাইনে একাধিক বারকোড স্ক্যান/পেস্ট করলে স্বয়ংক্রিয়ভাবে আলাদা হবে এবং কোয়ান্টিটি বৃদ্ধি পাবে।
+                                  💡 Scan or paste multiple barcodes separated by spaces, commas, or newlines. Quantity will automatically update.
                                 </p>
                               </div>
                             );
@@ -2055,7 +2071,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                           const bal = calculateAccountBalance(a, transactions);
                           return (
                             <option key={a.id} value={a.id}>
-                              {a.name} ({a.type}) — ব্যালেন্স: ৳{bal.toLocaleString()}
+                              {a.name} ({a.type}) — Balance: ৳{bal.toLocaleString()}
                             </option>
                           );
                         })}
@@ -2065,7 +2081,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                           "mt-2 text-xs px-2.5 py-1.5 rounded-lg flex items-center justify-between font-bold",
                           availableBalance > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
                         )}>
-                          <span>বর্তমান ব্যালেন্স:</span>
+                          <span>Current Balance:</span>
                           <span>{formatCurrency(availableBalance, settings)}</span>
                         </div>
                       )}
@@ -2084,7 +2100,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                           })}
                           className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
                         />
-                        <span>🏦 Pay via Bank Cheque / PDC (পোস্ট-ডেটেড চেক)</span>
+                        <span>🏦 Pay via Bank Cheque / PDC (Post-Dated Cheque)</span>
                       </label>
 
                       {purchaseForm.isChequePayment && (
@@ -2092,7 +2108,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[10px] font-bold text-indigo-950 uppercase mb-1">
-                                চেক নম্বর (Cheque No) *
+                                Cheque Number (Cheque No) *
                               </label>
                               <input
                                 type="text"
@@ -2104,7 +2120,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                             </div>
                             <div>
                               <label className="block text-[10px] font-bold text-indigo-950 uppercase mb-1">
-                                ক্লিয়ারিং / ক্যাশ হওয়ার তারিখ (PDC Date) *
+                                Cheque Clearing Date (PDC Date) *
                               </label>
                               <input
                                 type="date"
@@ -2115,7 +2131,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                             </div>
                           </div>
                           <p className="text-[10px] text-indigo-700 font-medium">
-                            💡 চেকটি "Pending Clearance" হিসেবে Cheque Tracker-এ থাকবে এবং ক্লিয়ারিং ডেটে নোটিফিকেশন দিবে।
+                            💡 Cheque will be marked as "Pending Clearance" in Cheque Tracker and alert on clearing date.
                           </p>
                         </div>
                       )}
@@ -2161,17 +2177,17 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                       />
                       {purchaseForm.paidAmount > billTotal && (
                         <p className="text-[11px] text-red-600 font-bold mt-1 flex items-center gap-1">
-                          <AlertCircle size={12} className="shrink-0" /> পরিশোধিত টাকা মোট বিলের (৳{billTotal}) চেয়ে বেশি হতে পারে না!
+                          <AlertCircle size={12} className="shrink-0" /> Paid amount cannot exceed total purchase bill ({formatCurrency(billTotal, settings)})!
                         </p>
                       )}
                       {isInsufficient && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-800 space-y-1.5 mt-2">
                           <div className="font-black flex items-center gap-1.5 text-red-900">
                             <AlertCircle size={14} className="shrink-0 text-red-600" />
-                            অপর্যাপ্ত ব্যালেন্স! কোনোভাবেই অ্যাকাউন্ট ব্যালেন্স মাইনাস হওয়া যাবে না।
+                            Insufficient Balance! Account balance cannot go below zero.
                           </div>
                           <p className="text-[11px] text-red-700">
-                            "{selectedAccount?.name}" অ্যাকাউন্টে বর্তমান ব্যালেন্স <b>{formatCurrency(availableBalance, settings)}</b> রয়েছে, কিন্তু আপনি পরিশোধ করতে চাচ্ছেন <b>{formatCurrency(purchaseForm.paidAmount, settings)}</b>।
+                            "{selectedAccount?.name}" has available balance <b>{formatCurrency(availableBalance, settings)}</b>, but you entered <b>{formatCurrency(purchaseForm.paidAmount, settings)}</b>.
                           </p>
                           <div className="flex flex-wrap gap-2 pt-1">
                             {availableBalance > 0 && (
@@ -2180,7 +2196,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                 onClick={() => setPurchaseForm({ ...purchaseForm, paidAmount: Math.min(billTotal, availableBalance) })}
                                 className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-black rounded text-[11px] transition shadow-xs cursor-pointer"
                               >
-                                ৳{Math.min(billTotal, availableBalance).toLocaleString()} পরিশোধ করুন (বাকি ৳{(billTotal - Math.min(billTotal, availableBalance)).toLocaleString()} ডিউ)
+                                Pay {formatCurrency(Math.min(billTotal, availableBalance), settings)} (Remaining {formatCurrency(billTotal - Math.min(billTotal, availableBalance), settings)} Due)
                               </button>
                             )}
                             <button
@@ -2188,26 +2204,45 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                               onClick={() => setPurchaseForm({ ...purchaseForm, paidAmount: 0 })}
                               className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded text-[11px] transition shadow-xs cursor-pointer"
                             >
-                              সম্পূর্ণ বিল (৳{billTotal.toLocaleString()}) ডিউ রাখুন
+                              Keep full bill ({formatCurrency(billTotal, settings)}) as Due
                             </button>
                           </div>
                         </div>
                       )}
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
-                        Shipping / Other Cost (৳)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={purchaseForm.shippingCost || ''}
-                        onChange={e => setPurchaseForm({ ...purchaseForm, shippingCost: Number(e.target.value) || 0 })}
-                        className="w-full border border-gray-200 rounded-lg p-2 font-black text-gray-900 text-sm"
-                        placeholder="e.g. 100"
-                      />
-                      <p className="text-[9px] text-gray-500 mt-1">This cost will be averaged & added to product purchase price.</p>
+
+                    {/* Discount & Shipping Fields */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                          Discount (৳)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={purchaseForm.discountAmount || ''}
+                          onChange={e => setPurchaseForm({ ...purchaseForm, discountAmount: Math.max(0, Number(e.target.value) || 0) })}
+                          className="w-full border border-gray-200 rounded-lg p-2 font-black text-gray-900 text-sm focus:ring-2 focus:ring-[#EF4444] outline-none"
+                          placeholder="e.g. 500"
+                        />
+                        <p className="text-[9px] text-gray-500 mt-1">Supplier discount deducted from total bill.</p>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                          Shipping / Other Cost (৳)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={purchaseForm.shippingCost || ''}
+                          onChange={e => setPurchaseForm({ ...purchaseForm, shippingCost: Math.max(0, Number(e.target.value) || 0) })}
+                          className="w-full border border-gray-200 rounded-lg p-2 font-black text-gray-900 text-sm focus:ring-2 focus:ring-[#EF4444] outline-none"
+                          placeholder="e.g. 100"
+                        />
+                        <p className="text-[9px] text-gray-500 mt-1">Added to product acquisition cost.</p>
+                      </div>
                     </div>
+
                     {billTotal > purchaseForm.paidAmount && (
                       <div className="flex justify-between items-center text-xs font-bold text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200">
                         <span>Supplier Due Payable:</span>
@@ -2219,10 +2254,28 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                   );
                 })()}
 
-                {/* Bill Total & Submit */}
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl flex justify-between items-center">
-                  <span className="font-bold text-gray-700 uppercase">Total Purchase Bill</span>
-                  <span className="text-xl font-black text-[#EF4444]">{formatCurrency(billTotal, settings)}</span>
+                {/* Bill Total Breakdown & Submit */}
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2">
+                  <div className="flex justify-between items-center text-xs font-semibold text-gray-600">
+                    <span>Items Subtotal:</span>
+                    <span className="font-bold text-gray-900">{formatCurrency(itemsSubtotal, settings)}</span>
+                  </div>
+                  {Number(purchaseForm.discountAmount) > 0 && (
+                    <div className="flex justify-between items-center text-xs font-bold text-emerald-700">
+                      <span>Supplier Discount:</span>
+                      <span>- {formatCurrency(Number(purchaseForm.discountAmount), settings)}</span>
+                    </div>
+                  )}
+                  {Number(purchaseForm.shippingCost) > 0 && (
+                    <div className="flex justify-between items-center text-xs font-bold text-indigo-700">
+                      <span>Shipping / Additional Cost:</span>
+                      <span>+ {formatCurrency(Number(purchaseForm.shippingCost), settings)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                    <span className="font-bold text-gray-800 uppercase text-sm">Total Purchase Bill</span>
+                    <span className="text-xl font-black text-[#EF4444]">{formatCurrency(billTotal, settings)}</span>
+                  </div>
                 </div>
 
                 <button
@@ -2607,9 +2660,9 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                               rel="noopener noreferrer"
                               onClick={e => e.stopPropagation()}
                               className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded transition-colors"
-                              title="ভেন্ডরের কাগজের মেমো / চালান কপি দেখুন"
+                              title="View supplier invoice / challan document"
                             >
-                              <Paperclip size={10} /> মেমো কপি
+                              <Paperclip size={10} /> Bill Copy
                             </a>
                           )}
                         </div>
@@ -2669,6 +2722,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                                  paymentMethod: pur.paymentMethod || 'cash',
                                  paidAmount: pur.paidAmount || 0,
                                  shippingCost: pur.shippingCost || 0,
+                                 discountAmount: pur.discountAmount || 0,
                                  attachmentUrl: pur.attachmentUrl || '',
                                  notes: pur.notes || '',
                              });
@@ -2774,16 +2828,28 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
               </div>
 
               <div className="bg-gray-50 p-4 rounded-lg space-y-1">
-                <div className="flex justify-between font-bold">
+                {Number(viewingPurchase.subtotal || 0) > 0 && (
+                  <div className="flex justify-between text-gray-600 font-medium text-xs">
+                    <span>Items Subtotal:</span>
+                    <span className="font-bold text-gray-900">{formatCurrency(viewingPurchase.subtotal || 0, settings)}</span>
+                  </div>
+                )}
+                {Number(viewingPurchase.discountAmount || 0) > 0 && (
+                  <div className="flex justify-between text-emerald-700 font-bold text-xs">
+                    <span>Supplier Discount:</span>
+                    <span>- {formatCurrency(viewingPurchase.discountAmount || 0, settings)}</span>
+                  </div>
+                )}
+                {Number(viewingPurchase.shippingCost || 0) > 0 && (
+                  <div className="flex justify-between text-indigo-700 font-bold text-xs">
+                    <span className="flex items-center gap-1.5"><Truck size={13} className="text-indigo-600" /> Shipping / Additional Cost:</span>
+                    <span>+ {formatCurrency(viewingPurchase.shippingCost || 0, settings)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold pt-1 border-t border-gray-200">
                   <span>Total Purchase Bill:</span>
                   <span className="text-[#EF4444]">{formatCurrency(viewingPurchase.total, settings)}</span>
                 </div>
-                {Number(viewingPurchase.shippingCost || 0) > 0 && (
-                  <div className="flex justify-between text-indigo-700 font-bold">
-                    <span className="flex items-center gap-1.5"><Truck size={13} className="text-indigo-600" /> অতিরিক্ত খরচ / পরিবহন:</span>
-                    <span>{formatCurrency(viewingPurchase.shippingCost || 0, settings)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between text-green-700 font-bold">
                   <span>Paid Amount:</span>
                   <span>{formatCurrency(viewingPurchase.paidAmount, settings)}</span>
@@ -2799,7 +2865,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-gray-800 flex items-center gap-1.5 text-xs">
-                      <Paperclip size={14} className="text-blue-600" /> ভেন্ডরের আসল মেমো / চালান কপি:
+                      <Paperclip size={14} className="text-blue-600" /> Supplier Invoice / Bill Attachment:
                     </span>
                     <a
                       href={viewingPurchase.attachmentUrl}
@@ -2807,7 +2873,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
                       rel="noopener noreferrer"
                       className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 bg-white border border-blue-200 px-2.5 py-1 rounded-lg shadow-xs hover:bg-blue-50 transition-colors"
                     >
-                      আসল সাইজে দেখুন <ExternalLink size={12} />
+                      View Original Size <ExternalLink size={12} />
                     </a>
                   </div>
                   <div className="max-h-56 overflow-hidden rounded-lg border border-gray-200 bg-white flex items-center justify-center p-2">

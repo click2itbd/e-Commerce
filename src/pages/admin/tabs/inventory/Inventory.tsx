@@ -543,9 +543,9 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
                       className="bg-transparent border-none text-xs font-bold text-slate-800 outline-none cursor-pointer py-2 pr-1"
                       title="Search Field"
                     >
-                      <option value="all">🔍 All Fields (সব)</option>
-                      <option value="id">🆔 Product ID (আইডি)</option>
-                      <option value="name">📦 Product Name (নাম)</option>
+                      <option value="all">🔍 All Fields</option>
+                      <option value="id">🆔 Product ID</option>
+                      <option value="name">📦 Product Name</option>
                       <option value="sku">🏷️ SKU</option>
                       <option value="model">🔢 Model / Barcode</option>
                     </select>
@@ -1076,8 +1076,8 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
                               className="rounded border-red-300 text-red-600 focus:ring-red-500 w-4 h-4"
                             />
                             <div>
-                              <span className="block text-sm font-bold text-red-700">Out of Stock (ম্যানুয়াল স্টক আউট)</span>
-                              <span className="block text-[10px] text-red-600/80">ওয়েবসাইটে Out of Stock হিসেবে দেখাতে এটি অন করুন। অফ থাকলে স্টক ০ হলেও ওয়েবসাইটে এভেইলেবল থাকবে।</span>
+                              <span className="block text-sm font-bold text-red-700">Out of Stock (Manual Override)</span>
+                              <span className="block text-[10px] text-red-600/80">Turn this ON to forcefully show this product as Out of Stock on the storefront regardless of physical inventory.</span>
                             </div>
                           </label>
                         </div>
