@@ -965,10 +965,17 @@ const Purchases: React.FC<PurchasesProps> = ({
         return;
       }
       const selectedAcc = paymentAccounts.find(a => a.id === purchaseForm.paymentAccountId);
-      const validation = validateSufficientBalance(selectedAcc, transactions, paid);
-      if (!validation.valid) {
-        toast.error(validation.error || 'Insufficient account balance!');
-        return;
+      if (purchaseForm.isChequePayment) {
+        if (!purchaseForm.chequeNumber || !purchaseForm.chequeNumber.trim()) {
+          toast.error('Please enter the Cheque Number!');
+          return;
+        }
+      } else {
+        const validation = validateSufficientBalance(selectedAcc, transactions, paid);
+        if (!validation.valid) {
+          toast.error(validation.error || 'Insufficient account balance!');
+          return;
+        }
       }
     }
 
@@ -1174,10 +1181,14 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
         discountAmount: totalDiscount,
         total: billTotal,
         shippingCost: totalShippingCost,
-        paidAmount: paid,
-        paymentStatus,
+        paidAmount: purchaseForm.isChequePayment ? 0 : paid,
+        paymentStatus: purchaseForm.isChequePayment ? 'due' : paymentStatus,
+        isChequePayment: Boolean(purchaseForm.isChequePayment),
+        chequeNumber: purchaseForm.chequeNumber || '',
+        chequeClearingDate: purchaseForm.chequeClearingDate || '',
+        chequeStatus: purchaseForm.isChequePayment ? 'pending' : undefined,
         paymentAccountId: selectedAcc?.id || '',
-        paymentMethod: selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash',
+        paymentMethod: purchaseForm.isChequePayment ? 'Bank Cheque (PDC)' : (selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash'),
         reference: purchaseForm.reference || '',
         attachmentUrl: purchaseForm.attachmentUrl || '',
         notes: purchaseForm.notes || '',
@@ -2280,7 +2291,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
 
                 <button
                   type="submit"
-                  disabled={submitting || purchaseForm.items.length === 0 || !purchaseForm.vendorId || (Boolean(purchaseForm.paymentAccountId && purchaseForm.paidAmount > calculateAccountBalance(paymentAccounts.find(a => a.id === purchaseForm.paymentAccountId), transactions)))}
+                  disabled={submitting || purchaseForm.items.length === 0 || !purchaseForm.vendorId || (Boolean(!purchaseForm.isChequePayment && purchaseForm.paymentAccountId && purchaseForm.paidAmount > calculateAccountBalance(paymentAccounts.find(a => a.id === purchaseForm.paymentAccountId), transactions)))}
                   className="w-full bg-[#081621] hover:bg-[#EF4444] disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm transition-all shadow-md flex items-center justify-center gap-2"
                 >
                   <CheckCircle size={18} />

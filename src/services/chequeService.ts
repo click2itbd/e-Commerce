@@ -1,5 +1,5 @@
 import { db } from '../firebase';
-import { collection, addDoc, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { ChequeRecord, ChequeStatus } from '../types';
 import { logAudit } from '../lib/audit';
 
@@ -272,6 +272,77 @@ export async function cancelCheque(params: {
     );
   } catch (err) {
     console.warn('Audit error on cheque cancel:', err);
+  }
+}
+
+/**
+ * Updates a pending cheque record
+ */
+export async function updateCheque(params: {
+  id: string;
+  chequeNumber: string;
+  amount: number;
+  bankAccountId: string;
+  bankAccountName: string;
+  bankName?: string;
+  vendorId?: string;
+  vendorName?: string;
+  payeeName?: string;
+  issueDate: string;
+  clearingDate: string;
+  notes?: string;
+  attachmentUrl?: string;
+  user: string;
+}): Promise<void> {
+  const now = new Date().toISOString();
+  const updateData: Record<string, any> = {
+    chequeNumber: (params.chequeNumber || '').trim().toUpperCase(),
+    amount: Math.max(0, Number(params.amount) || 0),
+    bankAccountId: params.bankAccountId,
+    bankAccountName: params.bankAccountName,
+    bankName: params.bankName || params.bankAccountName,
+    vendorId: params.vendorId || '',
+    vendorName: params.vendorName || '',
+    payeeName: params.payeeName || params.vendorName || '',
+    issueDate: params.issueDate,
+    clearingDate: params.clearingDate,
+    notes: params.notes || '',
+    updatedAt: now,
+  };
+  if (params.attachmentUrl !== undefined) {
+    updateData.attachmentUrl = params.attachmentUrl;
+  }
+
+  await updateDoc(doc(db, 'cheques', params.id), updateData);
+
+  try {
+    await logAudit(
+      'UPDATE',
+      'purchases',
+      `Updated Bank Cheque #${updateData.chequeNumber} (Amount: ৳${updateData.amount.toLocaleString()}, Maturity: ${updateData.clearingDate})`,
+      updateData,
+      params.user
+    );
+  } catch (err) {
+    console.warn('Audit error on cheque update:', err);
+  }
+}
+
+/**
+ * Permanently deletes a cheque record (if drafted or created in error)
+ */
+export async function deleteCheque(id: string, user: string, chequeNumber?: string): Promise<void> {
+  await deleteDoc(doc(db, 'cheques', id));
+  try {
+    await logAudit(
+      'DELETE',
+      'purchases',
+      `Deleted Cheque #${chequeNumber || id}`,
+      { chequeId: id },
+      user
+    );
+  } catch (err) {
+    console.warn('Audit error on cheque delete:', err);
   }
 }
 
