@@ -123,9 +123,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             </div>
 
             {lowestEmi > 0 && (
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50/90 border border-emerald-200/80 px-2 py-0.5 rounded-md w-fit mb-3">
-                <CreditCard size={12} className="text-emerald-600 shrink-0" />
-                <span>EMI from <strong className="font-extrabold">{formatCurrency(lowestEmi)}</strong>/mo</span>
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-700 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded w-fit mb-2.5">
+                <CreditCard size={12} className="text-[#F97316] shrink-0" />
+                <span>EMI: <strong className="text-[#F97316] font-bold">{formatCurrency(lowestEmi)}</strong>/mo</span>
               </div>
             )}
             

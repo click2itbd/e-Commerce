@@ -122,7 +122,7 @@ export const Footer: React.FC = () => {
           <div>
             <h3 className="text-lg font-bold mb-4 uppercase tracking-wider">About Us</h3>
             <ul className="flex flex-col gap-2 text-gray-400 text-sm">
-              <li><Link to="/emi-terms" className="hover:text-white transition-colors flex items-center gap-1.5"><span>EMI Plans & Policy</span><span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold border border-emerald-500/30">16 Banks</span></Link></li>
+              <li><Link to="/emi-terms" className="hover:text-white transition-colors">EMI Terms & Plans</Link></li>
               <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
               <li><Link to="/star-points" className="hover:text-white transition-colors">Star Point Policy</Link></li>
               <li><Link to="/brands" className="hover:text-white transition-colors">Brands</Link></li>

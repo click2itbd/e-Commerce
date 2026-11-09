@@ -980,31 +980,24 @@ export const Checkout: React.FC = () => {
                 </div>
 
                 {grandTotal >= 5000 && (
-                  <div className="max-w-2xl mx-auto mb-6 p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50/60 to-indigo-50/50 border border-emerald-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                        <CreditCard size={18} />
-                      </div>
+                  <div className="max-w-2xl mx-auto mb-6 p-3.5 bg-gray-50 border border-gray-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <CreditCard size={18} className="text-[#F97316] shrink-0" />
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-black text-slate-900">
-                            Credit Card EMI Available (16 Banks)
-                          </span>
-                          <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
-                            3 - 36 Months
-                          </span>
+                        <div className="font-bold text-gray-900">
+                          Credit Card EMI Available (16 Banks, 3 to 36 Months)
                         </div>
-                        <p className="text-[11px] text-slate-600 mt-0.5">
-                          Order value qualifies for bank monthly installments. Select <strong>Pay Now</strong> with credit card or visit our showroom POS.
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          Select <strong>Pay Now</strong> to pay with your credit card or convert to EMI at our showroom POS.
                         </p>
                       </div>
                     </div>
                     <Link
                       to="/emi-terms"
                       target="_blank"
-                      className="text-xs font-bold text-emerald-700 hover:text-emerald-800 underline shrink-0 whitespace-nowrap self-end sm:self-center"
+                      className="text-xs font-bold text-[#3749bb] hover:underline shrink-0 whitespace-nowrap self-end sm:self-center"
                     >
-                      View Rates & Plans →
+                      View Rates →
                     </Link>
                   </div>
                 )}
