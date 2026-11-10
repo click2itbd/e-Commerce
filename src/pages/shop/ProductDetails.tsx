@@ -513,7 +513,7 @@ export const ProductDetails: React.FC = () => {
                   <div className="text-xs min-w-0">
                     <div className="font-bold text-gray-900 group-hover:text-[#F97316] transition-colors flex items-center gap-2 flex-wrap">
                       <span>EMI from <strong className="text-[#F97316] font-bold">{formatCurrency(getLowestMonthlyEMI(displayPrice), settings)}</strong>/mo</span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/80 text-orange-800">16 Banks</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/80 text-orange-800 hidden sm:inline">16 Banks</span>
                       <span className="text-[10px] text-gray-500 hidden sm:inline">3 to 36 Months</span>
                     </div>
                     <p className="text-[11px] text-gray-500 mt-0.5 truncate">
@@ -556,9 +556,9 @@ export const ProductDetails: React.FC = () => {
             </div>
 
             {/* Delivery Estimate & Guarantee */}
-            <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl mt-6 mb-6 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl mt-2 md:mt-6 mb-2 md:mt-6 shadow-sm overflow-hidden">
                <details className="group">
-                 <summary className="flex gap-4 items-center p-5 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                 <summary className="flex gap-4 items-center p-2 md:p-5 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
                      <Truck className="w-5 h-5 text-emerald-600" />
                    </div>
@@ -619,7 +619,7 @@ export const ProductDetails: React.FC = () => {
                 title="Share on WhatsApp"
               >
                 <img src="https://img.icons8.com/color/48/whatsapp--v1.png" className="w-4 h-4" alt="whatsapp" />
-                <span>WhatsApp</span>
+                <span className="hidden sm:inline">WhatsApp</span>
               </button>
 
               {/* Facebook */}
@@ -636,7 +636,7 @@ export const ProductDetails: React.FC = () => {
                 title="Facebook"
               >
                 <Facebook size={14} />
-                <span>Facebook</span>
+                <span className="hidden sm:inline">Facebook</span>
               </button>
               <button 
                 onClick={() => {
@@ -647,10 +647,11 @@ export const ProductDetails: React.FC = () => {
                   const shareUrl = `https://click2itbd.com/share.php?id=${encodeURIComponent(product.id)}&title=${encodeURIComponent(product.name)}&price=${encodeURIComponent(activePrice)}&img=${encodeURIComponent(absoluteImg)}&desc=${encodeURIComponent(cleanDesc)}`;
                   window.open(`fb-messenger://share/?link=${encodeURIComponent(shareUrl)}`, '_blank');
                 }} 
-                className="w-8 h-8 rounded-lg bg-[#00B2FF]/10 text-[#00B2FF] flex items-center justify-center hover:bg-[#00B2FF] hover:text-white transition-colors" 
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00B2FF]/10 text-[#00B2FF] hover:bg-[#00B2FF] hover:text-white transition-all text-xs font-semibold shadow-xs" 
                 title="Messenger"
               >
                 <img src="https://img.icons8.com/color/48/facebook-messenger--v1.png" className="w-4 h-4 hover:brightness-0 hover:invert" alt="messenger" />
+                <span className="hidden sm:inline">Messenger</span>
               </button>
               {/* Copy Link */}
               <button 
@@ -674,7 +675,7 @@ export const ProductDetails: React.FC = () => {
                 title="Copy Product Link"
               >
                 {copiedLink ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+                <span className="hidden sm:inline">{copiedLink ? 'Copied!' : 'Copy Link'}</span>
               </button>
 
               {/* Native Share */}
