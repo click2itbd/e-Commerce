@@ -51,39 +51,42 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               <img
                 src={product.images[0]}
                 alt={product.name}
-                className="w-full h-full object-contain p-3 sm:p-4 group-hover/image:scale-105 transition-transform duration-300"
+                className="w-full h-full object-cover group-hover/image:scale-105 transition-transform duration-300"
                 referrerPolicy="no-referrer"
                 loading="lazy"
                 onError={() => setImgError(true)}
               />
             )}
           </Link>
-          <button 
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (isInWishlist(product.id)) {
-                removeFromWishlist(product.id);
-                toast.success('Removed from wishlist');
-              } else {
-                addToWishlist(product);
-                toast.success('Added to wishlist!');
-              }
-            }}
-            className="absolute top-2 right-2 z-20 p-2 rounded-full bg-white/80 backdrop-blur-sm shadow-sm hover:bg-white transition-colors cursor-pointer"
-          >
-            <Heart size={16} className={isInWishlist(product.id) ? 'fill-[#F97316] text-[#F97316]' : 'text-gray-400 hover:text-[#F97316]'} />
-          </button>
-          {(product as any).condition === 'used' && (
-            <div className="absolute top-2 left-2 z-20 bg-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm">
-              PRE-OWNED
-            </div>
-          )}
-          {!isOutOfStock && (
-            <div className="absolute top-12 right-2 z-10 pointer-events-none">
+
+          {/* Top Badges & Wishlist Action */}
+          <div className="absolute top-2 right-2 z-20 flex items-center gap-2 pointer-events-none">
+            {!isOutOfStock && (
               <span className="bg-green-500 text-white px-2 py-1 rounded-md text-[10px] font-bold uppercase shadow-sm">
                 In Stock
               </span>
+            )}
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (isInWishlist(product.id)) {
+                  removeFromWishlist(product.id);
+                  toast.success('Removed from wishlist');
+                } else {
+                  addToWishlist(product);
+                  toast.success('Added to wishlist!');
+                }
+              }}
+              className="pointer-events-auto p-2 rounded-full bg-white/80 backdrop-blur-sm shadow-sm hover:bg-white transition-colors cursor-pointer"
+            >
+              <Heart size={16} className={isInWishlist(product.id) ? 'fill-[#F97316] text-[#F97316]' : 'text-gray-400 hover:text-[#F97316]'} />
+            </button>
+          </div>
+
+          {(product as any).condition === 'used' && (
+            <div className="absolute top-2 left-2 z-20 bg-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm">
+              PRE-OWNED
             </div>
           )}
           {isOutOfStock && (
