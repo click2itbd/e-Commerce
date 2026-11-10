@@ -57,11 +57,30 @@ export const EcommerceNavbar: React.FC = () => {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [trendingSearches, setTrendingSearches] = useState<string[]>([]);
   const navigate = useNavigate();
+  const recordTrendingSearch = async (searchTerm: string) => {
+    const clean = searchTerm.trim().slice(0, 100);
+    if (!clean || clean.length < 2) return;
+    try {
+      const docId = clean.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
+      if (!docId) return;
+      const ref = doc(db, 'trending_searches', docId);
+      await setDoc(ref, {
+        query: clean,
+        count: increment(1),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Failed to record trending search:', err);
+    }
+  };
+
   const saveSearch = (query: string) => {
     if(!query.trim()) return;
-    const updated = [query, ...recentSearches.filter(q => q !== query)].slice(0, 5);
+    const clean = query.trim();
+    const updated = [clean, ...recentSearches.filter(q => q.toLowerCase() !== clean.toLowerCase())].slice(0, 5);
     setRecentSearches(updated);
     localStorage.setItem('recentSearches', JSON.stringify(updated));
+    recordTrendingSearch(clean);
   };
   const clearRecentSearches = () => {
     setRecentSearches([]);
@@ -106,8 +125,23 @@ export const EcommerceNavbar: React.FC = () => {
     const saved = localStorage.getItem('recentSearches');
     if (saved) setRecentSearches(JSON.parse(saved));
 
+    const qTrending = query(collection(db, 'trending_searches'), orderBy('count', 'desc'), limit(10));
+    const unsubscribeTrending = onSnapshot(
+      qTrending,
+      (snap) => {
+        const list = snap.docs.map(d => d.data().query as string).filter(Boolean);
+        if (list.length > 0) {
+          setTrendingSearches(list);
+        }
+      },
+      (error) => {
+        console.warn('Error listening to trending searches:', error);
+      }
+    );
+
     return () => {
       unsubscribeMenus();
+      unsubscribeTrending();
     };
   }, []);
 
@@ -135,6 +169,45 @@ export const EcommerceNavbar: React.FC = () => {
     { id: 'antivirus', name: 'Anti Virus', slug: 'anti-virus' },
     { id: 'ups', name: 'UPS', slug: 'ups' }
   ];
+  const dynamicTrendingSearches = React.useMemo(() => {
+    const list: string[] = [...trendingSearches];
+
+    if (list.length < 5) {
+      const storeKeywords = new Set<string>();
+
+      // Extract brands from store products
+      products.forEach(p => {
+        if (p.brand && p.brand.trim().length > 1) {
+          storeKeywords.add(p.brand.trim());
+        }
+      });
+
+      // Extract categories from navigation menus
+      menus.forEach(m => {
+        if (m.name && m.name.toLowerCase() !== 'hosting' && m.name.toLowerCase() !== 'domain') {
+          storeKeywords.add(m.name.trim());
+        }
+      });
+
+      // Extract categories from products
+      products.forEach(p => {
+        if (p.category && p.category.trim().length > 1) {
+          const cat = p.category.trim().replace(/-/g, ' ');
+          storeKeywords.add(cat.charAt(0).toUpperCase() + cat.slice(1));
+        }
+      });
+
+      for (const kw of storeKeywords) {
+        if (!list.some(existing => existing.toLowerCase() === kw.toLowerCase())) {
+          list.push(kw);
+        }
+        if (list.length >= 5) break;
+      }
+    }
+
+    return list.slice(0, 5);
+  }, [trendingSearches, products, menus]);
+
   const mobileCategoryQuery = mobileCategorySearch.trim().toLowerCase();
   const mobileMenus = menus
     .filter(menu => menu.name.toLowerCase() !== 'hosting')
@@ -225,13 +298,14 @@ export const EcommerceNavbar: React.FC = () => {
                   <div>
                     <h3 className="font-bold text-gray-800 text-[15px] mb-4">Trending Search</h3>
                     <ul className="space-y-3">
-                      {['S25 Ultra', 'OnePlus Buds 4', 'Z Fold7', '16 Pro Max', 'Gaming Mouse'].map(ts => (
+                      {dynamicTrendingSearches.map(ts => (
                         <li key={ts}>
                           <button
                             onMouseDown={(e) => { e.preventDefault(); setSearchQuery(ts); saveSearch(ts); navigate(`/search?q=${encodeURIComponent(ts)}`); setIsSearchFocused(false); }}
-                            className="text-gray-500 hover:text-gray-900 text-sm text-left w-full truncate transition-colors"
+                            className="text-gray-500 hover:text-[#F97316] text-sm text-left w-full truncate transition-colors flex items-center justify-between group"
                           >
-                            {ts}
+                            <span>{ts}</span>
+                            <span className="text-[10px] text-gray-300 group-hover:text-[#F97316] opacity-0 group-hover:opacity-100 transition-opacity">Search &rarr;</span>
                           </button>
                         </li>
                       ))}

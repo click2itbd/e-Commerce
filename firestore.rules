@@ -58,6 +58,9 @@ rules_version = '2';
 //    - `couponCodes` & `coupons`: Full read/write for Admin/Staff; public
 //      queries restricted to active coupons with `request.query.limit <= 1`
 //      to prevent bulk coupon scraping.
+//    - `trending_searches`: Public read (`if true`); creation and update
+//      allowed for visitors logging search terms with query (string, <= 100 chars)
+//      and count (number), max keys <= 6; delete restricted to Admin/Staff.
 //
 // 5. Customer Service & Account Collections
 //    - `hostingAccounts`, `domainOrders`, `domain_renewals`,
@@ -224,6 +227,15 @@ service cloud.firestore {
         data.get('paymentVerificationStatus', 'pending') != 'verified' &&
         data.get('paymentStatus', 'pending') in ['pending', 'unpaid', 'submitted', 'processing', 'failed', 'cancelled'] &&
         data.get('status', 'pending') in [prev.get('status', 'pending'), 'pending', 'cancelled'];
+    }
+
+    // Trending search terms validator for visitor search tracking
+    function isValidTrendingSearch(data) {
+      return data.keys().hasAll(['query', 'count']) &&
+        data.keys().size() <= 6 &&
+        data.query is string &&
+        data.query.size() <= 100 &&
+        data.count is number;
     }
 
     // ===============================================================
@@ -469,6 +481,14 @@ service cloud.firestore {
         )
       );
       allow delete: if isStaffOrAdmin() || isResourceOwner('userId');
+    }
+
+    // Trending Searches
+    match /trending_searches/{searchId} {
+      allow read: if true;
+      allow create: if isStaffOrAdmin() || isValidTrendingSearch(request.resource.data);
+      allow update: if isStaffOrAdmin() || isValidTrendingSearch(request.resource.data);
+      allow delete: if isStaffOrAdmin();
     }
 
     // ===============================================================

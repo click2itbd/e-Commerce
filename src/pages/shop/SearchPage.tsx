@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { collection, getDocs, query, doc, setDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Product } from '../../types';
 import { Layout } from '../../components/Layout';
@@ -63,6 +63,19 @@ export const SearchPage: React.FC = () => {
         });
         
         setProducts(productsData.filter(p => p.isActive !== false));
+
+        // Record search in trending_searches
+        if (q.trim().length >= 2) {
+          const clean = q.trim().slice(0, 100);
+          const docId = clean.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
+          if (docId) {
+            setDoc(doc(db, 'trending_searches', docId), {
+              query: clean,
+              count: increment(1),
+              updatedAt: new Date().toISOString()
+            }, { merge: true }).catch(() => {});
+          }
+        }
         setCurrentPage(1);
       } catch (error) {
         console.error('Error fetching search results:', error);
