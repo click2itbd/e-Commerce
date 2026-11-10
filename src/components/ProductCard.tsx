@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, Plus, GitCompare, Eye, X, Heart, CreditCard, Package } from 'lucide-react';
-import { getLowestMonthlyEMI, isEligibleForEMI } from '../data/emiPlans';
+import { ShoppingCart, Plus, GitCompare, Eye, X, Heart, Package } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { useCompare } from '../context/CompareContext';
@@ -24,8 +23,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const [imgError, setImgError] = useState(false);
 
   const isOutOfStock = Boolean(product.isOutOfStock);
-  const finalPrice = product.discountPrice && product.discountPrice > 0 ? product.discountPrice : product.price;
-  const lowestEmi = isEligibleForEMI(finalPrice) ? getLowestMonthlyEMI(finalPrice) : 0;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -135,13 +132,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               </div>
               <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">{product.category}</span>
             </div>
-
-            {lowestEmi > 0 && (
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-700 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded w-fit mb-2.5">
-                <CreditCard size={12} className="text-[#F97316] shrink-0" />
-                <span>EMI: <strong className="text-[#F97316] font-bold">{formatCurrency(lowestEmi)}</strong>/mo</span>
-              </div>
-            )}
             
             <button
               onClick={handleAddToCart}
