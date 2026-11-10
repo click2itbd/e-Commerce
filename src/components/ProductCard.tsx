@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, Plus, GitCompare, Eye, X, Heart, CreditCard } from 'lucide-react';
+import { ShoppingCart, Plus, GitCompare, Eye, X, Heart, CreditCard, Package } from 'lucide-react';
 import { getLowestMonthlyEMI, isEligibleForEMI } from '../data/emiPlans';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
@@ -21,6 +21,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const { addToCompare, isInCompare } = useCompare();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const [showQuickView, setShowQuickView] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   const isOutOfStock = Boolean(product.isOutOfStock);
   const finalPrice = product.discountPrice && product.discountPrice > 0 ? product.discountPrice : product.price;
@@ -39,13 +40,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       <div className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all group flex flex-col h-full border border-gray-100">
         <div className="relative aspect-square overflow-hidden bg-gray-50 group/image">
           <Link to={`/product/${product.id}`} className="block absolute inset-0 z-0">
-            <img
-              src={product.images?.[0] || undefined}
-              alt={product.name}
-              className="w-full h-full object-contain p-3 sm:p-4 group-hover/image:scale-105 transition-transform duration-300"
-              referrerPolicy="no-referrer"
-              loading="lazy"
-            />
+            {imgError || !product.images?.[0] ? (
+              <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-gray-50/80 text-gray-300 select-none">
+                <div className="w-12 h-12 rounded-xl bg-white border border-gray-200/80 flex items-center justify-center shadow-2xs mb-1">
+                  <Package size={22} className="text-gray-300 stroke-[1.5]" />
+                </div>
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">No Image</span>
+              </div>
+            ) : (
+              <img
+                src={product.images[0]}
+                alt={product.name}
+                className="w-full h-full object-contain p-3 sm:p-4 group-hover/image:scale-105 transition-transform duration-300"
+                referrerPolicy="no-referrer"
+                loading="lazy"
+                onError={() => setImgError(true)}
+              />
+            )}
           </Link>
           <button 
             onClick={(e) => {
@@ -184,11 +195,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
               {/* Image Section */}
               <div className="w-full md:w-1/2 bg-gray-50 p-8 flex items-center justify-center min-h-[300px]">
-                <img 
-                  src={product.images?.[0] || undefined} 
-                  alt={product.name} 
-                  className="w-full h-full object-contain max-h-[400px]"
-                />
+                {imgError || !product.images?.[0] ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-6 text-gray-300 select-none">
+                    <div className="w-16 h-16 rounded-2xl bg-white border border-gray-200/80 flex items-center justify-center shadow-xs mb-2">
+                      <Package size={32} className="text-gray-300 stroke-[1.5]" />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">No Image Available</span>
+                  </div>
+                ) : (
+                  <img 
+                    src={product.images[0]} 
+                    alt={product.name} 
+                    className="w-full h-full object-contain max-h-[400px]"
+                    onError={() => setImgError(true)}
+                  />
+                )}
               </div>
 
               {/* Details Section */}

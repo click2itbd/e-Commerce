@@ -8,7 +8,7 @@ import { Layout } from '../../components/Layout';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency, cn, formatWarranty } from '../../lib/utils';
 import { Helmet } from 'react-helmet-async';
-import { ShoppingCart, Truck, ChevronRight, ChevronDown, GitCompare, Minus, Plus, Share2, Facebook, Twitter, MessageCircle, Star, ShieldCheck, X, Copy, Check, Bell, CreditCard } from 'lucide-react';
+import { ShoppingCart, Truck, ChevronRight, ChevronDown, GitCompare, Minus, Plus, Share2, Facebook, Twitter, MessageCircle, Star, ShieldCheck, X, Copy, Check, Bell, CreditCard, Package } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useCompare } from '../../context/CompareContext';
 import { ProductCard } from '../../components/ProductCard';
@@ -132,6 +132,7 @@ export const ProductDetails: React.FC = () => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isPriceAlertOpen, setIsPriceAlertOpen] = useState(false);
   const [isEmiModalOpen, setIsEmiModalOpen] = useState(false);
+  const [imageErrorMap, setImageErrorMap] = useState<Record<number, boolean>>({});
   
   const { addRecentlyViewed, recentlyViewed } = useRecentlyViewed();
   
@@ -150,6 +151,7 @@ export const ProductDetails: React.FC = () => {
       if (docSnap.exists()) {
         const pData = { id: docSnap.id, ...docSnap.data() } as Product;
         setProduct(pData);
+        setImageErrorMap({});
         if (!mainImage) setMainImage(pData.images?.[0] || '');
         addRecentlyViewed(pData);
 
@@ -370,16 +372,36 @@ export const ProductDetails: React.FC = () => {
           
           {/* Left: Images */}
           <div className="w-full lg:w-5/12 flex flex-col gap-4">
-            <div 
-              className="aspect-square border border-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-4 relative group cursor-zoom-in hover:shadow-md transition-shadow"
+                        <div 
+              className="aspect-square border border-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-4 relative group cursor-zoom-in hover:shadow-md transition-shadow bg-white"
               onClick={() => setIsImageZoomed(true)}
             >
-              <img
-                src={product.images?.[selectedImage] || product.images?.[0] || undefined}
-                alt={product.name}
-                className="w-full h-full object-contain transition-transform duration-500"
-                referrerPolicy="no-referrer"
-              />
+              {(() => {
+                const currentImg = product.images?.[selectedImage] || product.images?.[0];
+                const hasError = !currentImg || imageErrorMap[selectedImage];
+                if (hasError) {
+                  return (
+                    <div className="w-full h-full flex flex-col items-center justify-center p-6 text-gray-400 bg-gray-50/70 rounded-lg select-none">
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white border border-gray-200/80 shadow-xs flex items-center justify-center mb-3">
+                        <Package size={42} className="text-gray-300 stroke-[1.5]" />
+                      </div>
+                      <span className="text-xs font-bold text-gray-600 tracking-wide">No Image Available</span>
+                      <span className="text-[11px] text-gray-400 mt-1 max-w-[200px] text-center line-clamp-1">
+                        {product.brand || product.category || 'Product Preview'}
+                      </span>
+                    </div>
+                  );
+                }
+                return (
+                  <img
+                    src={currentImg}
+                    alt={product.name}
+                    className="w-full h-full object-contain transition-transform duration-500"
+                    referrerPolicy="no-referrer"
+                    onError={() => setImageErrorMap(prev => ({ ...prev, [selectedImage]: true }))}
+                  />
+                );
+              })()}
             </div>
             
             {product.images && product.images.length > 1 && (
@@ -393,7 +415,19 @@ export const ProductDetails: React.FC = () => {
                       selectedImage === idx ? "border-[#F97316] shadow-sm" : "border-gray-200 hover:border-gray-300"
                     )}
                   >
-                    <img src={img} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                    {imageErrorMap[idx] || !img ? (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+                        <Package size={18} />
+                      </div>
+                    ) : (
+                      <img 
+                        src={img} 
+                        alt="" 
+                        className="w-full h-full object-contain" 
+                        referrerPolicy="no-referrer"
+                        onError={() => setImageErrorMap(prev => ({ ...prev, [idx]: true }))}
+                      />
+                    )}
                   </button>
                 ))}
               </div>
@@ -1107,12 +1141,27 @@ export const ProductDetails: React.FC = () => {
             className="relative max-w-5xl max-h-[82vh] w-full flex items-center justify-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <img 
-              src={product.images?.[selectedImage] || product.images?.[0] || displayImages?.[selectedImage] || undefined} 
-              alt={product.name} 
-              className="w-auto h-auto max-w-full max-h-[80vh] object-contain select-none drop-shadow-2xl rounded-lg animate-in zoom-in-95 duration-200" 
-              referrerPolicy="no-referrer" 
-            />
+            {(() => {
+              const currentImg = product.images?.[selectedImage] || product.images?.[0] || displayImages?.[selectedImage];
+              const hasError = !currentImg || imageErrorMap[selectedImage];
+              if (hasError) {
+                return (
+                  <div className="w-72 h-72 sm:w-80 sm:h-80 flex flex-col items-center justify-center p-6 text-gray-300 bg-white/5 rounded-2xl select-none border border-white/10">
+                    <Package size={56} className="text-gray-400 mb-2" />
+                    <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">No Image Available</span>
+                  </div>
+                );
+              }
+              return (
+                <img 
+                  src={currentImg} 
+                  alt={product.name} 
+                  className="w-auto h-auto max-w-full max-h-[80vh] object-contain select-none drop-shadow-2xl rounded-lg animate-in zoom-in-95 duration-200" 
+                  referrerPolicy="no-referrer"
+                  onError={() => setImageErrorMap(prev => ({ ...prev, [selectedImage]: true }))}
+                />
+              );
+            })()}
           </div>
           
           {((product.images && product.images.length > 1) || (displayImages && displayImages.length > 1)) && (
