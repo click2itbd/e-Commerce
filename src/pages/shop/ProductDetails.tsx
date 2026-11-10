@@ -467,29 +467,6 @@ export const ProductDetails: React.FC = () => {
 
               </div>
 
-            {/* EMI Option Banner - Only for qualifying items (BDT 5,000+) */}
-            {displayPrice >= 5000 && (
-              <div className="mb-6 p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <CreditCard size={18} className="text-[#F97316] shrink-0" />
-                  <div className="text-xs text-gray-700 min-w-0">
-                    <span className="font-semibold text-gray-900">
-                      Monthly EMI from <strong className="text-[#F97316] font-bold">{formatCurrency(getLowestMonthlyEMI(displayPrice), settings)}</strong>/mo
-                    </span>
-                    <span className="text-gray-500 hidden sm:inline"> (16 Banks, up to 36 Months)</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsEmiModalOpen(true)}
-                  className="text-xs font-bold text-[#3749bb] hover:text-[#2b3a99] hover:underline flex items-center gap-1 shrink-0 cursor-pointer"
-                >
-                  <span>View EMI Plans</span>
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            )}
-
             {/* Short Description */}
             {product.shortDescription && (
               <div className="mb-8">
@@ -522,6 +499,34 @@ export const ProductDetails: React.FC = () => {
                 </button>
               </div>
             </div>
+
+                        {/* EMI Option Banner - Placed right above Shop Now & Add to Cart */}
+            {displayPrice >= 5000 && (
+              <div 
+                onClick={() => setIsEmiModalOpen(true)}
+                className="mb-4 p-3 bg-gradient-to-r from-orange-50/70 to-amber-50/40 hover:from-orange-100/70 hover:to-amber-100/50 border border-orange-200 rounded-xl flex items-center justify-between gap-3 cursor-pointer transition-all shadow-2xs group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-orange-100 text-[#F97316] flex items-center justify-center shrink-0">
+                    <CreditCard size={16} />
+                  </div>
+                  <div className="text-xs min-w-0">
+                    <div className="font-bold text-gray-900 group-hover:text-[#F97316] transition-colors flex items-center gap-2 flex-wrap">
+                      <span>EMI from <strong className="text-[#F97316] font-bold">{formatCurrency(getLowestMonthlyEMI(displayPrice), settings)}</strong>/mo</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/80 text-orange-800">16 Banks</span>
+                      <span className="text-[10px] text-gray-500 hidden sm:inline">3 to 36 Months</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+                      Click to calculate installment plans for your credit card
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-[#3749bb] group-hover:text-[#283688] group-hover:underline flex items-center gap-0.5 shrink-0 whitespace-nowrap">
+                  <span>View Plans</span>
+                  <ChevronRight size={14} />
+                </span>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-4 mb-4">
