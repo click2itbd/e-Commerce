@@ -343,91 +343,68 @@ export const Projects = () => {
                   setActiveProjectModal(project);
                   setActivePhotoUrl(project.image);
                 }}
-                className={`bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border group flex flex-col cursor-pointer ${
-                  project.isFeatured ? 'border-amber-300 ring-1 ring-amber-200/60' : 'border-slate-200'
+                className={`bg-white rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 border group flex flex-col cursor-pointer ${
+                  project.isFeatured ? 'border-amber-300 ring-1 ring-amber-200/60' : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <div className="relative h-60 overflow-hidden bg-slate-100">
+                <div className="relative h-48 overflow-hidden bg-slate-100">
                   <img
                     src={project.image}
                     alt={project.title}
                     className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                  <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold text-slate-900 flex items-center gap-1.5 shadow-sm">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                  <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[11px] font-bold text-slate-900 flex items-center gap-1.5 shadow-xs">
                     {(() => {
                       const Icon = Icons[project.iconName] || Briefcase;
-                      return <Icon size={14} className="text-blue-600" />;
+                      return <Icon size={13} className="text-blue-600" />;
                     })()}
                     {project.category}
                   </div>
                   {project.isFeatured && (
-                    <div className="absolute top-4 right-4 bg-amber-400 text-slate-950 px-2.5 py-1 rounded-full text-[10px] font-black flex items-center gap-1 shadow-sm">
+                    <div className="absolute top-3 right-3 bg-amber-400 text-slate-950 px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1 shadow-xs">
                       <Star size={11} className="fill-slate-950" /> FEATURED
                     </div>
                   )}
                   {(project.location || project.duration) && (
-                    <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-white/90 text-xs font-semibold">
+                    <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-white/90 text-[11px] font-medium">
                       {project.location && (
-                        <span className="flex items-center gap-1">
-                          <MapPin size={12} /> {project.location}
+                        <span className="flex items-center gap-1 truncate max-w-[60%]">
+                          <MapPin size={11} className="shrink-0" /> {project.location}
                         </span>
                       )}
                       {project.duration && (
-                        <span className="flex items-center gap-1 bg-black/40 px-2.5 py-0.5 rounded-full">
-                          <Clock size={11} /> {project.duration}
+                        <span className="flex items-center gap-1 bg-black/40 px-2 py-0.5 rounded-full text-[10px] ml-auto shrink-0">
+                          <Clock size={10} /> {project.duration}
                         </span>
                       )}
                     </div>
                   )}
                 </div>
 
-                <div className="p-7 flex flex-col flex-grow">
-                  <div className="mb-2 text-xs font-bold text-blue-600 uppercase tracking-wider">
-                    Client: {project.client}
-                  </div>
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <h3 className="text-xl font-bold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors">
-                      {project.title}
-                    </h3>
-                    {project.liveUrl && (
-                      <a
-                        href={project.liveUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white text-[11px] font-bold transition-colors shrink-0"
-                        title="Visit Live Website"
-                      >
-                        <Globe size={12} /> Live Site <ExternalLink size={11} />
-                      </a>
-                    )}
-                  </div>
-                  <p className="text-slate-600 text-sm mb-5 flex-grow leading-relaxed line-clamp-3">
+                <div className="p-5 flex flex-col flex-grow">
+                  {project.client && (
+                    <div className="mb-1 text-[11px] font-bold text-blue-600 uppercase tracking-wider line-clamp-1">
+                      {project.client}
+                    </div>
+                  )}
+                  <h3 className="text-base font-bold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2 mb-2">
+                    {project.title}
+                  </h3>
+                  <p className="text-slate-500 text-xs sm:text-sm line-clamp-2 mb-4 leading-relaxed flex-grow">
                     {project.description}
                   </p>
 
-                  {project.testimonial && (
-                    <div className="mb-5 p-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-xs text-slate-600 italic">
-                      "{project.testimonial}"
-                    </div>
-                  )}
-
-                  {Array.isArray(project.features) && project.features.length > 0 && (
-                    <div className="border-t border-slate-100 pt-4 mt-auto">
-                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">
-                        Key Highlights
-                      </h4>
-                      <ul className="grid grid-cols-2 gap-y-2 gap-x-4">
-                        {project.features.map((feature: string, idx: number) => (
-                          <li key={idx} className="text-xs text-slate-600 flex items-start gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1 shrink-0" />
-                            <span className="leading-tight">{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between mt-auto">
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:text-blue-700 transition-colors">
+                      View Details &rarr;
+                    </span>
+                    {project.liveUrl && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md">
+                        <Globe size={11} className="text-blue-600" /> Live Demo
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
