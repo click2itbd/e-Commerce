@@ -27,6 +27,7 @@ if [ -d "dist" ] && [ -f "dist/index.html" ]; then
   /bin/rm -f "$DEST/_redirects"
   /bin/rm -f "$DEST/robots.txt"
   /bin/rm -f "$DEST/sitemap.xml"
+  /bin/rm -f "$DEST/feed.xml"
   /bin/rm -f "$DEST/logo.png"
   /bin/rm -f "$DEST/upload.php"
   /bin/rm -f "$DEST/share.php"

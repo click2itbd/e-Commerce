@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Phone, Mail, MapPin, Facebook, Youtube, Instagram, FileText, Save, CheckCircle } from 'lucide-react';
+import { Truck, Phone, Mail, MapPin, Facebook, Youtube, Instagram, FileText, Save, CheckCircle, Globe, Copy, ExternalLink, Search, Sparkles } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -198,6 +198,115 @@ export const EcommerceSettings: React.FC = () => {
             </div>
           </div>
           
+          {/* SEO & Search Console Integrations */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Search className="text-orange-500" size={20} />
+                <h3 className="font-semibold text-gray-800">SEO, Google Search Console & Shopping Feeds</h3>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1">
+                <Sparkles size={12} /> Auto-Sync Active
+              </span>
+            </div>
+            <div className="p-6 space-y-5">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Connect your dynamic sitemap and product feed with Google Search Console and Google Merchant Center to rank in Google Search, Google Images, and Google Shopping.
+              </p>
+
+              {/* Sitemap URL Card */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Globe size={16} className="text-blue-600" />
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      XML Sitemap (270+ URLs including all 126 products)
+                    </span>
+                  </div>
+                  <code className="text-xs font-mono text-slate-700 bg-white px-2 py-1 rounded border border-slate-200 inline-block break-all">
+                    https://click2itbd.com/sitemap.xml
+                  </code>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText('https://click2itbd.com/sitemap.xml');
+                      toast.success('Sitemap URL copied to clipboard!');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition-colors shadow-xs"
+                  >
+                    <Copy size={13} /> Copy URL
+                  </button>
+                  <a
+                    href="https://click2itbd.com/sitemap.xml"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white transition-colors shadow-xs"
+                  >
+                    <ExternalLink size={13} /> View
+                  </a>
+                </div>
+              </div>
+
+              {/* Google Merchant Center RSS Feed */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Sparkles size={16} className="text-amber-500" />
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      Google Merchant Center / Shopping Feed (RSS 2.0)
+                    </span>
+                  </div>
+                  <code className="text-xs font-mono text-slate-700 bg-white px-2 py-1 rounded border border-slate-200 inline-block break-all">
+                    https://click2itbd.com/feed.xml
+                  </code>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText('https://click2itbd.com/feed.xml');
+                      toast.success('Merchant Feed URL copied to clipboard!');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition-colors shadow-xs"
+                  >
+                    <Copy size={13} /> Copy Feed
+                  </button>
+                  <a
+                    href="https://click2itbd.com/feed.xml"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-xs font-semibold text-white transition-colors shadow-xs"
+                  >
+                    <ExternalLink size={13} /> View
+                  </a>
+                </div>
+              </div>
+
+              {/* Direct links to Search Console & Merchant Center */}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <a
+                  href="https://search.google.com/search-console?resource_id=sc-domain%3Aclick2itbd.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  <Search size={14} /> Open Google Search Console &rarr;
+                </a>
+                <span className="text-slate-300">•</span>
+                <a
+                  href="https://merchants.google.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-orange-600 hover:text-orange-800 hover:underline"
+                >
+                  <ExternalLink size={14} /> Open Google Merchant Center &rarr;
+                </a>
+              </div>
+            </div>
+          </div>
+
           {/* Store Policies */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
