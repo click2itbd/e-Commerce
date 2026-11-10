@@ -109,6 +109,42 @@ const groupSpecs = (specsObj: Record<string, any>) => {
   return [...groups, otherGroup].filter(g => g.items.length > 0);
 };
 
+const ProductThumbItem: React.FC<{ 
+  src?: string; 
+  alt?: string; 
+  size?: string; 
+  iconSize?: number; 
+  className?: string; 
+}> = ({ 
+  src, 
+  alt = '', 
+  size = "w-16 h-16", 
+  iconSize = 18,
+  className
+}) => {
+  const [error, setError] = useState(false);
+  if (!src || error) {
+    return (
+      <div className={cn(size, "bg-gray-50/80 rounded-lg flex items-center justify-center shrink-0 border border-gray-100", className)}>
+        <div className="w-8 h-8 rounded-lg bg-[#081621] flex items-center justify-center shadow-xs relative">
+          <Package size={iconSize} className="text-[#F97316] stroke-[1.75]" />
+          <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#F97316] ring-1 ring-white" />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className={cn(size, "bg-gray-50 rounded-lg p-1 shrink-0 flex items-center justify-center overflow-hidden border border-gray-100", className)}>
+      <img 
+        src={src} 
+        alt={alt} 
+        className="w-full h-full object-contain mix-blend-multiply" 
+        onError={() => setError(true)} 
+      />
+    </div>
+  );
+};
+
 export const ProductDetails: React.FC = () => {
   const { settings } = useSettings();
   const { id } = useParams<{ id: string }>();
@@ -982,9 +1018,7 @@ export const ProductDetails: React.FC = () => {
                   to={`/product/${item.id}`}
                   className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow group"
                 >
-                  <div className="w-16 h-16 bg-gray-50 rounded-lg p-1 shrink-0">
-                    <img src={item.images?.[0]} alt={item.name} className="w-full h-full object-contain mix-blend-multiply" />
-                  </div>
+                  <ProductThumbItem src={item.images?.[0]} alt={item.name} size="w-16 h-16" iconSize={18} />
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-[#081621] line-clamp-2 group-hover:text-[#F97316] transition-colors">{item.name}</span>
                     <span className="text-xs font-bold text-gray-600 mt-1">{formatCurrency(item.price)}</span>
@@ -1008,7 +1042,7 @@ export const ProductDetails: React.FC = () => {
               {/* Products Row */}
               <div className="flex-1 flex flex-wrap items-center gap-4">
                 <div className="flex flex-col items-center gap-2 max-w-[120px]">
-                  <img src={product.images?.[0]} className="w-24 h-24 object-contain bg-white rounded-lg border border-gray-200 p-2" alt="Main" />
+                  <ProductThumbItem src={product.images?.[0]} alt="Main" size="w-24 h-24" iconSize={24} />
                   <span className="text-xs font-bold text-center line-clamp-2">{product.name}</span>
                   <span className="text-sm font-bold text-orange-500">{formatCurrency(displayPrice)}</span>
                 </div>
@@ -1017,7 +1051,7 @@ export const ProductDetails: React.FC = () => {
                   <React.Fragment key={fbtP.id}>
                     <div className="text-gray-400 font-bold text-2xl">+</div>
                     <div className="flex flex-col items-center gap-2 max-w-[120px]">
-                      <img src={fbtP.images?.[0]} className="w-24 h-24 object-contain bg-white rounded-lg border border-gray-200 p-2" alt="FBT" />
+                      <ProductThumbItem src={fbtP.images?.[0]} alt="FBT" size="w-24 h-24" iconSize={24} />
                       <span className="text-xs font-bold text-center line-clamp-2">{fbtP.name}</span>
                       <span className="text-sm font-bold text-orange-500">{formatCurrency(fbtP.discountPrice || fbtP.price)}</span>
                     </div>
@@ -1105,8 +1139,8 @@ export const ProductDetails: React.FC = () => {
       {/* Sticky Bottom Cart (Mobile) */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] z-50 lg:hidden flex items-center justify-between gap-3 animate-fade-in-up">
         <div className="flex-1 min-w-0 flex items-center gap-3">
-          <div className="w-10 h-10 bg-gray-50 rounded border hidden sm:block shrink-0">
-             <img src={product.images?.[0]} className="w-full h-full object-contain mix-blend-multiply p-1" alt=""/>
+          <div className="hidden sm:block shrink-0">
+             <ProductThumbItem src={product.images?.[0]} alt="" size="w-10 h-10" iconSize={14} />
           </div>
           <div className="min-w-0">
             <p className="text-xs font-bold text-gray-900 truncate">{product.name}</p>

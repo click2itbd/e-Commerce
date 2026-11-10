@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Menu, X, LogOut, ChevronRight, Zap, Home, Server, Loader2, Moon, Sun } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, X, LogOut, ChevronRight, Zap, Home, Server, Loader2, Moon, Sun, Package } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
@@ -9,6 +9,23 @@ import { signOut } from 'firebase/auth';
 import { setSiteContext } from '../../hooks/useSiteContext';
 import { collection, getDocs, query, limit } from 'firebase/firestore';
 import { Product } from '../../types';
+
+const SearchProductThumbMini: React.FC<{ src?: string; alt?: string }> = ({ src, alt = '' }) => {
+  const [error, setError] = useState(false);
+  if (!src || error || src === '/placeholder.png' || src.includes('via.placeholder.com')) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-50/80 rounded-lg">
+        <div className="w-7 h-7 rounded-md bg-[#081621] flex items-center justify-center relative">
+          <Package size={14} className="text-[#F97316] stroke-[1.75]" />
+          <span className="absolute -top-0.5 -right-0.5 w-1 h-1 rounded-full bg-[#F97316] ring-1 ring-white" />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <img src={src} className="w-full h-full object-contain mix-blend-multiply" alt={alt} onError={() => setError(true)} />
+  );
+};
 
 export const PCBuildNavbar: React.FC = () => {
   const { items } = useCart();
@@ -161,8 +178,8 @@ export const PCBuildNavbar: React.FC = () => {
                         onClick={() => setShowSearchDropdown(false)}
                         className="flex items-center gap-3 p-3 hover:bg-slate-200 transition-colors border-b border-slate-200/50 last:border-0 group/item"
                       >
-                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center p-1 shrink-0 group-hover/item:shadow-lg transition-shadow">
-                          <img src={prod.images?.[0] || '/placeholder.png'} className="w-full h-full object-contain mix-blend-multiply" alt={prod.name} />
+                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center p-1 shrink-0 group-hover/item:shadow-lg transition-shadow overflow-hidden">
+                          <SearchProductThumbMini src={prod.images?.[0]} alt={prod.name} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 className="text-sm font-bold text-slate-700 truncate group-hover/item:text-violet-400 transition-colors">{prod.name}</h4>

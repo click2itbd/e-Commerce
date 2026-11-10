@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, ChevronRight, Cpu, Server, CalendarDays, GitCompare, Heart, Trash2 , Camera } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, X, LogOut, LayoutDashboard, ChevronDown, ChevronRight, Cpu, Server, CalendarDays, GitCompare, Heart, Trash2, Camera, Package } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useCompare } from '../../context/CompareContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -11,6 +11,31 @@ import { signOut } from 'firebase/auth';
 import { collection, getDocs, query, orderBy, limit, doc, setDoc, increment, onSnapshot } from 'firebase/firestore';
 import { NavigationMenu, Product, SubCategory } from '../../types';
 import { setSiteContext } from '../../hooks/useSiteContext';
+
+const SearchProductThumb: React.FC<{ src?: string; alt?: string }> = ({ src, alt = '' }) => {
+  const [error, setError] = useState(false);
+  if (!src || error || src === '/placeholder.png' || src.includes('via.placeholder.com')) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50/60 rounded-xl p-2 select-none">
+        <div className="w-12 h-12 rounded-xl bg-[#081621] flex items-center justify-center shadow-xs relative mb-1.5">
+          <Package size={22} className="text-[#F97316] stroke-[1.75]" />
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#F97316] ring-1.5 ring-white" />
+        </div>
+        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+          No Image
+        </span>
+      </div>
+    );
+  }
+  return (
+    <img 
+      src={src} 
+      alt={alt} 
+      className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
+      onError={() => setError(true)}
+    />
+  );
+};
 
 export const EcommerceNavbar: React.FC = () => {
     const { items } = useCart();
@@ -231,8 +256,8 @@ export const EcommerceNavbar: React.FC = () => {
                               onMouseDown={(e) => { e.preventDefault(); if(searchQuery) saveSearch(searchQuery); navigate(`/product/${p.id}`); setIsSearchFocused(false); }}
                               className="border border-gray-200 rounded-2xl p-4 hover:shadow-lg transition-all group flex flex-col h-full bg-white relative"
                             >
-                              <div className="aspect-square bg-white rounded-xl flex items-center justify-center p-2 mb-4">
-                                <img src={p.images?.[0] || '/placeholder.png'} alt={p.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform" />
+                              <div className="aspect-square bg-white rounded-xl flex items-center justify-center p-2 mb-4 overflow-hidden">
+                                <SearchProductThumb src={p.images?.[0]} alt={p.name} />
                               </div>
                               <p className="text-[14px] font-bold text-gray-800 line-clamp-2 mb-3 flex-grow">{p.name}</p>
                               <div className="mt-auto">
@@ -267,8 +292,8 @@ export const EcommerceNavbar: React.FC = () => {
                                   onMouseDown={(e) => { e.preventDefault(); if(searchQuery) saveSearch(searchQuery); navigate(`/product/${p.id}`); setIsSearchFocused(false); }}
                                   className="border border-gray-200 rounded-2xl p-4 hover:shadow-lg transition-all group flex flex-col h-full bg-white relative"
                                 >
-                                  <div className="aspect-square bg-white rounded-xl flex items-center justify-center p-2 mb-4">
-                                    <img src={p.images?.[0] || 'https://via.placeholder.com/150'} alt={p.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform" />
+                                  <div className="aspect-square bg-white rounded-xl flex items-center justify-center p-2 mb-4 overflow-hidden">
+                                    <SearchProductThumb src={p.images?.[0]} alt={p.name} />
                                   </div>
                                   <p className="text-[14px] font-bold text-gray-800 line-clamp-2 mb-3 flex-grow">{p.name}</p>
                                   <div className="mt-auto">
