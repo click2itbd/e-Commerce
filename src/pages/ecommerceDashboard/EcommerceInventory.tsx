@@ -2,7 +2,7 @@ import { AIPolishButton } from '../../components/common/AIPolishButton';
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Product, NavigationMenu } from '../../types';
-import { Eye, Package, Plus, Search, Edit2, Trash2, X, Upload, Save, XCircle, Sparkles, Link as LinkIcon, Image as ImageIcon, Loader2, DollarSign, AlertCircle, AlertTriangle, CheckSquare, Filter, ArrowUpDown, Tag, ChevronRight } from 'lucide-react';
+import { Eye, Package, Plus, Search, Edit2, Trash2, X, Upload, Save, XCircle, Sparkles, Link as LinkIcon, Image as ImageIcon, Loader2, DollarSign, AlertCircle, AlertTriangle, CheckSquare, Filter, ArrowUpDown, Tag, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 import { useSettings } from '../../context/SettingsContext';
 import { toast } from 'react-hot-toast';
@@ -100,6 +100,42 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
   const [formData, setFormData] = useState<Partial<Product>>(initialForm);
   const [specTemplates, setSpecTemplates] = useState<any[]>([]);
   const [bulkSpecInput, setBulkSpecInput] = useState('');
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
+
+  const moveImage = (fromIndex: number, toIndex: number) => {
+    if (!formData.images || toIndex < 0 || toIndex >= formData.images.length || fromIndex === toIndex) return;
+    const updated = [...formData.images];
+    const [moved] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, moved);
+    setFormData(prev => ({ ...prev, images: updated }));
+  };
+
+  const makePrimaryImage = (index: number) => {
+    if (index === 0) return;
+    moveImage(index, 0);
+  };
+
+  const handleImageDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData('text/plain', index.toString());
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedImageIndex(index);
+  };
+
+  const handleImageDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleImageDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const sourceIndexStr = e.dataTransfer.getData('text/plain');
+    const sourceIndex = sourceIndexStr ? parseInt(sourceIndexStr, 10) : draggedImageIndex;
+    if (sourceIndex !== null && !isNaN(sourceIndex) && sourceIndex !== targetIndex) {
+      moveImage(sourceIndex, targetIndex);
+    }
+    setDraggedImageIndex(null);
+  };
 
   useEffect(() => {
     getDocs(collection(db, 'specificationTemplates')).then(snap => {
@@ -893,19 +929,124 @@ export const EcommerceInventory: React.FC<EcommerceInventoryProps> = ({
                 
                 <div className="col-span-2 md:col-span-1 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Product Images</label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-sm font-bold text-gray-700">Product Images</label>
+                      {formData.images && formData.images.length > 1 && (
+                        <span className="text-[11px] text-blue-600 font-semibold">
+                          Drag or use arrows to reorder
+                        </span>
+                      )}
+                    </div>
                     <div className="grid grid-cols-3 gap-3 mb-3">
-                      {formData.images?.map((url, i) => (
-                        <div key={i} className="relative aspect-square rounded-lg border border-gray-200 overflow-hidden group">
-                          <img src={url} alt="Product" className="w-full h-full object-cover" />
-                          <button type="button" onClick={() => setFormData({...formData, images: formData.images?.filter((_, index) => index !== i)})} className="absolute top-1 right-1 bg-white/90 text-red-500 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
-                            <XCircle size={14} />
-                          </button>
-                        </div>
-                      ))}
-                      <label className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 hover:border-blue-500 hover:text-blue-500 transition-colors cursor-pointer">
+                      {formData.images?.map((url, i) => {
+                        const isPrimary = i === 0;
+                        return (
+                          <div
+                            key={i}
+                            draggable
+                            onDragStart={e => handleImageDragStart(e, i)}
+                            onDragOver={handleImageDragOver}
+                            onDrop={e => handleImageDrop(e, i)}
+                            onDragEnd={() => setDraggedImageIndex(null)}
+                            className={`relative aspect-square rounded-xl overflow-hidden border transition-all select-none cursor-grab active:cursor-grabbing group ${
+                              draggedImageIndex === i
+                                ? 'opacity-40 scale-95 border-dashed border-blue-500 ring-2 ring-blue-300'
+                                : isPrimary
+                                ? 'border-blue-500 ring-2 ring-blue-200 shadow-sm'
+                                : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+                            }`}
+                          >
+                            <img src={url} alt="Product" className="w-full h-full object-cover pointer-events-none" />
+
+                            {/* Order / Primary Badge */}
+                            <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
+                              {isPrimary ? (
+                                <span className="bg-blue-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow flex items-center gap-0.5">
+                                  <Star size={9} className="fill-white" /> Cover
+                                </span>
+                              ) : (
+                                <span className="bg-slate-900/75 backdrop-blur-xs text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
+                                  #{i + 1}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Delete Button */}
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                setFormData({ ...formData, images: formData.images?.filter((_, index) => index !== i) });
+                              }}
+                              className="absolute top-1.5 right-1.5 z-10 bg-red-500/90 hover:bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                              title="Remove Image"
+                            >
+                              <XCircle size={14} />
+                            </button>
+
+                            {/* Set Cover Button */}
+                            {!isPrimary && (
+                              <button
+                                type="button"
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  makePrimaryImage(i);
+                                }}
+                                className="absolute inset-x-1.5 top-7 z-10 bg-white/95 hover:bg-white text-slate-800 text-[9px] font-bold py-1 px-1.5 rounded shadow-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 border border-slate-200"
+                                title="Set as primary cover image"
+                              >
+                                <Star size={10} className="text-amber-500 fill-amber-500" /> Set Cover
+                              </button>
+                            )}
+
+                            {/* Left / Right Arrow Reorder Controls */}
+                            {formData.images && formData.images.length > 1 && (
+                              <div className="absolute bottom-1.5 inset-x-1.5 z-10 flex items-center justify-between opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  disabled={i === 0}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    moveImage(i, i - 1);
+                                  }}
+                                  className={`p-1 rounded-md text-white shadow transition-all ${
+                                    i === 0
+                                      ? 'opacity-0 pointer-events-none'
+                                      : 'bg-slate-900/80 hover:bg-slate-900 hover:scale-110 active:scale-95'
+                                  }`}
+                                  title="Move Backward (Left)"
+                                >
+                                  <ChevronLeft size={13} />
+                                </button>
+
+                                <span className="text-[9px] font-extrabold bg-slate-900/70 backdrop-blur-xs text-white px-1.5 py-0.5 rounded">
+                                  {i + 1}/{formData.images.length}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  disabled={i === formData.images.length - 1}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    moveImage(i, i + 1);
+                                  }}
+                                  className={`p-1 rounded-md text-white shadow transition-all ${
+                                    i === formData.images.length - 1
+                                      ? 'opacity-0 pointer-events-none'
+                                      : 'bg-slate-900/80 hover:bg-slate-900 hover:scale-110 active:scale-95'
+                                  }`}
+                                  title="Move Forward (Right)"
+                                >
+                                  <ChevronRight size={13} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <label className="aspect-square rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-500 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer">
                         <Upload size={20} className="mb-1" />
-                        <span className="text-xs font-medium">Upload</span>
+                        <span className="text-xs font-bold">Upload</span>
                         <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                       </label>
                     </div>

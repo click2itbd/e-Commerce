@@ -7,7 +7,7 @@ import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, formatWarr
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import { BulkEditForm } from '../../../../components/BulkEditForm';
-import {  Package, Plus, Upload, Download, Search, Edit, Trash2, X, AlertTriangle, Play, Loader2, Image as ImageIcon, FileText, XCircle, Edit2, ArrowRight, Eye, DollarSign, AlertCircle, Filter, ArrowUpDown, Tag , ChevronRight, Flame, Clock, TrendingDown } from 'lucide-react';
+import {  Package, Plus, Upload, Download, Search, Edit, Trash2, X, AlertTriangle, Play, Loader2, Image as ImageIcon, FileText, XCircle, Edit2, ArrowRight, Eye, DollarSign, AlertCircle, Filter, ArrowUpDown, Tag , ChevronLeft, ChevronRight, Star, Flame, Clock, TrendingDown } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
 import { AIPolishButton } from '../../../../components/common/AIPolishButton';
 
@@ -133,6 +133,42 @@ const InventoryTab: React.FC<InventoryTabProps> = ({ products, orders = [], vend
   const [brandFilter, setBrandFilter] = useState('all');
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
   const brandDropdownRef = useRef<HTMLDivElement>(null);
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
+
+  const moveImage = (fromIndex: number, toIndex: number) => {
+    if (!formData.images || toIndex < 0 || toIndex >= formData.images.length || fromIndex === toIndex) return;
+    const updated = [...formData.images];
+    const [moved] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, moved);
+    setFormData((prev: any) => ({ ...prev, images: updated }));
+  };
+
+  const makePrimaryImage = (index: number) => {
+    if (index === 0) return;
+    moveImage(index, 0);
+  };
+
+  const handleImageDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData('text/plain', index.toString());
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedImageIndex(index);
+  };
+
+  const handleImageDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleImageDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const sourceIndexStr = e.dataTransfer.getData('text/plain');
+    const sourceIndex = sourceIndexStr ? parseInt(sourceIndexStr, 10) : draggedImageIndex;
+    if (sourceIndex !== null && !isNaN(sourceIndex) && sourceIndex !== targetIndex) {
+      moveImage(sourceIndex, targetIndex);
+    }
+    setDraggedImageIndex(null);
+  };
 
   // Calculate product sales & last sold date map across orders
   const productSalesMap = useMemo(() => {
@@ -1393,19 +1429,131 @@ Storage: 512GB SSD"
                         </div>
 
                         {formData.images?.length > 0 && (
-                          <div className="grid grid-cols-3 gap-2">
-                            {formData.images.map((url: string, index: number) => (
-                              <div key={index} className="relative group aspect-square rounded-lg overflow-hidden border border-slate-200 shadow-sm">
-                                <img src={url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); removeImage(index); }}
-                                  className="absolute top-1 right-1 bg-red-500/90 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                                >
-                                  <XCircle size={14} />
-                                </button>
+                          <div className="space-y-2.5">
+                            {formData.images.length > 1 && (
+                              <div className="flex items-center justify-between text-[11px] bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg text-slate-600">
+                                <span className="font-bold text-slate-700">
+                                  {formData.images.length} images uploaded
+                                </span>
+                                <span className="text-blue-600 font-semibold flex items-center gap-1">
+                                  <span>Drag or use arrows to reorder</span>
+                                </span>
                               </div>
-                            ))}
+                            )}
+
+                            <div className="grid grid-cols-3 gap-2.5">
+                              {formData.images.map((url: string, index: number) => {
+                                const isPrimary = index === 0;
+                                return (
+                                  <div
+                                    key={index}
+                                    draggable
+                                    onDragStart={e => handleImageDragStart(e, index)}
+                                    onDragOver={handleImageDragOver}
+                                    onDrop={e => handleImageDrop(e, index)}
+                                    onDragEnd={() => setDraggedImageIndex(null)}
+                                    className={`relative group aspect-square rounded-xl overflow-hidden border transition-all select-none cursor-grab active:cursor-grabbing ${
+                                      draggedImageIndex === index
+                                        ? 'opacity-40 scale-95 border-dashed border-blue-500 ring-2 ring-blue-300'
+                                        : isPrimary
+                                        ? 'border-blue-500 ring-2 ring-blue-200 shadow-sm'
+                                        : 'border-slate-200 hover:border-blue-300 hover:shadow-md'
+                                    }`}
+                                  >
+                                    <img
+                                      src={url}
+                                      alt=""
+                                      className="w-full h-full object-cover pointer-events-none"
+                                      referrerPolicy="no-referrer"
+                                    />
+
+                                    {/* Primary Badge or Sequence Number */}
+                                    <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
+                                      {isPrimary ? (
+                                        <span className="bg-blue-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow flex items-center gap-0.5">
+                                          <Star size={9} className="fill-white" /> Cover
+                                        </span>
+                                      ) : (
+                                        <span className="bg-slate-900/75 backdrop-blur-xs text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
+                                          #{index + 1}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Remove Image Button */}
+                                    <button
+                                      type="button"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        removeImage(index);
+                                      }}
+                                      className="absolute top-1.5 right-1.5 z-10 bg-red-500/90 hover:bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                                      title="Remove Image"
+                                    >
+                                      <XCircle size={14} />
+                                    </button>
+
+                                    {/* Make Cover Button */}
+                                    {!isPrimary && (
+                                      <button
+                                        type="button"
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          makePrimaryImage(index);
+                                        }}
+                                        className="absolute inset-x-1.5 top-7 z-10 bg-white/95 hover:bg-white text-slate-800 text-[9px] font-bold py-1 px-1.5 rounded shadow-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 border border-slate-200"
+                                        title="Make this the cover/primary image"
+                                      >
+                                        <Star size={10} className="text-amber-500 fill-amber-500" /> Set Cover
+                                      </button>
+                                    )}
+
+                                    {/* Reorder Arrows (Left / Right) */}
+                                    {formData.images.length > 1 && (
+                                      <div className="absolute bottom-1.5 inset-x-1.5 z-10 flex items-center justify-between opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                          type="button"
+                                          disabled={index === 0}
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            moveImage(index, index - 1);
+                                          }}
+                                          className={`p-1 rounded-md text-white shadow transition-all ${
+                                            index === 0
+                                              ? 'opacity-0 pointer-events-none'
+                                              : 'bg-slate-900/80 hover:bg-slate-900 hover:scale-110 active:scale-95'
+                                          }`}
+                                          title="Move Image Backward (Left)"
+                                        >
+                                          <ChevronLeft size={13} />
+                                        </button>
+
+                                        <span className="text-[9px] font-extrabold bg-slate-900/70 backdrop-blur-xs text-white px-1.5 py-0.5 rounded">
+                                          {index + 1}/{formData.images.length}
+                                        </span>
+
+                                        <button
+                                          type="button"
+                                          disabled={index === formData.images.length - 1}
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            moveImage(index, index + 1);
+                                          }}
+                                          className={`p-1 rounded-md text-white shadow transition-all ${
+                                            index === formData.images.length - 1
+                                              ? 'opacity-0 pointer-events-none'
+                                              : 'bg-slate-900/80 hover:bg-slate-900 hover:scale-110 active:scale-95'
+                                          }`}
+                                          title="Move Image Forward (Right)"
+                                        >
+                                          <ChevronRight size={13} />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
