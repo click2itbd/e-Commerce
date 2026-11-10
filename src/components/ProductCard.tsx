@@ -41,15 +41,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         <div className="relative aspect-square overflow-hidden bg-gray-50 group/image">
           <Link to={`/product/${product.id}`} className="block absolute inset-0 z-0">
             {imgError || !product.images?.[0] ? (
-              <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-gradient-to-br from-[#081621] via-[#0d1f30] to-[#050c12] text-white select-none relative overflow-hidden group-hover/image:scale-[1.02] transition-transform duration-300">
-                <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-[#F97316]/15 blur-xl pointer-events-none" />
-                <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-[#122436] to-[#081621] border border-[#F97316]/40 flex items-center justify-center shadow-md mb-2">
-                  <Package size={22} className="text-[#F97316] stroke-[1.8]" />
+              <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-gray-50/60 text-gray-400 select-none">
+                <div className="w-12 h-12 rounded-xl bg-[#081621] flex items-center justify-center shadow-xs relative mb-1.5">
+                  <Package size={22} className="text-[#F97316] stroke-[1.75]" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#F97316] ring-1.5 ring-white" />
                 </div>
-                <span className="text-[10px] font-black text-[#F97316] uppercase tracking-wider line-clamp-1">
-                  {product.brand || 'Official'}
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                  No Image
                 </span>
-                <span className="text-[9px] text-gray-400 font-medium">Image Coming Soon</span>
               </div>
             ) : (
               <img
@@ -200,15 +199,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               {/* Image Section */}
               <div className="w-full md:w-1/2 bg-gray-50 p-8 flex items-center justify-center min-h-[300px]">
                 {imgError || !product.images?.[0] ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-[#081621] via-[#0d1f30] to-[#050c12] rounded-xl border border-[#F97316]/30 text-white select-none relative overflow-hidden">
-                    <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#F97316]/20 blur-2xl pointer-events-none" />
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#122436] to-[#081621] border border-[#F97316]/50 flex items-center justify-center shadow-xl mb-3">
-                      <Package size={32} className="text-[#F97316] stroke-[1.8]" />
+                  <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-gray-50/60 rounded-xl select-none">
+                    <div className="w-16 h-16 rounded-2xl bg-[#081621] flex items-center justify-center shadow-sm relative mb-2">
+                      <Package size={30} className="text-[#F97316] stroke-[1.75]" />
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#F97316] ring-2 ring-white" />
                     </div>
-                    <span className="text-xs font-black text-[#F97316] uppercase tracking-wider mb-0.5">
-                      {product.brand || 'Official Store'}
+                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                      No Image Available
                     </span>
-                    <span className="text-xs font-bold text-white tracking-wide">Image Coming Soon</span>
                   </div>
                 ) : (
                   <img 

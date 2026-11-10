@@ -381,51 +381,14 @@ export const ProductDetails: React.FC = () => {
                 const hasError = !currentImg || imageErrorMap[selectedImage];
                 if (hasError) {
                   return (
-                    <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-[#081621] via-[#0d1f30] to-[#050c12] p-6 flex flex-col items-center justify-center text-center select-none overflow-hidden border border-[#F97316]/25 shadow-inner">
-                      {/* Ambient orange glow */}
-                      <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[#F97316]/15 blur-3xl pointer-events-none" />
-                      <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-[#F97316]/10 blur-3xl pointer-events-none" />
-                      
-                      {/* Tech geometric pattern overlay */}
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.12)_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none" />
-
-                      {/* Center Glowing Icon Avatar */}
-                      <div className="relative mb-3 group/box">
-                        <div className="absolute -inset-2 rounded-2xl bg-[#F97316]/20 blur-md group-hover/box:bg-[#F97316]/40 transition-all duration-300" />
-                        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-[#122436] to-[#081621] border-2 border-[#F97316]/50 shadow-2xl flex items-center justify-center">
-                          <Package size={44} className="text-[#F97316] stroke-[1.8] drop-shadow-[0_2px_10px_rgba(249,115,22,0.6)]" />
-                          <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F97316] opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-[#F97316] border-2 border-[#081621]"></span>
-                          </span>
-                        </div>
+                    <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-gray-50/50 rounded-xl select-none">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-[#081621] flex items-center justify-center shadow-md relative mb-3">
+                        <Package size={36} className="text-[#F97316] stroke-[1.75]" />
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#F97316] ring-2 ring-white" />
                       </div>
-
-                      {/* Brand Badge */}
-                      <div className="relative z-10 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F97316]/15 border border-[#F97316]/40 text-[#F97316] text-[11px] font-black tracking-wider uppercase mb-2 shadow-xs">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#F97316]" />
-                        <span>{product.brand ? product.brand : 'ORIGINAL PRODUCT'}</span>
-                      </div>
-
-                      {/* Title & Product Name */}
-                      <div className="relative z-10">
-                        <h4 className="text-white font-bold text-sm sm:text-base tracking-tight">
-                          Product Image Coming Soon
-                        </h4>
-                        <p className="text-gray-400 text-xs mt-1 max-w-[240px] mx-auto line-clamp-1 font-medium">
-                          {product.name}
-                        </p>
-                      </div>
-
-                      {/* Trust Badges */}
-                      <div className="relative z-10 mt-3 flex items-center gap-2 text-[11px] text-gray-300">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-black/40 border border-[#F97316]/30 text-orange-200 font-medium">
-                          <ShieldCheck size={12} className="text-[#F97316]" /> 100% Genuine
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-black/40 border border-white/10 text-gray-300 font-medium">
-                          {product.category || 'Tech Item'}
-                        </span>
-                      </div>
+                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        No Image Available
+                      </span>
                     </div>
                   );
                 }
@@ -1183,13 +1146,11 @@ export const ProductDetails: React.FC = () => {
               const hasError = !currentImg || imageErrorMap[selectedImage];
               if (hasError) {
                 return (
-                  <div className="w-72 h-72 sm:w-96 sm:h-96 flex flex-col items-center justify-center p-6 text-gray-400 bg-gradient-to-br from-[#081621] via-[#0d1f30] to-[#050c12] rounded-2xl border border-[#F97316]/30 select-none shadow-2xl relative overflow-hidden">
-                    <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-[#F97316]/20 blur-3xl pointer-events-none" />
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#122436] to-[#081621] border-2 border-[#F97316]/50 flex items-center justify-center shadow-lg mb-3">
-                      <Package size={42} className="text-[#F97316] stroke-[1.8]" />
+                  <div className="w-64 h-64 flex flex-col items-center justify-center p-6 bg-white/5 rounded-2xl border border-white/10 select-none">
+                    <div className="w-16 h-16 rounded-2xl bg-[#081621] border border-[#F97316]/40 flex items-center justify-center mb-3">
+                      <Package size={32} className="text-[#F97316]" />
                     </div>
-                    <span className="text-sm font-bold text-white tracking-wide">Image Preview Coming Soon</span>
-                    <span className="text-xs text-[#F97316] mt-1 font-semibold">{product.brand || 'Original Product'}</span>
+                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">No Image Available</span>
                   </div>
                 );
               }
