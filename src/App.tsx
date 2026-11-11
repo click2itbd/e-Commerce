@@ -126,7 +126,8 @@ export default function App() {
                   <Route path="/ssl" element={<Navigate to="/" replace />} />
 
                   {/* --- E-COMMERCE ROUTES --- */}
-                  <Route path="/shop" element={<Navigate to="/" replace />} />
+                  <Route path="/shop" element={<LazyWrapper><CategoryPage /></LazyWrapper>} />
+                  <Route path="/products" element={<Navigate to="/shop" replace />} />
                   <Route path="/deals" element={<LazyWrapper><CampaignLanding /></LazyWrapper>} />
                   <Route path="/projects" element={<LazyWrapper><Projects /></LazyWrapper>} />
                   <Route path="/product/:id" element={<LazyWrapper><ProductDetails /></LazyWrapper>} />

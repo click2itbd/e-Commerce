@@ -178,6 +178,8 @@ export const CategoryPage: React.FC = () => {
         if (p.subSubCategory) items.add(p.subSubCategory);
       } else if (categorySlug) {
         if (p.subCategory) items.add(p.subCategory);
+      } else {
+        if (p.category) items.add(p.category);
       }
     });
     return Array.from(items).sort();
@@ -273,9 +275,11 @@ export const CategoryPage: React.FC = () => {
 
   const CategoryIcon = categoryInfo?.icon || LayoutGrid;
 
-  const activeName = (subSubCategorySlug || subCategorySlug || categorySlug || 'Products').replace(/-/g, ' ');
-  const formattedCategoryName = activeName.charAt(0).toUpperCase() + activeName.slice(1);
-  const canonicalCategoryUrl = `https://click2itbd.com/category/${categorySlug}${subCategorySlug ? `/${subCategorySlug}` : ''}${subSubCategorySlug ? `/${subSubCategorySlug}` : ''}`;
+  const activeName = (subSubCategorySlug || subCategorySlug || categorySlug || 'All Products').replace(/-/g, ' ');
+  const formattedCategoryName = activeName === 'All Products' ? 'All Products' : activeName.charAt(0).toUpperCase() + activeName.slice(1);
+  const canonicalCategoryUrl = categorySlug 
+    ? `https://click2itbd.com/category/${categorySlug}${subCategorySlug ? `/${subCategorySlug}` : ''}${subSubCategorySlug ? `/${subSubCategorySlug}` : ''}`
+    : 'https://click2itbd.com/shop';
 
   const categoryBreadcrumbsSchema = {
     '@context': 'https://schema.org',
@@ -290,8 +294,8 @@ export const CategoryPage: React.FC = () => {
       {
         '@type': 'ListItem',
         position: 2,
-        name: (categorySlug || 'Category').replace(/-/g, ' '),
-        item: `https://click2itbd.com/category/${categorySlug}`
+        name: categorySlug ? categorySlug.replace(/-/g, ' ') : 'All Products',
+        item: categorySlug ? `https://click2itbd.com/category/${categorySlug}` : 'https://click2itbd.com/shop'
       },
       ...(subCategorySlug ? [{
         '@type': 'ListItem',
@@ -311,9 +315,13 @@ export const CategoryPage: React.FC = () => {
   return (
     <Layout>
       <SEO
-        title={`${formattedCategoryName} Price in Bangladesh | CLICK2IT`}
-        description={`Explore genuine ${formattedCategoryName} at best price in Bangladesh from CLICK2IT. Check official warranty, authentic specs, user reviews, and fast delivery.`}
-        keywords={`${activeName}, ${activeName} price in bd, buy ${activeName} bangladesh, click2it shop`}
+        title={categorySlug ? `${formattedCategoryName} Price in Bangladesh | CLICK2IT` : `All Products - Shop Online in Bangladesh | CLICK2IT`}
+        description={categorySlug
+          ? `Explore genuine ${formattedCategoryName} at best price in Bangladesh from CLICK2IT. Check official warranty, authentic specs, user reviews, and fast delivery.`
+          : `Browse our full catalog of computers, laptops, PC components, and accessories at the best prices in Bangladesh from CLICK2IT with official warranty and fast delivery.`}
+        keywords={categorySlug
+          ? `${activeName}, ${activeName} price in bd, buy ${activeName} bangladesh, click2it shop`
+          : `all products, computers, laptops, accessories, buy online bangladesh, click2it shop`}
         canonical={canonicalCategoryUrl}
         schema={[categoryBreadcrumbsSchema]}
       />
@@ -325,6 +333,12 @@ export const CategoryPage: React.FC = () => {
             <Link to="/" className="hover:text-[#F97316] transition-colors">
               Home
             </Link>
+            {!categorySlug && (
+              <>
+                <ChevronRight size={14} className="text-gray-400 shrink-0" />
+                <span className="text-[#081621] font-bold">All Products</span>
+              </>
+            )}
             {categorySlug && (
               <>
                 <ChevronRight size={14} className="text-gray-400 shrink-0" />
@@ -404,7 +418,7 @@ export const CategoryPage: React.FC = () => {
                         {availableSubCategories.map(sub => (
                           <Link 
                             key={sub} 
-                            to={`/category/${categorySlug}${subCategorySlug ? `/${subCategorySlug}/${sub}` : `/${sub}`}`}
+                            to={categorySlug ? `/category/${categorySlug}${subCategorySlug ? `/${subCategorySlug}/${sub}` : `/${sub}`}` : `/category/${encodeURIComponent(sub.toLowerCase().replace(/\s+/g, '-'))}`}
                             className="block text-[13px] text-gray-600 hover:text-[#F97316] hover:bg-orange-50 px-2 py-1.5 rounded transition-colors truncate"
                           >
                             {sub.replace(/-/g, ' ')}
@@ -539,7 +553,7 @@ export const CategoryPage: React.FC = () => {
                     type="text" 
                     value={categorySearch}
                     onChange={(e) => setCategorySearch(e.target.value)}
-                    placeholder="Search in this category..."
+                    placeholder={categorySlug ? "Search in this category..." : "Search in all products..."}
                     className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded text-[13px] focus:border-[#F97316] focus:ring-0 outline-none transition-all"
                   />
                   <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>

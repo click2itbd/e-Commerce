@@ -38,6 +38,7 @@ async function generate() {
   // 1. Static Core Storefront Pages
   const staticPages = [
     { loc: '/', priority: '1.0', changefreq: 'daily' },
+    { loc: '/shop', priority: '0.9', changefreq: 'daily' },
     { loc: '/deals', priority: '0.9', changefreq: 'daily' },
     { loc: '/pc-build', priority: '0.9', changefreq: 'weekly' },
     { loc: '/projects', priority: '0.8', changefreq: 'weekly' },
