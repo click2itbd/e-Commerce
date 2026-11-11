@@ -322,21 +322,49 @@ export const CategoryPage: React.FC = () => {
           
           {/* Breadcrumbs */}
           <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-[13px] text-gray-500 mb-4 sm:mb-6 font-medium min-w-0 overflow-x-auto whitespace-nowrap">
-            <span className="hover:text-[#F97316] cursor-pointer transition-colors">Home</span>
-            <ChevronRight size={14} className="text-gray-400" />
-            <span className="capitalize hover:text-[#F97316] cursor-pointer transition-colors">{categorySlug?.replace(/-/g, ' ')}</span>
+            <Link to="/" className="hover:text-[#F97316] transition-colors">
+              Home
+            </Link>
+            {categorySlug && (
+              <>
+                <ChevronRight size={14} className="text-gray-400 shrink-0" />
+                {subCategorySlug ? (
+                  <Link
+                    to={`/category/${categorySlug}`}
+                    className="capitalize hover:text-[#F97316] transition-colors"
+                  >
+                    {categorySlug.replace(/-/g, ' ')}
+                  </Link>
+                ) : (
+                  <span className="capitalize text-[#081621] font-bold">
+                    {categorySlug.replace(/-/g, ' ')}
+                  </span>
+                )}
+              </>
+            )}
             {subCategorySlug && (
               <>
-                <ChevronRight size={14} className="text-gray-400" />
-                <span className={cn("capitalize cursor-pointer transition-colors", subSubCategorySlug ? "hover:text-[#F97316]" : "text-[#081621] font-bold")}>
-                  <Link to={`/category/${categorySlug}/${subCategorySlug}`}>{subCategorySlug.replace(/-/g, ' ')}</Link>
-                </span>
+                <ChevronRight size={14} className="text-gray-400 shrink-0" />
+                {subSubCategorySlug ? (
+                  <Link
+                    to={`/category/${categorySlug}/${subCategorySlug}`}
+                    className="capitalize hover:text-[#F97316] transition-colors"
+                  >
+                    {subCategorySlug.replace(/-/g, ' ')}
+                  </Link>
+                ) : (
+                  <span className="capitalize text-[#081621] font-bold">
+                    {subCategorySlug.replace(/-/g, ' ')}
+                  </span>
+                )}
               </>
             )}
             {subSubCategorySlug && (
               <>
-                <ChevronRight size={14} className="text-gray-400" />
-                <span className="capitalize text-[#081621] font-bold">{subSubCategorySlug.replace(/-/g, ' ')}</span>
+                <ChevronRight size={14} className="text-gray-400 shrink-0" />
+                <span className="capitalize text-[#081621] font-bold">
+                  {subSubCategorySlug.replace(/-/g, ' ')}
+                </span>
               </>
             )}
           </div>

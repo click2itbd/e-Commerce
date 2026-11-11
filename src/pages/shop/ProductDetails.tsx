@@ -392,16 +392,34 @@ export const ProductDetails: React.FC = () => {
       <div className="container mx-auto px-2 sm:px-4 py-4 md:py-6 bg-white md:bg-transparent">
         
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
-          <Link to="/" className="hover:text-[#F97316]">Home</Link>
-          <ChevronRight size={14} />
-          <Link to={`/category/${product.category.toLowerCase()}`} className="hover:text-[#F97316] capitalize">{product.category}</Link>
-          {product.brand && (
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 mb-4 sm:mb-6 flex-wrap">
+          <Link to="/" className="hover:text-[#F97316] transition-colors">Home</Link>
+          {product.category && (
             <>
-              <ChevronRight size={14} />
-              <span className="text-gray-800">{product.brand}</span>
+              <ChevronRight size={14} className="text-gray-400 shrink-0" />
+              <Link to={`/category/${product.category.toLowerCase().replace(/\s+/g, '-')}`} className="hover:text-[#F97316] capitalize transition-colors">
+                {product.category}
+              </Link>
             </>
           )}
+          {product.subCategory && (
+            <>
+              <ChevronRight size={14} className="text-gray-400 shrink-0" />
+              <Link to={`/category/${product.category?.toLowerCase().replace(/\s+/g, '-')}/${product.subCategory.toLowerCase().replace(/\s+/g, '-')}`} className="hover:text-[#F97316] capitalize transition-colors">
+                {product.subCategory}
+              </Link>
+            </>
+          )}
+          {product.brand && (
+            <>
+              <ChevronRight size={14} className="text-gray-400 shrink-0" />
+              <Link to={`/brands?brand=${encodeURIComponent(product.brand)}`} className="text-gray-700 hover:text-[#F97316] transition-colors">
+                {product.brand}
+              </Link>
+            </>
+          )}
+          <ChevronRight size={14} className="text-gray-400 shrink-0" />
+          <span className="text-[#081621] font-bold truncate max-w-[200px] sm:max-w-none">{product.name}</span>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 bg-white p-0 md:p-6 rounded-none md:rounded-2xl">
