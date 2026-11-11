@@ -122,18 +122,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           </Link>
           
           <div className="mt-auto">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-lg text-[#F97316]">
+            <div className="flex items-center justify-between gap-1.5 mb-4">
+              <div className="flex items-baseline gap-1.5 min-w-0 flex-wrap">
+                <span className="font-bold text-base sm:text-lg text-[#F97316] whitespace-nowrap">
                   {formatCurrency(product.discountPrice || product.price)}
                 </span>
                 {product.discountPrice && product.discountPrice < product.price && (
-                  <span className="text-xs text-gray-400 line-through font-semibold">
+                  <span className="text-xs text-gray-400 line-through font-semibold whitespace-nowrap">
                     {formatCurrency(product.price)}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">{product.category}</span>
+              <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider truncate shrink-0 max-w-[80px] text-right" title={product.category}>
+                {product.category}
+              </span>
             </div>
             
             <button

@@ -27,9 +27,9 @@ export function formatCurrency(amount: number, settings?: any) {
   }
   
   if (isAfter) {
-    return `${formatted} ${code}`;
+    return `${formatted}\u00A0${code}`;
   }
-  return `${code} ${formatted}`;
+  return `${code}\u00A0${formatted}`;
 }
 
 
