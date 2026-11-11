@@ -255,13 +255,13 @@ export const EcommerceNavbar: React.FC = () => {
             )}
             
             {/* CLICK2IT BD Brand Text with Subtle Luxury Light Sheen */}
-            <div className="relative inline-flex items-center overflow-hidden py-1 px-1 rounded select-none font-black leading-none text-[15px] xs:text-[17px] sm:text-[19px] tracking-tight">
+            <div className="relative inline-flex items-center overflow-hidden py-1 px-1 rounded select-none font-black leading-none text-[18px] xs:text-[20px] sm:text-[22px] md:text-[24px] tracking-tight">
               <span className="text-white tracking-wider font-black">CLICK</span>
-              <span className="text-[#0080FF] font-black not-italic px-0.5 text-[18px] xs:text-[20px] sm:text-[23px]">
+              <span className="text-[#0080FF] font-black not-italic px-0.5">
                 2
               </span>
               <span className="text-white tracking-wider font-black">IT</span>
-              <span className="ml-1 text-white/95 tracking-widest font-black text-[12px] xs:text-[13px] sm:text-[15px]">
+              <span className="ml-1.5 text-white tracking-wider font-black">
                 BD
               </span>
 
