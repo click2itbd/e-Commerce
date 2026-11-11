@@ -71,3 +71,19 @@ body {
   animation: fadeInUp 0.5s ease-out forwards;
 }
 
+@keyframes sheenSweep {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  22% {
+    transform: translateX(250%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(250%) skewX(-20deg);
+  }
+}
+
+.animate-sheen-sweep {
+  animation: sheenSweep 4.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+

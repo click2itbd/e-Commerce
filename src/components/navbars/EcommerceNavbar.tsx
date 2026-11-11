@@ -254,53 +254,23 @@ export const EcommerceNavbar: React.FC = () => {
               <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-8 sm:h-9 md:h-11 w-auto max-w-[110px] sm:max-w-[150px] object-contain transition-transform duration-300 group-hover:scale-105" />
             )}
             
-            {/* CLICK2IT BD Brand Text with Framer Motion Stagger Wave Animation */}
-            <motion.div 
-              className="flex items-center tracking-tight font-black select-none text-[15px] xs:text-[17px] sm:text-[19px] leading-none"
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              transition={{ type: "spring", stiffness: 400, damping: 20 }}
-            >
-              <motion.span 
-                animate={{ y: [0, -2, 0], opacity: [0.95, 1, 0.95] }}
-                transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                className="text-white tracking-wider font-black"
-              >
-                CLICK
-              </motion.span>
-
-              <motion.span
-                animate={{ 
-                  scale: [1, 1.15, 1],
-                  y: [0, -3.5, 0],
-                }}
-                transition={{ 
-                  duration: 2.8, 
-                  repeat: Infinity, 
-                  ease: "easeInOut",
-                  delay: 0.2 
-                }}
-                className="inline-block text-[#0080FF] font-black not-italic px-0.5 text-[18px] xs:text-[20px] sm:text-[23px]"
-              >
+            {/* CLICK2IT BD Brand Text with Subtle Luxury Light Sheen */}
+            <div className="relative inline-flex items-center overflow-hidden py-1 px-1 rounded select-none font-black leading-none text-[15px] xs:text-[17px] sm:text-[19px] tracking-tight">
+              <span className="text-white tracking-wider font-black">CLICK</span>
+              <span className="text-[#0080FF] font-black not-italic px-0.5 text-[18px] xs:text-[20px] sm:text-[23px]">
                 2
-              </motion.span>
-
-              <motion.span 
-                animate={{ y: [0, -2, 0], opacity: [0.95, 1, 0.95] }}
-                transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
-                className="text-white tracking-wider font-black"
-              >
-                IT
-              </motion.span>
-
-              <motion.span 
-                animate={{ scale: [1, 1.08, 1], opacity: [0.9, 1, 0.9] }}
-                transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
-                className="ml-1 text-white/95 tracking-widest font-black text-[12px] xs:text-[13px] sm:text-[15px]"
-              >
+              </span>
+              <span className="text-white tracking-wider font-black">IT</span>
+              <span className="ml-1 text-white/95 tracking-widest font-black text-[12px] xs:text-[13px] sm:text-[15px]">
                 BD
-              </motion.span>
-            </motion.div>
+              </span>
+
+              {/* Gloss Light Reflection Sheen (sweeps gently every 4.5s) */}
+              <div 
+                aria-hidden="true" 
+                className="pointer-events-none absolute inset-0 -translate-x-full animate-sheen-sweep bg-gradient-to-r from-transparent via-white/35 to-transparent w-full"
+              />
+            </div>
           </Link>
 
           {/* Search Bar */}
