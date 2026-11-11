@@ -71,19 +71,3 @@ body {
   animation: fadeInUp 0.5s ease-out forwards;
 }
 
-@keyframes brandPulseGlow {
-  0%, 100% {
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.35)) drop-shadow(0 0 6px rgba(0, 112, 243, 0.45));
-    transform: scale(1);
-  }
-  50% {
-    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.85)) drop-shadow(0 0 13px rgba(56, 189, 248, 0.95)) drop-shadow(0 0 20px rgba(0, 112, 243, 0.65));
-    transform: scale(1.025);
-  }
-}
-
-.animate-brand-glow {
-  display: inline-flex;
-  animation: brandPulseGlow 2.6s ease-in-out infinite;
-}
-
