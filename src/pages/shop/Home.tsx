@@ -276,11 +276,30 @@ export const Home: React.FC = () => {
             ))}
           </div>
         ) : products.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-6">
-            {products.slice(0, 16).map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-6">
+              {products.slice(0, 16).map((product, idx) => (
+                <div
+                  key={product.id}
+                  className={`flex flex-col h-full ${idx >= 8 ? 'hidden sm:flex' : 'flex'}`}
+                >
+                  <ProductCard product={product} />
+                </div>
+              ))}
+            </div>
+
+            {products.length > 8 && (
+              <div className="mt-8 flex justify-center sm:hidden">
+                <Link
+                  to="/shop"
+                  className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-full bg-white border border-gray-200 text-xs font-bold text-[#081621] shadow-xs active:scale-95 transition-all hover:bg-gray-50 hover:border-orange-400 hover:text-orange-600"
+                >
+                  <span>See All Products</span>
+                  <ChevronRight size={14} className="text-[#F97316]" />
+                </Link>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-12 bg-white rounded-lg shadow-sm">
             <p className="text-gray-500">
