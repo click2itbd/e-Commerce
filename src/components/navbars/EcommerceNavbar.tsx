@@ -396,7 +396,7 @@ export const EcommerceNavbar: React.FC = () => {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 sm:gap-6">
             
             <Link to="/pre-book" className="relative text-[#F97316] hover:text-[#e06612] transition-colors hidden lg:flex items-center gap-1.5" title="Pre-Book a Product">
                 <CalendarDays size={24} />
@@ -441,17 +441,17 @@ export const EcommerceNavbar: React.FC = () => {
               </Link>
             )}
             {user ? (
-              <div className="flex items-center gap-5 ml-2">
-                <Link to="/profile" className="text-white hover:text-[#F97316] transition-colors hidden lg:flex">
+              <div className="hidden lg:flex items-center gap-5 ml-2">
+                <Link to="/profile" className="text-white hover:text-[#F97316] transition-colors">
                   <User size={24} />
                 </Link>
-                <button onClick={handleLogout} className="text-white hover:text-[#EF4444] transition-colors hidden lg:flex">
+                <button onClick={handleLogout} className="text-white hover:text-[#EF4444] transition-colors">
                   <LogOut size={24} />
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-5 ml-2">
-                <Link to="/login" className="text-white hover:text-[#F97316] transition-colors hidden lg:flex">
+              <div className="hidden lg:flex items-center gap-5 ml-2">
+                <Link to="/login" className="text-white hover:text-[#F97316] transition-colors">
                   <User size={24} />
                 </Link>
               </div>
