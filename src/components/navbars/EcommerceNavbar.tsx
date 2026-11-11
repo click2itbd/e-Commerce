@@ -246,12 +246,24 @@ export const EcommerceNavbar: React.FC = () => {
       <div className="w-full max-w-[1440px] mx-auto px-2 sm:px-4 md:px-[50px]">
         <div className="flex py-3 items-center justify-between gap-2 sm:gap-4">
           {/* Logo */}
-          <Link to="/shop" className="flex items-center gap-2 shrink-0">
+          <Link to="/" className="flex items-center gap-2 sm:gap-2.5 shrink-0 group">
             {settings.logoUrl ? (
-              <img src={settings.logoUrl} alt={settings.brandName} className="h-10 w-auto max-w-[135px] sm:max-w-[180px]" referrerPolicy="no-referrer" />
+              <img src={settings.logoUrl} alt={settings.brandName} className="h-9 sm:h-10 w-auto max-w-[135px] sm:max-w-[180px]" referrerPolicy="no-referrer" />
             ) : (
-              <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-10 md:h-12 w-auto max-w-[135px] sm:max-w-[180px] object-contain" />
+              <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-8 sm:h-9 md:h-11 w-auto max-w-[110px] sm:max-w-[150px] object-contain transition-transform duration-300 group-hover:scale-105" />
             )}
+            
+            {/* CLICK2IT BD Brand Text with Animated Blue 2 */}
+            <div className="flex items-center tracking-tight font-black select-none text-[15px] xs:text-[17px] sm:text-[19px] leading-none">
+              <span className="text-white tracking-wider font-black">CLICK</span>
+              <span className="inline-block text-transparent bg-clip-text bg-gradient-to-b from-[#38bdf8] via-[#0070F3] to-[#003888] font-black italic px-0.5 text-[18px] xs:text-[20px] sm:text-[23px] animate-logo-glow">
+                2
+              </span>
+              <span className="text-white tracking-wider font-black">IT</span>
+              <span className="ml-1 text-white/95 tracking-widest font-black text-[12px] xs:text-[13px] sm:text-[15px]">
+                BD
+              </span>
+            </div>
           </Link>
 
           {/* Search Bar */}
