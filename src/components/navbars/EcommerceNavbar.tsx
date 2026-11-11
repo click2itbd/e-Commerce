@@ -253,10 +253,10 @@ export const EcommerceNavbar: React.FC = () => {
               <img src="/logo.png" alt={settings.brandName || "Click2IT BD"} className="h-8 sm:h-9 md:h-11 w-auto max-w-[110px] sm:max-w-[150px] object-contain transition-transform duration-300 group-hover:scale-105" />
             )}
             
-            {/* CLICK2IT BD Brand Text with Animated Blue 2 */}
-            <div className="flex items-center tracking-tight font-black select-none text-[15px] xs:text-[17px] sm:text-[19px] leading-none">
+            {/* CLICK2IT BD Brand Text with Animated Glow across full text and straight Blue 2 */}
+            <div className="flex items-center tracking-tight font-black select-none text-[15px] xs:text-[17px] sm:text-[19px] leading-none animate-brand-glow">
               <span className="text-white tracking-wider font-black">CLICK</span>
-              <span className="inline-block text-transparent bg-clip-text bg-gradient-to-b from-[#38bdf8] via-[#0070F3] to-[#003888] font-black italic px-0.5 text-[18px] xs:text-[20px] sm:text-[23px] animate-logo-glow">
+              <span className="inline-block text-transparent bg-clip-text bg-gradient-to-b from-[#38bdf8] via-[#0070F3] to-[#003888] font-black not-italic px-0.5 text-[18px] xs:text-[20px] sm:text-[23px]">
                 2
               </span>
               <span className="text-white tracking-wider font-black">IT</span>
