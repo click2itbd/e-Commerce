@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc, setDoc, where, increment } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc, setDoc, where, increment, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../../../../firebase';
 import { Product, Vendor, Transaction, SiteSettings, PaymentAccount } from '../../../../types';
@@ -14,7 +14,7 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { logAudit } from '../../../../lib/audit';
 import { moveToTrash } from '../../../../lib/trash';
-import { sanitizePublicProductData, saveProductPrivateCost } from '../../../../lib/productCosts';
+import { sanitizePublicProductData, saveProductPrivateCost, addProductPrivateCostToBatch } from '../../../../lib/productCosts';
 import { PreparedBySelect } from '../../../../components/common/PreparedBySelect';
 import {
   Edit2,
@@ -985,6 +985,8 @@ const Purchases: React.FC<PurchasesProps> = ({
       let finalDocNumber = purchaseForm.documentNumber || '';
       let finalCreatedAt = new Date().toISOString();
 
+      const batch = writeBatch(db);
+
       if (purchaseForm.id) {
          // REVERT OLD PURCHASE
          const oldPur = purchaseHistory.find((p: any) => p.id === purchaseForm.id);
@@ -996,8 +998,8 @@ const Purchases: React.FC<PurchasesProps> = ({
                 const pData = products.find((p: any) => p.id === item.id);
                 if (pData) {
                     const qtyToRevert = Number(item.quantity) || 0;
-const revertedStock = Math.max(0, (Number(pData.stock) || 0) - qtyToRevert);
-await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
+                    const revertedStock = Math.max(0, (Number(pData.stock) || 0) - qtyToRevert);
+                    batch.update(prodRef, { stock: increment(-qtyToRevert) });
                     // IMPORTANT: Update local state so the adding logic later uses the reverted stock!
                     pData.stock = revertedStock;
                 }
@@ -1013,8 +1015,8 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
            const snap3 = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', purchaseForm.documentNumber)));
            snap3.docs.forEach(d => txToDelete.set(d.id, d.ref));
          }
-         await Promise.all(Array.from(txToDelete.values()).map(ref => deleteDoc(ref)));
-         // We will overwrite the purchase doc using setDoc later
+         txToDelete.forEach(ref => batch.delete(ref));
+         // We will overwrite the purchase doc using batch.set later
       } else {
          finalDocNumber = await generateDocumentNumber('PUR');
       }
@@ -1024,14 +1026,13 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
       const paymentStatus: 'paid' | 'partial' | 'unpaid' =
         paid >= billTotal ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
 
-      // 1. Update Product Inventory & Stock & Cost Price
+      // 1. Prepare Product Inventory & Stock & Cost Price
       const updatedItems = [...purchaseForm.items];
       
       const totalQuantity = updatedItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
       const totalShippingCost = Number(purchaseForm.shippingCost) || 0;
       const totalDiscount = Number(purchaseForm.discountAmount) || 0;
       const netPerUnitAdjustment = totalQuantity > 0 ? (totalShippingCost - totalDiscount) / totalQuantity : 0;
-      
       
       // Map to hold newly created/updated products within this transaction
       const localProductsMap = new Map<string, any>();
@@ -1114,8 +1115,8 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
           }
 
           const { publicData, privateCostData } = sanitizePublicProductData(updates, true);
-          await updateDoc(productRef, publicData);
-          await saveProductPrivateCost(currentProduct.id, privateCostData);
+          batch.update(productRef, publicData);
+          addProductPrivateCostToBatch(batch, currentProduct.id, privateCostData);
           
           currentProduct.stock = totalStock;
           currentProduct.costPrice = averageCostPrice;
@@ -1144,7 +1145,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
              stock: Number(item.quantity) || 0,
              hasWarranty: Boolean(item.hasWarranty),
              warrantyMonths: item.hasWarranty ? itemWarrantyMonths(item) : 0,
-                     warrantyUnit: item.warrantyUnit || 'years',
+             warrantyUnit: item.warrantyUnit || 'years',
              hasSerialTracking: Boolean(item.hasSerialTracking || (addedSerials && addedSerials.length > 0)),
              availableSerials: addedSerials,
              createdAt: new Date().toISOString()
@@ -1160,9 +1161,10 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
              }];
           }
           
+          const docRef = doc(collection(db, 'products'));
           const { publicData, privateCostData } = sanitizePublicProductData(newProductData, false);
-          const docRef = await addDoc(collection(db, 'products'), publicData);
-          await saveProductPrivateCost(docRef.id, privateCostData);
+          batch.set(docRef, publicData);
+          addProductPrivateCostToBatch(batch, docRef.id, privateCostData);
           newProductData.id = docRef.id;
           localProductsMap.set(docRef.id, newProductData);
           updatedItems[i].id = docRef.id;
@@ -1205,17 +1207,13 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
         createdBy: purchaseForm.createdBy || 'Admin',
       };
 
-      let purchaseDocRef;
-      if (purchaseForm.id) {
-          await setDoc(doc(db, 'purchases', purchaseForm.id), purchaseRecord);
-          purchaseDocRef = { id: purchaseForm.id };
-      } else {
-          purchaseDocRef = await addDoc(collection(db, 'purchases'), purchaseRecord);
-      }
+      const purchaseDocRef = purchaseForm.id ? doc(db, 'purchases', purchaseForm.id) : doc(collection(db, 'purchases'));
+      batch.set(purchaseDocRef, purchaseRecord);
 
       // 3. Record Outflow in Firestore `transactions`
       // Always record the full purchase amount to update the vendor ledger (Payable)
-      await addDoc(collection(db, 'transactions'), {
+      const purchaseTxRef = doc(collection(db, 'transactions'));
+      batch.set(purchaseTxRef, {
         type: 'purchase',
         amount: billTotal,
         date: new Date(purchaseForm.date).toISOString(),
@@ -1231,41 +1229,46 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
         createdBy: purchaseForm.createdBy || 'Admin',
       });
 
-      // If any amount was paid, record the payment transaction or register cheque
-      if (paid > 0) {
-        if (purchaseForm.isChequePayment) {
-          await issueCheque({
-            chequeNumber: purchaseForm.chequeNumber || `CK-${Date.now().toString().slice(-6)}`,
-            amount: paid,
-            bankAccountId: selectedAcc?.id || '',
-            bankAccountName: selectedAcc?.name || 'Bank',
-            bankName: (selectedAcc as any)?.bankName || selectedAcc?.name || 'Bank',
-            vendorId: purchaseForm.vendorId,
-            vendorName: purchaseForm.vendorName,
-            payeeName: purchaseForm.vendorName,
-            issueDate: purchaseForm.date,
-            clearingDate: purchaseForm.chequeClearingDate || purchaseForm.date,
-            purchaseId: purchaseDocRef.id,
-            purchaseNumber: docNumber,
-            notes: purchaseForm.notes,
-            user: purchaseForm.createdBy || 'Admin',
-          });
-        } else {
-          await addDoc(collection(db, 'transactions'), {
-            type: 'payment_made',
-            amount: paid,
-            date: new Date(purchaseForm.date).toISOString(),
-            description: `Payment for Purchase #${docNumber}`,
-            entityId: purchaseForm.vendorId,
-            entityName: purchaseForm.vendorName,
-            entityType: 'vendor',
-            referenceId: purchaseDocRef.id,
-            documentNumber: docNumber,
-            paymentAccountId: selectedAcc?.id || '',
-            paymentMethod: selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash',
-            createdAt: new Date().toISOString(),
-          });
-        }
+      // If any amount was paid, record the payment transaction
+      if (paid > 0 && !purchaseForm.isChequePayment) {
+        const payTxRef = doc(collection(db, 'transactions'));
+        batch.set(payTxRef, {
+          type: 'payment_made',
+          amount: paid,
+          date: new Date(purchaseForm.date).toISOString(),
+          description: `Payment for Purchase #${docNumber}`,
+          entityId: purchaseForm.vendorId,
+          entityName: purchaseForm.vendorName,
+          entityType: 'vendor',
+          referenceId: purchaseDocRef.id,
+          documentNumber: docNumber,
+          paymentAccountId: selectedAcc?.id || '',
+          paymentMethod: selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash',
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      // ATOMICALLY COMMIT ALL DATABASE OPERATIONS
+      await batch.commit();
+
+      // If cheque payment, issue cheque after successful batch commit
+      if (paid > 0 && purchaseForm.isChequePayment) {
+        await issueCheque({
+          chequeNumber: purchaseForm.chequeNumber || `CK-${Date.now().toString().slice(-6)}`,
+          amount: paid,
+          bankAccountId: selectedAcc?.id || '',
+          bankAccountName: selectedAcc?.name || 'Bank',
+          bankName: (selectedAcc as any)?.bankName || selectedAcc?.name || 'Bank',
+          vendorId: purchaseForm.vendorId,
+          vendorName: purchaseForm.vendorName,
+          payeeName: purchaseForm.vendorName,
+          issueDate: purchaseForm.date,
+          clearingDate: purchaseForm.chequeClearingDate || purchaseForm.date,
+          purchaseId: purchaseDocRef.id,
+          purchaseNumber: docNumber,
+          notes: purchaseForm.notes,
+          user: purchaseForm.createdBy || 'Admin',
+        });
       }
 
       toast.success(`Purchase #${docNumber} recorded & inventory restocked successfully!`);
