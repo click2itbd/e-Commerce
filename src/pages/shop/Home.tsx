@@ -8,6 +8,7 @@ import { Layout } from "../../components/Layout";
 import { HeroBanner } from "../../components/HeroBanner";
 import {
   ChevronRight,
+  ChevronDown,
   Laptop,
   Cpu,
   Monitor,
@@ -58,6 +59,7 @@ const getPlaceholder = (slug: string) => {
 export const Home: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [showAllMobileCategories, setShowAllMobileCategories] = useState(false);
   const [pcBuilderBanner, setPcBuilderBanner] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const { settings } = useSettings();
@@ -190,29 +192,45 @@ export const Home: React.FC = () => {
           </h2>
         </div>
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-x-4 gap-y-10">
-          {categories.map((cat) => (
-            <Link
-              key={cat.id || cat.name}
-              to={cat.parentSlug ? `/category/${cat.parentSlug}/${cat.slug}` : `/category/${cat.slug}`}
-              className="flex flex-col items-center justify-start gap-3 group cursor-pointer"
-            >
-              <div className="h-20 w-20 md:h-24 md:w-24 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-                <img
-                  src={cat.imageUrl || getPlaceholder(cat.slug)}
-                  alt={cat.name}
-                  className="max-h-full max-w-full object-contain mix-blend-multiply contrast-125 brightness-110"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = getPlaceholder(cat.slug);
-                  }}
-                />
-              </div>
-              <span className="font-medium text-gray-800 text-xs md:text-[14px] text-center leading-tight group-hover:text-orange-500 transition-colors px-1">
-                {cat.name}
-              </span>
-            </Link>
-          ))}
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-x-4 gap-y-8 sm:gap-y-10">
+          {categories.map((cat, idx) => {
+            const isHiddenOnMobile = !showAllMobileCategories && idx >= 6;
+            return (
+              <Link
+                key={cat.id || cat.name}
+                to={cat.parentSlug ? `/category/${cat.parentSlug}/${cat.slug}` : `/category/${cat.slug}`}
+                className={`${isHiddenOnMobile ? 'hidden sm:flex' : 'flex'} flex-col items-center justify-start gap-3 group cursor-pointer transition-all duration-300`}
+              >
+                <div className="h-20 w-20 md:h-24 md:w-24 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+                  <img
+                    src={cat.imageUrl || getPlaceholder(cat.slug)}
+                    alt={cat.name}
+                    className="max-h-full max-w-full object-contain mix-blend-multiply contrast-125 brightness-110"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = getPlaceholder(cat.slug);
+                    }}
+                  />
+                </div>
+                <span className="font-medium text-gray-800 text-xs md:text-[14px] text-center leading-tight group-hover:text-orange-500 transition-colors px-1">
+                  {cat.name}
+                </span>
+              </Link>
+            );
+          })}
         </div>
+
+        {categories.length > 6 && (
+          <div className="mt-8 flex justify-center sm:hidden">
+            <button
+              type="button"
+              onClick={() => setShowAllMobileCategories(!showAllMobileCategories)}
+              className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-full bg-white border border-gray-200 text-xs font-bold text-[#081621] shadow-xs active:scale-95 transition-all hover:bg-gray-50 hover:border-orange-400 hover:text-orange-600"
+            >
+              <span>{showAllMobileCategories ? 'Show Less' : `See All Categories (${categories.length})`}</span>
+              <ChevronDown size={14} className={`text-[#F97316] transition-transform duration-300 ${showAllMobileCategories ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Flash Sale */}
