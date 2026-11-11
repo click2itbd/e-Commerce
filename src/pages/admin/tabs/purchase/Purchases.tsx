@@ -1171,12 +1171,21 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
 
       // 2. Save Purchase Record to Firestore `purchases`
       const selectedAcc = paymentAccounts.find(a => a.id === purchaseForm.paymentAccountId);
-      const purchaseRecord: Omit<PurchaseRecord, 'id'> = {
+      
+      const sanitizedItems = updatedItems.map(item => {
+        const clean: any = {};
+        for (const [k, v] of Object.entries(item)) {
+          if (v !== undefined) clean[k] = v;
+        }
+        return clean;
+      });
+
+      const purchaseRecord: Record<string, any> = {
         documentNumber: docNumber,
-        vendorId: purchaseForm.vendorId,
-        vendorName: purchaseForm.vendorName,
+        vendorId: purchaseForm.vendorId || '',
+        vendorName: purchaseForm.vendorName || '',
         date: new Date(purchaseForm.date).toISOString(),
-        items: updatedItems,
+        items: sanitizedItems,
         subtotal: itemsSubtotal,
         discountAmount: totalDiscount,
         total: billTotal,
@@ -1186,7 +1195,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
         isChequePayment: Boolean(purchaseForm.isChequePayment),
         chequeNumber: purchaseForm.chequeNumber || '',
         chequeClearingDate: purchaseForm.chequeClearingDate || '',
-        chequeStatus: purchaseForm.isChequePayment ? 'pending' : undefined,
+        ...(purchaseForm.isChequePayment ? { chequeStatus: 'pending' } : {}),
         paymentAccountId: selectedAcc?.id || '',
         paymentMethod: purchaseForm.isChequePayment ? 'Bank Cheque (PDC)' : (selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash'),
         reference: purchaseForm.reference || '',
@@ -1278,7 +1287,7 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
             paidAmount: oldPurchaseRecord.paidAmount,
             dueAmount: oldPurchaseRecord.dueAmount,
             items: oldPurchaseRecord.items
-          } : undefined,
+          } : null,
           newState: {
             documentNumber: docNumber,
             vendorName: purchaseForm.vendorName,
@@ -1314,9 +1323,9 @@ await updateDoc(prodRef, { stock: increment(-qtyToRevert) });
 
       loadData();
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error recording purchase:', error);
-      toast.error('Failed to record purchase');
+      toast.error(error?.message || 'Failed to record purchase');
     } finally {
       setSubmitting(false);
     }
