@@ -118,6 +118,13 @@ async function generate() {
       <g:availability>${availability}</g:availability>
       <g:price>${price.toFixed(2)} BDT</g:price>
       <g:brand>${brand}</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>${escapeXml(p.category || 'Computer Hardware')}</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>${p.sku ? 'yes' : 'no'}</g:identifier_exists>
       ${p.sku ? `<g:mpn>${escapeXml(p.sku)}</g:mpn>` : ''}
     </item>`);
@@ -168,14 +175,34 @@ async function generate() {
     console.warn('⚠️ Could not fetch menus:', err.message);
   }
 
-  // 4. Fetch Brands
+  // 4. Fetch Brands (both store_brands and brands collections + curated)
   try {
-    const brandsSnap = await getDocs(collection(db, 'brands'));
-    let brandCount = 0;
-    brandsSnap.forEach(docSnap => {
-      const b = docSnap.data();
-      const bName = b.name || b.brandName || '';
-      if (!bName) return;
+    const brandNames = new Set();
+    
+    try {
+      const sbSnap = await getDocs(collection(db, 'store_brands'));
+      sbSnap.forEach(d => {
+        const name = d.data().name || d.data().brandName;
+        if (name) brandNames.add(name);
+      });
+    } catch {}
+
+    try {
+      const bSnap = await getDocs(collection(db, 'brands'));
+      bSnap.forEach(d => {
+        const name = d.data().name || d.data().brandName;
+        if (name) brandNames.add(name);
+      });
+    } catch {}
+
+    const curatedList = [
+      'Intel', 'AMD', 'ASUS', 'MSI', 'Gigabyte', 'KingSpec', 'Value-Top', 'Logitech',
+      'Corsair', 'Samsung', 'Kingston', 'TP-Link', 'HP', 'Dell', 'Hikvision', 'Dahua',
+      'Western Digital', 'A4Tech', 'Fantech', 'Razer', 'Lenovo', 'Acer'
+    ];
+    curatedList.forEach(c => brandNames.add(c));
+
+    brandNames.forEach(bName => {
       const bSlug = encodeURIComponent(bName.toLowerCase().trim());
       urls.push(`  <url>
     <loc>${BASE_URL}/brands?brand=${bSlug}</loc>
@@ -183,9 +210,8 @@ async function generate() {
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>`);
-      brandCount++;
     });
-    console.log(`✅ Added ${brandCount} brands to sitemap.`);
+    console.log(`✅ Added ${brandNames.size} brands to sitemap.`);
   } catch (err) {
     console.warn('⚠️ Could not fetch brands:', err.message);
   }

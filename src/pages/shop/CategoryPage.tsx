@@ -359,10 +359,24 @@ export const CategoryPage: React.FC = () => {
     ]
   };
 
+  const categoryItemListSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    'name': `${formattedCategoryName} Products in Bangladesh`,
+    'numberOfItems': sortedProducts.length,
+    'itemListElement': sortedProducts.slice(0, 12).map((p, idx) => ({
+      '@type': 'ListItem',
+      'position': idx + 1,
+      'name': p.name,
+      'url': `https://click2itbd.com/product/${p.id}`,
+      'image': p.imageUrl || (Array.isArray(p.images) && p.images[0]) || ''
+    }))
+  };
+
   return (
     <Layout>
       <SEO
-        title={categorySlug ? `${formattedCategoryName} Price in Bangladesh | CLICK2IT` : `All Products - Shop Online in Bangladesh | CLICK2IT`}
+        title={categorySlug ? `${formattedCategoryName} Price in Bangladesh 2026 | CLICK2IT` : `All Products - Shop Online in Bangladesh | CLICK2IT`}
         description={categorySlug
           ? `Explore genuine ${formattedCategoryName} at best price in Bangladesh from CLICK2IT. Check official warranty, authentic specs, user reviews, and fast delivery.`
           : `Browse our full catalog of computers, laptops, PC components, and accessories at the best prices in Bangladesh from CLICK2IT with official warranty and fast delivery.`}
@@ -370,7 +384,7 @@ export const CategoryPage: React.FC = () => {
           ? `${activeName}, ${activeName} price in bd, buy ${activeName} bangladesh, click2it shop`
           : `all products, computers, laptops, accessories, buy online bangladesh, click2it shop`}
         canonical={canonicalCategoryUrl}
-        schema={[categoryBreadcrumbsSchema]}
+        schema={[categoryBreadcrumbsSchema, categoryItemListSchema]}
       />
       <div className="bg-[#f8f9fa] min-h-screen pt-4 sm:pt-6 pb-20">
         <div className="w-full mx-auto">

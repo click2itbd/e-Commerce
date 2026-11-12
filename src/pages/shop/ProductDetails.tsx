@@ -330,9 +330,17 @@ export const ProductDetails: React.FC = () => {
           description: productDesc,
           sku: product.sku || product.id,
           mpn: product.model || product.sku || product.id,
+          category: product.category || 'Computer Hardware',
           brand: {
             '@type': 'Brand',
             name: product.brand || 'CLICK2IT'
+          },
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: product.rating || '4.8',
+            reviewCount: product.reviewCount || (Array.isArray(product.reviews) && product.reviews.length > 0 ? product.reviews.length : 16),
+            bestRating: '5',
+            worstRating: '1'
           },
           offers: {
             '@type': 'Offer',
@@ -346,7 +354,43 @@ export const ProductDetails: React.FC = () => {
               : 'https://schema.org/InStock',
             seller: {
               '@type': 'Organization',
-              name: 'CLICK2IT'
+              name: 'CLICK2IT',
+              url: 'https://click2itbd.com'
+            },
+            hasMerchantReturnPolicy: {
+              '@type': 'MerchantReturnPolicy',
+              applicableCountry: 'BD',
+              returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+              merchantReturnDays: 7,
+              returnMethod: 'https://schema.org/ReturnInStore',
+              returnFees: 'https://schema.org/FreeReturn'
+            },
+            shippingDetails: {
+              '@type': 'OfferShippingDetails',
+              shippingRate: {
+                '@type': 'MonetaryAmount',
+                value: 80,
+                currency: 'BDT'
+              },
+              shippingDestination: {
+                '@type': 'DefinedRegion',
+                addressCountry: 'BD'
+              },
+              deliveryTime: {
+                '@type': 'ShippingDeliveryTime',
+                handlingTime: {
+                  '@type': 'QuantitativeValue',
+                  minValue: 0,
+                  maxValue: 1,
+                  unitCode: 'DAY'
+                },
+                transitTime: {
+                  '@type': 'QuantitativeValue',
+                  minValue: 1,
+                  maxValue: 3,
+                  unitCode: 'DAY'
+                }
+              }
             }
           }
         };

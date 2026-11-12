@@ -52,12 +52,72 @@ const EMITerms = () => {
     );
   }, [searchBankQuery]);
 
+  const emiFaqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    'mainEntity': [
+      {
+        '@type': 'Question',
+        'name': 'What is the minimum purchase amount for Credit Card EMI at Click2IT?',
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': 'The minimum order value to avail of Credit Card EMI facility across our 16 partner banks is ৳ 5,000 (BDT).'
+        }
+      },
+      {
+        '@type': 'Question',
+        'name': 'Which banks are supported for EMI payment at Click2IT?',
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': 'We partner with 16 leading commercial banks in Bangladesh including Eastern Bank PLC (EBL), City Bank, Dutch-Bangla Bank (DBBL), BRAC Bank, Standard Chartered Bank (SCB), Mutual Trust Bank (MTB), Prime Bank, Dhaka Bank, Jamuna Bank, and more.'
+        }
+      },
+      {
+        '@type': 'Question',
+        'name': 'What tenure options are available for EMI?',
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': 'You can choose installment tenures of 3, 6, 9, 12, 18, 24, and up to 36 months depending on your bank and credit card plan.'
+        }
+      },
+      {
+        '@type': 'Question',
+        'name': 'How do I purchase online with Credit Card EMI?',
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': 'At checkout, select "Credit Card EMI", choose your bank and tenure to preview your monthly installment, then place your order and complete the transaction using your eligible credit card on the secure payment gateway.'
+        }
+      }
+    ]
+  };
+
+  const emiBreadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    'itemListElement': [
+      {
+        '@type': 'ListItem',
+        'position': 1,
+        'name': 'Home',
+        'item': 'https://click2itbd.com'
+      },
+      {
+        '@type': 'ListItem',
+        'position': 2,
+        'name': 'EMI Terms & Bank Plans',
+        'item': 'https://click2itbd.com/emi-terms'
+      }
+    ]
+  };
+
   return (
     <DynamicPolicyPage pageId="emi-terms" defaultTitle="EMI Terms & Conditions">
       <Layout fullWidth>
         <SEO
-          title={`Credit Card EMI Terms & Partner Bank Charges - ${brandName}`}
-          description={`Comprehensive Credit Card EMI plans, interest and processing fee chart for 16 major commercial banks across Bangladesh at ${brandName}.`}
+          title={`Credit Card EMI Terms & 16 Partner Bank Plans - ${brandName}`}
+          description={`Comprehensive Credit Card EMI plans, monthly installment calculations, and bank fee charts for 16 commercial banks in Bangladesh at ${brandName}.`}
+          canonical="https://click2itbd.com/emi-terms"
+          schema={[emiFaqSchema, emiBreadcrumbSchema]}
         />
 
         <div className="bg-[#f2f4f8] py-6 sm:py-10 min-h-screen">

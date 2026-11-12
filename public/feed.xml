@@ -19,6 +19,13 @@ Warranty: 5 years</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>1300.00 BDT</g:price>
       <g:brand>Pantec</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -35,6 +42,13 @@ Bottom PSU Position</g:description>
       <g:availability>in stock</g:availability>
       <g:price>3500.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>65464156521</g:mpn>
     </item>
@@ -57,6 +71,13 @@ Design: Compact, Safe &amp; Easy to Use</g:description>
       <g:availability>in stock</g:availability>
       <g:price>300.00 BDT</g:price>
       <g:brand>MAXLINE CO</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>58451525</g:mpn>
     </item>
@@ -74,6 +95,13 @@ RPM Class: 5400</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>23500.00 BDT</g:price>
       <g:brand>seagate</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -95,6 +123,13 @@ RPM Class: 5400</g:description>
       <g:availability>in stock</g:availability>
       <g:price>650.00 BDT</g:price>
       <g:brand>WISDOM</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>63756345 868765675 9798789 98686</g:mpn>
     </item>
@@ -111,6 +146,13 @@ Working Voltage: DC12V/24V input</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>3100.00 BDT</g:price>
       <g:brand>ZKTeco</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Security</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>dsgfds</g:mpn>
     </item>
@@ -128,6 +170,13 @@ Compatibility: HP laser MFP 135a/135w/135r/137fnw; HP laser 107a/107w/107r</g:de
       <g:availability>in stock</g:availability>
       <g:price>1100.00 BDT</g:price>
       <g:brand>G&amp;G</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>00</g:mpn>
     </item>
@@ -141,6 +190,13 @@ Compatibility: HP laser MFP 135a/135w/135r/137fnw; HP laser 107a/107w/107r</g:de
       <g:availability>out of stock</g:availability>
       <g:price>12000.00 BDT</g:price>
       <g:brand>ZKTeco</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Security</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>df</g:mpn>
     </item>
@@ -157,6 +213,13 @@ Ultra 265, H.265, H.264</g:description>
       <g:availability>in stock</g:availability>
       <g:price>3400.00 BDT</g:price>
       <g:brand>Uniview</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>54545</g:mpn>
     </item>
@@ -170,6 +233,13 @@ Ultra 265, H.265, H.264</g:description>
       <g:availability>in stock</g:availability>
       <g:price>350.00 BDT</g:price>
       <g:brand>Chaines</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>9641695496</g:mpn>
     </item>
@@ -183,6 +253,13 @@ Ultra 265, H.265, H.264</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>750.00 BDT</g:price>
       <g:brand>Click2IT</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -199,6 +276,13 @@ High-Quality Oxygen-Free Wire Core</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>300.00 BDT</g:price>
       <g:brand>Others</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>654654654654</g:mpn>
     </item>
@@ -248,6 +332,13 @@ Compact and Portable Charging Case</g:description>
       <g:availability>in stock</g:availability>
       <g:price>950.00 BDT</g:price>
       <g:brand>WISDOM</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>654984658</g:mpn>
     </item>
@@ -265,6 +356,13 @@ Low waste powder</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>2500.00 BDT</g:price>
       <g:brand>Pantum</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -282,6 +380,13 @@ Temperature display, Dual chamber Design</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>6100.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -295,6 +400,13 @@ Temperature display, Dual chamber Design</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>7930.00 BDT</g:price>
       <g:brand>Uniview</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Network</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>784978454954514</g:mpn>
     </item>
@@ -312,6 +424,13 @@ CAS Latency: CL16</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>16000.00 BDT</g:price>
       <g:brand>AITC Kingsman</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -329,6 +448,13 @@ Ports: USB 3.0 x 1, USB 2.0 x 1, Audio Port x 1</g:description>
       <g:availability>in stock</g:availability>
       <g:price>3700.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>845969</g:mpn>
     </item>
@@ -346,6 +472,13 @@ IP68 Dust and Waterproof</g:description>
       <g:availability>in stock</g:availability>
       <g:price>2100.00 BDT</g:price>
       <g:brand>Chaines</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>154498</g:mpn>
     </item>
@@ -364,6 +497,13 @@ Charging Technology: QC / PD</g:description>
       <g:availability>in stock</g:availability>
       <g:price>950.00 BDT</g:price>
       <g:brand>MAXLINE CO</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>55</g:mpn>
     </item>
@@ -381,6 +521,13 @@ Charging Technology: QC / PD</g:description>
       <g:availability>in stock</g:availability>
       <g:price>950.00 BDT</g:price>
       <g:brand>KISONLI</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>9548465541542012</g:mpn>
     </item>
@@ -398,6 +545,13 @@ Max 10 channels IP camera inputs</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>3300.00 BDT</g:price>
       <g:brand>Dahua</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Security</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -411,6 +565,13 @@ Max 10 channels IP camera inputs</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>6050.00 BDT</g:price>
       <g:brand>Click2IT</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>591459845149514514</g:mpn>
     </item>
@@ -429,6 +590,13 @@ TVI/AHD/CVI/CVBS, IP67 &amp; 4kV Surge</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>2250.00 BDT</g:price>
       <g:brand>UNV</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>sdssds</g:mpn>
     </item>
@@ -448,6 +616,13 @@ Sleek and Practical Design: A modern form that seamlessly integrates into your s
       <g:availability>in stock</g:availability>
       <g:price>800.00 BDT</g:price>
       <g:brand>MAXLINE CO</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>5959</g:mpn>
     </item>
@@ -461,6 +636,13 @@ Sleek and Practical Design: A modern form that seamlessly integrates into your s
       <g:availability>out of stock</g:availability>
       <g:price>1800.00 BDT</g:price>
       <g:brand>Chinease</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>fds</g:mpn>
     </item>
@@ -477,6 +659,13 @@ Easy installation and cost-effective printing.</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>1100.00 BDT</g:price>
       <g:brand>Max Print</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>555656481</g:mpn>
     </item>
@@ -494,6 +683,13 @@ Compatible with Intel &amp; AMD</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>7300.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>TYDAL360D250700175</g:mpn>
     </item>
@@ -511,6 +707,13 @@ Buffer size- 64 MB</g:description>
       <g:availability>in stock</g:availability>
       <g:price>25500.00 BDT</g:price>
       <g:brand>Western Digital</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>AELCMV</g:mpn>
     </item>
@@ -528,6 +731,13 @@ Outgoing Bandwidth: 64Mbps</g:description>
       <g:availability>in stock</g:availability>
       <g:price>5000.00 BDT</g:price>
       <g:brand>Uniview</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Security</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>445</g:mpn>
     </item>
@@ -541,6 +751,13 @@ Outgoing Bandwidth: 64Mbps</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>600.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -554,6 +771,13 @@ Outgoing Bandwidth: 64Mbps</g:description>
       <g:availability>in stock</g:availability>
       <g:price>280.00 BDT</g:price>
       <g:brand>Intel</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>45515198</g:mpn>
     </item>
@@ -570,6 +794,13 @@ Bottom PSU Position</g:description>
       <g:availability>in stock</g:availability>
       <g:price>3500.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>489</g:mpn>
     </item>
@@ -587,6 +818,13 @@ Features: DWDR, 3D DNR, Smart Detection, Built-in microphone</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>3950.00 BDT</g:price>
       <g:brand>Hikvision</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -600,6 +838,13 @@ Features: DWDR, 3D DNR, Smart Detection, Built-in microphone</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>6800.00 BDT</g:price>
       <g:brand>Click2IT</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Network</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>85959595569695692</g:mpn>
     </item>
@@ -616,6 +861,13 @@ Built-in Mic (audio transmission via coaxial cables)</g:description>
       <g:availability>in stock</g:availability>
       <g:price>2100.00 BDT</g:price>
       <g:brand>Uniview</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>54584</g:mpn>
     </item>
@@ -634,6 +886,13 @@ TVI/AHD/CVI/CVBS, IP67 &amp; 4kV Surge</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>2350.00 BDT</g:price>
       <g:brand>Uniview</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>9465265596</g:mpn>
     </item>
@@ -652,6 +911,13 @@ Lightweight and Ergonomic Neckband Design</g:description>
       <g:availability>in stock</g:availability>
       <g:price>950.00 BDT</g:price>
       <g:brand>WISDOM</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -669,6 +935,13 @@ Compatibility: BP2310, BP2310W, BP2310NW, BM2310W, BM2310NW, BM2310AW</g:descrip
       <g:availability>out of stock</g:availability>
       <g:price>1400.00 BDT</g:price>
       <g:brand>Pantum</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>201121101301V002JH</g:mpn>
     </item>
@@ -685,6 +958,13 @@ Capacity: 8GB</g:description>
       <g:availability>in stock</g:availability>
       <g:price>7000.00 BDT</g:price>
       <g:brand>Kingspec</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>8540923000018</g:mpn>
     </item>
@@ -706,6 +986,13 @@ For enhanced productivity, the PA278QEV </g:description>
       <g:availability>out of stock</g:availability>
       <g:price>55000.00 BDT</g:price>
       <g:brand>Asus</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Monitor</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -723,6 +1010,13 @@ Interface: 6.0 Gbit/s</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>7000.00 BDT</g:price>
       <g:brand>Toshiba</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>OD22M8Y26031</g:mpn>
     </item>
@@ -736,6 +1030,13 @@ Interface: 6.0 Gbit/s</g:description>
       <g:availability>in stock</g:availability>
       <g:price>250.00 BDT</g:price>
       <g:brand>Chinease</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>s2342</g:mpn>
     </item>
@@ -749,6 +1050,13 @@ Interface: 6.0 Gbit/s</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>16500.00 BDT</g:price>
       <g:brand>ONV</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Security</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>561498456956</g:mpn>
     </item>
@@ -766,6 +1074,13 @@ Connector: 1xIDE, 2xSATA</g:description>
       <g:availability>in stock</g:availability>
       <g:price>1300.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>98498465984</g:mpn>
     </item>
@@ -783,6 +1098,13 @@ Drive Bays: HDD x2 + SSD x2</g:description>
       <g:availability>in stock</g:availability>
       <g:price>3000.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>8569</g:mpn>
     </item>
@@ -803,6 +1125,13 @@ Drive Bays: HDD x2 + SSD x2</g:description>
       <g:availability>in stock</g:availability>
       <g:price>1200.00 BDT</g:price>
       <g:brand>WISDOM</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -820,6 +1149,13 @@ Features: PoE, DWDR, 3D DNR, Smart Detection, IP67</g:description>
       <g:availability>in stock</g:availability>
       <g:price>5500.00 BDT</g:price>
       <g:brand>Uniview</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Security</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>210235C6F9F245001317</g:mpn>
     </item>
@@ -833,6 +1169,13 @@ Features: PoE, DWDR, 3D DNR, Smart Detection, IP67</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>16500.00 BDT</g:price>
       <g:brand>MARCEL</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Monitor</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>sd</g:mpn>
     </item>
@@ -846,6 +1189,13 @@ Features: PoE, DWDR, 3D DNR, Smart Detection, IP67</g:description>
       <g:availability>in stock</g:availability>
       <g:price>10.00 BDT</g:price>
       <g:brand>Click2IT</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Security</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -887,6 +1237,13 @@ Smart Guard Safety Technology</g:description>
       <g:availability>in stock</g:availability>
       <g:price>1250.00 BDT</g:price>
       <g:brand>MAXLINE CO</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>5424</g:mpn>
     </item>
@@ -907,6 +1264,13 @@ High quality Cooper Cable</g:description>
       <g:availability>in stock</g:availability>
       <g:price>650.00 BDT</g:price>
       <g:brand>MAXLINE CO</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>98484595</g:mpn>
     </item>
@@ -924,6 +1288,13 @@ Features: VESA Wall Mount, 16.7M Color</g:description>
       <g:availability>in stock</g:availability>
       <g:price>8600.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Monitor</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>202607_X22IF01478 202607_X221F01388 202607_X221F01320 202607_X221F00254 202607 X221F01281 202607 X221F00224 202607 X221F01361 202607 X221F01471 202607_X221F01321 202607_X221F01404 202607_X221F00646 202607 X221F00271 202607_X221F01483 202607_X221F00258 202607_X221F00268 202607_X221F00211 202607_X221F00265 202607_X221F00269 202607_X221F01282 202607_X221F01472</g:mpn>
     </item>
@@ -937,6 +1308,13 @@ Features: VESA Wall Mount, 16.7M Color</g:description>
       <g:availability>in stock</g:availability>
       <g:price>14.00 BDT</g:price>
       <g:brand>Aptech</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Network</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>sdf</g:mpn>
     </item>
@@ -959,6 +1337,13 @@ Features: VESA Wall Mount, 16.7M Color</g:description>
       <g:availability>in stock</g:availability>
       <g:price>850.00 BDT</g:price>
       <g:brand>WISDOM</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>552</g:mpn>
     </item>
@@ -978,6 +1363,13 @@ High quality Copper Cable</g:description>
       <g:availability>in stock</g:availability>
       <g:price>250.00 BDT</g:price>
       <g:brand>MAXLINE CO</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>51598598298849</g:mpn>
     </item>
@@ -998,6 +1390,13 @@ Color - Silver
       <g:availability>out of stock</g:availability>
       <g:price>4200.00 BDT</g:price>
       <g:brand>Western Digital</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>sdsd</g:mpn>
     </item>
@@ -1015,6 +1414,13 @@ Outgoing Bandwidth: 64Mbps</g:description>
       <g:availability>in stock</g:availability>
       <g:price>4700.00 BDT</g:price>
       <g:brand>UNV</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>210235xggd3265000593</g:mpn>
     </item>
@@ -1031,6 +1437,13 @@ Ink drop: 3.25 pl, 6.8 pl</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>1350.00 BDT</g:price>
       <g:brand>HP</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>2345</g:mpn>
     </item>
@@ -1051,6 +1464,13 @@ Supports 1 M.2 Drive</g:description>
       <g:availability>in stock</g:availability>
       <g:price>1200.00 BDT</g:price>
       <g:brand>Others</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>848465</g:mpn>
     </item>
@@ -1064,6 +1484,13 @@ Supports 1 M.2 Drive</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>470.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>12334534</g:mpn>
     </item>
@@ -1083,6 +1510,13 @@ Supports 1 M.2 Drive</g:description>
       <g:availability>in stock</g:availability>
       <g:price>1050.00 BDT</g:price>
       <g:brand>WISDOM</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -1099,6 +1533,13 @@ Interface PCI-Express 4.0 x4</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>26000.00 BDT</g:price>
       <g:brand>Kingspec</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -1116,6 +1557,13 @@ Storage: Up to 8TB for each disk</g:description>
       <g:availability>in stock</g:availability>
       <g:price>10400.00 BDT</g:price>
       <g:brand>Uniview</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Security</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>8454</g:mpn>
     </item>
@@ -1136,6 +1584,13 @@ Power Indicator Light</g:description>
       <g:availability>in stock</g:availability>
       <g:price>560.00 BDT</g:price>
       <g:brand>MAXLINE CO</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>456692656</g:mpn>
     </item>
@@ -1158,6 +1613,13 @@ Power Indicator Light</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>18300.00 BDT</g:price>
       <g:brand>Pantum</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>saasfsfas</g:mpn>
     </item>
@@ -1180,6 +1642,13 @@ Ideal for Everyday Music &amp; Calls</g:description>
       <g:availability>in stock</g:availability>
       <g:price>1350.00 BDT</g:price>
       <g:brand>WISDOM</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>dsfcx</g:mpn>
     </item>
@@ -1197,6 +1666,13 @@ Features: AMD FreeSync, VESA Mount Support</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>12400.00 BDT</g:price>
       <g:brand>MSI</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Monitor</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>4546545645</g:mpn>
     </item>
@@ -1226,6 +1702,13 @@ Wide operating temperature range (-10°C to +50°C)</g:description>
       <g:availability>in stock</g:availability>
       <g:price>15000.00 BDT</g:price>
       <g:brand>Skynex</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Security</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>asdfasfas</g:mpn>
     </item>
@@ -1243,6 +1726,13 @@ Wide operating temperature range (-10°C to +50°C)</g:description>
       <g:availability>in stock</g:availability>
       <g:price>700.00 BDT</g:price>
       <g:brand>Chaines</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -1260,6 +1750,13 @@ Support 3D Visual, 19+1 Pure Cooper Core</g:description>
       <g:availability>in stock</g:availability>
       <g:price>2100.00 BDT</g:price>
       <g:brand>Dtech</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>4514</g:mpn>
     </item>
@@ -1277,6 +1774,13 @@ Features: Intel GbE LAN with cFosSpeed</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>9700.00 BDT</g:price>
       <g:brand>Gigabyte</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>251494 251492 251466</g:mpn>
     </item>
@@ -1290,6 +1794,13 @@ Features: Intel GbE LAN with cFosSpeed</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>2000.00 BDT</g:price>
       <g:brand>Canon</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>6546598465465984</g:mpn>
     </item>
@@ -1306,6 +1817,13 @@ OS Support - Windows</g:description>
       <g:availability>in stock</g:availability>
       <g:price>730.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>asd</g:mpn>
     </item>
@@ -1319,6 +1837,13 @@ OS Support - Windows</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>2000.00 BDT</g:price>
       <g:brand>Canon</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>6574651465146514</g:mpn>
     </item>
@@ -1332,6 +1857,13 @@ OS Support - Windows</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>11200.00 BDT</g:price>
       <g:brand>Eaget</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>598459845984</g:mpn>
     </item>
@@ -1351,6 +1883,13 @@ Material: ABS Plastic + PVC + Zinc Alloy</g:description>
       <g:availability>in stock</g:availability>
       <g:price>150.00 BDT</g:price>
       <g:brand>Standard</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>7667687</g:mpn>
     </item>
@@ -1367,6 +1906,13 @@ Built-in Mic (audio transmission via coaxial cables)</g:description>
       <g:availability>in stock</g:availability>
       <g:price>2000.00 BDT</g:price>
       <g:brand>UNV</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>210235UK7V3266003677</g:mpn>
     </item>
@@ -1400,6 +1946,13 @@ Convenient Alternative to Reaching the PC Case Power Button</g:description>
       <g:availability>in stock</g:availability>
       <g:price>850.00 BDT</g:price>
       <g:brand>Others</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>84584145</g:mpn>
     </item>
@@ -1418,6 +1971,13 @@ Frosted Pump Head Design, Compatible with Intel and AMD</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>9000.00 BDT</g:price>
       <g:brand>DeepCool</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>6933412729228</g:mpn>
     </item>
@@ -1435,6 +1995,13 @@ Resolution: 1200 x 1200dpi</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>11500.00 BDT</g:price>
       <g:brand>Pantum</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>CM2ZV001YE</g:mpn>
     </item>
@@ -1452,6 +2019,13 @@ Cable Length: 305 meters, Cable Color: Orange</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>8100.00 BDT</g:price>
       <g:brand>Hikvision</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Network</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>5984598465146514</g:mpn>
     </item>
@@ -1469,6 +2043,13 @@ Plug Type: 3.5mm + USB</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>1300.00 BDT</g:price>
       <g:brand>Havit</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -1486,6 +2067,13 @@ Outgoing Bandwidth: 48Mbps</g:description>
       <g:availability>in stock</g:availability>
       <g:price>2800.00 BDT</g:price>
       <g:brand>UNV</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>210235xggc3265000176</g:mpn>
     </item>
@@ -1502,6 +2090,13 @@ Input Voltage: DC 5V</g:description>
       <g:availability>in stock</g:availability>
       <g:price>5750.00 BDT</g:price>
       <g:brand>Kingspec</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>9l51030240676</g:mpn>
     </item>
@@ -1519,6 +2114,13 @@ EXIR 2.0 Smart IR, up to 25 M
       <g:availability>out of stock</g:availability>
       <g:price>1800.00 BDT</g:price>
       <g:brand>Hikvision</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>J82734655</g:mpn>
     </item>
@@ -1537,6 +2139,13 @@ EXIR 2.0 Smart IR, up to 25 M
       <g:availability>in stock</g:availability>
       <g:price>600.00 BDT</g:price>
       <g:brand>Chaines</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -1550,6 +2159,13 @@ EXIR 2.0 Smart IR, up to 25 M
       <g:availability>out of stock</g:availability>
       <g:price>2500.00 BDT</g:price>
       <g:brand>Canon</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>98498448</g:mpn>
     </item>
@@ -1567,6 +2183,13 @@ Customized PVC outer sheath</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>6500.00 BDT</g:price>
       <g:brand>ZKTeco</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Network</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>,</g:mpn>
     </item>
@@ -1589,6 +2212,13 @@ Customized PVC outer sheath</g:description>
       <g:availability>in stock</g:availability>
       <g:price>950.00 BDT</g:price>
       <g:brand>MAXLINE CO</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>845</g:mpn>
     </item>
@@ -1607,6 +2237,13 @@ Voltage: 220Vac</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>42500.00 BDT</g:price>
       <g:brand>Apollo</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Power</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>64545454</g:mpn>
     </item>
@@ -1628,6 +2265,13 @@ Power Indicator Light</g:description>
       <g:availability>in stock</g:availability>
       <g:price>900.00 BDT</g:price>
       <g:brand>MAXLINE CO</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>149984984</g:mpn>
     </item>
@@ -1641,6 +2285,13 @@ Power Indicator Light</g:description>
       <g:availability>in stock</g:availability>
       <g:price>200.00 BDT</g:price>
       <g:brand>Click2IT</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>asddas</g:mpn>
     </item>
@@ -1658,6 +2309,13 @@ Pre installed 200w PSU
       <g:availability>in stock</g:availability>
       <g:price>2500.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>215</g:mpn>
     </item>
@@ -1674,6 +2332,13 @@ Build: Compact Solid State Drive</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>15000.00 BDT</g:price>
       <g:brand>Kingspec</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -1687,6 +2352,13 @@ Build: Compact Solid State Drive</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>5800.00 BDT</g:price>
       <g:brand>Click2IT</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>51441651465651451</g:mpn>
     </item>
@@ -1704,6 +2376,13 @@ Mention Pattern: Buzzer, Indicator</g:description>
       <g:availability>in stock</g:availability>
       <g:price>2200.00 BDT</g:price>
       <g:brand>Sunlux</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>603030022675</g:mpn>
     </item>
@@ -1721,6 +2400,13 @@ Buffer: 128MB; Form Factor: 3.5 Inch</g:description>
       <g:availability>in stock</g:availability>
       <g:price>23500.00 BDT</g:price>
       <g:brand>Toshiba</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>8494654665</g:mpn>
     </item>
@@ -1746,6 +2432,13 @@ Compatibility: Selected HP laptops supporting 45W Blue Pin adapters</g:descripti
       <g:availability>out of stock</g:availability>
       <g:price>1300.00 BDT</g:price>
       <g:brand>HP</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>202515266</g:mpn>
     </item>
@@ -1759,6 +2452,13 @@ Compatibility: Selected HP laptops supporting 45W Blue Pin adapters</g:descripti
       <g:availability>out of stock</g:availability>
       <g:price>2000.00 BDT</g:price>
       <g:brand>Canon</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>574654651651</g:mpn>
     </item>
@@ -1776,6 +2476,13 @@ Strong Signal, Great Coverage</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>1920.00 BDT</g:price>
       <g:brand>Mercusys</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Network</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>dsfs</g:mpn>
     </item>
@@ -1793,6 +2500,13 @@ Plug Type: USB 3.0</g:description>
       <g:availability>in stock</g:availability>
       <g:price>550.00 BDT</g:price>
       <g:brand>Chaines</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>584584</g:mpn>
     </item>
@@ -1810,6 +2524,13 @@ Outgoing Bandwidth: 48Mbps</g:description>
       <g:availability>in stock</g:availability>
       <g:price>2900.00 BDT</g:price>
       <g:brand>Uniview</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Security</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>210235XGGC3265000027 210235XGGC3265000176</g:mpn>
     </item>
@@ -1827,6 +2548,13 @@ Intel UHD Graphics 630</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>13800.00 BDT</g:price>
       <g:brand>Intel</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>03595</g:mpn>
     </item>
@@ -1840,6 +2568,13 @@ Intel UHD Graphics 630</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>2800.00 BDT</g:price>
       <g:brand>Chinease</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>sadas</g:mpn>
     </item>
@@ -1857,6 +2592,13 @@ Features: Adaptive Sync, EyesErgo, Flicker Free,VESA Mountable</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>10800.00 BDT</g:price>
       <g:brand>MSI</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Monitor</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>454546965562165</g:mpn>
     </item>
@@ -1870,6 +2612,13 @@ Features: Adaptive Sync, EyesErgo, Flicker Free,VESA Mountable</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>2000.00 BDT</g:price>
       <g:brand>Canon</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>54654654</g:mpn>
     </item>
@@ -1892,6 +2641,13 @@ Features: Adaptive Sync, EyesErgo, Flicker Free,VESA Mountable</g:description>
       <g:availability>in stock</g:availability>
       <g:price>10000.00 BDT</g:price>
       <g:brand>Standard</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Network</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>435q5</g:mpn>
     </item>
@@ -1911,6 +2667,13 @@ Color - Silver</g:description>
       <g:availability>in stock</g:availability>
       <g:price>22000.00 BDT</g:price>
       <g:brand>Western Digital</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>5843254</g:mpn>
     </item>
@@ -1924,6 +2687,13 @@ Color - Silver</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>1300.00 BDT</g:price>
       <g:brand>ZKTeco</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Security</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>30000879025210276</g:mpn>
     </item>
@@ -1942,6 +2712,13 @@ Capacity: 128GB</g:description>
       <g:availability>in stock</g:availability>
       <g:price>3500.00 BDT</g:price>
       <g:brand>Kingspec</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>9t51222104840</g:mpn>
     </item>
@@ -1959,6 +2736,13 @@ Color - Black</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>7000.00 BDT</g:price>
       <g:brand>PATRIOT</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>212510202000399</g:mpn>
     </item>
@@ -1976,6 +2760,13 @@ Compatibility: HP Laser 1008a/ 1008w/ MFP1188nw/ 1188w/ 1188pnw/ 1188a</g:descri
       <g:availability>in stock</g:availability>
       <g:price>1200.00 BDT</g:price>
       <g:brand>G&amp;G</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>6937173426303</g:mpn>
     </item>
@@ -1993,6 +2784,13 @@ Compatibility: HP Laser 1008a/ 1008w/ MFP1188nw/ 1188w/ 1188pnw/ 1188a</g:descri
       <g:availability>in stock</g:availability>
       <g:price>1550.00 BDT</g:price>
       <g:brand>KOLEER</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>4587865327895365</g:mpn>
     </item>
@@ -2006,6 +2804,13 @@ Compatibility: HP Laser 1008a/ 1008w/ MFP1188nw/ 1188w/ 1188pnw/ 1188a</g:descri
       <g:availability>out of stock</g:availability>
       <g:price>3000.00 BDT</g:price>
       <g:brand>Canon</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>6546516516521652146541</g:mpn>
     </item>
@@ -2019,6 +2824,13 @@ Compatibility: HP Laser 1008a/ 1008w/ MFP1188nw/ 1188w/ 1188pnw/ 1188a</g:descri
       <g:availability>out of stock</g:availability>
       <g:price>800.00 BDT</g:price>
       <g:brand>ORG</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Laptop</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>091025REV208732</g:mpn>
     </item>
@@ -2037,6 +2849,13 @@ Color - White</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>2500.00 BDT</g:price>
       <g:brand>Ezviz</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>CCTV</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>BK1104939</g:mpn>
     </item>
@@ -2070,6 +2889,13 @@ Reliable Storage for Everyday Computing</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>5500.00 BDT</g:price>
       <g:brand>Mercury</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>202608130244</g:mpn>
     </item>
@@ -2088,6 +2914,13 @@ Capacity: 256GB</g:description>
       <g:availability>in stock</g:availability>
       <g:price>7300.00 BDT</g:price>
       <g:brand>Kingspec</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Components</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>9k51220200292</g:mpn>
     </item>
@@ -2105,6 +2938,13 @@ Key life: 3,000,000 times</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>750.00 BDT</g:price>
       <g:brand>Havit</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>no</g:identifier_exists>
       
     </item>
@@ -2121,6 +2961,13 @@ DIM: 4.68L x 2.48W x 1.39H in.</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>500.00 BDT</g:price>
       <g:brand>A4Tech</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>sdd</g:mpn>
     </item>
@@ -2134,6 +2981,13 @@ DIM: 4.68L x 2.48W x 1.39H in.</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>4900.00 BDT</g:price>
       <g:brand>Toshiba</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Office Equipment</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>6514654654654</g:mpn>
     </item>
@@ -2147,6 +3001,13 @@ DIM: 4.68L x 2.48W x 1.39H in.</g:description>
       <g:availability>in stock</g:availability>
       <g:price>850.00 BDT</g:price>
       <g:brand>WISDOM</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Gadget</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>45414521</g:mpn>
     </item>
@@ -2164,6 +3025,13 @@ Coverage Area: Maximum 1200 sq ft to 1500 sq ft Area</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>2200.00 BDT</g:price>
       <g:brand>TP-Link</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Network</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>97849845146514</g:mpn>
     </item>
@@ -2177,6 +3045,13 @@ Coverage Area: Maximum 1200 sq ft to 1500 sq ft Area</g:description>
       <g:availability>out of stock</g:availability>
       <g:price>1870.00 BDT</g:price>
       <g:brand>A4Tech</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>4711421904940</g:mpn>
     </item>
@@ -2193,6 +3068,13 @@ Style &amp; Size - Regular Big</g:description>
       <g:availability>in stock</g:availability>
       <g:price>350.00 BDT</g:price>
       <g:brand>Value-Top</g:brand>
+      <g:google_product_category>Electronics &gt; Computers</g:google_product_category>
+      <g:product_type>Accessories</g:product_type>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide Delivery</g:service>
+        <g:price>80.00 BDT</g:price>
+      </g:shipping>
       <g:identifier_exists>yes</g:identifier_exists>
       <g:mpn>MU62720260600705B</g:mpn>
     </item>

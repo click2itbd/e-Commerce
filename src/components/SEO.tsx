@@ -55,22 +55,52 @@ export const SEO: React.FC<SEOProps> = ({
   const seoUrl = url || (typeof window !== 'undefined' ? window.location.href : baseDomain);
   const canonicalUrl = canonical || (typeof window !== 'undefined' ? `${baseDomain}${window.location.pathname}` : baseDomain);
 
-  // Default Organization & Website Schema
-  const defaultOrgSchema = {
+  // Default LocalBusiness / ComputerStore Schema (Rich Snippets for Google Local Pack)
+  const defaultStoreSchema = {
     '@context': 'https://schema.org',
-    '@type': 'Organization',
+    '@type': 'ComputerStore',
     'name': siteName,
+    'alternateName': ['CLICK2IT BD', 'Click2IT Computer Shop', 'Click2IT'],
     'url': baseDomain,
     'logo': `${baseDomain}/logo.png`,
+    'image': `${baseDomain}/logo.png`,
+    'description': defaultDescription,
+    'telephone': settings?.contactPhone || '+8809640887777',
+    'email': settings?.contactEmail || 'info@click2itbd.com',
+    'priceRange': '৳৳',
+    'currenciesAccepted': 'BDT',
+    'paymentAccepted': 'Cash, Credit Card, Debit Card, bKash, Nagad, Rocket, EMI',
+    'address': {
+      '@type': 'PostalAddress',
+      'streetAddress': 'Shop No. 1072, Level 10, Multiplan Center, 69-71 New Elephant Road',
+      'addressLocality': 'Dhaka',
+      'postalCode': '1205',
+      'addressCountry': 'BD'
+    },
+    'geo': {
+      '@type': 'GeoCoordinates',
+      'latitude': 23.7390,
+      'longitude': 90.3869
+    },
+    'openingHoursSpecification': [
+      {
+        '@type': 'OpeningHoursSpecification',
+        'dayOfWeek': ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'],
+        'opens': '10:00',
+        'closes': '20:00'
+      }
+    ],
     'contactPoint': {
       '@type': 'ContactPoint',
-      'telephone': settings?.phone || '+8801700000000',
-      'contactType': 'Customer Support',
+      'telephone': settings?.contactPhone || '+8809640887777',
+      'contactType': 'Customer Support & Sales',
       'areaServed': 'BD',
       'availableLanguage': ['English', 'Bengali']
     },
     'sameAs': [
-      settings?.facebook || 'https://facebook.com/click2itbd'
+      settings?.facebook || 'https://facebook.com/click2itbd',
+      'https://youtube.com/@click2itbd',
+      'https://instagram.com/click2itbd'
     ]
   };
 
@@ -78,17 +108,21 @@ export const SEO: React.FC<SEOProps> = ({
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     'name': siteName,
+    'alternateName': ['CLICK2IT', 'CLICK2IT BD'],
     'url': baseDomain,
     'potentialAction': {
       '@type': 'SearchAction',
-      'target': `${baseDomain}/search?q={search_term_string}`,
+      'target': {
+        '@type': 'EntryPoint',
+        'urlTemplate': `${baseDomain}/search?q={search_term_string}`
+      },
       'query-input': 'required name=search_term_string'
     }
   };
 
   const finalSchema = schema 
     ? (Array.isArray(schema) ? schema : [schema])
-    : [defaultOrgSchema, defaultWebSiteSchema];
+    : [defaultStoreSchema, defaultWebSiteSchema];
 
   return (
     <Helmet>
@@ -98,28 +132,44 @@ export const SEO: React.FC<SEOProps> = ({
       <meta name="keywords" content={seoKeywords} />
       {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
       
-      {/* Robots meta */}
+      {/* Search Engine Robots Directives */}
       {noindex ? (
         <meta name="robots" content="noindex, nofollow" />
       ) : (
-        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+        <>
+          <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+          <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+          <meta name="bingbot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+        </>
       )}
 
-      {/* Open Graph tags (Facebook, LinkedIn, etc.) */}
+      {/* Geo-Targeting Tags for Bangladesh & Dhaka Local Search */}
+      <meta name="geo.region" content="BD-13" />
+      <meta name="geo.placename" content="Dhaka, Bangladesh" />
+      <meta name="geo.position" content="23.7390;90.3869" />
+      <meta name="ICBM" content="23.7390, 90.3869" />
+
+      {/* Open Graph tags (Facebook, LinkedIn, Discord, etc.) */}
       <meta property="og:type" content={type === 'product' ? 'product' : type === 'article' ? 'article' : 'website'} />
       <meta property="og:url" content={seoUrl} />
       <meta property="og:title" content={seoTitle} />
       <meta property="og:description" content={seoDescription} />
       <meta property="og:image" content={seoImage} />
+      <meta property="og:image:secure_url" content={seoImage} />
+      <meta property="og:image:alt" content={seoTitle} />
       <meta property="og:site_name" content={siteName} />
       <meta property="og:locale" content="en_US" />
+      <meta property="og:locale:alternate" content="bn_BD" />
 
-      {/* Twitter tags */}
+      {/* Twitter Cards */}
       <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:site" content="@click2itbd" />
+      <meta name="twitter:creator" content="@click2itbd" />
       <meta name="twitter:url" content={seoUrl} />
       <meta name="twitter:title" content={seoTitle} />
       <meta name="twitter:description" content={seoDescription} />
       <meta name="twitter:image" content={seoImage} />
+      <meta name="twitter:image:alt" content={seoTitle} />
 
       {/* Structured Data (JSON-LD) */}
       {finalSchema.map((item, idx) => (

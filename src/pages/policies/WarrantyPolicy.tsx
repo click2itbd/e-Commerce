@@ -20,12 +20,45 @@ const WarrantyPolicy = () => {
   const contactPhone = settings?.contactPhone || '+8809640887777';
   const contactEmail = settings?.contactEmail || 'info@click2itbd.com';
 
+  const warrantyFaqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    'mainEntity': [
+      {
+        '@type': 'Question',
+        'name': 'How do I claim a hardware warranty at Click2IT?',
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': 'To claim warranty, bring the defective product along with the original invoice and warranty sticker/serial number to our service center at Multiplan Center, Level 10, Dhaka or contact customer support.'
+        }
+      },
+      {
+        '@type': 'Question',
+        'name': 'How long does a warranty RMA claim take?',
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': 'Standard hardware RMA claims typically take between 3 to 14 business days depending on the manufacturer and authorized distributor replacement timeline.'
+        }
+      },
+      {
+        '@type': 'Question',
+        'name': 'Are physical damage or liquid spills covered under warranty?',
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': 'No, manufacturer warranty does not cover physical breakage, burnt circuits, liquid spills, lightning surge, or unauthorized tampering.'
+        }
+      }
+    ]
+  };
+
   return (
     <DynamicPolicyPage pageId="warranty-policy" defaultTitle="Warranty Policy">
       <Layout fullWidth>
         <SEO
-          title={`Official Warranty Policy & RMA Service - ${brandName}`}
-          description={`Comprehensive product warranty policy and RMA claim procedures for hardware at ${brandName}.`}
+          title={`Official Warranty Policy & RMA Service Guidelines - ${brandName}`}
+          description={`Comprehensive product warranty policy, RMA claim procedures, and official brand support at ${brandName}.`}
+          canonical="https://click2itbd.com/warranty-policy"
+          schema={[warrantyFaqSchema]}
         />
         <div className="bg-slate-50/80 py-10 md:py-16 min-h-screen">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
