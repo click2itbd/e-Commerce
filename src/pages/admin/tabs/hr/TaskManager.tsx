@@ -14,6 +14,7 @@ import { Task, UserProfile, Customer } from '../../../../types';
 import { useAuth } from '../../../../context/AuthContext';
 import { logAudit } from '../../../../lib/audit';
 import { toast } from 'react-hot-toast';
+import { AIPolishButton } from '../../../../components/common/AIPolishButton';
 import {
   Plus,
   Edit2,
@@ -1556,9 +1557,18 @@ export default function TaskManager() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               {/* Title */}
               <div>
-                <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
-                  Task Title *
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-600">
+                    Task Title *
+                  </label>
+                  <AIPolishButton
+                    value={formData.title}
+                    onPolished={polished => setFormData(prev => ({ ...prev, title: polished }))}
+                    context="general"
+                    label="AI Polish"
+                    size="sm"
+                  />
+                </div>
                 <input
                   type="text"
                   required
@@ -1761,9 +1771,18 @@ export default function TaskManager() {
 
                 {/* Address */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
-                    <MapPin size={11} className="text-rose-500" /> Project / Delivery Address
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                      <MapPin size={11} className="text-rose-500" /> Project / Delivery Address
+                    </label>
+                    <AIPolishButton
+                      value={formData.address}
+                      onPolished={polished => setFormData(prev => ({ ...prev, address: polished }))}
+                      context="general"
+                      size="sm"
+                      compact={true}
+                    />
+                  </div>
                   <input
                     type="text"
                     value={formData.address}
@@ -1776,9 +1795,18 @@ export default function TaskManager() {
 
               {/* Description */}
               <div>
-                <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
-                  Detailed Description (Optional)
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-600">
+                    Detailed Description (Optional)
+                  </label>
+                  <AIPolishButton
+                    value={formData.description}
+                    onPolished={polished => setFormData(prev => ({ ...prev, description: polished }))}
+                    context="description"
+                    label="AI Polish"
+                    size="sm"
+                  />
+                </div>
                 <textarea
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
