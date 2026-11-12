@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Star, Clock, Zap, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Star, Clock, Zap, ShieldCheck, Sparkles, ArrowRight, CheckCircle2, Award } from 'lucide-react';
 import { Product } from '../../types';
 import { ProductCard } from '../ProductCard';
 import { formatCurrency } from '../../lib/utils';
@@ -10,6 +10,7 @@ import { db } from '../../firebase';
 // --- Top Brands ---
 export const TopBrands = () => {
   const [brands, setBrands] = useState<any[]>([]);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'store_brands'), orderBy('order', 'asc'));
@@ -23,31 +24,171 @@ export const TopBrands = () => {
   }, []);
 
   const defaultBrands = [
-    { name: 'Intel', logo: '/images/brands/intel.svg' },
-    { name: 'AMD', logo: '/images/brands/amd.svg' },
-    { name: 'Asus', logo: '/images/brands/asus.svg' },
-    { name: 'MSI', logo: '/images/brands/msi.svg' },
-    { name: 'Gigabyte', logo: '/images/brands/gigabyte.svg' },
-    { name: 'KingSpec', logo: '/images/brands/kingspec.svg' },
-    { name: 'Value-Top', logo: '/images/brands/valuetop.svg' },
-    { name: 'Logitech', logo: '/images/brands/logitech.svg' }
+    { name: 'Intel', logo: '/images/brands/intel.svg', category: 'Processors' },
+    { name: 'AMD', logo: '/images/brands/amd.svg', category: 'Ryzen & Radeon' },
+    { name: 'Asus', logo: '/images/brands/asus.svg', category: 'ROG & Boards' },
+    { name: 'MSI', logo: '/images/brands/msi.svg', category: 'Gaming Hardware' },
+    { name: 'Gigabyte', logo: '/images/brands/gigabyte.svg', category: 'AORUS & Boards' },
+    { name: 'KingSpec', logo: '/images/brands/kingspec.svg', category: 'SSD & Memory' },
+    { name: 'Value-Top', logo: '/images/brands/valuetop.svg', category: 'Casing & Power' },
+    { name: 'Logitech', logo: '/images/brands/logitech.svg', category: 'Peripherals' },
+    { name: 'Samsung', logo: 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/samsung.svg', category: 'Monitors & Storage' },
+    { name: 'Corsair', logo: 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/corsair.svg', category: 'RAM & Cooling' },
+    { name: 'Kingston', logo: 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/kingstontechnology.svg', category: 'FURY Gaming' },
+    { name: 'TP-Link', logo: 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/tplink.svg', category: 'Wi-Fi & Routers' },
+    { name: 'HP', logo: 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/hp.svg', category: 'Laptops & Gear' },
+    { name: 'Dell', logo: 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/dell.svg', category: 'Laptops & Displays' },
   ];
 
-  const displayBrands = brands.length > 0 ? brands : defaultBrands;
+  // If brands exist in Firestore, prioritize them and supplement with defaults if small
+  const displayBrands = brands.length > 0 
+    ? [...brands, ...defaultBrands.filter(db => !brands.some(b => b.name?.toLowerCase() === db.name.toLowerCase()))]
+    : defaultBrands;
 
-  const fallbackSvg = (text: string) => `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 50'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial, sans-serif' font-weight='bold' font-size='24' fill='%23333'%3E${text}%3C/text%3E%3C/svg%3E`;
-  
+  const fallbackSvg = (text: string) =>
+    `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 50'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc' rx='8'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial, sans-serif' font-weight='800' font-size='20' fill='%230f172a'%3E${encodeURIComponent(text)}%3C/text%3E%3C/svg%3E`;
+
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollContainerRef.current) {
+      const scrollAmount = direction === 'left' ? -340 : 340;
+      scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
+
   return (
-    <section className="mb-12">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-        <Star className="text-[#F97316]" /> Top Brands
-      </h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-4">
-        {displayBrands.map((brand, idx) => (
-          <div key={brand.id || idx} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center justify-center hover:shadow-md hover:border-orange-200 transition-all cursor-pointer group grayscale hover:grayscale-0">
-            <img src={brand.logo} alt={brand.name} onError={(e) => { e.currentTarget.src = fallbackSvg(brand.name); }} className="h-12 w-auto object-contain opacity-70 group-hover:opacity-100 transition-opacity" title={brand.name} />
+    <section className="mb-14 bg-gradient-to-b from-slate-50/80 via-white to-slate-50/40 rounded-3xl p-5 sm:p-7 md:p-8 border border-slate-200/80 shadow-xs relative overflow-hidden">
+      {/* Decorative subtle ambient lights */}
+      <div className="absolute top-0 right-0 w-80 h-80 bg-orange-400/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 bg-blue-400/5 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Header Row */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 relative z-10">
+        <div>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 border border-orange-200/80 text-[11px] font-bold text-[#F97316] mb-2 shadow-2xs">
+            <Sparkles size={12} className="text-[#F97316]" />
+            <span>Authorized Official Partners</span>
           </div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-orange-100 text-[#F97316] flex items-center justify-center shadow-2xs shrink-0">
+              <Star className="w-4 h-4 fill-[#F97316]" />
+            </div>
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-[#081621] tracking-tight">
+              Top Brands
+            </h2>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 pl-10.5">
+            Explore 100% authentic tech gear with official manufacturer warranty & after-sales service
+          </p>
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+          <Link
+            to="/brands"
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-[#0E2A47] hover:text-[#F97316] bg-white hover:bg-orange-50 border border-slate-200 hover:border-orange-200 px-3.5 py-2 rounded-xl transition-all shadow-2xs"
+          >
+            <span>View All Brands</span>
+            <ArrowRight size={13} />
+          </Link>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => scroll('left')}
+              className="w-9 h-9 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-white hover:bg-[#0E2A47] hover:border-[#0E2A47] flex items-center justify-center transition-all shadow-2xs active:scale-95 cursor-pointer"
+              title="Previous Brands"
+              aria-label="Previous Brands"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              onClick={() => scroll('right')}
+              className="w-9 h-9 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-white hover:bg-[#0E2A47] hover:border-[#0E2A47] flex items-center justify-center transition-all shadow-2xs active:scale-95 cursor-pointer"
+              title="Next Brands"
+              aria-label="Next Brands"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Brand Cards Carousel */}
+      <div
+        ref={scrollContainerRef}
+        className="flex items-stretch gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 scroll-smooth snap-x snap-mandatory relative z-10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {displayBrands.map((brand, idx) => (
+          <Link
+            key={brand.id || brand.name || idx}
+            to={`/search?q=${encodeURIComponent(brand.name)}`}
+            className="group relative flex flex-col items-center justify-between p-4 sm:p-5 bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-xl hover:shadow-orange-500/10 hover:border-orange-300 hover:-translate-y-1.5 transition-all duration-300 shrink-0 w-[145px] sm:w-[165px] md:w-[180px] snap-start overflow-hidden text-center cursor-pointer"
+            title={`Browse ${brand.name} Products`}
+          >
+            {/* Top Micro Label */}
+            <div className="w-full flex items-center justify-between mb-2">
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 group-hover:text-[#F97316] transition-colors">
+                Partner
+              </span>
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform"
+                title="Verified Genuine Brand"
+              />
+            </div>
+
+            {/* Logo Box */}
+            <div className="h-14 sm:h-16 w-full flex items-center justify-center p-2 rounded-xl bg-slate-50/70 group-hover:bg-orange-50/40 transition-colors">
+              <img
+                src={brand.logo}
+                alt={brand.name}
+                onError={(e) => {
+                  e.currentTarget.src = fallbackSvg(brand.name);
+                }}
+                className="max-h-10 sm:max-h-11 max-w-[110px] w-auto object-contain transition-all duration-300 filter grayscale contrast-125 opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110"
+                title={brand.name}
+                loading="lazy"
+              />
+            </div>
+
+            {/* Brand Title & Category */}
+            <div className="mt-3 w-full">
+              <h3 className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-[#F97316] transition-colors truncate">
+                {brand.name}
+              </h3>
+              <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                {brand.category || 'Authorized Gear'}
+              </p>
+            </div>
+
+            {/* Explore Micro Link */}
+            <div className="mt-2 text-[10px] font-bold text-[#F97316] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 transform translate-y-1 group-hover:translate-y-0">
+              <span>View Gear</span>
+              <ArrowRight size={10} />
+            </div>
+
+            {/* Hover Bottom Glow Line */}
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-400 to-[#F97316] opacity-0 group-hover:opacity-100 transition-opacity" />
+          </Link>
         ))}
+      </div>
+
+      {/* Trust Guarantee Strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 mt-4 pt-4 border-t border-slate-200/70 text-slate-600 text-xs relative z-10">
+        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs">
+          <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
+          <span className="font-bold text-slate-800 text-[11px] sm:text-xs">100% Genuine Tech</span>
+        </div>
+        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs">
+          <Award size={16} className="text-blue-600 shrink-0" />
+          <span className="font-bold text-slate-800 text-[11px] sm:text-xs">Official Brand Warranty</span>
+        </div>
+        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs">
+          <Zap size={16} className="text-amber-500 shrink-0" />
+          <span className="font-bold text-slate-800 text-[11px] sm:text-xs">Authorized Partners</span>
+        </div>
+        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs">
+          <CheckCircle2 size={16} className="text-orange-500 shrink-0" />
+          <span className="font-bold text-slate-800 text-[11px] sm:text-xs">Direct Support & EMI</span>
+        </div>
       </div>
     </section>
   );
