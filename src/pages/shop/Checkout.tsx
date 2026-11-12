@@ -613,22 +613,22 @@ export const Checkout: React.FC = () => {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto px-4 py-8 md:py-12 mb-20 min-h-screen">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-8 md:py-12 mb-28 sm:mb-20 min-h-screen">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
               অর্ডার সম্পন্ন করুন (Checkout)
             </h1>
-            <p className="text-slate-500 text-sm mt-1">
+            {/* <p className="text-slate-500 text-xs sm:text-sm mt-1">
               লগইন ছাড়াই সহজে ও দ্রুত নাম, নম্বর ও ঠিকানা দিয়ে অর্ডার সম্পন্ন করুন।
-            </p>
+            </p> */}
           </div>
           {!user && (
             <button
               type="button"
               onClick={() => navigate("/login")}
-              className="self-start sm:self-auto bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-5 py-2 text-slate-700 font-bold rounded-xl text-xs transition-all shadow-xs cursor-pointer"
+              className="self-start sm:self-auto bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-4 sm:px-5 py-2 text-slate-700 font-bold rounded-xl text-xs transition-all shadow-xs cursor-pointer"
             >
               পূর্বে অ্যাকাউন্ট থাকলে লগইন করুন
             </button>
@@ -637,42 +637,42 @@ export const Checkout: React.FC = () => {
 
         {/* Loyalty Reward Banner (Optional login bonus) */}
         {!user && (
-          <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50/60 border border-amber-200/90 rounded-2xl p-4 sm:p-5 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs animate-in fade-in duration-200">
-            <div className="flex items-start gap-3.5">
-              <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
-                <Sparkles size={20} />
+          <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50/60 border border-amber-200/90 rounded-2xl p-3.5 sm:p-5 mb-6 sm:mb-8 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 shadow-xs animate-in fade-in duration-200">
+            <div className="flex items-start gap-2.5 sm:gap-3.5">
+              <div className="p-2 sm:p-2.5 bg-amber-500 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
+                <Sparkles size={18} className="sm:w-5 sm:h-5" />
               </div>
               <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                  <h4 className="font-extrabold text-slate-900 text-xs sm:text-base">
                     লগইন করে অর্ডার করলে রিওয়ার্ড পয়েন্ট বোনাস!
                   </h4>
-                  <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white px-2 py-0.5 rounded-full shadow-2xs">
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white px-2 py-0.5 rounded-full shadow-2xs">
                     ১০ পয়েন্ট / ১০০০৳
                   </span>
                 </div>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed max-w-xl">
+                <p className="text-[11px] sm:text-xs text-slate-600 mt-1 leading-relaxed max-w-xl">
                   লগইন করা থাকলে প্রতি <strong>১,০০০ টাকা</strong> কেনাকাটায় <strong>১০ পয়েন্ট</strong> আপনার অ্যাকাউন্টে জমা হবে, যা পরবর্তীতে যেকোনো অর্ডারে টাকা হিসেবে রিডিম করতে পারবেন (*শর্ত প্রযোজ্য)। আপনি চাইলে কোনো <strong>লগইন ছাড়াই সরাসরি</strong> অর্ডার করতে পারেন।
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
+            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold rounded-xl shadow-xs hover:bg-slate-50 transition-all cursor-pointer"
+                className="flex-1 sm:flex-initial justify-center inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold rounded-xl shadow-xs hover:bg-slate-50 transition-all cursor-pointer"
               >
                 <img
                   src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                   alt="Google"
-                  className="w-4 h-4"
+                  className="w-3.5 h-3.5"
                 />
                 Google Sign In
               </button>
               <button
                 type="button"
                 onClick={() => navigate("/login")}
-                className="px-4 py-2 bg-[#0E2A47] hover:bg-[#0E2A47]/90 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                className="flex-1 sm:flex-initial justify-center px-4 py-2 bg-[#0E2A47] hover:bg-[#0E2A47]/90 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
               >
                 Login
               </button>
@@ -682,23 +682,23 @@ export const Checkout: React.FC = () => {
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white p-6 sm:p-10 rounded-3xl shadow-sm border border-slate-100"
+          className="bg-white p-4 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100"
         >
           {/* Saved Addresses Section (Only for Logged In Users) */}
           {user && savedAddresses.length >= 2 && (
-            <div className="mb-8 pb-6 border-b border-slate-100">
-              <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-                <div className="flex items-center gap-2">
+            <div className="mb-6 sm:mb-8 pb-5 sm:pb-6 border-b border-slate-100">
+              <div className="flex items-center justify-between gap-2 mb-2.5 sm:mb-3 flex-wrap">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <MapPin size={16} className="text-orange-500 shrink-0" />
                   <span className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-                    আপনার সংরক্ষিত ঠিকানা
+                    সংরক্ষিত ঠিকানা
                   </span>
                   <span className="text-[11px] font-semibold text-slate-400">
                     ({savedAddresses.length})
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -714,25 +714,26 @@ export const Checkout: React.FC = () => {
                       }));
                       toast("নতুন ঠিকানা নিচে লিখুন", { icon: "✏️" });
                     }}
-                    className={`cursor-pointer text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
+                    className={`cursor-pointer text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
                       selectedAddressIndex === -1
                         ? "border-orange-500 bg-orange-50 text-orange-700"
                         : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
                     }`}
                   >
-                    <Plus size={12} /> নতুন ঠিকানা দিন
+                    <Plus size={11} /> নতুন ঠিকানা
                   </button>
                   <Link
                     to="/profile?tab=profile"
                     target="_blank"
-                    className="text-[11px] font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100/80 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+                    className="text-[10px] sm:text-[11px] font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100/80 px-2 sm:px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
                   >
                     Address Book →
                   </Link>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {/* Mobile: Horizontal scrollable cards with snap; Desktop: Multi-column grid */}
+              <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5 overflow-x-auto pb-2 -mx-2 px-2 sm:mx-0 sm:px-0 sm:overflow-visible sm:pb-0 no-scrollbar snap-x snap-mandatory">
                 {savedAddresses.map((addr, idx) => {
                   const isSelected = selectedAddressIndex === idx;
                   const fullAddressLine = [addr.address, addr.city, addr.state].filter(Boolean).join(", ");
@@ -746,15 +747,15 @@ export const Checkout: React.FC = () => {
                         applyAddressToForm(addr);
                         toast.success(`"${addr.type || "Address " + (idx + 1)}" নির্বাচিত হয়েছে`);
                       }}
-                      className={`cursor-pointer text-left rounded-xl px-3.5 py-2.5 border transition-all flex flex-col gap-1 ${
+                      className={`cursor-pointer text-left rounded-xl p-3 sm:px-3.5 sm:py-2.5 border transition-all flex flex-col gap-1 min-w-[240px] max-w-[260px] sm:min-w-0 sm:max-w-none shrink-0 sm:shrink snap-start ${
                         isSelected
-                          ? "border-orange-500 bg-orange-50/40 shadow-2xs ring-1 ring-orange-500/30"
+                          ? "border-orange-500 bg-orange-50/40 shadow-xs ring-2 ring-orange-500/30"
                           : "border-slate-200 hover:border-slate-300 bg-slate-50/40 hover:bg-white"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-1.5 w-full">
                         <span
-                          className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                          className={`text-[9px] sm:text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
                             isSelected
                               ? "bg-orange-500 text-white"
                               : "bg-slate-200/80 text-slate-600"
@@ -804,16 +805,16 @@ export const Checkout: React.FC = () => {
           )}
 
           {/* Customer Delivery Details Section */}
-          <div className="mb-8">
-            <h3 className="text-base font-extrabold text-slate-900 mb-4 flex items-center gap-2">
+          <div className="mb-6 sm:mb-8">
+            <h3 className="text-sm sm:text-base font-extrabold text-slate-900 mb-3 sm:mb-4 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-blue-600"></span>
               গ্রাহক ও ডেলিভারির তথ্য
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               {/* Full Name */}
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-700 uppercase mb-1 sm:mb-1.5">
                   আপনার সম্পূর্ণ নাম (Full Name) <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -823,21 +824,21 @@ export const Checkout: React.FC = () => {
                   onChange={handleChange}
                   placeholder="যেমন: মোঃ রহিম উদ্দিন"
                   required
-                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all font-medium text-slate-900"
+                  className="border border-slate-200 bg-slate-50/50 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all font-medium text-slate-900"
                 />
               </div>
 
               {/* Phone */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-700 uppercase mb-1 sm:mb-1.5">
                   মোবাইল নম্বর (Phone Number) <span className="text-rose-500">*</span>
                 </label>
                 <div className="flex">
-                  <span className="inline-flex items-center px-3.5 border border-r-0 border-slate-200 bg-slate-100 text-slate-700 font-bold text-sm rounded-l-xl select-none">
+                  <span className="inline-flex items-center px-2.5 sm:px-3.5 border border-r-0 border-slate-200 bg-slate-100 text-slate-700 font-bold text-xs sm:text-sm rounded-l-xl select-none">
                     <img
                       src="https://flagcdn.com/w20/bd.png"
                       alt="BD"
-                      className="w-4 h-auto mr-1.5 rounded-xs shadow-2xs"
+                      className="w-3.5 sm:w-4 h-auto mr-1 sm:mr-1.5 rounded-xs shadow-2xs"
                     />{" "}
                     +880
                   </span>
@@ -849,16 +850,16 @@ export const Checkout: React.FC = () => {
                     placeholder="1XXXXXXXXX"
                     maxLength={10}
                     required
-                    className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-r-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all flex-1 font-semibold text-slate-900"
+                    className="border border-slate-200 bg-slate-50/50 p-3 sm:p-3.5 rounded-r-xl text-xs sm:text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all flex-1 font-semibold text-slate-900"
                   />
                 </div>
               </div>
 
               {/* Email (Optional) */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5 flex items-center justify-between">
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-700 uppercase mb-1 sm:mb-1.5 flex items-center justify-between">
                   <span>ইমেইল ঠিকানা (Email)</span>
-                  <span className="text-[10px] font-normal text-slate-400 lowercase">(ঐচ্ছিক / ইনভয়েস রিসিটের জন্য)</span>
+                  <span className="text-[9px] sm:text-[10px] font-normal text-slate-400 lowercase">(ঐচ্ছিক / রিসিটের জন্য)</span>
                 </label>
                 <input
                   type="email"
@@ -866,13 +867,13 @@ export const Checkout: React.FC = () => {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="example@mail.com"
-                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-800"
+                  className="border border-slate-200 bg-slate-50/50 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-800"
                 />
               </div>
 
               {/* District (Only Jila as requested) */}
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-700 uppercase mb-1 sm:mb-1.5">
                   ডেলিভারির জেলা (District) <span className="text-rose-500">*</span>
                 </label>
                 <select
@@ -880,7 +881,7 @@ export const Checkout: React.FC = () => {
                   value={formData.city}
                   onChange={handleDistrictChange}
                   required
-                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all font-semibold text-slate-800 cursor-pointer"
+                  className="border border-slate-200 bg-slate-50/50 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all font-semibold text-slate-800 cursor-pointer"
                 >
                   <option value="" disabled>
                     -- জেলা নির্বাচন করুন (Select District) --
@@ -895,7 +896,7 @@ export const Checkout: React.FC = () => {
 
               {/* Delivery Address */}
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-700 uppercase mb-1 sm:mb-1.5">
                   সম্পূর্ণ ডেলিভারি ঠিকানা (Full Address) <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -905,13 +906,13 @@ export const Checkout: React.FC = () => {
                   onChange={handleChange}
                   placeholder="বাসা নম্বর, রোড নম্বর, এলাকা বা ল্যান্ডমার্ক..."
                   required
-                  className="border border-slate-200 bg-slate-50/50 p-3.5 rounded-xl text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-900"
+                  className="border border-slate-200 bg-slate-50/50 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all text-slate-900"
                 />
               </div>
 
               {/* Order Notes */}
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-700 uppercase mb-1 sm:mb-1.5">
                   অর্ডার সংক্রান্ত বিশেষ নোট (Optional Notes)
                 </label>
                 <textarea
@@ -920,7 +921,7 @@ export const Checkout: React.FC = () => {
                   onChange={handleChange}
                   placeholder="ডেলিভারিম্যানের জন্য কোনো বিশেষ নির্দেশনা থাকলে এখানে লিখুন..."
                   rows={2}
-                  className="border border-slate-200 bg-slate-50/50 p-3 rounded-xl text-xs w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all resize-none text-slate-800"
+                  className="border border-slate-200 bg-slate-50/50 p-2.5 sm:p-3 rounded-xl text-xs w-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E2A47]/20 focus:border-[#0E2A47] transition-all resize-none text-slate-800"
                 />
               </div>
 
@@ -963,52 +964,52 @@ export const Checkout: React.FC = () => {
             </div>
           )}
 
-              <div className="mb-12 relative border-t border-slate-200 pt-8">
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 py-1 rounded-full text-slate-800 text-sm font-semibold border border-slate-100 shadow-sm">
+              <div className="mb-8 sm:mb-12 relative border-t border-slate-200 pt-6 sm:pt-8">
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-4 sm:px-6 py-0.5 sm:py-1 rounded-full text-slate-800 text-xs sm:text-sm font-semibold border border-slate-100 shadow-xs whitespace-nowrap">
                   Payment Details
                 </span>
 
-                <div className="bg-slate-50 border border-slate-100 p-6 rounded-2xl mb-8">
-                  <div className="space-y-3 max-w-sm mx-auto">
+                <div className="bg-slate-50 border border-slate-100 p-4 sm:p-6 rounded-2xl mb-6 sm:mb-8">
+                  <div className="space-y-2.5 sm:space-y-3 max-w-sm mx-auto text-xs sm:text-sm">
                     <div className="flex justify-between text-slate-600">
                       <span>Subtotal:</span>
                       <span className="font-semibold">
                         ৳ {total.toFixed(2)}
                       </span>
                     </div>
-                    <div className="flex justify-between text-slate-600 pb-3 border-b border-slate-200">
+                    <div className="flex justify-between text-slate-600 pb-2.5 sm:pb-3 border-b border-slate-200">
                       <span>Shipping:</span>
                       <span className="font-semibold">
                         ৳ {shippingCost.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between text-slate-900 pt-1">
-                      <span className="font-bold text-lg">Total Due:</span>
-                      <span className="font-black text-xl text-[#6EC72A]">
+                      <span className="font-bold text-base sm:text-lg">Total Due:</span>
+                      <span className="font-black text-lg sm:text-xl text-[#6EC72A]">
                         ৳ {grandTotal.toFixed(2)}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <p className="text-center text-slate-600 font-medium mb-6">
+                <p className="text-center text-slate-600 font-bold text-xs sm:text-sm mb-4 sm:mb-6">
                   Select Payment Method
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 max-w-3xl mx-auto mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3.5 max-w-3xl mx-auto mb-6">
                   {/* Option 1: Cash on Delivery */}
                   <div
                     onClick={() => {
                       setPaymentType("cod");
                       setIsEmiSelected(false);
                     }}
-                    className={`cursor-pointer rounded-2xl p-4 border-2 transition-all flex flex-col justify-between ${
+                    className={`cursor-pointer rounded-xl sm:rounded-2xl p-3.5 sm:p-4 border-2 transition-all flex flex-col justify-between ${
                       paymentType === "cod" && !isEmiSelected
-                        ? "border-[#0E2A47] bg-[#0E2A47]/5 shadow-sm ring-1 ring-[#0E2A47]"
+                        ? "border-[#0E2A47] bg-[#0E2A47]/5 shadow-xs ring-1 ring-[#0E2A47]"
                         : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 mb-2">
+                    <div className="flex items-center gap-2 sm:gap-2.5 mb-1.5 sm:mb-2">
                       <div
                         className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
                           paymentType === "cod" && !isEmiSelected ? "border-[#0E2A47]" : "border-slate-400"
@@ -1018,11 +1019,11 @@ export const Checkout: React.FC = () => {
                           <div className="w-2 h-2 rounded-full bg-[#0E2A47]" />
                         )}
                       </div>
-                      <span className="font-bold text-slate-900 text-sm">
+                      <span className="font-bold text-slate-900 text-xs sm:text-sm">
                         Cash on Delivery
                       </span>
                     </div>
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[10px] sm:text-[11px] text-slate-500">
                       পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন
                     </span>
                   </div>
@@ -1033,13 +1034,13 @@ export const Checkout: React.FC = () => {
                       setPaymentType("pay_now");
                       setIsEmiSelected(false);
                     }}
-                    className={`cursor-pointer rounded-2xl p-4 border-2 transition-all flex flex-col justify-between ${
+                    className={`cursor-pointer rounded-xl sm:rounded-2xl p-3.5 sm:p-4 border-2 transition-all flex flex-col justify-between ${
                       paymentType === "pay_now" && !isEmiSelected
-                        ? "border-[#0E2A47] bg-[#0E2A47]/5 shadow-sm ring-1 ring-[#0E2A47]"
+                        ? "border-[#0E2A47] bg-[#0E2A47]/5 shadow-xs ring-1 ring-[#0E2A47]"
                         : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 mb-2">
+                    <div className="flex items-center gap-2 sm:gap-2.5 mb-1.5 sm:mb-2">
                       <div
                         className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
                           paymentType === "pay_now" && !isEmiSelected ? "border-[#0E2A47]" : "border-slate-400"
@@ -1049,11 +1050,11 @@ export const Checkout: React.FC = () => {
                           <div className="w-2 h-2 rounded-full bg-[#0E2A47]" />
                         )}
                       </div>
-                      <span className="font-bold text-slate-900 text-sm">
+                      <span className="font-bold text-slate-900 text-xs sm:text-sm">
                         Pay Now
                       </span>
                     </div>
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[10px] sm:text-[11px] text-slate-500">
                       Card / bKash / Nagad / Net Banking
                     </span>
                   </div>
@@ -1068,15 +1069,15 @@ export const Checkout: React.FC = () => {
                         toast.error(`Credit Card EMI-র জন্য ন্যূনতম অর্ডারের পরিমাণ ৳ ${MINIMUM_EMI_PURCHASE.toLocaleString('en-IN')}`);
                       }
                     }}
-                    className={`cursor-pointer rounded-2xl p-4 border-2 transition-all flex flex-col justify-between relative overflow-hidden ${
+                    className={`cursor-pointer rounded-xl sm:rounded-2xl p-3.5 sm:p-4 border-2 transition-all flex flex-col justify-between relative overflow-hidden ${
                       isEmiSelected
-                        ? "border-[#F97316] bg-orange-50/40 shadow-sm ring-2 ring-[#F97316]"
+                        ? "border-[#F97316] bg-orange-50/40 shadow-xs ring-2 ring-[#F97316]"
                         : grandTotal >= MINIMUM_EMI_PURCHASE
                         ? "border-slate-200 hover:border-orange-300 bg-white"
                         : "border-slate-100 bg-slate-50/70 opacity-60 cursor-not-allowed"
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 mb-2">
+                    <div className="flex items-center gap-2 sm:gap-2.5 mb-1.5 sm:mb-2">
                       <div
                         className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
                           isEmiSelected ? "border-[#F97316]" : "border-slate-400"
@@ -1086,14 +1087,14 @@ export const Checkout: React.FC = () => {
                           <div className="w-2 h-2 rounded-full bg-[#F97316]" />
                         )}
                       </div>
-                      <span className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                      <span className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
                         Credit Card EMI
                         <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-[#F97316] text-white">
                           EMI
                         </span>
                       </span>
                     </div>
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[10px] sm:text-[11px] text-slate-500">
                       {grandTotal >= MINIMUM_EMI_PURCHASE ? "৩ - ৩৬ মাসের কিস্তি (১৬টি ব্যাংক)" : "ন্যূনতম ৳ ৫,০০০ অর্ডারে প্রযোজ্য"}
                     </span>
                   </div>
@@ -1101,17 +1102,17 @@ export const Checkout: React.FC = () => {
 
                 {/* Interactive EMI Bank & Tenure Selector Panel */}
                 {isEmiSelected && grandTotal >= MINIMUM_EMI_PURCHASE && (
-                  <div className="max-w-3xl mx-auto mb-8 bg-gradient-to-b from-orange-50/60 to-white border-2 border-[#F97316]/30 rounded-2xl p-5 sm:p-6 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="flex items-center justify-between pb-4 border-b border-orange-100">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-[#F97316] text-white flex items-center justify-center">
-                          <CreditCard size={18} />
+                  <div className="max-w-3xl mx-auto mb-6 sm:mb-8 bg-gradient-to-b from-orange-50/60 to-white border-2 border-[#F97316]/30 rounded-2xl p-3.5 sm:p-6 shadow-xs animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 sm:pb-4 border-b border-orange-100 gap-2">
+                      <div className="flex items-center gap-2 sm:gap-2.5">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#F97316] text-white flex items-center justify-center shrink-0">
+                          <CreditCard size={16} className="sm:w-[18px] sm:h-[18px]" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-slate-900 text-sm sm:text-base">
+                          <h4 className="font-bold text-slate-900 text-xs sm:text-base">
                             Credit Card EMI কিস্তি নির্বাচন
                           </h4>
-                          <p className="text-[11px] text-slate-500">
+                          <p className="text-[10px] sm:text-[11px] text-slate-500">
                             আপনার পছন্দের ব্যাংক ও কিস্তির মেয়াদ সিলেক্ট করুন
                           </p>
                         </div>
@@ -1119,16 +1120,16 @@ export const Checkout: React.FC = () => {
                       <Link
                         to="/emi-terms"
                         target="_blank"
-                        className="text-xs font-bold text-[#F97316] hover:underline whitespace-nowrap"
+                        className="text-[11px] sm:text-xs font-bold text-[#F97316] hover:underline whitespace-nowrap self-end sm:self-auto"
                       >
                         EMI পলিসি ও শর্তাবলী →
                       </Link>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mt-3.5 sm:mt-4">
                       {/* Bank Dropdown */}
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        <label className="block text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 sm:mb-1.5">
                           ১. ব্যাংক নির্বাচন করুন (১৬টি ব্যাংক)
                         </label>
                         <select
@@ -1136,7 +1137,7 @@ export const Checkout: React.FC = () => {
                           onChange={(e) => {
                             setSelectedEmiBankId(e.target.value);
                           }}
-                          className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:border-transparent transition-all shadow-xs"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:border-transparent transition-all shadow-xs"
                         >
                           {BANK_EMI_PLANS.map((bank) => (
                             <option key={bank.id} value={bank.id}>
@@ -1148,22 +1149,22 @@ export const Checkout: React.FC = () => {
 
                       {/* Tenure Selector */}
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        <label className="block text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 sm:mb-1.5">
                           ২. কিস্তির মেয়াদ (মাস)
                         </label>
-                        <div className="grid grid-cols-4 gap-1.5">
+                        <div className="grid grid-cols-4 sm:grid-cols-7 gap-1 sm:gap-1.5">
                           {availableEmiOptions.map((opt) => (
                             <button
                               key={opt.tenureKey}
                               type="button"
                               onClick={() => setSelectedEmiTenureKey(opt.tenureKey)}
-                              className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all ${
+                              className={`py-1.5 sm:py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all ${
                                 selectedEmiTenureKey === opt.tenureKey
                                   ? "bg-[#0E2A47] text-white border-[#0E2A47] shadow-xs"
                                   : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
                               }`}
                             >
-                              <div>{opt.months}M</div>
+                              <div className="font-extrabold">{opt.months}M</div>
                               <div className="text-[9px] font-normal opacity-80">{opt.rate}%</div>
                             </button>
                           ))}
@@ -1173,45 +1174,45 @@ export const Checkout: React.FC = () => {
 
                     {/* EMI Calculation Summary Breakdown */}
                     {activeEmiOption && (
-                      <div className="mt-5 p-4 bg-white rounded-xl border border-orange-200 shadow-xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                      <div className="mt-4 sm:mt-5 p-3 sm:p-4 bg-white rounded-xl border border-orange-200 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 pb-3 border-b border-slate-100">
                           <div>
-                            <span className="text-xs text-slate-500 block">নির্বাচিত প্ল্যান:</span>
-                            <span className="text-sm font-black text-slate-900">
+                            <span className="text-[11px] sm:text-xs text-slate-500 block">নির্বাচিত প্ল্যান:</span>
+                            <span className="text-xs sm:text-sm font-black text-slate-900">
                               {selectedEmiBank.name} ({activeEmiOption.months} Months)
                             </span>
                           </div>
                           <div className="text-left sm:text-right">
-                            <span className="text-xs text-slate-500 block">মাসিক কিস্তি:</span>
-                            <span className="text-xl font-black text-[#F97316]">
+                            <span className="text-[11px] sm:text-xs text-slate-500 block">মাসিক কিস্তি:</span>
+                            <span className="text-lg sm:text-xl font-black text-[#F97316]">
                               ৳ {Math.round(activeEmiOption.monthlyInstallment).toLocaleString('en-IN')}{" "}
-                              <span className="text-xs text-slate-500 font-normal">/ মাস</span>
+                              <span className="text-[11px] sm:text-xs text-slate-500 font-normal">/ মাস</span>
                             </span>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-3 text-slate-600">
-                          <div>
-                            <span className="text-slate-400 block">প্রোডাক্ট মোট:</span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] sm:text-xs pt-3 text-slate-600">
+                          <div className="bg-slate-50 p-2 rounded-lg">
+                            <span className="text-slate-400 block text-[10px]">প্রোডাক্ট মোট:</span>
                             <span className="font-bold text-slate-800">৳ {Math.round(grandTotal).toLocaleString('en-IN')}</span>
                           </div>
-                          <div>
-                            <span className="text-slate-400 block">ব্যাংক চার্জ ({activeEmiOption.rate}%):</span>
+                          <div className="bg-slate-50 p-2 rounded-lg">
+                            <span className="text-slate-400 block text-[10px]">ব্যাংক চার্জ ({activeEmiOption.rate}%):</span>
                             <span className="font-bold text-slate-800">+ ৳ {Math.round(activeEmiOption.chargeAmount).toLocaleString('en-IN')}</span>
                           </div>
-                          <div>
-                            <span className="text-slate-400 block">মোট পরিশোধযোগ্য:</span>
+                          <div className="bg-orange-50/70 border border-orange-200/50 p-2 rounded-lg">
+                            <span className="text-slate-500 block text-[10px]">মোট পরিশোধযোগ্য:</span>
                             <span className="font-black text-slate-900">৳ {Math.round(activeEmiOption.totalPayable).toLocaleString('en-IN')}</span>
                           </div>
-                          <div>
-                            <span className="text-slate-400 block">অর্ডার মেথড:</span>
-                            <span className="font-bold text-emerald-700 truncate block" title={`Payment via ${selectedEmiBank.shortName} ${activeEmiOption.months}-Month EMI`}>
-                              {selectedEmiBank.shortName} {activeEmiOption.months}M EMI
+                          <div className="bg-emerald-50/70 border border-emerald-200/50 p-2 rounded-lg">
+                            <span className="text-slate-500 block text-[10px]">অর্ডার মেথড:</span>
+                            <span className="font-bold text-emerald-800 truncate block text-[11px]" title={`Payment via ${selectedEmiBank.shortName} ${activeEmiOption.months}-Month EMI`}>
+                              {selectedEmiBank.shortName} {activeEmiOption.months}M
                             </span>
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500 leading-relaxed bg-amber-50/60 p-2.5 rounded-lg border border-amber-200/50">
+                        <div className="mt-3 pt-3 border-t border-slate-100 text-[10px] sm:text-[11px] text-slate-500 leading-relaxed bg-amber-50/60 p-2.5 rounded-lg border border-amber-200/50">
                           ℹ️ <strong>নির্দেশনা:</strong> অর্ডার সাবমিট করার পর অনলাইন গেটওয়েতে কার্ড অপশন বেছে নিয়ে আপনার <strong>{selectedEmiBank.shortName}</strong> ক্রেডিট কার্ড ব্যবহার করে ট্রানজ্যাকশন সম্পন্ন করুন। ব্যাংক স্বয়ংক্রিয়ভাবে {activeEmiOption.months} মাসের কিস্তিতে কনভার্ট করবে।
                         </div>
                       </div>
@@ -1297,10 +1298,10 @@ export const Checkout: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex flex-col items-center justify-center gap-6 pt-4 border-t border-slate-100">
+              <div className="flex flex-col items-center justify-center gap-4 sm:gap-6 pt-4 border-t border-slate-100">
                 {submitError && (
-                  <div className="w-full max-w-xl p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-sm shadow-sm animate-in fade-in duration-200">
-                    <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                  <div className="w-full max-w-xl p-3 sm:p-4 bg-rose-50 border border-rose-200 rounded-xl sm:rounded-2xl flex items-start gap-2.5 sm:gap-3 text-rose-800 text-xs sm:text-sm shadow-xs animate-in fade-in duration-200">
+                    <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-rose-500 shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <p className="font-bold text-rose-900">
                         Order could not be placed
@@ -1312,17 +1313,17 @@ export const Checkout: React.FC = () => {
                   </div>
                 )}
 
-                <label className="flex items-center gap-3 text-sm text-slate-600 cursor-pointer group">
-                  <div className="relative flex items-center">
+                <label className="flex items-start sm:items-center gap-2.5 sm:gap-3 text-xs sm:text-sm text-slate-600 cursor-pointer group select-none">
+                  <div className="relative flex items-center mt-0.5 sm:mt-0">
                     <input
                       type="checkbox"
                       name="termsAccepted"
                       checked={formData.termsAccepted}
                       onChange={handleChange}
-                      className="w-5 h-5 border-2 border-slate-300 rounded text-[#0E2A47] focus:ring-[#0E2A47] cursor-pointer transition-colors"
+                      className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-slate-300 rounded text-[#0E2A47] focus:ring-[#0E2A47] cursor-pointer transition-colors shrink-0"
                     />
                   </div>
-                  <span>
+                  <span className="leading-tight sm:leading-normal">
                     আমি{" "}
                     <Link
                       to="/terms"
@@ -1338,7 +1339,7 @@ export const Checkout: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isProcessing}
-                  className="bg-gradient-to-r from-[#0E2A47] to-[#1a426e] hover:shadow-xl hover:shadow-[#0E2A47]/20 hover:-translate-y-0.5 active:scale-95 text-white font-bold py-4 px-10 rounded-xl text-lg flex items-center gap-3 disabled:opacity-75 disabled:hover:translate-y-0 disabled:active:scale-100 transition-all min-w-[320px] justify-center group cursor-pointer shadow-md"
+                  className="w-full sm:w-auto bg-gradient-to-r from-[#0E2A47] to-[#1a426e] hover:shadow-xl hover:shadow-[#0E2A47]/20 hover:-translate-y-0.5 active:scale-95 text-white font-bold py-3.5 sm:py-4 px-6 sm:px-10 rounded-xl text-sm sm:text-base md:text-lg flex items-center gap-2.5 sm:gap-3 disabled:opacity-75 disabled:hover:translate-y-0 disabled:active:scale-100 transition-all min-w-0 sm:min-w-[320px] justify-center group cursor-pointer shadow-md"
                 >
                   {isProcessing ? (
                     <>
@@ -1347,7 +1348,7 @@ export const Checkout: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <span>
+                      <span className="truncate">
                         {isEmiSelected && activeEmiOption
                           ? `অর্ডার নিশ্চিত করুন — ${activeEmiOption.months} মাস EMI (৳${Math.round(activeEmiOption.monthlyInstallment).toLocaleString('en-IN')}/মাস)`
                           : paymentType === "cod"
@@ -1356,8 +1357,8 @@ export const Checkout: React.FC = () => {
                               : "অর্ডার নিশ্চিত করুন (Confirm Order)"
                             : `Pay Full Amount (৳${grandTotal.toFixed(2)})`}
                       </span>
-                      <span className="bg-white/20 p-1.5 rounded-full group-hover:bg-white/30 transition-colors">
-                        <ArrowRight size={20} />
+                      <span className="bg-white/20 p-1.5 rounded-full group-hover:bg-white/30 transition-colors shrink-0">
+                        <ArrowRight size={18} className="sm:w-5 sm:h-5" />
                       </span>
                     </>
                   )}
