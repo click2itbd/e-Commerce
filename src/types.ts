@@ -772,6 +772,11 @@ export interface Task {
   priority?: 'low' | 'medium' | 'high';
   tag?: string;
   checklist?: { id: string; text: string; done: boolean }[];
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  projectName?: string;
+  address?: string;
 }
 
 export interface SupportTicket {

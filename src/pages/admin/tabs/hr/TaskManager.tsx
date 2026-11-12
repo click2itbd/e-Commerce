@@ -10,7 +10,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from '../../../../firebase';
-import { Task, UserProfile } from '../../../../types';
+import { Task, UserProfile, Customer } from '../../../../types';
 import { useAuth } from '../../../../context/AuthContext';
 import { logAudit } from '../../../../lib/audit';
 import { toast } from 'react-hot-toast';
@@ -45,6 +45,10 @@ import {
   Copy,
   Share2,
   BellRing,
+  Building2,
+  Briefcase,
+  MapPin,
+  Phone,
 } from 'lucide-react';
 
 const PRESET_TAGS = [
@@ -61,6 +65,7 @@ export default function TaskManager() {
   const { user, profile } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
@@ -86,6 +91,11 @@ export default function TaskManager() {
     dueDate: '',
     tag: 'General',
     checklist: [] as { id: string; text: string; done: boolean }[],
+    customerId: '',
+    customerName: '',
+    customerPhone: '',
+    projectName: '',
+    address: '',
   });
 
   const [newChecklistText, setNewChecklistText] = useState('');
@@ -139,9 +149,38 @@ export default function TaskManager() {
       }
     );
 
+    // 3. Fetch Customers (for task client/project assignment)
+    let unsubscribeCustomers = () => {};
+    try {
+      const customersQuery = query(collection(db, 'customers'), orderBy('name', 'asc'));
+      unsubscribeCustomers = onSnapshot(
+        customersQuery,
+        (snapshot) => {
+          const custList: Customer[] = [];
+          snapshot.forEach((docSnap) => {
+            custList.push({ id: docSnap.id, ...docSnap.data() } as Customer);
+          });
+          setCustomers(custList);
+        },
+        (err) => {
+          console.warn('Fallback fetching customers without order:', err);
+          unsubscribeCustomers = onSnapshot(collection(db, 'customers'), (snapshot) => {
+            const custList: Customer[] = [];
+            snapshot.forEach((docSnap) => {
+              custList.push({ id: docSnap.id, ...docSnap.data() } as Customer);
+            });
+            setCustomers(custList.sort((a, b) => (a.name || '').localeCompare(b.name || '')));
+          });
+        }
+      );
+    } catch (e) {
+      console.warn('Customer query init error:', e);
+    }
+
     return () => {
       unsubscribeUsers();
       unsubscribeTasks();
+      unsubscribeCustomers();
     };
   }, []);
 
@@ -195,13 +234,22 @@ export default function TaskManager() {
       ? `\n📋 *Checklist:*\n` + task.checklist.map((c, i) => `  ${i + 1}. [${c.done ? '✓' : ' '}] ${c.text}`).join('\n')
       : '';
 
+    const customerInfo = task.customerName
+      ? `\n🏢 *Customer:* ${task.customerName}${task.customerPhone ? ` (${task.customerPhone})` : ''}`
+      : '';
+    const projectInfo = task.projectName ? `\n🏗️ *Project:* ${task.projectName}` : '';
+    const addressInfo = task.address ? `\n📍 *Address:* ${task.address}` : '';
+
     const message = `📋 *NEW TASK ASSIGNED*\n` +
       `━━━━━━━━━━━━━━━━━━━\n` +
       `📌 *Task:* ${task.title}\n` +
       `⚡ *Priority:* ${(task.priority || 'medium').toUpperCase()}\n` +
       `🏷️ *Category:* ${task.tag || 'General'}\n` +
       `📅 *Due Date:* ${task.dueDate || 'No due date'}\n` +
-      (task.description ? `📝 *Details:* ${task.description}\n` : '') +
+      customerInfo +
+      projectInfo +
+      addressInfo +
+      (task.description ? `\n📝 *Details:* ${task.description}\n` : '') +
       checklistText +
       `\n━━━━━━━━━━━━━━━━━━━\n` +
       `👉 *Open Task Manager:* ${typeof window !== 'undefined' ? window.location.origin : ''}/admin?tab=tasks`;
@@ -226,7 +274,11 @@ export default function TaskManager() {
     const checklistText = task.checklist && task.checklist.length > 0
       ? `\nChecklist:\n` + task.checklist.map((c, i) => `  ${i + 1}. [${c.done ? '✓' : ' '}] ${c.text}`).join('\n')
       : '';
-    const text = `📋 Task: ${task.title}\nPriority: ${(task.priority || 'medium').toUpperCase()}\nAssignee: ${getUserName(task.assignedTo)}\nDue Date: ${task.dueDate || 'N/A'}${task.description ? `\nDetails: ${task.description}` : ''}${checklistText}`;
+    const customerLine = task.customerName ? `\nCustomer: ${task.customerName}${task.customerPhone ? ` (${task.customerPhone})` : ''}` : '';
+    const projectLine = task.projectName ? `\nProject: ${task.projectName}` : '';
+    const addressLine = task.address ? `\nAddress: ${task.address}` : '';
+
+    const text = `📋 Task: ${task.title}\nPriority: ${(task.priority || 'medium').toUpperCase()}\nAssignee: ${getUserName(task.assignedTo)}\nDue Date: ${task.dueDate || 'N/A'}${customerLine}${projectLine}${addressLine}${task.description ? `\nDetails: ${task.description}` : ''}${checklistText}`;
     navigator.clipboard.writeText(text);
     toast.success('Task details copied to clipboard!');
   };
@@ -245,6 +297,52 @@ export default function TaskManager() {
     return due === today;
   };
 
+  // Available projects/branches for the currently selected customer in modal form
+  const availableCustomerProjects = useMemo(() => {
+    if (!formData.customerId) return [];
+    const cust = customers.find(c => c.id === formData.customerId);
+    if (!cust) return [];
+    const set = new Set<string>();
+    if (cust.branchName && cust.branchName.trim()) set.add(cust.branchName.trim());
+    if (Array.isArray(cust.branches)) {
+      cust.branches.forEach(b => {
+        if (b && typeof b === 'string' && b.trim()) set.add(b.trim());
+      });
+    }
+    return Array.from(set);
+  }, [formData.customerId, customers]);
+
+  const handleSelectCustomer = (customerId: string) => {
+    if (!customerId) {
+      setFormData(prev => ({
+        ...prev,
+        customerId: '',
+        customerName: '',
+        customerPhone: '',
+      }));
+      return;
+    }
+
+    const cust = customers.find(c => c.id === customerId);
+    if (cust) {
+      setFormData(prev => {
+        const branches = new Set<string>();
+        if (cust.branchName) branches.add(cust.branchName);
+        if (Array.isArray(cust.branches)) cust.branches.forEach(b => b && branches.add(b));
+        const firstBranch = Array.from(branches)[0] || '';
+
+        return {
+          ...prev,
+          customerId: cust.id,
+          customerName: cust.name || '',
+          customerPhone: cust.phone || prev.customerPhone || '',
+          address: cust.address || prev.address || '',
+          projectName: prev.projectName || firstBranch || '',
+        };
+      });
+    }
+  };
+
   // Open & Close Modal
   const handleOpenModal = (task?: Task) => {
     if (task) {
@@ -257,6 +355,11 @@ export default function TaskManager() {
         dueDate: task.dueDate || '',
         tag: task.tag || 'General',
         checklist: task.checklist || [],
+        customerId: task.customerId || '',
+        customerName: task.customerName || '',
+        customerPhone: task.customerPhone || '',
+        projectName: task.projectName || '',
+        address: task.address || '',
       });
     } else {
       setEditingTask(null);
@@ -268,6 +371,11 @@ export default function TaskManager() {
         dueDate: new Date().toISOString().split('T')[0],
         tag: 'General',
         checklist: [],
+        customerId: '',
+        customerName: '',
+        customerPhone: '',
+        projectName: '',
+        address: '',
       });
     }
     setNewChecklistText('');
@@ -339,6 +447,9 @@ export default function TaskManager() {
 
     try {
       const operatorName = profile?.displayName || profile?.email || user?.email || 'Admin';
+      const clientNote = formData.customerName
+        ? ` [Client: ${formData.customerName}${formData.projectName ? ` / ${formData.projectName}` : ''}]`
+        : '';
 
       if (editingTask && editingTask.id) {
         await updateDoc(doc(db, 'tasks', editingTask.id), {
@@ -349,7 +460,7 @@ export default function TaskManager() {
         await logAudit(
           'EDIT',
           'Task',
-          `Updated task "${formData.title}" assigned to ${getUserName(formData.assignedTo)} (Priority: ${formData.priority})`,
+          `Updated task "${formData.title}" assigned to ${getUserName(formData.assignedTo)} (Priority: ${formData.priority})${clientNote}`,
           operatorName
         );
 
@@ -365,7 +476,7 @@ export default function TaskManager() {
         await logAudit(
           'CREATE',
           'Task',
-          `Created task "${formData.title}" assigned to ${getUserName(formData.assignedTo)} (Priority: ${formData.priority})`,
+          `Created task "${formData.title}" assigned to ${getUserName(formData.assignedTo)} (Priority: ${formData.priority})${clientNote}`,
           operatorName,
           { entityId: docRef.id }
         );
@@ -463,10 +574,13 @@ export default function TaskManager() {
       return;
     }
 
-    const headers = ['Task ID', 'Title', 'Status', 'Priority', 'Tag', 'Assigned To', 'Due Date', 'Created At'];
+    const headers = ['Task ID', 'Title', 'Customer', 'Project', 'Address', 'Status', 'Priority', 'Tag', 'Assigned To', 'Due Date', 'Created At'];
     const rows = tasks.map(t => [
       t.id,
       `"${(t.title || '').replace(/"/g, '""')}"`,
+      `"${(t.customerName || '').replace(/"/g, '""')}"`,
+      `"${(t.projectName || '').replace(/"/g, '""')}"`,
+      `"${(t.address || '').replace(/"/g, '""')}"`,
       t.status,
       t.priority || 'medium',
       t.tag || 'General',
@@ -566,7 +680,20 @@ export default function TaskManager() {
         const matchesDesc = (t.description || '').toLowerCase().includes(q);
         const matchesAssignee = getUserName(t.assignedTo).toLowerCase().includes(q);
         const matchesTag = (t.tag || '').toLowerCase().includes(q);
-        if (!matchesTitle && !matchesDesc && !matchesAssignee && !matchesTag) return false;
+        const matchesCustomer = (t.customerName || '').toLowerCase().includes(q);
+        const matchesProject = (t.projectName || '').toLowerCase().includes(q);
+        const matchesAddress = (t.address || '').toLowerCase().includes(q);
+        if (
+          !matchesTitle &&
+          !matchesDesc &&
+          !matchesAssignee &&
+          !matchesTag &&
+          !matchesCustomer &&
+          !matchesProject &&
+          !matchesAddress
+        ) {
+          return false;
+        }
       }
 
       // Staff filter
@@ -1101,6 +1228,33 @@ export default function TaskManager() {
                           </p>
                         )}
 
+                        {/* Customer, Project & Address Info (if assigned) */}
+                        {(task.customerName || task.projectName || task.address) && (
+                          <div className="mt-2.5 p-2 rounded-lg bg-slate-50 border border-slate-200/80 text-[11px] space-y-1">
+                            {task.customerName && (
+                              <div className="flex items-center gap-1.5 font-bold text-slate-800 truncate">
+                                <Building2 size={12} className="text-indigo-600 shrink-0" />
+                                <span className="truncate">{task.customerName}</span>
+                                {task.customerPhone && (
+                                  <span className="text-slate-400 font-normal text-[10px]">({task.customerPhone})</span>
+                                )}
+                              </div>
+                            )}
+                            {task.projectName && (
+                              <div className="flex items-center gap-1.5 font-semibold text-indigo-700 truncate">
+                                <Briefcase size={12} className="text-indigo-500 shrink-0" />
+                                <span className="truncate">Project: {task.projectName}</span>
+                              </div>
+                            )}
+                            {task.address && (
+                              <div className="flex items-start gap-1.5 text-slate-500 text-[10.5px]">
+                                <MapPin size={12} className="text-slate-400 shrink-0 mt-0.5" />
+                                <span className="line-clamp-1">{task.address}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Interactive Checklist (If any) */}
                         {checklistTotal > 0 && (
                           <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1.5">
@@ -1259,6 +1413,26 @@ export default function TaskManager() {
                         <div className="font-bold text-slate-900 text-sm">{task.title}</div>
                         {task.description && (
                           <div className="text-slate-500 text-[11px] line-clamp-1">{task.description}</div>
+                        )}
+                        {(task.customerName || task.projectName || task.address) && (
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px]">
+                            {task.customerName && (
+                              <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded font-semibold">
+                                <Building2 size={10} /> {task.customerName}
+                              </span>
+                            )}
+                            {task.projectName && (
+                              <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded font-semibold">
+                                <Briefcase size={10} /> {task.projectName}
+                              </span>
+                            )}
+                            {task.address && (
+                              <span className="inline-flex items-center gap-1 text-slate-500 max-w-xs truncate" title={task.address}>
+                                <MapPin size={10} className="shrink-0 text-slate-400" />
+                                <span className="truncate">{task.address}</span>
+                              </span>
+                            )}
+                          </div>
                         )}
                         <div className="mt-1 flex items-center gap-1.5">{getTagBadge(task.tag)}</div>
                       </td>
@@ -1464,6 +1638,138 @@ export default function TaskManager() {
                     value={formData.dueDate}
                     onChange={e => setFormData({ ...formData, dueDate: e.target.value })}
                     className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Customer, Project & Address Details (Optional) */}
+              <div className="bg-slate-50/90 p-3.5 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-700">
+                    <Building2 size={13} className="text-indigo-600" />
+                    Customer & Project Details (Optional)
+                  </label>
+                  {(formData.customerId || formData.customerName || formData.projectName || formData.address) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData(prev => ({
+                          ...prev,
+                          customerId: '',
+                          customerName: '',
+                          customerPhone: '',
+                          projectName: '',
+                          address: '',
+                        }))
+                      }
+                      className="text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:underline"
+                    >
+                      Clear Customer Info
+                    </button>
+                  )}
+                </div>
+
+                {/* Customer Select & Customer Name */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Select Customer
+                    </label>
+                    <select
+                      value={formData.customerId}
+                      onChange={e => handleSelectCustomer(e.target.value)}
+                      className="w-full border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- Select Registered Customer --</option>
+                      {customers.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.phone ? `(${c.phone})` : ''} {c.branchName ? `[${c.branchName}]` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Customer / Client Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.customerName}
+                      onChange={e => setFormData({ ...formData, customerName: e.target.value })}
+                      placeholder="e.g. Simpletree, Resti Bhai..."
+                      className="w-full border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Project / Branch and Phone */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                      <Briefcase size={11} className="text-indigo-500" /> Project / Branch
+                    </label>
+                    <input
+                      type="text"
+                      list="task-project-options"
+                      value={formData.projectName}
+                      onChange={e => setFormData({ ...formData, projectName: e.target.value })}
+                      placeholder="e.g. Treelogy Two, GSR, Site-A..."
+                      className="w-full border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <datalist id="task-project-options">
+                      {availableCustomerProjects.map((proj, idx) => (
+                        <option key={idx} value={proj} />
+                      ))}
+                    </datalist>
+
+                    {/* Quick Project Select Chips */}
+                    {availableCustomerProjects.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        <span className="text-[10px] text-slate-400 font-semibold">Suggested:</span>
+                        {availableCustomerProjects.map((p, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, projectName: p }))}
+                            className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                              formData.projectName === p
+                                ? 'bg-indigo-600 text-white border-indigo-600 font-bold'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 font-medium'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                      <Phone size={11} className="text-slate-500" /> Contact Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.customerPhone}
+                      onChange={e => setFormData({ ...formData, customerPhone: e.target.value })}
+                      placeholder="01XXXXXXXXX"
+                      className="w-full border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                    <MapPin size={11} className="text-rose-500" /> Project / Delivery Address
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.address}
+                    onChange={e => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="e.g. House 12, Road 5, Block B, Banani, Dhaka"
+                    className="w-full border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
