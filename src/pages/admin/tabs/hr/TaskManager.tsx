@@ -10,7 +10,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from '../../../../firebase';
-import { Task, UserProfile, Customer } from '../../../../types';
+import { Task, UserProfile, Customer, TaskComment } from '../../../../types';
 import { useAuth } from '../../../../context/AuthContext';
 import { logAudit } from '../../../../lib/audit';
 import { toast } from 'react-hot-toast';
@@ -50,6 +50,11 @@ import {
   Briefcase,
   MapPin,
   Phone,
+  MessageSquare,
+  Send,
+  TrendingUp,
+  Sliders,
+  CheckCircle2,
 } from 'lucide-react';
 
 const PRESET_TAGS = [
@@ -83,6 +88,12 @@ export default function TaskManager() {
   const [quickAddColumn, setQuickAddColumn] = useState<Task['status'] | null>(null);
   const [quickAddTitle, setQuickAddTitle] = useState('');
 
+  // Updates & Comments Modal State
+  const [commentingTaskId, setCommentingTaskId] = useState<string | null>(null);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [commentProgress, setCommentProgress] = useState<number>(0);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+
   // Form State
   const [formData, setFormData] = useState({
     title: '',
@@ -97,7 +108,13 @@ export default function TaskManager() {
     customerPhone: '',
     projectName: '',
     address: '',
+    progress: 0,
   });
+
+  const commentingTask = useMemo(() => {
+    if (!commentingTaskId) return null;
+    return tasks.find(t => t.id === commentingTaskId) || null;
+  }, [commentingTaskId, tasks]);
 
   const [newChecklistText, setNewChecklistText] = useState('');
 
@@ -240,6 +257,12 @@ export default function TaskManager() {
       : '';
     const projectInfo = task.projectName ? `\n🏗️ *Project:* ${task.projectName}` : '';
     const addressInfo = task.address ? `\n📍 *Address:* ${task.address}` : '';
+    const progressInfo = (task as any).progress !== undefined && (task as any).progress > 0
+      ? `\n📈 *Progress:* ${(task as any).progress}%`
+      : '';
+    const latestComment = (task as any).comments && (task as any).comments.length > 0
+      ? `\n💬 *Latest Update:* "${(task as any).comments[(task as any).comments.length - 1].text}"`
+      : '';
 
     const message = `📋 *NEW TASK ASSIGNED*\n` +
       `━━━━━━━━━━━━━━━━━━━\n` +
@@ -250,6 +273,8 @@ export default function TaskManager() {
       customerInfo +
       projectInfo +
       addressInfo +
+      progressInfo +
+      latestComment +
       (task.description ? `\n📝 *Details:* ${task.description}\n` : '') +
       checklistText +
       `\n━━━━━━━━━━━━━━━━━━━\n` +
@@ -278,8 +303,12 @@ export default function TaskManager() {
     const customerLine = task.customerName ? `\nCustomer: ${task.customerName}${task.customerPhone ? ` (${task.customerPhone})` : ''}` : '';
     const projectLine = task.projectName ? `\nProject: ${task.projectName}` : '';
     const addressLine = task.address ? `\nAddress: ${task.address}` : '';
+    const progressLine = task.progress !== undefined && task.progress > 0 ? `\nProgress: ${task.progress}%` : '';
+    const latestCommentLine = task.comments && task.comments.length > 0
+      ? `\nLatest Update: "${task.comments[task.comments.length - 1].text}" (${task.comments[task.comments.length - 1].authorName})`
+      : '';
 
-    const text = `📋 Task: ${task.title}\nPriority: ${(task.priority || 'medium').toUpperCase()}\nAssignee: ${getUserName(task.assignedTo)}\nDue Date: ${task.dueDate || 'N/A'}${customerLine}${projectLine}${addressLine}${task.description ? `\nDetails: ${task.description}` : ''}${checklistText}`;
+    const text = `📋 Task: ${task.title}\nPriority: ${(task.priority || 'medium').toUpperCase()}\nAssignee: ${getUserName(task.assignedTo)}\nDue Date: ${task.dueDate || 'N/A'}${customerLine}${projectLine}${addressLine}${progressLine}${latestCommentLine}${task.description ? `\nDetails: ${task.description}` : ''}${checklistText}`;
     navigator.clipboard.writeText(text);
     toast.success('Task details copied to clipboard!');
   };
@@ -361,6 +390,7 @@ export default function TaskManager() {
         customerPhone: task.customerPhone || '',
         projectName: task.projectName || '',
         address: task.address || '',
+        progress: task.progress || 0,
       });
     } else {
       setEditingTask(null);
@@ -377,6 +407,7 @@ export default function TaskManager() {
         customerPhone: '',
         projectName: '',
         address: '',
+        progress: 0,
       });
     }
     setNewChecklistText('');
@@ -544,7 +575,7 @@ export default function TaskManager() {
       const isFinishing = newStatus === 'completed';
       await updateDoc(doc(db, 'tasks', id), {
         status: newStatus,
-        ...(isFinishing ? { completedAt: new Date().toISOString() } : {}),
+        ...(isFinishing ? { completedAt: new Date().toISOString(), progress: 100 } : {}),
       });
 
       if (isFinishing) {
@@ -565,6 +596,115 @@ export default function TaskManager() {
     } catch (error) {
       console.error('Error updating task status:', error);
       toast.error('Failed to update status');
+    }
+  };
+
+  // Open & Close Comments / Work Updates Modal
+  const handleOpenCommentsModal = (task: Task, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setCommentingTaskId(task.id);
+    setNewCommentText('');
+    setCommentProgress(task.progress || (task.status === 'completed' ? 100 : task.status === 'in_progress' ? 50 : 0));
+  };
+
+  const handleCloseCommentsModal = () => {
+    setCommentingTaskId(null);
+    setNewCommentText('');
+  };
+
+  // Quick Progress Update directly on card
+  const handleQuickProgressUpdate = async (task: Task, newProgress: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!task.id) return;
+    try {
+      const willComplete = newProgress >= 100;
+      await updateDoc(doc(db, 'tasks', task.id), {
+        progress: newProgress,
+        ...(willComplete && task.status !== 'completed' ? { status: 'completed', completedAt: new Date().toISOString() } : {}),
+        ...(newProgress > 0 && task.status === 'pending' ? { status: 'in_progress' } : {}),
+        updatedAt: new Date().toISOString(),
+      });
+      if (willComplete) {
+        playCompletionChime();
+        toast.success(`Progress set to 100% and task marked completed! 🎉`);
+      } else {
+        toast.success(`Progress updated to ${newProgress}%`);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update progress');
+    }
+  };
+
+  // Post Work Update / Comment
+  const handlePostComment = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!commentingTask?.id) return;
+    if (!newCommentText.trim()) {
+      toast.error('Please enter an update or comment');
+      return;
+    }
+
+    setIsSubmittingComment(true);
+    try {
+      const authorName = profile?.displayName || profile?.email || user?.email || 'Staff';
+      const newComment: TaskComment = {
+        id: Date.now().toString(),
+        text: newCommentText.trim(),
+        authorName,
+        authorId: user?.uid || '',
+        createdAt: new Date().toISOString(),
+        progressPercent: commentProgress,
+      };
+
+      const existingComments = commentingTask.comments || [];
+      const updatedComments = [...existingComments, newComment];
+      const willComplete = commentProgress >= 100;
+
+      await updateDoc(doc(db, 'tasks', commentingTask.id), {
+        comments: updatedComments,
+        progress: commentProgress,
+        ...(willComplete && commentingTask.status !== 'completed' ? { status: 'completed', completedAt: new Date().toISOString() } : {}),
+        ...(commentProgress > 0 && commentingTask.status === 'pending' ? { status: 'in_progress' } : {}),
+        updatedAt: new Date().toISOString(),
+      });
+
+      const operatorName = profile?.displayName || profile?.email || user?.email || 'Admin';
+      await logAudit(
+        'TASK_UPDATE',
+        'Task',
+        `Update on "${commentingTask.title}": ${newCommentText.trim()} (${commentProgress}%)`,
+        operatorName,
+        { entityId: commentingTask.id }
+      );
+
+      setNewCommentText('');
+      toast.success('Work update posted!');
+      if (willComplete && commentingTask.status !== 'completed') {
+        playCompletionChime();
+      }
+    } catch (err) {
+      console.error('Error posting comment:', err);
+      toast.error('Failed to post update');
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  // Delete Comment
+  const handleDeleteComment = async (commentId: string) => {
+    if (!commentingTask?.id || !commentingTask.comments) return;
+    if (!window.confirm('Are you sure you want to delete this update?')) return;
+    try {
+      const updatedComments = commentingTask.comments.filter(c => c.id !== commentId);
+      await updateDoc(doc(db, 'tasks', commentingTask.id), {
+        comments: updatedComments,
+        updatedAt: new Date().toISOString(),
+      });
+      toast.success('Update deleted');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to delete comment');
     }
   };
 
@@ -684,6 +824,9 @@ export default function TaskManager() {
         const matchesCustomer = (t.customerName || '').toLowerCase().includes(q);
         const matchesProject = (t.projectName || '').toLowerCase().includes(q);
         const matchesAddress = (t.address || '').toLowerCase().includes(q);
+        const matchesComment = (t.comments || []).some(
+          c => (c.text || '').toLowerCase().includes(q) || (c.authorName || '').toLowerCase().includes(q)
+        );
         if (
           !matchesTitle &&
           !matchesDesc &&
@@ -691,7 +834,8 @@ export default function TaskManager() {
           !matchesTag &&
           !matchesCustomer &&
           !matchesProject &&
-          !matchesAddress
+          !matchesAddress &&
+          !matchesComment
         ) {
           return false;
         }
@@ -1200,6 +1344,22 @@ export default function TaskManager() {
                             >
                               <Copy size={13} />
                             </button>
+                            <button
+                              onClick={(e) => handleOpenCommentsModal(task, e)}
+                              className={`p-1 rounded-md transition-colors relative ${
+                                task.comments && task.comments.length > 0
+                                  ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold'
+                                  : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-100'
+                              }`}
+                              title="Work Updates & Comments"
+                            >
+                              <MessageSquare size={13} />
+                              {task.comments && task.comments.length > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-indigo-600 text-white rounded-full text-[8.5px] flex items-center justify-center font-black">
+                                  {task.comments.length}
+                                </span>
+                              )}
+                            </button>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={() => handleOpenModal(task)}
@@ -1255,6 +1415,104 @@ export default function TaskManager() {
                             )}
                           </div>
                         )}
+
+                        {/* Progress Section */}
+                        <div className="mt-2.5 pt-2 border-t border-slate-100">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 mb-1">
+                            <span className="flex items-center gap-1">
+                              <TrendingUp size={11} className="text-blue-500" />
+                              Progress
+                            </span>
+                            <span
+                              className={`text-[11px] font-black ${
+                                (task.progress || 0) >= 100
+                                  ? 'text-emerald-600'
+                                  : (task.progress || 0) > 0
+                                  ? 'text-blue-600'
+                                  : 'text-slate-400'
+                              }`}
+                            >
+                              {task.progress || 0}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-1.5 rounded-full transition-all duration-300 ${
+                                (task.progress || 0) >= 100
+                                  ? 'bg-emerald-500'
+                                  : (task.progress || 0) >= 50
+                                  ? 'bg-blue-600'
+                                  : (task.progress || 0) > 0
+                                  ? 'bg-amber-500'
+                                  : 'bg-transparent'
+                              }`}
+                              style={{ width: `${task.progress || 0}%` }}
+                            />
+                          </div>
+
+                          {/* Quick Progress Buttons for Active Tasks */}
+                          {task.status !== 'completed' && (
+                            <div className="flex items-center gap-1 mt-1.5">
+                              {[25, 50, 75, 100].map(pct => (
+                                <button
+                                  key={pct}
+                                  type="button"
+                                  onClick={e => handleQuickProgressUpdate(task, pct, e)}
+                                  className={`flex-1 text-[10px] py-0.5 rounded font-black border transition-all ${
+                                    task.progress === pct
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                      : 'bg-white text-slate-600 border-slate-200 hover:bg-blue-50 hover:text-blue-600'
+                                  }`}
+                                  title={`Set progress to ${pct}%`}
+                                >
+                                  {pct}%
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Updates & Comments Trigger Button */}
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            onClick={e => handleOpenCommentsModal(task, e)}
+                            className="w-full py-1.5 px-2.5 rounded-lg bg-indigo-50/70 hover:bg-indigo-100 border border-indigo-200/60 text-indigo-700 text-xs font-bold flex items-center justify-between transition-colors"
+                          >
+                            <span className="flex items-center gap-1.5 truncate">
+                              <MessageSquare size={13} className="text-indigo-600 shrink-0" />
+                              <span>
+                                {task.comments && task.comments.length > 0
+                                  ? `${task.comments.length} Work Update${task.comments.length > 1 ? 's' : ''}`
+                                  : '+ Add Update / Comment'}
+                              </span>
+                            </span>
+                            <span className="text-[10px] text-indigo-500 font-semibold shrink-0">
+                              {task.comments && task.comments.length > 0 ? 'Open →' : 'Update'}
+                            </span>
+                          </button>
+
+                          {/* Latest update snippet (if any) */}
+                          {task.comments && task.comments.length > 0 && (
+                            <div
+                              onClick={e => handleOpenCommentsModal(task, e)}
+                              className="mt-1 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200/70 text-[10.5px] cursor-pointer hover:bg-slate-100 transition-colors"
+                              title="Click to view all work updates"
+                            >
+                              <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 mb-0.5">
+                                <span className="truncate">{task.comments[task.comments.length - 1].authorName}</span>
+                                {task.comments[task.comments.length - 1].progressPercent !== undefined && (
+                                  <span className="text-blue-600 font-extrabold text-[9.5px]">
+                                    {task.comments[task.comments.length - 1].progressPercent}%
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-slate-700 line-clamp-1 italic">
+                                "{task.comments[task.comments.length - 1].text}"
+                              </p>
+                            </div>
+                          )}
+                        </div>
 
                         {/* Interactive Checklist (If any) */}
                         {checklistTotal > 0 && (
@@ -1327,7 +1585,14 @@ export default function TaskManager() {
                           {col.id === 'pending' && (
                             <>
                               <button
-                                onClick={() => task.id && handleStatusChange(task.id, 'in_progress', task.title)}
+                                onClick={() => {
+                                  if (task.id) {
+                                    handleStatusChange(task.id, 'in_progress', task.title);
+                                    if (!task.progress) {
+                                      updateDoc(doc(db, 'tasks', task.id), { progress: 15 });
+                                    }
+                                  }
+                                }}
                                 className="flex-1 py-1 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center gap-1 transition-colors"
                               >
                                 <PlayCircle size={13} /> Start Task
@@ -1449,6 +1714,23 @@ export default function TaskManager() {
                           <option value="in_progress">In Progress</option>
                           <option value="completed">Completed</option>
                         </select>
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-1.5 rounded-full ${
+                                (task.progress || 0) >= 100
+                                  ? 'bg-emerald-500'
+                                  : (task.progress || 0) >= 50
+                                  ? 'bg-blue-600'
+                                  : (task.progress || 0) > 0
+                                  ? 'bg-amber-500'
+                                  : 'bg-transparent'
+                              }`}
+                              style={{ width: `${task.progress || 0}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-black text-slate-500">{task.progress || 0}%</span>
+                        </div>
                       </td>
                       <td className="py-3 px-3">{getPriorityBadge(task.priority)}</td>
                       <td className="py-3 px-3">
@@ -1487,6 +1769,18 @@ export default function TaskManager() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={(e) => handleOpenCommentsModal(task, e)}
+                            className="p-1.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition-colors relative"
+                            title="Work Updates & Comments"
+                          >
+                            <MessageSquare size={14} />
+                            {task.comments && task.comments.length > 0 && (
+                              <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-indigo-600 text-white rounded-full text-[8.5px] flex items-center justify-center font-black">
+                                {task.comments.length}
+                              </span>
+                            )}
+                          </button>
                           <button
                             onClick={(e) => handleSendWhatsApp(task, e)}
                             className="p-1.5 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
@@ -1579,8 +1873,8 @@ export default function TaskManager() {
                 />
               </div>
 
-              {/* Tag & Priority in a grid */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Tag, Priority & Progress in a grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
                     Category / Tag
@@ -1610,6 +1904,23 @@ export default function TaskManager() {
                     <option value="low">🌱 Low</option>
                     <option value="medium">⚡ Medium</option>
                     <option value="high">🔥 High</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
+                    Progress ({formData.progress || 0}%)
+                  </label>
+                  <select
+                    value={formData.progress || 0}
+                    onChange={e => setFormData({ ...formData, progress: Number(e.target.value) })}
+                    className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {[0, 10, 25, 50, 75, 90, 100].map(p => (
+                      <option key={p} value={p}>
+                        {p}% {p === 100 ? '(Completed)' : p === 0 ? '(Not Started)' : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1895,6 +2206,254 @@ export default function TaskManager() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 7. TASK PROGRESS & WORK UPDATES MODAL */}
+      {commentingTask && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex justify-between items-start p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shrink-0">
+              <div className="space-y-1.5 pr-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] px-2 py-0.5 rounded-md font-black uppercase bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                    {commentingTask.tag || 'General'}
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-md font-black uppercase bg-amber-500/20 text-amber-200 border border-amber-400/30">
+                    {commentingTask.priority || 'medium'} Priority
+                  </span>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-md font-black capitalize ${
+                      commentingTask.status === 'completed'
+                        ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                        : commentingTask.status === 'in_progress'
+                        ? 'bg-blue-500/20 text-blue-200 border border-blue-400/30'
+                        : 'bg-slate-500/20 text-slate-200 border border-slate-400/30'
+                    }`}
+                  >
+                    {commentingTask.status.replace('_', ' ')}
+                  </span>
+                </div>
+                <h3 className="text-base font-black text-white leading-snug">
+                  {commentingTask.title}
+                </h3>
+                {(commentingTask.customerName || commentingTask.projectName) && (
+                  <p className="text-xs text-indigo-200/90 flex items-center gap-1.5 font-medium">
+                    <Building2 size={12} className="shrink-0 text-indigo-400" />
+                    <span>{commentingTask.customerName}</span>
+                    {commentingTask.projectName && <span>• Project: {commentingTask.projectName}</span>}
+                  </p>
+                )}
+                {commentingTask.address && (
+                  <p className="text-[11px] text-slate-300 flex items-center gap-1">
+                    <MapPin size={11} className="shrink-0 text-rose-400" />
+                    <span>{commentingTask.address}</span>
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseCommentsModal}
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors shrink-0"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              {/* 1. Progress Control Card */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={16} className="text-blue-600" />
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-700">
+                      Work Progress (কাজের অগ্রগতি)
+                    </span>
+                  </div>
+                  <span
+                    className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
+                      commentProgress >= 100
+                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                        : commentProgress >= 50
+                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                        : 'bg-amber-100 text-amber-700 border border-amber-200'
+                    }`}
+                  >
+                    {commentProgress}% Completed
+                  </span>
+                </div>
+
+                {/* Progress Slider */}
+                <div className="space-y-1">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={commentProgress}
+                    onChange={e => setCommentProgress(Number(e.target.value))}
+                    className="w-full accent-blue-600 cursor-pointer"
+                  />
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-200 ${
+                        commentProgress >= 100
+                          ? 'bg-emerald-500'
+                          : commentProgress >= 50
+                          ? 'bg-blue-600'
+                          : 'bg-amber-500'
+                      }`}
+                      style={{ width: `${commentProgress}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                  {[
+                    { label: '0% Not Started', val: 0 },
+                    { label: '25% Started', val: 25 },
+                    { label: '50% Halfway', val: 50 },
+                    { label: '75% Most Done', val: 75 },
+                    { label: '100% Finished', val: 100 },
+                  ].map(p => (
+                    <button
+                      key={p.val}
+                      type="button"
+                      onClick={() => setCommentProgress(p.val)}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg font-bold border transition-all ${
+                        commentProgress === p.val
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. Updates & Comments Timeline */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <MessageSquare size={14} className="text-indigo-600" />
+                    Updates & Field Reports ({commentingTask.comments?.length || 0})
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-semibold">
+                    Activity history
+                  </span>
+                </div>
+
+                <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                  {commentingTask.comments && commentingTask.comments.length > 0 ? (
+                    commentingTask.comments.map(c => (
+                      <div
+                        key={c.id}
+                        className="bg-white p-3 rounded-xl border border-slate-200/90 shadow-2xs space-y-1.5 relative group"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px] shrink-0">
+                              {(c.authorName || 'U').charAt(0).toUpperCase()}
+                            </div>
+                            <span className="font-bold text-xs text-slate-900">{c.authorName}</span>
+                            {c.progressPercent !== undefined && (
+                              <span
+                                className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                  c.progressPercent >= 100
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                }`}
+                              >
+                                {c.progressPercent}% progress
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {new Date(c.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}{' '}
+                              {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteComment(c.id)}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-600 rounded transition-opacity"
+                              title="Delete update"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed pl-8">
+                          {c.text}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      <MessageSquare size={24} className="mx-auto text-slate-300 mb-1" />
+                      <p className="text-xs font-bold text-slate-500">No updates or comments yet</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Post an update below to inform the team about current status and progress.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Post New Update / Comment Form */}
+              <form onSubmit={handlePostComment} className="pt-2 border-t border-slate-100 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-700">
+                    Write New Update / Comment
+                  </label>
+                  <AIPolishButton
+                    value={newCommentText}
+                    onPolished={p => setNewCommentText(p)}
+                    context="notes"
+                    label="AI Polish"
+                    size="sm"
+                  />
+                </div>
+
+                <textarea
+                  value={newCommentText}
+                  onChange={e => setNewCommentText(e.target.value)}
+                  placeholder="e.g. Visited customer site, replaced 2 connectors, 1 camera tested ok, waiting for power supply adapter..."
+                  className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 transition-all h-20 resize-none"
+                />
+
+                <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-600">Save Progress with Update:</span>
+                    <select
+                      value={commentProgress}
+                      onChange={e => setCommentProgress(Number(e.target.value))}
+                      className="text-xs font-bold bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 outline-none"
+                    >
+                      {[0, 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90, 100].map(v => (
+                        <option key={v} value={v}>
+                          {v}%
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingComment || !newCommentText.trim()}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-all"
+                  >
+                    <Send size={13} />
+                    <span>{isSubmittingComment ? 'Posting...' : 'Post Update'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

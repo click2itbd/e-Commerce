@@ -758,6 +758,15 @@ export interface Lead {
   createdAt: string;
 }
 
+export interface TaskComment {
+  id: string;
+  text: string;
+  authorName: string;
+  authorId?: string;
+  createdAt: string;
+  progressPercent?: number;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -777,6 +786,8 @@ export interface Task {
   customerPhone?: string;
   projectName?: string;
   address?: string;
+  progress?: number; // 0 - 100%
+  comments?: TaskComment[];
 }
 
 export interface SupportTicket {
