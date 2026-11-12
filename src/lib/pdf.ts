@@ -341,7 +341,9 @@ export const generatePDF = async (
           [
             "1",
             tx.description || `Payment received from ${tx.entityName}`,
-            tx.paymentMethod ? tx.paymentMethod.charAt(0).toUpperCase() + tx.paymentMethod.slice(1).toLowerCase() : "Cash",
+            (tx as any).emiDetails?.isEmi
+              ? `Credit Card EMI (${(tx as any).emiDetails.months}M - ${(tx as any).emiDetails.shortName || (tx as any).emiDetails.bankName})`
+              : tx.paymentMethod ? tx.paymentMethod.charAt(0).toUpperCase() + tx.paymentMethod.slice(1).toLowerCase() : "Cash",
             formatCurrency(tx.amount, settings),
           ],
         ],
@@ -690,6 +692,48 @@ export const generatePDF = async (
 
       const alignRightX = pageWidth - 15;
       const labelX = pageWidth - 68;
+
+      // Render EMI Details Block on Left Side of Invoice Summary
+      const emi = (o as any).emiDetails;
+      const isEmiOrder = Boolean(emi?.isEmi || ((o as any).paymentMethod && String((o as any).paymentMethod).toLowerCase().includes('emi')));
+      if (isEmiOrder) {
+        const emiLeftX = 15;
+        const emiTopY = (doc as any).lastAutoTable.finalY + 5;
+        const emiBoxWidth = labelX - 22;
+        const emiBoxHeight = 26;
+
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(emiLeftX, emiTopY, emiBoxWidth, emiBoxHeight, 2, 2, "FD");
+
+        // Small indicator stripe
+        doc.setFillColor(249, 115, 22);
+        doc.roundedRect(emiLeftX, emiTopY, 2.5, emiBoxHeight, 1, 1, "F");
+
+        doc.setFontSize(8.5);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+
+        const emiBank = emi?.bankName || emi?.shortName || ((o as any).paymentMethod ? String((o as any).paymentMethod).replace(/Credit Card EMI/i, '').replace(/[\(\)]/g, '').trim() : 'Partner Bank');
+        const emiMonths = emi?.months || 12;
+        const emiMonthly = emi?.monthlyAmount
+          ? `TK. ${Math.round(emi.monthlyAmount).toLocaleString('en-IN')}`
+          : `TK. ${Math.round(billTotal / emiMonths).toLocaleString('en-IN')}`;
+
+        doc.text(`Payment Method: Credit Card EMI (${emiMonths} Months - ${emiBank})`, emiLeftX + 6, emiTopY + 7);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(249, 115, 22);
+        doc.text(`Monthly Installment: ${emiMonthly} / Month`, emiLeftX + 6, emiTopY + 14);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        const emiRateText = emi?.rate ? ` | Bank Charge: ${emi.rate}%` : '';
+        doc.text(`Tenure: ${emiMonths} Months${emiRateText} * Monthly installment billed by card issuing bank`, emiLeftX + 6, emiTopY + 21);
+      }
 
       doc.setFontSize(11);
 

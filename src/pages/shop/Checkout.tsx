@@ -18,6 +18,12 @@ import {
 import { generatePDF } from "../../lib/pdf";
 import { initiateEpsPayment } from "../../services/paymentApi";
 import { apiPost } from "../../services/apiClient";
+import {
+  BANK_EMI_PLANS,
+  MINIMUM_EMI_PURCHASE,
+  getBankEMIOptions,
+  EMITenureKey,
+} from "../../data/emiPlans";
 
 const BD_DISTRICTS = [
   "Dhaka",
@@ -140,6 +146,26 @@ export const Checkout: React.FC = () => {
     Boolean(settings?.requireAdvanceDeliveryCharge) &&
     shippingCost > 0;
   const grandTotal = total + shippingCost;
+
+  // EMI Configuration States
+  const [isEmiSelected, setIsEmiSelected] = useState<boolean>(false);
+  const [selectedEmiBankId, setSelectedEmiBankId] = useState<string>(BANK_EMI_PLANS[0]?.id || "eastern-bank");
+  const [selectedEmiTenureKey, setSelectedEmiTenureKey] = useState<EMITenureKey>("12M");
+
+  const selectedEmiBank = React.useMemo(() => {
+    return BANK_EMI_PLANS.find((b) => b.id === selectedEmiBankId) || BANK_EMI_PLANS[0];
+  }, [selectedEmiBankId]);
+
+  const availableEmiOptions = React.useMemo(() => {
+    if (grandTotal < MINIMUM_EMI_PURCHASE) return [];
+    return getBankEMIOptions(grandTotal, selectedEmiBank.id);
+  }, [grandTotal, selectedEmiBank.id]);
+
+  const activeEmiOption = React.useMemo(() => {
+    if (availableEmiOptions.length === 0) return null;
+    const found = availableEmiOptions.find((o) => o.tenureKey === selectedEmiTenureKey);
+    return found || availableEmiOptions[0] || null;
+  }, [availableEmiOptions, selectedEmiTenureKey]);
 
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | null>(null);
@@ -380,6 +406,29 @@ export const Checkout: React.FC = () => {
         details: item.details,
       }));
 
+      const emiDetailsPayload =
+        isEmiSelected && grandTotal >= MINIMUM_EMI_PURCHASE && activeEmiOption && selectedEmiBank
+          ? {
+              isEmi: true,
+              bankId: selectedEmiBank.id,
+              bankName: selectedEmiBank.name,
+              shortName: selectedEmiBank.shortName,
+              tenureKey: activeEmiOption.tenureKey,
+              months: activeEmiOption.months,
+              rate: activeEmiOption.rate,
+              monthlyAmount: activeEmiOption.monthlyInstallment,
+              totalAmount: activeEmiOption.totalPayable,
+            }
+          : null;
+
+      const emiPaymentMethodString = emiDetailsPayload
+        ? `Payment via ${selectedEmiBank.shortName} ${activeEmiOption.months}-Month EMI`
+        : paymentType === "cod"
+          ? isAdvanceCOD
+            ? "cod_advance_paid"
+            : "cod"
+          : "eps";
+
       const createRes = await apiPost(
         "/api/orders/create",
         {
@@ -393,14 +442,10 @@ export const Checkout: React.FC = () => {
           city: formData.city,
           state: isDhaka ? "Dhaka" : "Outside Dhaka",
           company: formData.company,
-          paymentType,
+          paymentType: isEmiSelected ? "pay_now" : paymentType,
           advanceDelivery: isAdvanceCOD,
-          paymentMethod:
-            paymentType === "cod"
-              ? isAdvanceCOD
-                ? "cod_advance_paid"
-                : "cod"
-              : "eps",
+          paymentMethod: emiPaymentMethodString,
+          emiDetails: emiDetailsPayload,
           notes: formData.notes,
           affiliateRefId,
         },
@@ -413,6 +458,21 @@ export const Checkout: React.FC = () => {
 
       const createdOrderId = createRes.orderId;
       const serverOrderData = createRes.orderData;
+
+      if (emiDetailsPayload) {
+        try {
+          await updateDoc(doc(db, "orders", createdOrderId), {
+            emiDetails: emiDetailsPayload,
+            paymentMethod: emiPaymentMethodString,
+          });
+          if (serverOrderData) {
+            serverOrderData.emiDetails = emiDetailsPayload;
+            serverOrderData.paymentMethod = emiPaymentMethodString;
+          }
+        } catch (emiErr) {
+          console.warn("Could not sync emiDetails to Firestore order:", emiErr);
+        }
+      }
 
       // Sync customer to 'customers' collection so they appear in Ecommerce Dashboard & Admin
       try {
@@ -935,52 +995,233 @@ export const Checkout: React.FC = () => {
                   Select Payment Method
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 max-w-3xl mx-auto mb-6">
                   {/* Option 1: Cash on Delivery */}
                   <div
-                    onClick={() => setPaymentType("cod")}
-                    className={`cursor-pointer rounded-2xl p-4 sm:p-5 border-2 transition-all flex items-center gap-3 ${
-                      paymentType === "cod"
+                    onClick={() => {
+                      setPaymentType("cod");
+                      setIsEmiSelected(false);
+                    }}
+                    className={`cursor-pointer rounded-2xl p-4 border-2 transition-all flex flex-col justify-between ${
+                      paymentType === "cod" && !isEmiSelected
                         ? "border-[#0E2A47] bg-[#0E2A47]/5 shadow-sm ring-1 ring-[#0E2A47]"
                         : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                   >
-                    <div
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentType === "cod" ? "border-[#0E2A47]" : "border-slate-400"}`}
-                    >
-                      {paymentType === "cod" && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-[#0E2A47]" />
-                      )}
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          paymentType === "cod" && !isEmiSelected ? "border-[#0E2A47]" : "border-slate-400"
+                        }`}
+                      >
+                        {paymentType === "cod" && !isEmiSelected && (
+                          <div className="w-2 h-2 rounded-full bg-[#0E2A47]" />
+                        )}
+                      </div>
+                      <span className="font-bold text-slate-900 text-sm">
+                        Cash on Delivery
+                      </span>
                     </div>
-                    <span className="font-bold text-slate-900 text-base">
-                      Cash on Delivery
+                    <span className="text-[11px] text-slate-500">
+                      পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন
                     </span>
                   </div>
 
-                  {/* Option 2: Pay Now */}
+                  {/* Option 2: Pay Now (Direct Online) */}
                   <div
-                    onClick={() => setPaymentType("pay_now")}
-                    className={`cursor-pointer rounded-2xl p-4 sm:p-5 border-2 transition-all flex items-center gap-3 ${
-                      paymentType === "pay_now"
+                    onClick={() => {
+                      setPaymentType("pay_now");
+                      setIsEmiSelected(false);
+                    }}
+                    className={`cursor-pointer rounded-2xl p-4 border-2 transition-all flex flex-col justify-between ${
+                      paymentType === "pay_now" && !isEmiSelected
                         ? "border-[#0E2A47] bg-[#0E2A47]/5 shadow-sm ring-1 ring-[#0E2A47]"
                         : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                   >
-                    <div
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentType === "pay_now" ? "border-[#0E2A47]" : "border-slate-400"}`}
-                    >
-                      {paymentType === "pay_now" && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-[#0E2A47]" />
-                      )}
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          paymentType === "pay_now" && !isEmiSelected ? "border-[#0E2A47]" : "border-slate-400"
+                        }`}
+                      >
+                        {paymentType === "pay_now" && !isEmiSelected && (
+                          <div className="w-2 h-2 rounded-full bg-[#0E2A47]" />
+                        )}
+                      </div>
+                      <span className="font-bold text-slate-900 text-sm">
+                        Pay Now
+                      </span>
                     </div>
-                    <span className="font-bold text-slate-900 text-base">
-                      Pay Now
+                    <span className="text-[11px] text-slate-500">
+                      Card / bKash / Nagad / Net Banking
+                    </span>
+                  </div>
+
+                  {/* Option 3: Credit Card EMI */}
+                  <div
+                    onClick={() => {
+                      if (grandTotal >= MINIMUM_EMI_PURCHASE) {
+                        setPaymentType("pay_now");
+                        setIsEmiSelected(true);
+                      } else {
+                        toast.error(`Credit Card EMI-র জন্য ন্যূনতম অর্ডারের পরিমাণ ৳ ${MINIMUM_EMI_PURCHASE.toLocaleString('en-IN')}`);
+                      }
+                    }}
+                    className={`cursor-pointer rounded-2xl p-4 border-2 transition-all flex flex-col justify-between relative overflow-hidden ${
+                      isEmiSelected
+                        ? "border-[#F97316] bg-orange-50/40 shadow-sm ring-2 ring-[#F97316]"
+                        : grandTotal >= MINIMUM_EMI_PURCHASE
+                        ? "border-slate-200 hover:border-orange-300 bg-white"
+                        : "border-slate-100 bg-slate-50/70 opacity-60 cursor-not-allowed"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          isEmiSelected ? "border-[#F97316]" : "border-slate-400"
+                        }`}
+                      >
+                        {isEmiSelected && (
+                          <div className="w-2 h-2 rounded-full bg-[#F97316]" />
+                        )}
+                      </div>
+                      <span className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                        Credit Card EMI
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-[#F97316] text-white">
+                          EMI
+                        </span>
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-500">
+                      {grandTotal >= MINIMUM_EMI_PURCHASE ? "৩ - ৩৬ মাসের কিস্তি (১৬টি ব্যাংক)" : "ন্যূনতম ৳ ৫,০০০ অর্ডারে প্রযোজ্য"}
                     </span>
                   </div>
                 </div>
 
-                {grandTotal >= 5000 && (
-                  <div className="max-w-2xl mx-auto mb-6 p-3.5 bg-gray-50 border border-gray-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                {/* Interactive EMI Bank & Tenure Selector Panel */}
+                {isEmiSelected && grandTotal >= MINIMUM_EMI_PURCHASE && (
+                  <div className="max-w-3xl mx-auto mb-8 bg-gradient-to-b from-orange-50/60 to-white border-2 border-[#F97316]/30 rounded-2xl p-5 sm:p-6 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between pb-4 border-b border-orange-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-[#F97316] text-white flex items-center justify-center">
+                          <CreditCard size={18} />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-sm sm:text-base">
+                            Credit Card EMI কিস্তি নির্বাচন
+                          </h4>
+                          <p className="text-[11px] text-slate-500">
+                            আপনার পছন্দের ব্যাংক ও কিস্তির মেয়াদ সিলেক্ট করুন
+                          </p>
+                        </div>
+                      </div>
+                      <Link
+                        to="/emi-terms"
+                        target="_blank"
+                        className="text-xs font-bold text-[#F97316] hover:underline whitespace-nowrap"
+                      >
+                        EMI পলিসি ও শর্তাবলী →
+                      </Link>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      {/* Bank Dropdown */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                          ১. ব্যাংক নির্বাচন করুন (১৬টি ব্যাংক)
+                        </label>
+                        <select
+                          value={selectedEmiBankId}
+                          onChange={(e) => {
+                            setSelectedEmiBankId(e.target.value);
+                          }}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:border-transparent transition-all shadow-xs"
+                        >
+                          {BANK_EMI_PLANS.map((bank) => (
+                            <option key={bank.id} value={bank.id}>
+                              {bank.shortName} — {bank.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Tenure Selector */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                          ২. কিস্তির মেয়াদ (মাস)
+                        </label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {availableEmiOptions.map((opt) => (
+                            <button
+                              key={opt.tenureKey}
+                              type="button"
+                              onClick={() => setSelectedEmiTenureKey(opt.tenureKey)}
+                              className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all ${
+                                selectedEmiTenureKey === opt.tenureKey
+                                  ? "bg-[#0E2A47] text-white border-[#0E2A47] shadow-xs"
+                                  : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                              }`}
+                            >
+                              <div>{opt.months}M</div>
+                              <div className="text-[9px] font-normal opacity-80">{opt.rate}%</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* EMI Calculation Summary Breakdown */}
+                    {activeEmiOption && (
+                      <div className="mt-5 p-4 bg-white rounded-xl border border-orange-200 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                          <div>
+                            <span className="text-xs text-slate-500 block">নির্বাচিত প্ল্যান:</span>
+                            <span className="text-sm font-black text-slate-900">
+                              {selectedEmiBank.name} ({activeEmiOption.months} Months)
+                            </span>
+                          </div>
+                          <div className="text-left sm:text-right">
+                            <span className="text-xs text-slate-500 block">মাসিক কিস্তি:</span>
+                            <span className="text-xl font-black text-[#F97316]">
+                              ৳ {Math.round(activeEmiOption.monthlyInstallment).toLocaleString('en-IN')}{" "}
+                              <span className="text-xs text-slate-500 font-normal">/ মাস</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-3 text-slate-600">
+                          <div>
+                            <span className="text-slate-400 block">প্রোডাক্ট মোট:</span>
+                            <span className="font-bold text-slate-800">৳ {Math.round(grandTotal).toLocaleString('en-IN')}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">ব্যাংক চার্জ ({activeEmiOption.rate}%):</span>
+                            <span className="font-bold text-slate-800">+ ৳ {Math.round(activeEmiOption.chargeAmount).toLocaleString('en-IN')}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">মোট পরিশোধযোগ্য:</span>
+                            <span className="font-black text-slate-900">৳ {Math.round(activeEmiOption.totalPayable).toLocaleString('en-IN')}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">অর্ডার মেথড:</span>
+                            <span className="font-bold text-emerald-700 truncate block" title={`Payment via ${selectedEmiBank.shortName} ${activeEmiOption.months}-Month EMI`}>
+                              {selectedEmiBank.shortName} {activeEmiOption.months}M EMI
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500 leading-relaxed bg-amber-50/60 p-2.5 rounded-lg border border-amber-200/50">
+                          ℹ️ <strong>নির্দেশনা:</strong> অর্ডার সাবমিট করার পর অনলাইন গেটওয়েতে কার্ড অপশন বেছে নিয়ে আপনার <strong>{selectedEmiBank.shortName}</strong> ক্রেডিট কার্ড ব্যবহার করে ট্রানজ্যাকশন সম্পন্ন করুন। ব্যাংক স্বয়ংক্রিয়ভাবে {activeEmiOption.months} মাসের কিস্তিতে কনভার্ট করবে।
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Quick Info Box for general awareness */}
+                {!isEmiSelected && grandTotal >= MINIMUM_EMI_PURCHASE && (
+                  <div className="max-w-3xl mx-auto mb-6 p-3.5 bg-gray-50 border border-gray-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-2.5">
                       <CreditCard size={18} className="text-[#F97316] shrink-0" />
                       <div>
@@ -988,7 +1229,7 @@ export const Checkout: React.FC = () => {
                           Credit Card EMI Available (16 Banks, 3 to 36 Months)
                         </div>
                         <p className="text-[11px] text-gray-500 mt-0.5">
-                          Select <strong>Pay Now</strong> to pay with your credit card or convert to EMI at our showroom POS.
+                          উপরে <strong>Credit Card EMI</strong> অপশন সিলেক্ট করে সরাসরি কিস্তির হিসাব বেছে নিন।
                         </p>
                       </div>
                     </div>

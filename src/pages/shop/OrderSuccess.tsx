@@ -9,7 +9,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { generatePDF } from '../../lib/pdf';
 import { formatCurrency } from '../../lib/utils';
 import { initiateEpsPayment } from '../../services/paymentApi';
-import { CheckCircle, Download, ArrowRight, Package, Loader2, ShieldCheck, User, MapPin, Calendar, Hash } from 'lucide-react';
+import { CheckCircle, Download, ArrowRight, Package, Loader2, ShieldCheck, User, MapPin, Calendar, Hash, CreditCard } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export const OrderSuccess: React.FC = () => {
@@ -283,6 +283,52 @@ export const OrderSuccess: React.FC = () => {
                 </div>
               </div>
 
+              {/* Credit Card EMI Details Section (if ordered with EMI) */}
+              {(order.emiDetails?.isEmi || order.paymentMethod?.includes('EMI')) && (
+                <div className="bg-gradient-to-r from-orange-50/70 via-amber-50/40 to-white border-2 border-orange-200/80 rounded-2xl p-5 shadow-xs">
+                  <div className="flex items-center justify-between pb-3 border-b border-orange-100 mb-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-[#F97316] text-white flex items-center justify-center shadow-xs">
+                        <CreditCard size={17} />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Payment Method</span>
+                        <h4 className="font-bold text-slate-900 text-sm sm:text-base">
+                          Credit Card EMI ({order.emiDetails?.months || 12} Months - {order.emiDetails?.shortName || order.emiDetails?.bankName || 'Partner Bank'})
+                        </h4>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-orange-100 text-[#F97316]">
+                      EMI Plan
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs sm:text-sm">
+                    <div className="bg-white/90 p-3 rounded-xl border border-orange-100">
+                      <span className="text-[11px] font-semibold text-slate-400 block mb-0.5">Issuing Bank</span>
+                      <span className="font-bold text-slate-800">
+                        {order.emiDetails?.bankName || order.emiDetails?.shortName || 'Credit Card Partner Bank'}
+                      </span>
+                    </div>
+
+                    <div className="bg-white/90 p-3 rounded-xl border border-orange-100">
+                      <span className="text-[11px] font-semibold text-slate-400 block mb-0.5">Tenure & Rate</span>
+                      <span className="font-bold text-slate-800">
+                        {order.emiDetails?.months || 12} Months {order.emiDetails?.rate ? `(${order.emiDetails.rate}% charge)` : ''}
+                      </span>
+                    </div>
+
+                    <div className="bg-white/90 p-3 rounded-xl border border-orange-100">
+                      <span className="text-[11px] font-semibold text-slate-400 block mb-0.5">Monthly Installment</span>
+                      <span className="font-black text-[#F97316] text-base">
+                        ৳ {Math.round(order.emiDetails?.monthlyAmount || (order.total / (order.emiDetails?.months || 12))).toLocaleString('en-IN')}{" "}
+                        <span className="text-xs font-normal text-slate-500">/ Month</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Order Items Table */}
               <div>
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
@@ -347,6 +393,16 @@ export const OrderSuccess: React.FC = () => {
                           {formatCurrency(order.total, settings)}
                         </td>
                       </tr>
+                      {(order.emiDetails?.isEmi || order.paymentMethod?.includes('EMI')) && (
+                        <tr className="bg-orange-50/80 border-t-2 border-orange-200 text-orange-950">
+                          <th scope="row" colSpan={2} className="px-6 py-3.5 text-right text-sm font-bold">
+                            Monthly Installment ({order.emiDetails?.months || 12} Months - {order.emiDetails?.shortName || 'Credit Card EMI'})
+                          </th>
+                          <td className="px-6 py-3.5 text-right text-base font-black text-[#F97316] whitespace-nowrap">
+                            ৳ {Math.round(order.emiDetails?.monthlyAmount || (order.total / (order.emiDetails?.months || 12))).toLocaleString('en-IN')} / mo
+                          </td>
+                        </tr>
+                      )}
                       {order.paymentMethod === 'cod_advance_paid' && (
                         <>
                           <tr className="bg-emerald-50/70 text-emerald-900">

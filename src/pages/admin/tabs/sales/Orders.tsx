@@ -10,7 +10,7 @@ import { useSettings } from '../../../../context/SettingsContext';
 import type { OrderStatus as AppOrderStatus } from '../../../../types';
 export type OrderStatus = string;
 export const DEFAULT_ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'returned'];
-import { Phone, Mail, MapPin,  Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, RotateCcw, RotateCw, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X , ShieldCheck, Store } from 'lucide-react';
+import { Phone, Mail, MapPin,  Eye, ChevronDown, ChevronRight, Copy, Receipt, Search, Download, Filter, Printer, ShieldAlert, FileText, ArrowLeftRight, Trash2, RotateCcw, RotateCw, Globe, Server, Cpu, ShoppingBag, Layers, Truck, X , ShieldCheck, Store, CreditCard } from 'lucide-react';
 import EditOrderModal from '../../modals/EditOrderModal';
 import { Edit2 } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
@@ -970,6 +970,36 @@ const OrdersTab: React.FC<OrdersTabProps> = ({ orders, customers, orderSearchQue
                       <div className="text-sm font-medium text-indigo-900/80 space-y-1">
                         <div><span className="text-indigo-800/60 font-bold uppercase text-[10px] tracking-wider w-16 inline-block">Courier:</span> {viewingOrder.courierName}</div>
                         {viewingOrder.trackingNumber && <div><span className="text-indigo-800/60 font-bold uppercase text-[10px] tracking-wider w-16 inline-block">Tracking:</span> {viewingOrder.trackingNumber}</div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {(viewingOrder.emiDetails?.isEmi || viewingOrder.paymentMethod?.includes('EMI')) && (
+                    <div className="bg-orange-50/70 border border-orange-200 p-5 rounded-2xl relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-[#F97316]"></div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[10px] font-black text-[#F97316] uppercase tracking-widest flex items-center gap-1.5">
+                          <CreditCard size={14} className="text-[#F97316]" /> Payment via Credit Card EMI
+                        </h4>
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-orange-100 text-[#F97316]">
+                          {viewingOrder.emiDetails?.months || 12}M Plan
+                        </span>
+                      </div>
+                      <div className="text-sm font-medium space-y-1.5 text-slate-700">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Bank / Plan:</span>
+                          <span className="font-bold text-slate-900">{viewingOrder.emiDetails?.bankName || viewingOrder.emiDetails?.shortName || viewingOrder.paymentMethod}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-medium">Tenure & Charge:</span>
+                          <span className="font-bold text-slate-800">{viewingOrder.emiDetails?.months || 12} Months ({viewingOrder.emiDetails?.rate || 0}% bank fee)</span>
+                        </div>
+                        <div className="flex justify-between pt-1 border-t border-orange-200/60">
+                          <span className="text-slate-500 font-bold">Monthly Installment:</span>
+                          <span className="font-black text-[#F97316] text-base">
+                            ৳ {Math.round(viewingOrder.emiDetails?.monthlyAmount || (viewingOrder.total / (viewingOrder.emiDetails?.months || 12))).toLocaleString('en-IN')} / mo
+                          </span>
+                        </div>
                       </div>
                     </div>
                   )}

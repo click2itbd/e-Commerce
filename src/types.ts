@@ -290,6 +290,16 @@ export interface Order {
   advancePaidAmount?: number;
   previousDue?: number;
   shippingInfo?: Record<string, unknown>;
+  emiDetails?: {
+    isEmi: boolean;
+    bankId: string;
+    bankName: string;
+    tenureKey: string;
+    months: number;
+    rate: number;
+    monthlyAmount: number;
+    totalAmount: number;
+  };
   domain?: string;
   hostingServiceId?: string;
   isPCBuild?: boolean;

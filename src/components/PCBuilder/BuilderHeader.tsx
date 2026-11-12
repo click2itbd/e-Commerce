@@ -1,7 +1,8 @@
 import React from 'react';
-import { RotateCcw, Sparkles, ClipboardList, Users, Sun, Moon, Cpu, Zap, ShoppingBag } from 'lucide-react';
+import { RotateCcw, Sparkles, ClipboardList, Users, Sun, Moon, Cpu, Zap, ShoppingBag, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../../lib/utils';
+import { getLowestMonthlyEMI, MINIMUM_EMI_PURCHASE } from '../../data/emiPlans';
 
 interface BuilderHeaderProps {
   onReset: () => void;
@@ -107,9 +108,23 @@ export const BuilderHeader: React.FC<BuilderHeaderProps> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                 Active Build Snapshot
               </span>
-              <div className="text-2xl font-black text-slate-900 mb-4">
+              <div className="text-2xl font-black text-slate-900 mb-1">
                 {formatCurrency(totalPrice)}
               </div>
+              {totalPrice >= MINIMUM_EMI_PURCHASE ? (
+                <button
+                  type="button"
+                  onClick={() => document.dispatchEvent(new CustomEvent('open-emi-calculator'))}
+                  className="mb-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 border border-orange-200 text-[11px] font-bold text-[#F97316] transition-colors cursor-pointer group shadow-2xs"
+                  title="Open EMI Calculator"
+                >
+                  <CreditCard size={12} className="shrink-0" />
+                  <span>Build on EMI from ৳ {getLowestMonthlyEMI(totalPrice).toLocaleString('en-IN')}/mo</span>
+                  <span className="text-[10px] group-hover:translate-x-0.5 transition-transform">→</span>
+                </button>
+              ) : (
+                <div className="mb-3" />
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">

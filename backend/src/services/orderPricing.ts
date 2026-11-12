@@ -41,6 +41,17 @@ export interface CreateOrderPayload {
   transactionId?: string | null;
   notes?: string;
   affiliateRefId?: string | null;
+  emiDetails?: {
+    isEmi: boolean;
+    bankId: string;
+    bankName: string;
+    shortName?: string;
+    tenureKey: string;
+    months: number;
+    rate: number;
+    monthlyAmount: number;
+    totalAmount: number;
+  } | null;
   domainConfig?: {
     ns1?: string;
     ns2?: string;
@@ -665,11 +676,14 @@ export async function calculateAndCreateServerOrder(userId: string, payload: Cre
     appliedDiscountCode: verifiedCouponCode,
     discountAmount: promoDiscount,
     paymentMethod:
-      payload.paymentType === 'cod'
+      payload.emiDetails?.isEmi
+        ? payload.paymentMethod || `Credit Card EMI (${payload.emiDetails.months} Months - ${payload.emiDetails.bankName || payload.emiDetails.shortName})`
+        : payload.paymentType === 'cod'
         ? isAdvanceCOD
           ? 'cod_advance_paid'
           : 'cod'
         : 'eps',
+    emiDetails: payload.emiDetails || null,
     transactionId: null,
     advancePaidAmount: isAdvanceCOD ? shippingCost : 0,
     stockDeducted: false,

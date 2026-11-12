@@ -24,6 +24,7 @@ import { BuildVisualizer } from '../../components/PCBuilder/BuildVisualizer';
 import { AIAssistantModal } from '../../components/PCBuilder/AIAssistantModal';
 import { CustomBuildRequestModal } from '../../components/PCBuilder/CustomBuildRequestModal';
 import { SmartBuilderTemplates } from '../../components/PCBuilder/SmartBuilderTemplates';
+import { EMIModal } from '../../components/shop/EMIModal';
 import { apiPost } from '../../services/apiClient';
 import { generatePDF } from '../../lib/pdf';
 import { useSettings } from '../../context/SettingsContext';
@@ -98,6 +99,7 @@ export const PCBuilder: React.FC = () => {
   const activeCategoryModal = categoryId ? [...dynamicCoreCategories, ...dynamicPeripheralCategories].find(c => c.id === categoryId) || null : null;
   const [showAIModal, setShowAIModal] = useState(false);
   const [showCustomBuildModal, setShowCustomBuildModal] = useState(false);
+  const [isEmiModalOpen, setIsEmiModalOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('pcb-theme') === 'dark');
 
   useEffect(() => {
@@ -148,9 +150,12 @@ export const PCBuilder: React.FC = () => {
     document.addEventListener('open-ai-assistant', handleOpenAI);
     const handleCustomBuild = () => setShowCustomBuildModal(true);
     document.addEventListener('open-custom-build', handleCustomBuild);
+    const handleOpenEMI = () => setIsEmiModalOpen(true);
+    document.addEventListener('open-emi-calculator', handleOpenEMI);
     return () => {
       document.removeEventListener('open-ai-assistant', handleOpenAI);
       document.removeEventListener('open-custom-build', handleCustomBuild);
+      document.removeEventListener('open-emi-calculator', handleOpenEMI);
     };
   }, []);
 
@@ -662,6 +667,7 @@ export const PCBuilder: React.FC = () => {
                   onDownloadPDF={handleDownloadPDF}
                   onEmailBuild={handleEmailBuild}
                   onPublishBuild={handlePublishBuild}
+                  onOpenEMI={() => setIsEmiModalOpen(true)}
                 />
               </div>
             </motion.div>
@@ -689,6 +695,17 @@ export const PCBuilder: React.FC = () => {
         <CustomBuildRequestModal
           isOpen={showCustomBuildModal}
           onClose={() => setShowCustomBuildModal(false)}
+        />
+        <EMIModal
+          isOpen={isEmiModalOpen}
+          onClose={() => setIsEmiModalOpen(false)}
+          productPrice={
+            Object.values(selectedComponents)
+              .filter(Boolean)
+              .reduce((sum, p) => sum + (p.discountPrice || p.price) * ((p as any).builderQuantity || 1), 0) +
+            (includeAssembly ? 1500 : 0)
+          }
+          productName="Custom PC Build"
         />
       </AnimatePresence>
       </div>

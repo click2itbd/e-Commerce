@@ -8,6 +8,7 @@ import { FPSPredictor } from './FPSPredictor';
 import { BottleneckCalculator } from './BottleneckCalculator';
 import { exportBuildAsPNG } from './exportBuildImage';
 import { toast } from 'react-hot-toast';
+import { getLowestMonthlyEMI, MINIMUM_EMI_PURCHASE } from '../../data/emiPlans';
 
 interface BuilderSidebarProps {
   selectedComponents: Record<string, Product>;
@@ -20,6 +21,7 @@ interface BuilderSidebarProps {
   onDownloadPDF: () => void;
   onEmailBuild: () => void;
   onPublishBuild: () => void;
+  onOpenEMI?: () => void;
 }
 
 export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({ 
@@ -32,7 +34,8 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
   onPrintBuild,
   onDownloadPDF,
   onEmailBuild,
-  onPublishBuild
+  onPublishBuild,
+  onOpenEMI
 }) => {
   const [isPartsListOpen, setIsPartsListOpen] = useState(true);
 
@@ -155,12 +158,38 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
             </div>
           </div>
 
-          {totalPrice > 0 && (
+          {totalPrice >= MINIMUM_EMI_PURCHASE ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenEMI) onOpenEMI();
+                else document.dispatchEvent(new CustomEvent('open-emi-calculator'));
+              }}
+              className="w-full mt-2.5 p-3 bg-gradient-to-r from-orange-50 to-amber-50 hover:from-orange-100 hover:to-amber-100 border border-orange-200/90 rounded-2xl flex items-center justify-between text-left transition-all group shadow-2xs cursor-pointer active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-[#F97316] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                  <CreditCard size={14} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800 leading-tight">
+                    Build this PC on EMI from <span className="text-[#F97316] font-black">৳ {getLowestMonthlyEMI(totalPrice).toLocaleString('en-IN')}/mo</span>
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    16 Partner Banks (3 to 36 Months)
+                  </p>
+                </div>
+              </div>
+              <span className="text-[11px] font-bold text-[#F97316] group-hover:underline whitespace-nowrap pl-2">
+                Calculate →
+              </span>
+            </button>
+          ) : totalPrice > 0 ? (
             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium mt-1">
               <CreditCard size={13} className="text-violet-600 shrink-0" />
-              <span>EMI starts from <strong>৳{emiMonthly.toLocaleString()}/mo</strong> (up to 12 months)</span>
+              <span>EMI available from ৳ 5,000 build total</span>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* FPS Predictor & Bottleneck */}
