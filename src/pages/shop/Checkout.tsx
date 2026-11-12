@@ -1348,11 +1348,13 @@ export const Checkout: React.FC = () => {
                   ) : (
                     <>
                       <span>
-                        {paymentType === "cod"
-                          ? isAdvanceCOD
-                            ? `Pay Advance Delivery Fee (৳${shippingCost.toFixed(2)})`
-                            : "অর্ডার নিশ্চিত করুন (Confirm Order)"
-                          : `Pay Full Amount (৳${grandTotal.toFixed(2)})`}
+                        {isEmiSelected && activeEmiOption
+                          ? `অর্ডার নিশ্চিত করুন — ${activeEmiOption.months} মাস EMI (৳${Math.round(activeEmiOption.monthlyInstallment).toLocaleString('en-IN')}/মাস)`
+                          : paymentType === "cod"
+                            ? isAdvanceCOD
+                              ? `Pay Advance Delivery Fee (৳${shippingCost.toFixed(2)})`
+                              : "অর্ডার নিশ্চিত করুন (Confirm Order)"
+                            : `Pay Full Amount (৳${grandTotal.toFixed(2)})`}
                       </span>
                       <span className="bg-white/20 p-1.5 rounded-full group-hover:bg-white/30 transition-colors">
                         <ArrowRight size={20} />
