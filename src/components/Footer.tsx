@@ -73,9 +73,9 @@ export const Footer: React.FC = () => {
   const youtubeUrl = (settings as any)?.youtubeUrl || 'https://www.youtube.com/@click2itbd';
 
   return (
-    <footer className="text-white pt-8 sm:pt-12 pb-4 sm:pb-6 bg-black border-t border-white/5">
-      <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[50px]">
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 mb-8 sm:mb-12">
+    <footer className="text-white pt-8 sm:pt-12 pb-5 sm:pb-6 bg-black border-t border-white/5">
+      <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-4 md:px-[50px]">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 mb-6 sm:mb-10">
           {/* Contact Info */}
           <div className="col-span-2 sm:col-span-2 lg:col-span-1">
             <h3 className="text-sm sm:text-base font-bold mb-3 sm:mb-4 uppercase tracking-wider text-white">Support</h3>
@@ -208,11 +208,11 @@ export const Footer: React.FC = () => {
         </div>
 
         {/* Bottom Copyright & Powered By Bar */}
-        <div className="border-t border-neutral-800/80 pt-5 sm:pt-6 pb-20 sm:pb-3 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4 text-xs text-gray-400 text-center sm:text-left">
-          <p className="text-[11px] sm:text-xs text-gray-400">
+        <div className="border-t border-neutral-800/80 pt-3.5 sm:pt-5 pb-0.5 sm:pb-1 pr-12 sm:pr-0 flex flex-row justify-between items-center gap-1.5 sm:gap-4 whitespace-nowrap text-[8.5px] min-[375px]:text-[9px] min-[410px]:text-[10px] sm:text-xs text-gray-400">
+          <p className="text-gray-400 truncate">
             {settings.footerText || `© ${new Date().getFullYear()} ${settings.brandName || 'CLICK2IT BD'}. All rights reserved.`}
           </p>
-          <p className="text-[11px] sm:text-xs text-gray-500 flex items-center gap-1">
+          <p className="text-gray-500 flex items-center gap-1 shrink-0">
             <span>Powered By:</span>
             <span className="text-gray-300 font-semibold">{settings.brandName || 'CLICK2IT BD'}</span>
           </p>

@@ -170,19 +170,20 @@ export const ChatWidget: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 font-sans">
+    <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-50 font-sans">
       {!isOpen ? (
         /* Floating Launcher Button */
         <button
           onClick={() => setIsOpen(true)}
           onMouseEnter={() => setIsExpanded(true)}
           onMouseLeave={() => { if (window.innerWidth < 768) setIsExpanded(false) }}
-          className="group flex items-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 hover:scale-105 active:scale-95 transition-all duration-300"
-          style={{ padding: isExpanded ? '12px 20px 12px 16px' : '12px' }}
+          className={`group flex items-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 hover:scale-105 active:scale-95 transition-all duration-300 ${
+            isExpanded ? 'py-2.5 pl-3.5 pr-4 sm:py-3 sm:pl-4 sm:pr-5' : 'p-2.5 sm:p-3'
+          }`}
           aria-label="Open Live Chat"
         >
           <div className="relative flex items-center justify-center shrink-0">
-            <MessageCircle size={22} />
+            <MessageCircle className="w-5 h-5 sm:w-[22px] sm:h-[22px]" />
             <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
