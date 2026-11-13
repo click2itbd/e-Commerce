@@ -472,7 +472,7 @@ export const ChatWidget: React.FC = () => {
         /* Upgraded Storefront Chat Window */
         <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-[calc(100vw-24px)] max-w-[395px] sm:w-[400px] h-[min(560px,80dvh)] max-h-[84dvh] flex flex-col border border-slate-200/80 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
           {/* Branded Header */}
-          <div className="bg-gradient-to-r from-[#0E2A47] via-[#123558] to-[#1a4977] px-4 py-3.5 flex justify-between items-center shrink-0 text-white shadow-xs">
+          <div className="bg-gradient-to-r from-[#0E2A47] via-[#123558] to-[#1a4977] px-4 py-3 flex justify-between items-center shrink-0 text-white shadow-xs">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="relative shrink-0">
                 <div className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-xs border border-white/20 flex items-center justify-center text-white">
@@ -481,15 +481,9 @@ export const ChatWidget: React.FC = () => {
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-[#0E2A47] rounded-full" />
               </div>
               <div className="min-w-0">
-                <h3 className="font-bold text-sm leading-tight truncate flex items-center gap-1.5">
-                  <span>{brandName} Assistant</span>
-                  <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-500 text-white">
-                    AI
-                  </span>
+                <h3 className="font-bold text-sm leading-tight truncate">
+                  {brandName}
                 </h3>
-                <p className="text-[11px] text-blue-100/80 font-medium leading-tight mt-0.5 truncate">
-                  PC Build • EMI • Track • Support
-                </p>
               </div>
             </div>
 
