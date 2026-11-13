@@ -6,12 +6,14 @@ import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
-import { Book, X, User, Download, Printer, Plus, ArrowLeft, Receipt, Check, CreditCard, Filter } from 'lucide-react';
+import { Book, X, User, Download, Printer, Plus, ArrowLeft, Receipt, Check, CreditCard, Filter, Wallet } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generatePDF } from '../../../../lib/pdf';
 import { logAudit } from '../../../../lib/audit';
 import { LegacyDueModal } from '../../modals/LegacyDueModal';
+import { CustomerAdvanceModal } from '../../modals/CustomerAdvanceModal';
+import { classifyCustomerTransaction } from '../../../../utils/customerAdvanceAccounting';
 
 interface LedgerTabProps {
   selectedLedgerEntity?: { id: string; name: string; type: 'customer' | 'vendor'; isCompany?: boolean; companyKey?: string } | null;
@@ -41,6 +43,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
   const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>('all');
   const [showLegacyDueModal, setShowLegacyDueModal] = useState(false);
   const [legacyDueType, setLegacyDueType] = useState<'customer' | 'vendor'>('customer');
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
 
   useEffect(() => {
     setSelectedProjectFilter('all');
@@ -272,8 +275,9 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
   // Calculate Running Balance
   let runningBal = 0;
   const entityLedgerRows = entityTxList.map(tx => {
-    const isDebit = isCustomer ? ['sale', 'opening_balance'].includes(tx.type) : ['payment_made', 'purchase_return'].includes(tx.type);
-    const isCredit = isCustomer ? ['payment_received', 'money_receipt', 'sale_return', 'return'].includes(tx.type) : ['purchase', 'opening_balance'].includes(tx.type);
+    const custClass = isCustomer ? classifyCustomerTransaction(tx) : null;
+    const isDebit = isCustomer ? Boolean(custClass?.isDebit) : ['payment_made', 'purchase_return'].includes(tx.type);
+    const isCredit = isCustomer ? Boolean(custClass?.isCredit) : ['purchase', 'opening_balance'].includes(tx.type);
 
     const debitAmt = isDebit ? tx.amount : 0;
     const creditAmt = isCredit ? tx.amount : 0;
@@ -977,6 +981,16 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
               </h3>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              {isCustomer && !selectedLedgerEntity.isCompany && (
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanceModal(true)}
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                  title="Record Customer Advance Deposit or Refund"
+                >
+                  <Wallet size={14} /> Advance / Refund
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1021,16 +1035,28 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
             </div>
             <div className={cn(
               "border rounded-xl p-4",
-              finalBalance > 0 ? "bg-amber-50/70 border-amber-200" : "bg-emerald-50/70 border-emerald-200"
+              finalBalance > 0
+                ? "bg-amber-50/70 border-amber-200"
+                : isCustomer && finalBalance < -0.01
+                ? "bg-cyan-50/70 border-cyan-200"
+                : "bg-emerald-50/70 border-emerald-200"
             )}>
               <span className="text-[10px] font-bold uppercase tracking-wider block text-gray-600">
-                {isCustomer ? 'Due Outstanding' : 'Payable Outstanding'}
+                {isCustomer
+                  ? finalBalance < -0.01
+                    ? 'Advance Credit (Liability)'
+                    : 'Due Outstanding'
+                  : 'Payable Outstanding'}
               </span>
               <span className={cn(
                 "text-xl font-black mt-1 block",
-                finalBalance > 0 ? "text-amber-700" : "text-emerald-700"
+                finalBalance > 0
+                  ? "text-amber-700"
+                  : isCustomer && finalBalance < -0.01
+                  ? "text-cyan-700"
+                  : "text-emerald-700"
               )}>
-                {formatCurrency(finalBalance, settings)}
+                {formatCurrency(isCustomer && finalBalance < -0.01 ? Math.abs(finalBalance) : finalBalance, settings)}
               </span>
             </div>
           </div>
@@ -1725,6 +1751,25 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
         paymentAccounts={paymentAccounts}
         transactions={transactions}
         initialEntityId={selectedLedgerEntity && !selectedLedgerEntity.isCompany ? selectedLedgerEntity.id : undefined}
+        onSuccess={() => {
+          fetchTransactions();
+          fetchEntities();
+        }}
+      />
+
+      {/* Customer Advance Deposit / Refund Modal */}
+      <CustomerAdvanceModal
+        isOpen={showAdvanceModal}
+        onClose={() => setShowAdvanceModal(false)}
+        customers={customers}
+        paymentAccounts={paymentAccounts}
+        transactions={transactions}
+        initialCustomer={
+          selectedLedgerEntity?.type === 'customer' && !selectedLedgerEntity.isCompany
+            ? customers.find(c => c.id === selectedLedgerEntity.id) || null
+            : null
+        }
+        initialMode="receive"
         onSuccess={() => {
           fetchTransactions();
           fetchEntities();

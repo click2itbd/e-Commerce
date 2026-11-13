@@ -2,6 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, limit } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import { CashRegister, Order, Transaction } from '../../../../types';
+import {
+  CASH_INFLOW_TX_TYPES,
+  CASH_OUTFLOW_TX_TYPES,
+  isCashRegisterMovement,
+} from '../../../../utils/customerAdvanceAccounting';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
 import {
@@ -160,16 +165,13 @@ export default function DayBook() {
           coveredOrderIds.add(tx.referenceId);
         }
 
-        const isCash =
-          tx.paymentMethod?.toLowerCase().includes('cash') ||
-          tx.paymentAccountId?.toLowerCase().includes('cash') ||
-          (!tx.paymentMethod && !tx.paymentAccountId);
+        const isCash = isCashRegisterMovement(tx);
 
         if (isCash) {
           const type = tx.type;
           const amt = Number(tx.amount || 0);
 
-          if (['sale', 'income', 'payment_received', 'money_receipt', 'deposit', 'transfer_in'].includes(type)) {
+          if (CASH_INFLOW_TX_TYPES.includes(type)) {
             income += amt;
             movements.push({
               id: d.id,
@@ -180,7 +182,7 @@ export default function DayBook() {
               direction: 'in',
               referenceId: tx.referenceId || tx.documentNumber,
             });
-          } else if (['expense', 'purchase', 'payment_made', 'salary', 'conveyance', 'sale_return', 'withdrawal', 'transfer_out'].includes(type)) {
+          } else if (CASH_OUTFLOW_TX_TYPES.includes(type)) {
             expense += amt;
             movements.push({
               id: d.id,

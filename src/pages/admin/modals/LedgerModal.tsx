@@ -2,6 +2,7 @@ import React from 'react';
 import { XCircle, Search, Download, ShoppingCart } from 'lucide-react';
 import { cn, formatCurrency } from '../../../lib/utils';
 import { useSettings } from '../../../context/SettingsContext';
+import { classifyCustomerTransaction } from '../../../utils/customerAdvanceAccounting';
 
 interface LedgerModalProps {
   selectedLedgerEntity: any;
@@ -141,26 +142,31 @@ export const LedgerModal: React.FC<LedgerModalProps> = ({
                     return matchesEntity && matchesDate && matchesSearch;
                   });
                   const totalDebit = entityTransactions
-                    .filter(t => selectedLedgerEntity.type === 'customer' ? t.type === 'sale' : t.type === 'payment_made')
+                    .filter(t => selectedLedgerEntity.type === 'customer' ? classifyCustomerTransaction(t).isDebit : t.type === 'payment_made')
                     .reduce((sum, t) => sum + t.amount, 0);
                   const totalCredit = entityTransactions
-                    .filter(t => selectedLedgerEntity.type === 'customer' ? t.type === 'payment_received' : t.type === 'purchase')
+                    .filter(t => selectedLedgerEntity.type === 'customer' ? classifyCustomerTransaction(t).isCredit : t.type === 'purchase')
                     .reduce((sum, t) => sum + t.amount, 0);
                   const balance = selectedLedgerEntity.type === 'customer' ? totalDebit - totalCredit : totalCredit - totalDebit;
+                  const isCustomerAdvance = selectedLedgerEntity.type === 'customer' && balance < -0.01;
 
                   return (
                     <>
                       <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                        <p className="text-xs font-bold text-blue-600 uppercase mb-1">Total {selectedLedgerEntity.type === 'customer' ? 'Sales' : 'Payments Made'}</p>
+                        <p className="text-xs font-bold text-blue-600 uppercase mb-1">Total {selectedLedgerEntity.type === 'customer' ? 'Sales / Billed' : 'Payments Made'}</p>
                         <p className="text-2xl font-bold text-blue-900">{formatCurrency(totalDebit, settings)}</p>
                       </div>
                       <div className="bg-green-50 p-4 rounded-lg border border-green-100">
-                        <p className="text-xs font-bold text-green-600 uppercase mb-1">Total {selectedLedgerEntity.type === 'customer' ? 'Payments Received' : 'Purchases'}</p>
+                        <p className="text-xs font-bold text-green-600 uppercase mb-1">Total {selectedLedgerEntity.type === 'customer' ? 'Payments / Advances' : 'Purchases'}</p>
                         <p className="text-2xl font-bold text-green-900">{formatCurrency(totalCredit, settings)}</p>
                       </div>
-                      <div className={cn("p-4 rounded-lg border", balance > 0 ? "bg-red-50 border-red-100" : "bg-gray-50 border-gray-100")}>
-                        <p className={cn("text-xs font-bold uppercase mb-1", balance > 0 ? "text-red-600" : "text-gray-600")}>Outstanding Balance</p>
-                        <p className={cn("text-2xl font-bold", balance > 0 ? "text-red-900" : "text-gray-900")}>{formatCurrency(balance, settings)}</p>
+                      <div className={cn("p-4 rounded-lg border", balance > 0 ? "bg-red-50 border-red-100" : isCustomerAdvance ? "bg-cyan-50 border-cyan-100" : "bg-gray-50 border-gray-100")}>
+                        <p className={cn("text-xs font-bold uppercase mb-1", balance > 0 ? "text-red-600" : isCustomerAdvance ? "text-cyan-700" : "text-gray-600")}>
+                          {isCustomerAdvance ? 'Advance Credit (Liability)' : 'Outstanding Balance'}
+                        </p>
+                        <p className={cn("text-2xl font-bold", balance > 0 ? "text-red-900" : isCustomerAdvance ? "text-cyan-900" : "text-gray-900")}>
+                          {formatCurrency(isCustomerAdvance ? Math.abs(balance) : balance, settings)}
+                        </p>
                       </div>
                     </>
                   );
@@ -247,8 +253,9 @@ export const LedgerModal: React.FC<LedgerModalProps> = ({
                         })
                         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                         .map((t) => {
-                          const isDebit = selectedLedgerEntity.type === 'customer' ? t.type === 'sale' : t.type === 'payment_made';
-                          const isCredit = selectedLedgerEntity.type === 'customer' ? t.type === 'payment_received' : t.type === 'purchase';
+                          const custClass = selectedLedgerEntity.type === 'customer' ? classifyCustomerTransaction(t) : null;
+                          const isDebit = selectedLedgerEntity.type === 'customer' ? Boolean(custClass?.isDebit) : t.type === 'payment_made';
+                          const isCredit = selectedLedgerEntity.type === 'customer' ? Boolean(custClass?.isCredit) : t.type === 'purchase';
                           
                           if (isDebit) runningBalance += t.amount;
                           if (isCredit) runningBalance -= t.amount;

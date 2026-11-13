@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarPlus, Search, CheckCircle, XCircle, Clock, Trash2, Eye, MapPin, Phone, Mail, Link as LinkIcon, X, Database } from 'lucide-react';
+import { CalendarPlus, Search, CheckCircle, XCircle, Clock, Trash2, Eye, MapPin, Phone, Mail, Link as LinkIcon, X, Database, Wallet } from 'lucide-react';
 import { db } from '../../firebase';
-import { collection, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, addDoc } from 'firebase/firestore';
+import { collection, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, addDoc, getDocs } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { useConfirm } from '../../context/ConfirmContext';
+import { Customer, PaymentAccount, Transaction } from '../../types';
+import { CustomerAdvanceModal } from '../admin/modals/CustomerAdvanceModal';
 
 export const EcommercePreBooks: React.FC = () => {
   const { confirm } = useConfirm();
@@ -13,6 +15,77 @@ export const EcommercePreBooks: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [seeding, setSeeding] = useState(false);
+
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [advanceModalOpen, setAdvanceModalOpen] = useState(false);
+  const [advanceCustomer, setAdvanceCustomer] = useState<Customer | null>(null);
+  const [advanceBookingTarget, setAdvanceBookingTarget] = useState<any | null>(null);
+
+  const loadAccountingRefs = async () => {
+    try {
+      const [cSnap, aSnap, tSnap] = await Promise.all([
+        getDocs(collection(db, 'customers')),
+        getDocs(collection(db, 'payment_accounts')),
+        getDocs(collection(db, 'transactions')),
+      ]);
+      setCustomers(cSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Customer[]);
+      setPaymentAccounts(aSnap.docs.map(d => ({ id: d.id, ...d.data() })) as PaymentAccount[]);
+      setTransactions(tSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Transaction[]);
+    } catch (err) {
+      console.warn('Could not load accounting data for Pre-Books:', err);
+    }
+  };
+
+  useEffect(() => {
+    const q = query(collection(db, 'pre_bookings'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      snap => {
+        setPreBooks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      err => {
+        console.warn('Pre-bookings listener fallback:', err);
+        getDocs(collection(db, 'pre_bookings'))
+          .then(snap => setPreBooks(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+          .catch(() => {})
+          .finally(() => setLoading(false));
+      }
+    );
+    loadAccountingRefs();
+    return () => unsub();
+  }, []);
+
+  const handleOpenRecordAdvance = async (req: any) => {
+    try {
+      await loadAccountingRefs();
+      const phone = String(req.phone || '').trim();
+      const email = String(req.email || '').trim().toLowerCase();
+      let matched = customers.find(
+        c => (phone && c.phone?.trim() === phone) || (email && c.email?.trim().toLowerCase() === email)
+      );
+      if (!matched) {
+        const newCust = {
+          name: req.customerName || 'Pre-Book Customer',
+          phone,
+          email: req.email || '',
+          address: req.address || '',
+          company: 'main',
+          createdAt: new Date().toISOString(),
+        };
+        const createdRef = await addDoc(collection(db, 'customers'), newCust);
+        matched = { id: createdRef.id, ...newCust } as Customer;
+        setCustomers(prev => [...prev, matched!]);
+      }
+      setAdvanceCustomer(matched);
+      setAdvanceBookingTarget(req);
+      setAdvanceModalOpen(true);
+    } catch (err: any) {
+      toast.error(`Unable to prepare advance entry: ${err?.message || 'Error'}`);
+    }
+  };
 
   
   const handleUpdateStatus = async (id: string, status: string) => {
@@ -127,6 +200,15 @@ export const EcommercePreBooks: React.FC = () => {
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => setSelectedRequest(req)} className="p-1.5 text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors" title="View Details"><Eye size={16} /></button>
+                        {!req.advanceRecordedInAccounts && (
+                          <button
+                            onClick={() => handleOpenRecordAdvance(req)}
+                            className="p-1.5 text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors"
+                            title="Record Advance in Accounts Ledger"
+                          >
+                            <Wallet size={16} />
+                          </button>
+                        )}
                         <button onClick={() => handleUpdateStatus(req.id, 'approved')} className="p-1.5 text-green-600 bg-green-50 rounded hover:bg-green-100 transition-colors" title="Approve"><CheckCircle size={16} /></button>
                         <button onClick={() => handleDelete(req.id)} className="p-1.5 text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors" title="Delete"><Trash2 size={16} /></button>
                       </div>
@@ -205,9 +287,24 @@ export const EcommercePreBooks: React.FC = () => {
               )}
             </div>
 
-            <div className="border-t border-gray-100 p-6 bg-gray-50 flex items-center justify-between rounded-b-2xl">
-              <div>{getStatusBadge(selectedRequest.status)}</div>
-              <div className="flex gap-3">
+            <div className="border-t border-gray-100 p-6 bg-gray-50 flex items-center justify-between rounded-b-2xl flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                {getStatusBadge(selectedRequest.status)}
+                {selectedRequest.advanceRecordedInAccounts && (
+                  <span className="bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-xs font-bold">
+                    Synced in Accounts
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {!selectedRequest.advanceRecordedInAccounts && (
+                  <button
+                    onClick={() => handleOpenRecordAdvance(selectedRequest)}
+                    className="px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg font-medium text-sm transition-colors shadow-sm inline-flex items-center gap-1.5"
+                  >
+                    <Wallet size={15} /> Record Advance in Accounts
+                  </button>
+                )}
                 {selectedRequest.status !== 'rejected' && (
                   <button onClick={() => handleUpdateStatus(selectedRequest.id, 'rejected')} className="px-4 py-2 text-red-600 bg-red-100 hover:bg-red-200 rounded-lg font-medium text-sm transition-colors">Reject Request</button>
                 )}
@@ -219,6 +316,33 @@ export const EcommercePreBooks: React.FC = () => {
           </div>
         </div>
       )}
+
+      <CustomerAdvanceModal
+        isOpen={advanceModalOpen}
+        onClose={() => setAdvanceModalOpen(false)}
+        customers={customers}
+        paymentAccounts={paymentAccounts}
+        transactions={transactions}
+        initialCustomer={advanceCustomer}
+        initialMode="receive"
+        initialAmount={Number(advanceBookingTarget?.advanceAmount || 0) || undefined}
+        initialItemNote={
+          advanceBookingTarget
+            ? `${advanceBookingTarget.productName || 'Pre-Book'}${advanceBookingTarget.transactionId ? ` (Ref: ${advanceBookingTarget.transactionId})` : ''}`
+            : ''
+        }
+        onSuccess={async () => {
+          if (advanceBookingTarget?.id) {
+            try {
+              await updateDoc(doc(db, 'pre_bookings', advanceBookingTarget.id), {
+                advanceRecordedInAccounts: true,
+                status: 'approved',
+              });
+            } catch (_) {}
+          }
+          await loadAccountingRefs();
+        }}
+      />
     </div>
   );
 };

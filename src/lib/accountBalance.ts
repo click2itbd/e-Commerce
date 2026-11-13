@@ -1,4 +1,5 @@
 import { PaymentAccount, Transaction } from '../types';
+import { CASH_INFLOW_TX_TYPES, CASH_OUTFLOW_TX_TYPES } from '../utils/customerAdvanceAccounting';
 
 /**
  * Calculates live current balance of a payment account from opening balance and transactions.
@@ -14,11 +15,11 @@ export function calculateAccountBalance(
   const accTx = transactions.filter(tx => tx && tx.paymentAccountId === account.id);
 
   const inflow = accTx
-    .filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type))
+    .filter(tx => (CASH_INFLOW_TX_TYPES as readonly string[]).includes(tx.type))
     .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
 
   const outflow = accTx
-    .filter(tx => ['purchase', 'payment_made', 'expense', 'salary', 'advance_salary', 'conveyance', 'sale_return', 'withdrawal', 'transfer_out'].includes(tx.type))
+    .filter(tx => (CASH_OUTFLOW_TX_TYPES as readonly string[]).includes(tx.type))
     .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
 
   return opening + inflow - outflow;

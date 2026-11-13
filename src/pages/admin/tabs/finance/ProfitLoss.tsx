@@ -95,6 +95,7 @@ export default function ProfitLoss() {
     });
 
     transactions.forEach(tx => {
+      if (tx.type === 'advance_refund' || tx.category === 'Customer Advance Refund') return;
       const txDate = new Date(tx.createdAt || tx.date);
       if (txDate >= start && txDate <= end) {
         const isVendorStockPayment = tx.entityType === 'vendor' || tx.description?.toLowerCase().includes('purchase');

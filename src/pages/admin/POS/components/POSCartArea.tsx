@@ -17,6 +17,8 @@ interface POSCartAreaProps {
   setIsAddingCustomer: (v: boolean) => void;
   selectedBranch?: string;
   setSelectedBranch?: (b: string) => void;
+  customerAdvanceBalance?: number;
+  customerDueBalance?: number;
 }
 
 export const POSCartArea: React.FC<POSCartAreaProps> = ({
@@ -32,7 +34,9 @@ export const POSCartArea: React.FC<POSCartAreaProps> = ({
   customers,
   setIsAddingCustomer,
   selectedBranch,
-  setSelectedBranch
+  setSelectedBranch,
+  customerAdvanceBalance = 0,
+  customerDueBalance = 0,
 }) => {
   const [customerSearch, setCustomerSearch] = React.useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = React.useState(false);
@@ -117,6 +121,16 @@ export const POSCartArea: React.FC<POSCartAreaProps> = ({
           <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-2 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-sm font-bold shadow-sm">
             <div className="flex items-center gap-2 flex-wrap flex-1">
               <span>{selectedCustomer.name} <span className="text-slate-500 font-medium">({selectedCustomer.phone || 'No phone'})</span></span>
+              {customerAdvanceBalance > 0 && (
+                <span className="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-md text-[11px] font-extrabold border border-emerald-200">
+                  Advance: {formatCurrency(customerAdvanceBalance, settings)}
+                </span>
+              )}
+              {customerDueBalance > 0 && (
+                <span className="bg-rose-100 text-rose-700 px-2.5 py-0.5 rounded-md text-[11px] font-extrabold border border-rose-200">
+                  Due: {formatCurrency(customerDueBalance, settings)}
+                </span>
+              )}
               {selectedCustomer.loyaltyPoints && selectedCustomer.loyaltyPoints > 0 ? (
                 <span className="bg-indigo-100 text-indigo-700 px-2.5 py-0.5 rounded-md text-[11px] uppercase tracking-wider ml-1 border border-indigo-200">
                   {selectedCustomer.loyaltyPoints} PTS

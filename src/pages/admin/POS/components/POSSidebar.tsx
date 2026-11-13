@@ -28,6 +28,10 @@ interface POSSidebarProps {
   isRedeemingPoints?: boolean;
   setIsRedeemingPoints?: (v: boolean) => void;
   selectedCustomer?: any;
+  customerAdvanceBalance?: number;
+  applyAdvance?: boolean;
+  setApplyAdvance?: (v: boolean) => void;
+  advanceApplied?: number;
 }
 
 export const POSSidebar: React.FC<POSSidebarProps> = ({
@@ -54,6 +58,10 @@ export const POSSidebar: React.FC<POSSidebarProps> = ({
   isRedeemingPoints,
   setIsRedeemingPoints,
   selectedCustomer,
+  customerAdvanceBalance = 0,
+  applyAdvance = true,
+  setApplyAdvance,
+  advanceApplied = 0,
 }) => {
   return (
     <div className="w-[320px] bg-white border-l border-slate-200 shadow-2xl flex flex-col z-20">
@@ -141,6 +149,28 @@ export const POSSidebar: React.FC<POSSidebarProps> = ({
           })}
         </div>
 
+        {customerAdvanceBalance > 0 && setApplyAdvance && (
+          <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl mb-3 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-extrabold text-emerald-900">
+                Use Advance ({formatCurrency(customerAdvanceBalance, settings)})
+              </p>
+              <p className="text-[10px] font-semibold text-emerald-700">
+                Applied: {formatCurrency(advanceApplied, settings)}
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={applyAdvance}
+                onChange={e => setApplyAdvance(e.target.checked)}
+              />
+              <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
+          </div>
+        )}
+
         {settings?.isLoyaltyEnable === 'Enable' && selectedCustomer && (selectedCustomer.loyaltyPoints || 0) >= Number(settings?.minimumPointToRedeem || 0) && setIsRedeemingPoints && (
             <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl mb-4 flex items-center justify-between">
               <div>
@@ -164,11 +194,18 @@ export const POSSidebar: React.FC<POSSidebarProps> = ({
             <span>Total</span>
             <span className="text-blue-600">{formatCurrency(total, settings).replace('BDT', '').trim()}</span>
           </div>
-          
+
+          {advanceApplied > 0 && (
+            <div className="flex justify-between text-xs font-extrabold text-emerald-700">
+              <span>Advance Adjusted</span>
+              <span>- {formatCurrency(advanceApplied, settings).replace('BDT', '').trim()}</span>
+            </div>
+          )}
+
           <div className="flex justify-between text-sm font-bold">
             <span className="text-slate-500">Remaining</span>
-            <span className={cn((total - payments.reduce((s, p) => s + p.amount, 0)) > 0.01 ? "text-red-500" : "text-green-500")}>
-              {formatCurrency(total - payments.reduce((s, p) => s + p.amount, 0), settings).replace('BDT', '').trim()}
+            <span className={cn((total - advanceApplied - payments.reduce((s, p) => s + p.amount, 0)) > 0.01 ? "text-red-500" : "text-green-500")}>
+              {formatCurrency(Math.max(0, total - advanceApplied - payments.reduce((s, p) => s + p.amount, 0)), settings).replace('BDT', '').trim()}
             </span>
           </div>
 

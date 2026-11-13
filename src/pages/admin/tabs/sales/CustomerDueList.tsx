@@ -29,19 +29,22 @@ import {
   FileText,
   CheckCircle2,
   DollarSign,
-  Users
+  Users,
+  Wallet
 } from 'lucide-react';
 import { Plus } from 'lucide-react';
 import { generatePDF } from '../../../../lib/pdf';
 import { LegacyDueModal } from '../../modals/LegacyDueModal';
+import { CustomerAdvanceModal } from '../../modals/CustomerAdvanceModal';
 import { Customer, Transaction, PaymentAccount, Order } from '../../../../types';
+import { classifyCustomerTransaction } from '../../../../utils/customerAdvanceAccounting';
 
 import { where } from 'firebase/firestore';
 import { useAuth } from '../../../../context/AuthContext';
 import { logAudit } from '../../../../lib/audit';
 import { recordSensitiveAlert } from '../../../../lib/alerts';
 
-export type AgingBucket = 'all' | '0_30' | '31_60' | '61_90' | '90_plus';
+export type AgingBucket = 'all' | '0_30' | '31_60' | '61_90' | '90_plus' | 'advances';
 
 export default function CustomerDueList() {
   const { profile, user } = useAuth();
@@ -72,8 +75,11 @@ export default function CustomerDueList() {
   const [modalProjectFilter, setModalProjectFilter] = useState<string>('all');
   const [orderAllocations, setOrderAllocations] = useState<Record<string, number>>({});
 
-  // Opening Balance state
+  // Opening Balance & Customer Advance state
   const [showLegacyDueModal, setShowLegacyDueModal] = useState(false);
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [advanceModalCustomer, setAdvanceModalCustomer] = useState<Customer | null>(null);
+  const [advanceModalMode, setAdvanceModalMode] = useState<'receive' | 'refund'>('receive');
   const [showOpeningBalForm, setShowOpeningBalForm] = useState(false);
   const [obAmount, setObAmount] = useState<number | ''>('');
   const [obDate, setObDate] = useState('2026-01-01');
@@ -195,26 +201,30 @@ export default function CustomerDueList() {
       const isCustomerTx = t.entityType === 'customer' || (!t.entityType && (t.type === 'sale_return' || t.type === 'return'));
       if (isCustomerTx && t.entityId) {
         if (!balances[t.entityId]) balances[t.entityId] = 0;
-        
-        if (t.type === 'sale' || t.type === 'opening_balance') {
-          balances[t.entityId] += Number(t.amount);
-          const txDate = t.date || t.createdAt;
-          if (txDate && !customerDebits[t.entityId]) {
-            const days = Math.max(0, Math.floor((now - new Date(txDate).getTime()) / (1000 * 60 * 60 * 24)));
-            let b: '0_30' | '31_60' | '61_90' | '90_plus' = '0_30';
-            if (days > 90) b = '90_plus';
-            else if (days > 60) b = '61_90';
-            else if (days > 30) b = '31_60';
+        const { isDebit, isCredit } = classifyCustomerTransaction(t);
+        const amt = Number(t.amount) || 0;
 
-            customerDebits[t.entityId] = {
-              oldestDate: txDate,
-              daysOld: days,
-              bucket: b,
-              oldestDocNumber: t.documentNumber || t.referenceId
-            };
+        if (isDebit) {
+          balances[t.entityId] += amt;
+          if (t.type === 'sale' || t.type === 'opening_balance') {
+            const txDate = t.date || t.createdAt;
+            if (txDate && !customerDebits[t.entityId]) {
+              const days = Math.max(0, Math.floor((now - new Date(txDate).getTime()) / (1000 * 60 * 60 * 24)));
+              let b: '0_30' | '31_60' | '61_90' | '90_plus' = '0_30';
+              if (days > 90) b = '90_plus';
+              else if (days > 60) b = '61_90';
+              else if (days > 30) b = '31_60';
+
+              customerDebits[t.entityId] = {
+                oldestDate: txDate,
+                daysOld: days,
+                bucket: b,
+                oldestDocNumber: t.documentNumber || t.referenceId
+              };
+            }
           }
-        } else if (t.type === 'payment_received' || t.type === 'money_receipt' || ((t.type === 'return' || t.type === 'sale_return') && (t.paymentMethod === 'store_credit' || !t.paymentMethod || t.paymentMethod === 'credit'))) {
-          balances[t.entityId] -= Number(t.amount);
+        } else if (isCredit) {
+          balances[t.entityId] -= amt;
         }
       }
     });
@@ -273,6 +283,7 @@ export default function CustomerDueList() {
           oldestDate: c.createdAt || new Date().toISOString(),
           daysOld: Math.max(0, Math.floor((now - new Date(c.createdAt || now).getTime()) / (1000 * 60 * 60 * 24))),
           bucket: '0_30' as const,
+          oldestDocNumber: undefined as string | undefined,
         };
         return {
           ...c,
@@ -354,24 +365,39 @@ export default function CustomerDueList() {
       dueList = [unifiedSpacezero, ...nonSpacezero];
     }
 
-    return dueList
-      .filter(c => showAll ? true : c.due > 0)
-      .sort((a, b) => b.due - a.due);
+    return {
+      allMapped: dueList.sort((a, b) => b.due - a.due),
+      filtered: dueList
+        .filter(c => {
+          if (agingFilter === 'advances') return c.due < -0.01;
+          return showAll ? true : c.due > 0.01;
+        })
+        .sort((a, b) => (agingFilter === 'advances' ? a.due - b.due : b.due - a.due)),
+    };
   };
 
-  const allDueCustomers = calculateDues();
+  const { allMapped: allCustomerBalances, filtered: allDueCustomers } = calculateDues();
 
-  // Aging summary statistics
+  // Aging & Advance summary statistics
+  const advanceCustomersList = allCustomerBalances.filter(c => c.due < -0.01);
+  const advanceStats = {
+    count: advanceCustomersList.length,
+    total: advanceCustomersList.reduce((acc, c) => acc + Math.abs(c.due), 0),
+  };
+
   const agingStats = {
-    all: { count: allDueCustomers.filter(c => c.due > 0).length, total: allDueCustomers.reduce((acc, c) => acc + (c.due > 0 ? c.due : 0), 0) },
+    all: {
+      count: allCustomerBalances.filter(c => c.due > 0.01).length,
+      total: allCustomerBalances.reduce((acc, c) => acc + (c.due > 0.01 ? c.due : 0), 0),
+    },
     '0_30': { count: 0, total: 0 },
     '31_60': { count: 0, total: 0 },
     '61_90': { count: 0, total: 0 },
     '90_plus': { count: 0, total: 0 },
   };
 
-  allDueCustomers.forEach(c => {
-    if (c.due > 0 && c.agingBucket) {
+  allCustomerBalances.forEach(c => {
+    if (c.due > 0.01 && c.agingBucket) {
       agingStats[c.agingBucket].count += 1;
       agingStats[c.agingBucket].total += c.due;
     }
@@ -379,7 +405,7 @@ export default function CustomerDueList() {
 
   const dueCustomers = useMemo(() => {
     let list = allDueCustomers
-      .filter(c => agingFilter === 'all' || c.agingBucket === agingFilter)
+      .filter(c => agingFilter === 'all' || agingFilter === 'advances' || c.agingBucket === agingFilter)
       .filter(c => {
         if (!searchTerm.trim()) return true;
         const q = searchTerm.toLowerCase();
@@ -393,11 +419,15 @@ export default function CustomerDueList() {
       });
 
     list.sort((a, b) => {
-      if (sortBy === 'due_desc') return b.due - a.due;
-      if (sortBy === 'due_asc') return a.due - b.due;
+      if (sortBy === 'due_desc') {
+        return agingFilter === 'advances' ? Math.abs(b.due) - Math.abs(a.due) : b.due - a.due;
+      }
+      if (sortBy === 'due_asc') {
+        return agingFilter === 'advances' ? Math.abs(a.due) - Math.abs(b.due) : a.due - b.due;
+      }
       if (sortBy === 'aging_desc') return (b.daysOld || 0) - (a.daysOld || 0);
       if (sortBy === 'name_asc') return (a.name || '').localeCompare(b.name || '');
-      return b.due - a.due;
+      return agingFilter === 'advances' ? Math.abs(b.due) - Math.abs(a.due) : b.due - a.due;
     });
 
     return list;
@@ -941,13 +971,33 @@ export default function CustomerDueList() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
-            {/* Quick Summary Card */}
+            {/* Quick Summary Cards */}
             <div className="bg-white/5 border border-white/10 backdrop-blur-sm px-4 py-2.5 rounded-xl flex flex-col items-end">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Outstanding</span>
               <span className="text-xl font-black text-rose-400">{formatCurrency(agingStats.all.total, settings)}</span>
             </div>
 
+            {advanceStats.total > 0 && (
+              <div className="bg-emerald-500/10 border border-emerald-400/25 backdrop-blur-sm px-4 py-2.5 rounded-xl flex flex-col items-end">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">Customer Advances</span>
+                <span className="text-xl font-black text-emerald-400">{formatCurrency(advanceStats.total, settings)}</span>
+              </div>
+            )}
+
             {/* Action Buttons */}
+            <button
+              type="button"
+              onClick={() => {
+                setAdvanceModalCustomer(null);
+                setAdvanceModalMode('receive');
+                setShowAdvanceModal(true);
+              }}
+              className="bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+              title="Receive upfront Customer Advance / Pre-Order Deposit"
+            >
+              <Wallet size={15} /> Receive Advance
+            </button>
+
             <button
               type="button"
               onClick={() => setShowLegacyDueModal(true)}
@@ -979,7 +1029,7 @@ export default function CustomerDueList() {
       </div>
 
       {/* Due Aging Filter Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <button
           type="button"
           onClick={() => setAgingFilter('all')}
@@ -1114,6 +1164,33 @@ export default function CustomerDueList() {
             </span>
           </div>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setAgingFilter('advances')}
+          className={cn(
+            "p-4 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer",
+            agingFilter === 'advances'
+              ? "bg-emerald-700 text-white border-emerald-700 shadow-lg ring-2 ring-emerald-500/30"
+              : "bg-white text-emerald-950 border-emerald-200 hover:border-emerald-300 hover:shadow-sm"
+          )}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className={cn("text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5", agingFilter === 'advances' ? "text-emerald-100" : "text-emerald-700")}>
+              <Wallet size={12} className={agingFilter === 'advances' ? "text-emerald-200" : "text-emerald-500"} /> Advances
+            </span>
+            <Wallet size={14} className={agingFilter === 'advances' ? "text-emerald-200" : "text-emerald-500"} />
+          </div>
+          <div className="text-lg sm:text-xl font-black tracking-tight">{formatCurrency(advanceStats.total, settings)}</div>
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/10 text-[11px]">
+            <span className={agingFilter === 'advances' ? "text-emerald-100 font-medium" : "text-emerald-700"}>
+              {advanceStats.count} With Credit
+            </span>
+            <span className={cn("font-bold text-[10px] px-1.5 py-0.5 rounded", agingFilter === 'advances' ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-800")}>
+              Liability
+            </span>
+          </div>
+        </button>
       </div>
 
       {/* Main Table Card */}
@@ -1171,9 +1248,18 @@ export default function CustomerDueList() {
             </label>
 
             {/* Filtered Total Badge */}
-            <div className="bg-red-50 text-red-700 border border-red-200/80 px-3.5 py-1.5 rounded-xl flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider">Filtered Due:</span>
-              <span className="text-sm font-black">{formatCurrency(totalOverallDue, settings)}</span>
+            <div className={cn(
+              "px-3.5 py-1.5 rounded-xl flex items-center gap-2 border",
+              agingFilter === 'advances'
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200/80"
+                : "bg-red-50 text-red-700 border-red-200/80"
+            )}>
+              <span className="text-[10px] font-black uppercase tracking-wider">
+                {agingFilter === 'advances' ? 'Filtered Advances:' : 'Filtered Due:'}
+              </span>
+              <span className="text-sm font-black">
+                {formatCurrency(agingFilter === 'advances' ? Math.abs(totalOverallDue) : totalOverallDue, settings)}
+              </span>
             </div>
           </div>
         </div>
@@ -1264,7 +1350,11 @@ export default function CustomerDueList() {
 
                     {/* Aging Status Badge */}
                     <td className="px-6 py-4">
-                      {customer.daysOld > 0 ? (
+                      {customer.due < -0.01 ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 w-fit">
+                          <Wallet size={11} /> Advance Held
+                        </span>
+                      ) : customer.daysOld > 0 && customer.due > 0.01 ? (
                         <div className="flex flex-col gap-1">
                           <span className={cn(
                             "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black w-fit",
@@ -1286,17 +1376,28 @@ export default function CustomerDueList() {
                       )}
                     </td>
 
-                    {/* Due Amount */}
+                    {/* Due / Advance Amount */}
                     <td className="px-6 py-4 text-right">
-                      <span className="font-black text-base text-red-600 tracking-tight">
-                        {formatCurrency(customer.due, settings)}
-                      </span>
+                      {customer.due < -0.01 ? (
+                        <div>
+                          <span className="font-black text-base text-emerald-700 tracking-tight block">
+                            {formatCurrency(Math.abs(customer.due), settings)}
+                          </span>
+                          <span className="text-[10px] font-extrabold uppercase text-emerald-600">
+                            Advance Credit
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-black text-base text-red-600 tracking-tight">
+                          {formatCurrency(customer.due, settings)}
+                        </span>
+                      )}
                     </td>
 
                     {/* Actions */}
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center items-center gap-1.5">
-                        {customer.phone && (
+                        {customer.phone && customer.due > 0.01 && (
                           <button
                             type="button"
                             onClick={() => handleSendWhatsAppReminder(customer)}
@@ -1319,14 +1420,31 @@ export default function CustomerDueList() {
                           <FileText size={13} className="text-slate-500" />
                           <span>History</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenPaymentModal({ id: customer.id, name: customer.name, due: customer.due })}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5 cursor-pointer shrink-0"
-                        >
-                          <DollarSign size={13} />
-                          <span>Receive</span>
-                        </button>
+                        {customer.due < -0.01 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const fullCust = customers.find(c => c.id === customer.id) || customer;
+                              setAdvanceModalCustomer(fullCust as Customer);
+                              setAdvanceModalMode('refund');
+                              setShowAdvanceModal(true);
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5 cursor-pointer shrink-0"
+                            title="Add more Advance or Refund Unused Advance"
+                          >
+                            <Wallet size={13} />
+                            <span>Advance</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPaymentModal({ id: customer.id, name: customer.name, due: customer.due })}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5 cursor-pointer shrink-0"
+                          >
+                            <DollarSign size={13} />
+                            <span>Receive</span>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1577,7 +1695,6 @@ export default function CustomerDueList() {
                     type="number"
                     min="0"
                     step="0.01"
-                    max={selectedCustomer.due}
                     value={paymentAmount}
                     onChange={(e) => {
                       setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value));
@@ -1721,8 +1838,7 @@ export default function CustomerDueList() {
           })
           .reverse()
           .map(t => {
-            const isDebit = t.type === 'sale' || t.type === 'opening_balance';
-            const isCredit = t.type === 'payment_received' || t.type === 'deposit' || t.type === 'money_receipt' || ((t.type === 'return' || t.type === 'sale_return') && (t.paymentMethod === 'store_credit' || !t.paymentMethod || t.paymentMethod === 'credit'));
+            const { isDebit, isCredit } = classifyCustomerTransaction(t);
             const amt = Number(t.amount) || 0;
             return { ...t, isDebit, isCredit, amt };
           });
@@ -1828,6 +1944,18 @@ export default function CustomerDueList() {
                   <button
                     type="button"
                     onClick={() => {
+                      const cust = customers.find(c => c.id === historyCustomer.id) || null;
+                      setAdvanceModalCustomer(cust);
+                      setAdvanceModalMode('receive');
+                      setShowAdvanceModal(true);
+                    }}
+                    className="flex-shrink-0 mt-0 inline-flex items-center gap-1.5 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg transition-colors shadow-sm cursor-pointer"
+                  >
+                    <Wallet size={13} /> Advance / Refund
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       const cust = customers.find(c => c.id === historyCustomer.id);
                       handleOpenPaymentModal({ 
                         id: historyCustomer.id, 
@@ -1867,9 +1995,15 @@ export default function CustomerDueList() {
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Closing Bal.</span>
                   <span className="text-base font-black text-violet-600">{formatCurrency(closingBalance, settings)}</span>
                 </div>
-                <div className={`px-4 py-3 flex flex-col gap-0.5 ${runningBalance > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Net Due</span>
-                  <span className={`text-base font-black ${runningBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(Math.max(0, runningBalance), settings)}</span>
+                <div className={`px-4 py-3 flex flex-col gap-0.5 ${runningBalance > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+                    {runningBalance < -0.01 ? 'Advance Credit' : 'Net Due'}
+                  </span>
+                  <span className={`text-base font-black ${runningBalance > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                    {runningBalance < -0.01
+                      ? `${formatCurrency(Math.abs(runningBalance), settings)} (Adv)`
+                      : formatCurrency(Math.max(0, runningBalance), settings)}
+                  </span>
                 </div>
               </div>
 
@@ -2109,13 +2243,24 @@ export default function CustomerDueList() {
         );
       })()}
 
-            <LegacyDueModal
+      <LegacyDueModal
         isOpen={showLegacyDueModal}
         onClose={() => setShowLegacyDueModal(false)}
         type="customer"
         entities={customers}
         paymentAccounts={paymentAccounts}
         transactions={transactions}
+        onSuccess={fetchData}
+      />
+
+      <CustomerAdvanceModal
+        isOpen={showAdvanceModal}
+        onClose={() => setShowAdvanceModal(false)}
+        customers={customers}
+        paymentAccounts={paymentAccounts}
+        transactions={transactions}
+        initialCustomer={advanceModalCustomer}
+        initialMode={advanceModalMode}
         onSuccess={fetchData}
       />
 

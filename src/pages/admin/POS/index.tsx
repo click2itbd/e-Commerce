@@ -13,7 +13,7 @@ import {
   increment,
 } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Product, ProductVariant, Customer, PaymentAccount } from "../../../types";
+import { Product, ProductVariant, Customer, PaymentAccount, Transaction } from "../../../types";
 import toast from "react-hot-toast";
 import { useSettings } from "../../../context/SettingsContext";
 import { useAuth } from "../../../context/AuthContext";
@@ -25,6 +25,10 @@ import { POSCartArea } from "./components/POSCartArea";
 import { POSSidebar } from "./components/POSSidebar";
 import { POSModals } from "./components/POSModals";
 import { logAudit } from "../../../lib/audit";
+import {
+  calculateCustomerAccountPosition,
+  splitSalePaymentWithAdvance,
+} from "../../../utils/customerAdvanceAccounting";
 
 export const RetailPOS = () => {
   const { settings } = useSettings();
@@ -33,6 +37,8 @@ export const RetailPOS = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [applyAdvance, setApplyAdvance] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
@@ -163,7 +169,7 @@ export const RetailPOS = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [prodSnap, custSnap, paySnap] = await Promise.all([
+        const [prodSnap, custSnap, paySnap, txSnap] = await Promise.all([
           getDocs(
             query(
               collection(db, "products"),
@@ -179,6 +185,7 @@ export const RetailPOS = () => {
             ),
           ),
           getDocs(query(collection(db, "payment_accounts"), orderBy("name"))),
+          getDocs(collection(db, "transactions")),
         ]);
         setProducts(
           prodSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Product[],
@@ -191,6 +198,9 @@ export const RetailPOS = () => {
             id: d.id,
             ...d.data(),
           })) as PaymentAccount[],
+        );
+        setTransactions(
+          txSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Transaction[],
         );
       } catch (err) {
         console.error("Failed to load POS data", err);
@@ -512,11 +522,28 @@ export const RetailPOS = () => {
   const calculatedTax = (subtotalAfterDiscount * taxPercent) / 100;
   const total = subtotalAfterDiscount + calculatedTax;
 
+  const customerPosition = React.useMemo(
+    () => calculateCustomerAccountPosition(transactions, selectedCustomer),
+    [transactions, selectedCustomer],
+  );
+
+  const cashPaymentsSum = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const advanceSplit = splitSalePaymentWithAdvance({
+    netTotal: total,
+    previousDue: customerPosition.dueBalance,
+    availableAdvance: customerPosition.advanceBalance,
+    applyAdvance,
+    cashPaidNow: cashPaymentsSum,
+  });
+
   useEffect(() => {
     if (isPaymentView && paymentAccounts.length > 0 && payments.length === 0) {
-      setPayments([{ accountId: paymentAccounts[0].id, amount: total }]);
+      const remainingAfterAdv = Math.max(0, total - advanceSplit.advanceApplied);
+      if (remainingAfterAdv > 0.01) {
+        setPayments([{ accountId: paymentAccounts[0].id, amount: remainingAfterAdv }]);
+      }
     }
-  }, [isPaymentView, total, paymentAccounts]);
+  }, [isPaymentView, total, paymentAccounts, advanceSplit.advanceApplied]);
 
   const handleCheckoutClick = () => {
     if (cart.length === 0) {
@@ -574,7 +601,15 @@ export const RetailPOS = () => {
         }
       }
 
-      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+      const cashPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const posSplit = splitSalePaymentWithAdvance({
+        netTotal: total,
+        previousDue: customerPosition.dueBalance,
+        availableAdvance: customerPosition.advanceBalance,
+        applyAdvance,
+        cashPaidNow: cashPaid,
+      });
+      const totalPaid = posSplit.totalPaidOnInvoice;
       if (totalPaid > total + 0.01) {
         toast.error(`পরিশোধিত টাকা (${formatCurrency(totalPaid, settings)}) মোট বিলের (${formatCurrency(total, settings)}) চেয়ে বেশি হতে পারে না!`);
         return;
@@ -630,12 +665,15 @@ export const RetailPOS = () => {
       );
       const profit = total - totalCost;
 
-      const methodsUsed = payments
-        .map((p) => {
-          const acc = paymentAccounts.find((a) => a.id === p.accountId);
-          return acc ? acc.name : "Unknown";
-        })
-        .join(", ");
+      const methodsUsed = [
+        ...payments
+          .filter((p) => Number(p.amount) > 0)
+          .map((p) => {
+            const acc = paymentAccounts.find((a) => a.id === p.accountId);
+            return acc ? acc.name : "Unknown";
+          }),
+        ...(posSplit.advanceApplied > 0 ? ["Customer Advance"] : []),
+      ].join(", ");
 
       const orderData = {
         documentNumber: docNumber,
@@ -659,6 +697,8 @@ export const RetailPOS = () => {
         profit,
         total,
         paidAmount: totalPaid,
+        advanceApplied: posSplit.advanceApplied,
+        cashPaidAmount: cashPaid,
         dueAmount: isDue ? Math.max(0, total - totalPaid) : 0,
         paymentStatus: isDue ? (totalPaid > 0 ? "partial" : "due") : "paid",
         paymentMethod: methodsUsed,
@@ -737,18 +777,24 @@ export const RetailPOS = () => {
         }
       }
 
-      // Always record the full sale amount to update the customer ledger (Receivable)
+      // Always record the full sale amount to update the customer ledger (Receivable / Offset Advance)
       try {
         await addDoc(collection(db, "transactions"), {
           type: "sale",
           amount: orderData.total,
           date: createdAt.split("T")[0],
-          description: `POS Sale - ${docNumber}`,
+          description:
+            posSplit.advanceApplied > 0
+              ? `POS Sale - ${docNumber} [Advance Adjusted: ${formatCurrency(posSplit.advanceApplied, settings)}]`
+              : `POS Sale - ${docNumber}`,
           entityId: selectedCustomer?.id || "general",
           entityName: orderData.customerName,
           entityType: "customer",
-          paymentMethod: "",
+          paymentMethod:
+            posSplit.advanceApplied > 0 && cashPaid <= 0 ? "advance" : "",
           paymentAccountId: "",
+          advanceApplied: posSplit.advanceApplied,
+          cashPaidAmount: cashPaid,
           referenceId: orderRefId,
           documentNumber: docNumber,
           branchName: selectedBranch ? selectedBranch.trim() : '',
@@ -835,16 +881,23 @@ export const RetailPOS = () => {
       setIsRedeemingPoints(false);
       setReceivedAmount("");
       setPayments([]);
+      setApplyAdvance(true);
 
-      const prodSnap = await getDocs(
-        query(
-          collection(db, "products"),
-          orderBy("createdAt", "desc"),
-          limit(500),
+      const [prodSnap, txSnap] = await Promise.all([
+        getDocs(
+          query(
+            collection(db, "products"),
+            orderBy("createdAt", "desc"),
+            limit(500),
+          ),
         ),
-      );
+        getDocs(collection(db, "transactions")),
+      ]);
       setProducts(
         prodSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Product[],
+      );
+      setTransactions(
+        txSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Transaction[],
       );
 
       printReceipt(orderData);
@@ -1150,6 +1203,8 @@ export const RetailPOS = () => {
           setIsAddingCustomer={setIsAddingCustomer}
           selectedBranch={selectedBranch}
           setSelectedBranch={setSelectedBranch}
+          customerAdvanceBalance={customerPosition.advanceBalance}
+          customerDueBalance={customerPosition.dueBalance}
         />
       </div>
 
@@ -1177,6 +1232,10 @@ export const RetailPOS = () => {
         isRedeemingPoints={isRedeemingPoints}
         setIsRedeemingPoints={setIsRedeemingPoints}
         selectedCustomer={selectedCustomer}
+        customerAdvanceBalance={customerPosition.advanceBalance}
+        applyAdvance={applyAdvance}
+        setApplyAdvance={setApplyAdvance}
+        advanceApplied={advanceSplit.advanceApplied}
       />
 
       <POSModals

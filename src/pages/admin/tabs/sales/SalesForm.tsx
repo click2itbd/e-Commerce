@@ -50,6 +50,10 @@ import { sendEmail } from '../../../../services/emailService';
 import { logAudit } from '../../../../lib/audit';
 import { recordSensitiveAlert } from '../../../../lib/alerts';
 import { AIPolishButton } from '../../../../components/common/AIPolishButton';
+import {
+  calculateCustomerAccountPosition,
+  splitSalePaymentWithAdvance,
+} from '../../../../utils/customerAdvanceAccounting';
 
 interface SalesFormProps {
   users?: any[];
@@ -210,11 +214,21 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [submitting, setSubmitting] = useState(false);
+  const [applyCustomerAdvance, setApplyCustomerAdvance] = useState(true);
+  const [advanceUseAmount, setAdvanceUseAmount] = useState<number | ''>('');
 
   useEffect(() => {
     if (editingOrder) {
       const existingAccId = editingOrder.paymentAccountId || '';
       const matchedAcc = existingAccId ? paymentAccounts.find(a => a.id === existingAccId) : null;
+      const oldAdv = Number(editingOrder.advanceApplied) || 0;
+      const oldTotalPaid = Number(editingOrder.paidAmount !== undefined ? editingOrder.paidAmount : editingOrder.amountPaid) || 0;
+      const oldCashPaid =
+        editingOrder.cashPaidAmount !== undefined
+          ? Number(editingOrder.cashPaidAmount) || 0
+          : Math.max(0, oldTotalPaid - oldAdv);
+      setApplyCustomerAdvance(oldAdv > 0 || true);
+      setAdvanceUseAmount(oldAdv > 0 ? oldAdv : '');
       setSaleData(prev => ({
         ...prev,
         type: editingOrder.type || 'invoice',
@@ -244,7 +258,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         appliedDiscountCode: editingOrder.appliedDiscountCode || '',
         taxRate: editingOrder.taxAmount ? (editingOrder.taxAmount / (editingOrder.subtotal || 1) * 100) : 0,
         shippingCost: Number(editingOrder.shippingCost) || 0,
-        paidAmount: Number(editingOrder.paidAmount !== undefined ? editingOrder.paidAmount : editingOrder.amountPaid) || 0,
+        paidAmount:
+          editingOrder.cashPaidAmount !== undefined
+            ? Number(editingOrder.cashPaidAmount) || 0
+            : Math.max(
+                0,
+                (Number(editingOrder.paidAmount !== undefined ? editingOrder.paidAmount : editingOrder.amountPaid) || 0) -
+                  (Number(editingOrder.advanceApplied) || 0)
+              ),
         paymentMethod: editingOrder.paymentMethod || matchedAcc?.type || 'cash',
         paymentAccountId: existingAccId,
         notes: editingOrder.notes || '',
@@ -280,18 +301,14 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     return false;
   };
 
-  // Calculate actual previous due for a customer excluding the order currently being edited
-  const getCustomerPreviousDue = (customerId: string) => {
-    if (!customerId || !transactions) return 0;
-    let due = 0;
-    transactions.forEach(t => {
-      if (t.entityId === customerId && !isTransactionLinkedToEditingOrder(t)) {
-        if (t.type === 'sale' || t.type === 'opening_balance') due += Number(t.amount) || 0;
-        else if (t.type === 'payment_received' || t.type === 'return' || t.type === 'sale_return') due -= Number(t.amount) || 0;
-      }
+  // Calculate live customer ledger position (due vs advance credit) excluding the order currently being edited
+  const getCustomerPosition = (customerId: string) =>
+    calculateCustomerAccountPosition(transactions, customerId, {
+      excludeFn: isTransactionLinkedToEditingOrder,
     });
-    return due > 0 ? due : 0;
-  };
+
+  const getCustomerPreviousDue = (customerId: string) =>
+    getCustomerPosition(customerId).dueBalance;
 
   const [showCustomProductModal, setShowCustomProductModal] = useState(false);
 
@@ -366,7 +383,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       );
 
       const isPaid = parsed.isPaid === true;
-      const defaultAcc = currentAccs.find(a => a.isDefault) || currentAccs[0];
+      const defaultAcc = currentAccs.find(a => (a as any).isDefault) || currentAccs[0];
 
       setSaleData(prev => ({
         ...prev,
@@ -829,7 +846,26 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const handleCreateSale = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (saleData.type !== 'quotation' && Number(saleData.paidAmount) > 0 && !saleData.paymentAccountId) {
+    const preCustPos = getCustomerPosition(saleData.customerId);
+    const preSplit =
+      saleData.type === 'quotation'
+        ? splitSalePaymentWithAdvance({
+            netTotal,
+            previousDue: 0,
+            availableAdvance: 0,
+            applyAdvance: false,
+            cashPaidNow: 0,
+          })
+        : splitSalePaymentWithAdvance({
+            netTotal,
+            previousDue: preCustPos.dueBalance,
+            availableAdvance: preCustPos.advanceBalance,
+            applyAdvance: applyCustomerAdvance,
+            requestedAdvanceAmount: advanceUseAmount === '' ? undefined : Number(advanceUseAmount) || 0,
+            cashPaidNow: Number(saleData.paidAmount) || 0,
+          });
+
+    if (saleData.type !== 'quotation' && preSplit.cashPaidNow > 0 && !saleData.paymentAccountId) {
       toast.error('টাকা গ্রহণ/পেমেন্ট করার জন্য অনুগ্রহ করে একটি Payment Account সিলেক্ট করুন!');
       return;
     }
@@ -841,7 +877,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     }
 
     // 1. Due Sale Validation (কাস্টমার ছাড়া বাকিতে সেল বন্ধ)
-    const isDueSale = (saleData.type !== 'quotation') && (netTotal - (Number(saleData.paidAmount) || 0) > 0.01);
+    const isDueSale = (saleData.type !== 'quotation') && (netTotal - preSplit.totalPaidOnInvoice > 0.01);
     if (isDueSale) {
       const custName = String(saleData.customerName || '').trim().toLowerCase();
       const custPhone = String(saleData.customerPhone || '').trim();
@@ -987,13 +1023,36 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         };
       });
 
-      const previousDue = getCustomerPreviousDue(saleData.customerId);
+      const custPos = getCustomerPosition(saleData.customerId);
+      const previousDue = custPos.dueBalance;
+      const availableAdvance = custPos.advanceBalance;
+      const requestedAdv =
+        advanceUseAmount === '' ? undefined : Math.max(0, Number(advanceUseAmount) || 0);
+      const settleSplit =
+        saleData.type === 'quotation'
+          ? splitSalePaymentWithAdvance({
+              netTotal,
+              previousDue: 0,
+              availableAdvance: 0,
+              applyAdvance: false,
+              cashPaidNow: 0,
+            })
+          : splitSalePaymentWithAdvance({
+              netTotal,
+              previousDue,
+              availableAdvance,
+              applyAdvance: applyCustomerAdvance,
+              requestedAdvanceAmount: requestedAdv,
+              cashPaidNow: Number(saleData.paidAmount) || 0,
+            });
 
       const totalCost = processedItems.reduce((acc, i) => acc + (i.costPrice * i.quantity), 0);
       const profit = netTotal - totalCost;
 
-      const paid = saleData.type === 'quotation' ? 0 : (Number(saleData.paidAmount) || 0);
-      const paymentStatus = paid >= (netTotal + previousDue) ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
+      const advanceApplied = settleSplit.advanceApplied;
+      const cashPaidNow = settleSplit.cashPaidNow;
+      const paid = settleSplit.totalPaidOnInvoice;
+      const paymentStatus = settleSplit.paymentStatus;
       const createdAt = new Date(saleData.date || new Date()).toISOString();
 
       // Auto-register reference person as a customer if not already registered
@@ -1054,9 +1113,17 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         totalCost: Number(totalCost) || 0,
         profit: Number(profit) || 0,
         paidAmount: Number(paid) || 0,
+        advanceApplied: Number(advanceApplied) || 0,
+        cashPaidAmount: Number(cashPaidNow) || 0,
+        dueAmount: Math.max(0, Number(netTotal) - Number(paid)),
         paymentStatus,
-        paymentMethod: saleData.paymentMethod || 'cash',
-        paymentAccountId: saleData.paymentAccountId || '',
+        paymentMethod:
+          cashPaidNow > 0
+            ? saleData.paymentMethod || 'cash'
+            : advanceApplied > 0
+              ? 'Customer Advance'
+              : saleData.paymentMethod || 'cash',
+        paymentAccountId: cashPaidNow > 0 ? (saleData.paymentAccountId || '') : '',
         status: saleData.type === 'quotation' ? 'pending' : 'delivered',
         userId: 'admin',
         notes: saleData.notes || '',
@@ -1198,13 +1265,16 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           }
         }
 
-        // Record Cash/Bank Inflow Transaction in Firestore
-        // Always record the full sale amount to update the customer ledger (Receivable)
+        // Record Customer Receivable & New Cash/Bank Inflow Transactions in Firestore
+        // Always record the full sale amount to update the customer ledger (Receivable / Offset Advance)
         await addDoc(collection(db, 'transactions'), {
           type: 'sale',
           amount: netTotal,
           date: createdAt,
-          description: `Sale to ${saleData.customerName} (#${docNumber})`,
+          description:
+            advanceApplied > 0
+              ? `Sale to ${saleData.customerName} (#${docNumber}) [Advance Adjusted: ${formatCurrency(advanceApplied, settings)}]`
+              : `Sale to ${saleData.customerName} (#${docNumber})`,
           entityId: saleData.customerId,
           entityName: saleData.customerName,
           entityType: 'customer',
@@ -1214,18 +1284,24 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           projectName: saleData.branchName || '',
           company: saleData.company || 'main',
           paymentAccountId: '', // No payment account for the sale itself
-          paymentMethod: '',
+          paymentMethod: advanceApplied > 0 && cashPaidNow === 0 ? 'advance' : '',
+          advanceApplied: Number(advanceApplied) || 0,
+          cashPaidAmount: Number(cashPaidNow) || 0,
           createdAt,
         });
 
-        // If any amount was paid, record the payment transaction
-        if (paid > 0) {
+        // Only record a new payment_received transaction for newly collected cash/bank today.
+        // Prior Customer Advance Deposits already credited cash/bank when received.
+        if (cashPaidNow > 0) {
           const selectedAcc = paymentAccounts.find(a => a.id === saleData.paymentAccountId);
           await addDoc(collection(db, 'transactions'), {
             type: 'payment_received',
-            amount: paid,
+            amount: cashPaidNow,
             date: createdAt,
-            description: `Payment for Invoice #${docNumber}`,
+            description:
+              advanceApplied > 0
+                ? `Balance Payment for Invoice #${docNumber} (Advance Adjusted: ${formatCurrency(advanceApplied, settings)})`
+                : `Payment for Invoice #${docNumber}`,
             entityId: saleData.customerId,
             entityName: saleData.customerName,
             entityType: 'customer',
@@ -1235,6 +1311,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             projectName: saleData.branchName || '',
             company: saleData.company || 'main',
             paymentAccountId: selectedAcc?.id || '',
+            paymentAccountName: selectedAcc?.name || '',
             paymentMethod: selectedAcc?.type || selectedAcc?.name || saleData.paymentMethod || 'cash',
             createdAt,
           });
@@ -1399,6 +1476,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         referrerPhone: '',
       });
       setSaleDiscountCodeInput('');
+      setApplyCustomerAdvance(true);
+      setAdvanceUseAmount('');
       if (typeof window !== 'undefined') {
         localStorage.removeItem('sales_form_draft');
         sessionStorage.removeItem('adminEditingOrder');
@@ -1750,9 +1829,27 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                       {(saleData.customerName || 'C').charAt(0).toUpperCase()}
                     </div>
                     <div className="truncate">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-black text-slate-800 text-sm">{saleData.customerName}</span>
                         {saleData.customerPhone && <span className="text-slate-500 font-mono text-xs">({saleData.customerPhone})</span>}
+                        {(() => {
+                          const pos = getCustomerPosition(saleData.customerId);
+                          if (pos.advanceBalance > 0) {
+                            return (
+                              <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-extrabold">
+                                Advance Credit: {formatCurrency(pos.advanceBalance, settings)}
+                              </span>
+                            );
+                          }
+                          if (pos.dueBalance > 0) {
+                            return (
+                              <span className="bg-rose-100 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full text-[10px] font-extrabold">
+                                Prev Due: {formatCurrency(pos.dueBalance, settings)}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                       {saleData.shippingAddress && <p className="text-[11px] text-slate-500 truncate">{saleData.shippingAddress}</p>}
                     </div>
@@ -2260,15 +2357,73 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               </div>
 
               {/* Right: Payment Method & Paid Amount */}
-              {saleData.type !== 'quotation' && (
+              {saleData.type !== 'quotation' && (() => {
+                const custPos = getCustomerPosition(saleData.customerId);
+                const availAdv = custPos.advanceBalance;
+                const prevDue = custPos.dueBalance;
+                const reqAdv =
+                  advanceUseAmount === '' ? undefined : Math.max(0, Number(advanceUseAmount) || 0);
+                const liveSplit = splitSalePaymentWithAdvance({
+                  netTotal,
+                  previousDue: prevDue,
+                  availableAdvance: availAdv,
+                  applyAdvance: applyCustomerAdvance,
+                  requestedAdvanceAmount: reqAdv,
+                  cashPaidNow: Number(saleData.paidAmount) || 0,
+                });
+                const cashTargetForFullPay = Math.max(0, netTotal + prevDue - liveSplit.advanceApplied);
+
+                return (
                 <div className="space-y-3 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80">
                   <span className="font-extrabold text-slate-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
                     <CreditCard size={13} className="text-slate-400" />
                     Payment Collection
                   </span>
+
+                  {/* Customer Advance Credit Adjustment */}
+                  {availAdv > 0 && (
+                    <div className="p-3 bg-emerald-50/90 border border-emerald-200 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="flex items-center gap-2 text-xs font-extrabold text-emerald-900 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={applyCustomerAdvance}
+                            onChange={e => {
+                              setApplyCustomerAdvance(e.target.checked);
+                              if (!e.target.checked) setAdvanceUseAmount(0);
+                              else setAdvanceUseAmount('');
+                            }}
+                            className="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span>Adjust Customer Advance</span>
+                        </label>
+                        <span className="text-[11px] font-black text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-emerald-200">
+                          Available: {formatCurrency(availAdv, settings)}
+                        </span>
+                      </div>
+                      {applyCustomerAdvance && (
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="text-emerald-800 font-semibold">Advance Applied (৳):</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={Math.min(availAdv, netTotal)}
+                            value={advanceUseAmount === '' ? liveSplit.advanceApplied : advanceUseAmount}
+                            onChange={e => {
+                              const v = e.target.value;
+                              if (v === '') setAdvanceUseAmount('');
+                              else setAdvanceUseAmount(Math.min(Math.min(availAdv, netTotal), Math.max(0, Number(v) || 0)));
+                            }}
+                            className="w-28 text-right border border-emerald-300 bg-white rounded-lg px-2 py-1 font-black text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-200"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">
-                      Deposit Into Account
+                      Deposit Into Account {liveSplit.advanceApplied >= netTotal && '(Optional — Covered by Advance)'}
                     </label>
                     <select
                       value={saleData.paymentAccountId}
@@ -2292,7 +2447,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-[10px] font-extrabold text-slate-500 uppercase">
-                        Paid Amount
+                        {liveSplit.advanceApplied > 0 ? 'Additional Cash/Bank Paid Now' : 'Paid Amount'}
                       </label>
                       <div className="flex items-center gap-2">
                         <button
@@ -2300,18 +2455,15 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                           onClick={() => setSaleData({ ...saleData, paidAmount: 0 })}
                           className="text-[10px] font-bold text-slate-500 hover:text-slate-800 hover:underline"
                         >
-                          Full Due (0)
+                          Cash 0
                         </button>
                         <span>•</span>
                         <button
                           type="button"
-                          onClick={() => {
-                            const prevDue = getCustomerPreviousDue(saleData.customerId);
-                            setSaleData({ ...saleData, paidAmount: netTotal + (prevDue > 0 ? prevDue : 0) });
-                          }}
+                          onClick={() => setSaleData({ ...saleData, paidAmount: cashTargetForFullPay })}
                           className="text-[10px] font-bold text-emerald-700 hover:underline"
                         >
-                          Full Paid
+                          {cashTargetForFullPay === 0 ? 'Covered by Advance (0)' : `Full Paid (${formatCurrency(cashTargetForFullPay, settings)})`}
                         </button>
                       </div>
                     </div>
@@ -2321,7 +2473,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                       value={saleData.paidAmount || ''}
                       onChange={e => setSaleData({ ...saleData, paidAmount: Number(e.target.value) || 0 })}
                       className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 font-black text-slate-900 text-sm outline-none focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500 shadow-2xs"
-                      placeholder="Enter amount (0 for Full Due)"
+                      placeholder={liveSplit.advanceApplied >= netTotal ? '0 (Paid via Advance)' : 'Enter amount (0 for Full Due)'}
                     />
                   </div>
 
@@ -2346,22 +2498,21 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     />
                   </div>
 
-                  {/* Due preview */}
-                  {(() => {
-                    const prevDue = getCustomerPreviousDue(saleData.customerId);
-                    const totalDueNow = netTotal + (prevDue > 0 ? prevDue : 0) - (Number(saleData.paidAmount) || 0);
-                    if (totalDueNow > 0) {
-                      return (
-                        <div className="flex justify-between items-center text-xs font-extrabold text-amber-900 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200">
-                          <span>Remaining Balance (Due):</span>
-                          <span>{formatCurrency(totalDueNow, settings)}</span>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
+                  {/* Settlement & Due preview */}
+                  {liveSplit.advanceApplied > 0 && liveSplit.invoiceDueAfterSettlement <= 0.01 ? (
+                    <div className="flex justify-between items-center text-xs font-extrabold text-emerald-900 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200">
+                      <span>Settled ({formatCurrency(liveSplit.advanceApplied, settings)} Advance{liveSplit.cashPaidNow > 0 ? ` + ${formatCurrency(liveSplit.cashPaidNow, settings)} Cash/Bank` : ''})</span>
+                      <span className="text-emerald-700">PAID</span>
+                    </div>
+                  ) : liveSplit.netCustomerDueAfterSale > 0.01 ? (
+                    <div className="flex justify-between items-center text-xs font-extrabold text-amber-900 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200">
+                      <span>Remaining Balance (Due):</span>
+                      <span>{formatCurrency(liveSplit.netCustomerDueAfterSale, settings)}</span>
+                    </div>
+                  ) : null}
                 </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Total Financial Summary Footer */}
@@ -2381,7 +2532,22 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 <span className="text-base text-slate-900">{formatCurrency(netTotal, settings)}</span>
               </div>
               {(() => {
-                const prevDue = getCustomerPreviousDue(saleData.customerId);
+                const pos = getCustomerPosition(saleData.customerId);
+                const prevDue = pos.dueBalance;
+                const availAdv = pos.advanceBalance;
+                const reqAdv =
+                  advanceUseAmount === '' ? undefined : Math.max(0, Number(advanceUseAmount) || 0);
+                const split =
+                  saleData.type === 'quotation'
+                    ? { advanceApplied: 0 }
+                    : splitSalePaymentWithAdvance({
+                        netTotal,
+                        previousDue: prevDue,
+                        availableAdvance: availAdv,
+                        applyAdvance: applyCustomerAdvance,
+                        requestedAdvanceAmount: reqAdv,
+                        cashPaidNow: Number(saleData.paidAmount) || 0,
+                      });
                 if (prevDue > 0) {
                   return (
                     <>
@@ -2392,6 +2558,21 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                       <div className="flex justify-between items-center text-lg font-black text-slate-900 pt-2 border-t border-slate-300">
                         <span>Grand Total Payable</span>
                         <span className="text-2xl text-[#EF4444] font-black">{formatCurrency(netTotal + prevDue, settings)}</span>
+                      </div>
+                    </>
+                  );
+                } else if (split.advanceApplied > 0) {
+                  return (
+                    <>
+                      <div className="flex justify-between text-emerald-700 font-bold text-xs pt-1">
+                        <span>Less: Customer Advance Applied</span>
+                        <span>- {formatCurrency(split.advanceApplied, settings)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-lg font-black text-slate-900 pt-2 border-t border-slate-300">
+                        <span>Net Payable After Advance</span>
+                        <span className="text-2xl text-emerald-700 font-black">
+                          {formatCurrency(Math.max(0, netTotal - split.advanceApplied), settings)}
+                        </span>
                       </div>
                     </>
                   );

@@ -160,7 +160,7 @@ export interface ChequeRecord {
   updatedAt?: string;
 }
 
-export type TransactionType = 'sale' | 'purchase' | 'expense' | 'income' | 'payment_received' | 'payment_made' | 'money_receipt' | 'return' | 'opening_balance' | 'purchase_return' | 'deposit' | 'withdrawal' | 'transfer_in' | 'transfer_out' | 'salary' | 'conveyance' | 'sale_return' | 'cheque_bounced';
+export type TransactionType = 'sale' | 'purchase' | 'expense' | 'income' | 'payment_received' | 'payment_made' | 'money_receipt' | 'return' | 'opening_balance' | 'purchase_return' | 'deposit' | 'withdrawal' | 'transfer_in' | 'transfer_out' | 'salary' | 'advance_salary' | 'conveyance' | 'sale_return' | 'cheque_bounced' | 'advance_refund';
 
 export interface Transaction {
   id: string;
@@ -180,8 +180,13 @@ export interface Transaction {
   createdAt: string;
   paymentMethod?: string;
   paymentAccountId?: string;
+  paymentAccountName?: string;
   previousDue?: number;
   currentBalance?: number;
+  isAdvance?: boolean;
+  advanceApplied?: number;
+  cashPaidAmount?: number;
+  advanceItemNote?: string;
 }
 
 export interface TransactionCategory {
@@ -288,6 +293,9 @@ export interface Order {
   paidAmount?: number;
   returnedAmount?: number;
   advancePaidAmount?: number;
+  advanceApplied?: number;
+  cashPaidAmount?: number;
+  dueAmount?: number;
   previousDue?: number;
   shippingInfo?: Record<string, unknown>;
   emiDetails?: {

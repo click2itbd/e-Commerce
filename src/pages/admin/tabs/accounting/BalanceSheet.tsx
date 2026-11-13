@@ -22,6 +22,11 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import {
+  CASH_INFLOW_TX_TYPES,
+  CASH_OUTFLOW_TX_TYPES,
+  computeAllCustomerPositions,
+} from '../../../../utils/customerAdvanceAccounting';
 
 interface BalanceSheetProps {
   setSelectedLedgerEntity?: (v: { id: string; name: string; type: 'customer' | 'vendor' } | null) => void;
@@ -90,11 +95,11 @@ const BalanceSheet: React.FC<BalanceSheetProps> = ({
     });
 
     const inflow = accTx
-      .filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type))
+      .filter(tx => (CASH_INFLOW_TX_TYPES as readonly string[]).includes(tx.type))
       .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
     const outflow = accTx
-      .filter(tx => ['purchase', 'payment_made', 'expense', 'salary', 'conveyance', 'sale_return', 'withdrawal', 'transfer_out'].includes(tx.type))
+      .filter(tx => (CASH_OUTFLOW_TX_TYPES as readonly string[]).includes(tx.type))
       .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
     return {
@@ -113,15 +118,12 @@ const BalanceSheet: React.FC<BalanceSheetProps> = ({
     return sum + (unitCost * qty);
   }, 0);
 
-  // C. Accounts Receivable (Customer Dues up to asOfDate)
-  const customerReceivables = customers.map(c => {
-    const cTx = validTransactions.filter(tx => tx.entityId === c.id || tx.entityName === c.name);
-    const debits = cTx.filter(tx => ['sale', 'opening_balance'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
-    const credits = cTx.filter(tx => ['payment_received', 'money_receipt', 'sale_return', 'return'].includes(tx.type)).reduce((sum, tx) => sum + (tx.amount || 0), 0);
-    return Math.max(0, debits - credits);
-  });
-  
-  const totalReceivables = customerReceivables.reduce((sum, val) => sum + val, 0);
+  // C. Accounts Receivable (Customer Dues) & D. Customer Advances (Current Liability)
+  const {
+    withAdvance: customerAdvanceHolders,
+    totalReceivables,
+    totalCustomerAdvances,
+  } = computeAllCustomerPositions(customers, validTransactions);
 
   const totalAssets = totalCashAndBank + totalInventoryValuation + totalReceivables;
 
@@ -140,7 +142,7 @@ const BalanceSheet: React.FC<BalanceSheetProps> = ({
   });
 
   const totalAccountsPayable = vendorPayables.reduce((sum, v) => sum + v.payable, 0);
-  const totalLiabilities = totalAccountsPayable;
+  const totalLiabilities = totalAccountsPayable + totalCustomerAdvances;
 
   // 3. EQUITY / CAPITAL CALCULATION
   // Equity = Assets - Liabilities (Retained Earnings & Owner's Capital)
@@ -159,6 +161,7 @@ const BalanceSheet: React.FC<BalanceSheetProps> = ({
       ['', '', ''],
       ['LIABILITIES', '--- CURRENT LIABILITIES ---', ''],
       ...vendorPayables.filter(v => v.payable > 0).map(v => ['Accounts Payable', `Due to ${v.name}`, v.payable]),
+      ...customerAdvanceHolders.map(p => ['Customer Advances', `Advance from ${p.customer.name}`, p.advanceBalance]),
       ['TOTAL LIABILITIES', 'Total Current Liabilities', totalLiabilities],
       ['', '', ''],
       ['EQUITY', '--- OWNER\'S EQUITY ---', ''],
@@ -198,6 +201,7 @@ const BalanceSheet: React.FC<BalanceSheetProps> = ({
     const liabilityRows = [
       ['LIABILITIES & EQUITY', '', ''],
       ['  Accounts Payable (Supplier Dues)', '', formatCurrency(totalAccountsPayable, settings)],
+      ['  Customer Advances (Deposits Held)', `${customerAdvanceHolders.length} Customers`, formatCurrency(totalCustomerAdvances, settings)],
       ['TOTAL LIABILITIES', '', formatCurrency(totalLiabilities, settings)],
       ['  Owner\'s Equity & Retained Earnings', '', formatCurrency(totalEquity, settings)],
       ['TOTAL LIABILITIES & EQUITY', '', formatCurrency(totalLiabilitiesAndEquity, settings)],
@@ -281,7 +285,7 @@ const BalanceSheet: React.FC<BalanceSheetProps> = ({
           <span className="text-2xl font-black text-amber-950 mt-2 block">
             {formatCurrency(totalLiabilities, settings)}
           </span>
-          <span className="text-[10px] text-amber-700 mt-1 block">Accounts Payable & Supplier Dues</span>
+          <span className="text-[10px] text-amber-700 mt-1 block">Payables + Customer Advances</span>
         </div>
 
         {/* Total Equity Card */}
@@ -393,6 +397,28 @@ const BalanceSheet: React.FC<BalanceSheetProps> = ({
                     <div key={v.id} className="flex justify-between py-0.5">
                       <span>{v.name}</span>
                       <span className="font-mono font-medium text-red-600">{formatCurrency(v.payable, settings)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* 1B. Customer Advances (Current Liability) */}
+            <div className="border border-emerald-100 rounded-lg p-3 bg-emerald-50/40 space-y-2">
+              <div className="flex justify-between items-center font-bold text-gray-900 border-b border-emerald-200/70 pb-1.5">
+                <span className="flex items-center gap-1.5">
+                  <Users size={14} className="text-emerald-700" /> Customer Advances (Pre-Order Deposits)
+                </span>
+                <span className="text-emerald-800">{formatCurrency(totalCustomerAdvances, settings)}</span>
+              </div>
+              <div className="space-y-1 pl-4 text-gray-600 max-h-32 overflow-y-auto">
+                {customerAdvanceHolders.length === 0 ? (
+                  <span className="text-gray-400 italic">No unearned customer advance deposits held.</span>
+                ) : (
+                  customerAdvanceHolders.map(p => (
+                    <div key={p.customer.id} className="flex justify-between py-0.5">
+                      <span>{p.customer.name}</span>
+                      <span className="font-mono font-medium text-emerald-700">{formatCurrency(p.advanceBalance, settings)}</span>
                     </div>
                   ))
                 )}

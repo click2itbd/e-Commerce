@@ -1,7 +1,7 @@
 import { doc, runTransaction, getDocs, query, collection, where, orderBy, limit, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-export async function generateDocumentNumber(type: 'INV' | 'QUO' | 'CHA' | 'REC' | 'SR' | 'PR' | 'PUR' | 'purchase' | 'invoice' | 'sale_return'): Promise<string> {
+export async function generateDocumentNumber(type: 'INV' | 'QUO' | 'CHA' | 'REC' | 'SR' | 'PR' | 'PUR' | 'ADV' | 'ADVR' | 'purchase' | 'invoice' | 'sale_return'): Promise<string> {
   // Normalize types so different callers never fragment counters
   const normType = 
     type === 'invoice' ? 'INV' :
@@ -10,7 +10,12 @@ export async function generateDocumentNumber(type: 'INV' | 'QUO' | 'CHA' | 'REC'
     type;
 
   const counterRef = doc(db, 'counters', normType);
-  const collName = normType === 'PUR' ? 'purchases' : 'orders';
+  const collName =
+    normType === 'PUR'
+      ? 'purchases'
+      : normType === 'ADV' || normType === 'ADVR'
+      ? 'transactions'
+      : 'orders';
   const prefixRegex = new RegExp(`^${normType}-0*(\\d+)$`, 'i');
 
   // Check highest existing document number in Firestore so serial numbers never go backwards

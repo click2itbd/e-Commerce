@@ -18,6 +18,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Pagination } from '../../../../components/common/Pagination';
+import { CASH_INFLOW_TX_TYPES, CASH_OUTFLOW_TX_TYPES } from '../../../../utils/customerAdvanceAccounting';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -106,11 +107,11 @@ const AccountStatement: React.FC<AccountStatementProps> = ({
   });
 
   const priorInflow = priorTransactions
-    .filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type))
+    .filter(tx => CASH_INFLOW_TX_TYPES.includes(tx.type))
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
   const priorOutflow = priorTransactions
-    .filter(tx => ['purchase', 'payment_made', 'expense', 'salary', 'conveyance', 'sale_return', 'withdrawal', 'transfer_out'].includes(tx.type))
+    .filter(tx => CASH_OUTFLOW_TX_TYPES.includes(tx.type))
     .reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
   const calculatedOpeningBalance = initialBaseBalance + priorInflow - priorOutflow;
@@ -138,7 +139,7 @@ const AccountStatement: React.FC<AccountStatementProps> = ({
   // 3. Compute running balances
   let running = calculatedOpeningBalance;
   const statementRows = filteredPeriodTx.map(tx => {
-    const isCredit = ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type);
+    const isCredit = CASH_INFLOW_TX_TYPES.includes(tx.type);
     const debitAmt = !isCredit ? tx.amount : 0;
     const creditAmt = isCredit ? tx.amount : 0;
     running += creditAmt - debitAmt;

@@ -42,9 +42,11 @@ const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions = [], cu
                       <td className="px-6 py-4">
                         <span className={cn(
                           "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase",
-                          tx.type === 'payment_received' || tx.type === 'money_receipt' || tx.type === 'income' || tx.type === 'deposit'
+                          tx.isAdvance || tx.category === 'Customer Advance'
+                            ? "bg-cyan-100 text-cyan-700 border border-cyan-200"
+                            : tx.type === 'payment_received' || tx.type === 'money_receipt' || tx.type === 'income' || tx.type === 'deposit'
                             ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                            : tx.type === 'payment_made' || tx.type === 'expense' || tx.type === 'salary' || tx.type === 'conveyance' || tx.type === 'withdrawal'
+                            : tx.type === 'payment_made' || tx.type === 'expense' || tx.type === 'salary' || tx.type === 'conveyance' || tx.type === 'withdrawal' || tx.type === 'advance_refund'
                             ? "bg-rose-100 text-rose-700 border border-rose-200"
                             : tx.type === 'sale'
                             ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
@@ -52,7 +54,15 @@ const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions = [], cu
                             ? "bg-amber-100 text-amber-700 border border-amber-200"
                             : "bg-slate-100 text-slate-700 border border-slate-200"
                         )}>
-                          {tx.type === 'sale' ? 'Sale Invoice' : tx.type === 'purchase' ? 'Purchase Bill' : tx.type.replace('_', ' ')}
+                          {tx.isAdvance || tx.category === 'Customer Advance'
+                            ? 'Customer Advance'
+                            : tx.type === 'advance_refund'
+                            ? 'Advance Refund'
+                            : tx.type === 'sale'
+                            ? 'Sale Invoice'
+                            : tx.type === 'purchase'
+                            ? 'Purchase Bill'
+                            : tx.type.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -75,7 +85,7 @@ const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions = [], cu
                         "px-6 py-4 text-right font-bold text-sm",
                         tx.type === 'payment_received' || tx.type === 'money_receipt' || tx.type === 'income' || tx.type === 'deposit'
                           ? "text-emerald-600"
-                          : tx.type === 'payment_made' || tx.type === 'expense' || tx.type === 'salary' || tx.type === 'conveyance' || tx.type === 'withdrawal'
+                          : tx.type === 'payment_made' || tx.type === 'expense' || tx.type === 'salary' || tx.type === 'conveyance' || tx.type === 'withdrawal' || tx.type === 'advance_refund'
                           ? "text-rose-600"
                           : tx.type === 'sale'
                           ? "text-indigo-800"
@@ -85,7 +95,7 @@ const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions = [], cu
                       )}>
                         {tx.type === 'payment_received' || tx.type === 'money_receipt' || tx.type === 'income' || tx.type === 'deposit'
                           ? '+ '
-                          : tx.type === 'payment_made' || tx.type === 'expense' || tx.type === 'salary' || tx.type === 'conveyance' || tx.type === 'withdrawal'
+                          : tx.type === 'payment_made' || tx.type === 'expense' || tx.type === 'salary' || tx.type === 'conveyance' || tx.type === 'withdrawal' || tx.type === 'advance_refund'
                           ? '- '
                           : ''}
                         {formatCurrency(tx.amount, settings)}

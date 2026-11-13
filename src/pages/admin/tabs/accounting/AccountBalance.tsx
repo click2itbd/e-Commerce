@@ -26,6 +26,11 @@ import {
   CheckCircle2,
   ExternalLink,
 } from 'lucide-react';
+import {
+  CASH_INFLOW_TX_TYPES,
+  CASH_OUTFLOW_TX_TYPES,
+  computeAllCustomerPositions,
+} from '../../../../utils/customerAdvanceAccounting';
 
 interface AccountBalanceProps {
   setSelectedLedgerEntity?: (v: any) => void;
@@ -50,6 +55,7 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
 
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerSortBy, setCustomerSortBy] = useState<'amount_desc' | 'name_asc'>('amount_desc');
+  const [customerColumnView, setCustomerColumnView] = useState<'receivables' | 'advances'>('receivables');
 
   const [vendorSearch, setVendorSearch] = useState('');
   const [vendorSortBy, setVendorSortBy] = useState<'amount_desc' | 'name_asc'>('amount_desc');
@@ -96,34 +102,29 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
       const opening = Number(acc.openingBalance || 0);
       const accTx = validTransactions.filter(tx => tx.paymentAccountId === acc.id);
       const inflow = accTx
-        .filter(tx => ['sale', 'payment_received', 'money_receipt', 'income', 'purchase_return', 'deposit', 'transfer_in'].includes(tx.type))
+        .filter(tx => CASH_INFLOW_TX_TYPES.includes(tx.type))
         .reduce((sum, tx) => sum + (tx.amount || 0), 0);
       const outflow = accTx
-        .filter(tx => ['purchase', 'payment_made', 'expense', 'salary', 'conveyance', 'sale_return', 'withdrawal', 'transfer_out'].includes(tx.type))
+        .filter(tx => CASH_OUTFLOW_TX_TYPES.includes(tx.type))
         .reduce((sum, tx) => sum + (tx.amount || 0), 0);
       return { ...acc, currentBalance: opening + inflow - outflow };
     });
   }, [paymentAccounts, validTransactions]);
 
-  // Compute Customer Receivables
-  const calculatedCustomers = useMemo(() => {
-    return customers
-      .map(c => {
-        const cTx = validTransactions.filter(tx => {
-          if (tx.entityId && tx.entityId === c.id) return true;
-          if (tx.entityName && c.name && tx.entityName.trim().toLowerCase() === c.name.trim().toLowerCase()) return true;
-          return false;
-        });
-        const debits = cTx
-          .filter(tx => ['sale', 'opening_balance'].includes(tx.type))
-          .reduce((sum, tx) => sum + (tx.amount || 0), 0);
-        const credits = cTx
-          .filter(tx => ['payment_received', 'money_receipt'].includes(tx.type) || (['sale_return', 'return'].includes(tx.type) && (tx.paymentMethod === 'store_credit' || !tx.paymentMethod || tx.paymentMethod === 'credit')))
-          .reduce((sum, tx) => sum + (tx.amount || 0), 0);
-        return { ...c, currentBalance: Math.max(0, debits - credits) };
-      })
-      .filter(c => c.currentBalance > 0);
+  // Compute Customer Receivables & Customer Advances (Liability)
+  const customerPositionsSummary = useMemo(() => {
+    return computeAllCustomerPositions(customers, validTransactions);
   }, [customers, validTransactions]);
+
+  const calculatedCustomers = useMemo(() => {
+    return customerPositionsSummary.withDue.map(c => ({ ...c.customer, currentBalance: c.dueBalance }));
+  }, [customerPositionsSummary]);
+
+  const calculatedAdvanceCustomers = useMemo(() => {
+    return customerPositionsSummary.withAdvance.map(c => ({ ...c.customer, currentBalance: c.advanceBalance }));
+  }, [customerPositionsSummary]);
+
+  const totalCustomerAdvances = customerPositionsSummary.totalCustomerAdvances;
 
   // Compute Vendor Payables
   const calculatedVendors = useMemo(() => {
@@ -159,8 +160,8 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
   }, [calculatedVendors]);
 
   const netFinancialPosition = useMemo(() => {
-    return totalLiquid + totalReceivables - totalPayables;
-  }, [totalLiquid, totalReceivables, totalPayables]);
+    return totalLiquid + totalReceivables - totalPayables - totalCustomerAdvances;
+  }, [totalLiquid, totalReceivables, totalPayables, totalCustomerAdvances]);
 
   // Filtered views
   const filteredAccounts = useMemo(() => {
@@ -179,8 +180,10 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
       .sort((a, b) => b.currentBalance - a.currentBalance);
   }, [calculatedAccounts, accountSearch, accountFilter]);
 
+  const activeCustomerList = customerColumnView === 'advances' ? calculatedAdvanceCustomers : calculatedCustomers;
+
   const filteredCustomers = useMemo(() => {
-    return calculatedCustomers
+    return activeCustomerList
       .filter(c => {
         if (!customerSearch.trim()) return true;
         const q = customerSearch.toLowerCase();
@@ -197,7 +200,7 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
         }
         return b.currentBalance - a.currentBalance;
       });
-  }, [calculatedCustomers, customerSearch, customerSortBy]);
+  }, [activeCustomerList, customerSearch, customerSortBy]);
 
   const filteredVendors = useMemo(() => {
     return calculatedVendors
@@ -439,8 +442,10 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
             )}>
               {formatCurrency(netFinancialPosition, settings)}
             </div>
-            <div className="mt-2 flex items-center justify-between text-xs font-semibold">
-              <span className="text-slate-500 text-[11px]">Liquid + Due - Payable</span>
+            <div className="mt-2 flex items-center justify-between text-xs font-semibold gap-1.5 flex-wrap">
+              <span className="text-slate-500 text-[11px]">
+                Liquid + Due - Payable{totalCustomerAdvances > 0 ? ` - Adv (${formatCurrency(totalCustomerAdvances, settings)})` : ''}
+              </span>
               <span className={cn(
                 "inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border",
                 netFinancialPosition >= 0
@@ -612,23 +617,66 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
           {/* COLUMN 2: Accounts Receivable (Customer Due) */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden flex flex-col transition-all hover:shadow-md">
             {/* Header */}
-            <div className="p-4 bg-gradient-to-r from-emerald-50/70 to-teal-50/30 border-b border-slate-200/80 flex items-center justify-between">
+            <div className={cn(
+              "p-4 border-b border-slate-200/80 flex items-center justify-between",
+              customerColumnView === 'advances'
+                ? "bg-gradient-to-r from-cyan-50/70 to-teal-50/30"
+                : "bg-gradient-to-r from-emerald-50/70 to-teal-50/30"
+            )}>
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-sm">
-                  <Users size={18} />
+                <div className={cn(
+                  "w-8 h-8 rounded-lg text-white flex items-center justify-center shadow-sm",
+                  customerColumnView === 'advances' ? "bg-cyan-600" : "bg-emerald-600"
+                )}>
+                  {customerColumnView === 'advances' ? <Wallet size={18} /> : <Users size={18} />}
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-slate-800 text-base">Accounts Receivable</h3>
-                  <p className="text-[11px] text-slate-500 font-medium">Customer pending dues</p>
+                  <h3 className="font-extrabold text-slate-800 text-base">
+                    {customerColumnView === 'advances' ? 'Customer Advances' : 'Accounts Receivable'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    {customerColumnView === 'advances' ? 'Pre-order advance liabilities' : 'Customer pending dues'}
+                  </p>
                 </div>
               </div>
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100/80 text-emerald-800 border border-emerald-200/60">
-                {calculatedCustomers.length} Customers
+              <span className={cn(
+                "text-xs font-bold px-2.5 py-1 rounded-full border",
+                customerColumnView === 'advances'
+                  ? "bg-cyan-100/80 text-cyan-800 border-cyan-200/60"
+                  : "bg-emerald-100/80 text-emerald-800 border-emerald-200/60"
+              )}>
+                {activeCustomerList.length} Customers
               </span>
             </div>
 
             {/* Filter & Search inside Column */}
             <div className="p-3 border-b border-slate-100 bg-slate-50/50 space-y-2 print:hidden">
+              <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setCustomerColumnView('receivables')}
+                  className={cn(
+                    "py-1 px-2 rounded-md text-[11px] font-bold transition-all",
+                    customerColumnView === 'receivables'
+                      ? "bg-white text-emerald-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  Due ({calculatedCustomers.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerColumnView('advances')}
+                  className={cn(
+                    "py-1 px-2 rounded-md text-[11px] font-bold transition-all",
+                    customerColumnView === 'advances'
+                      ? "bg-white text-cyan-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  Advance ({calculatedAdvanceCustomers.length})
+                </button>
+              </div>
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -648,13 +696,13 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
                 )}
               </div>
               <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600">
-                <span className="text-slate-400">Showing {filteredCustomers.length} of {calculatedCustomers.length}</span>
+                <span className="text-slate-400">Showing {filteredCustomers.length} of {activeCustomerList.length}</span>
                 <button
                   type="button"
                   onClick={() => setCustomerSortBy(prev => prev === 'amount_desc' ? 'name_asc' : 'amount_desc')}
                   className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-emerald-700 bg-white px-2 py-0.5 rounded border border-slate-200"
                 >
-                  <ArrowUpDown size={11} /> {customerSortBy === 'amount_desc' ? 'Sort: Due Amount' : 'Sort: Name'}
+                  <ArrowUpDown size={11} /> {customerSortBy === 'amount_desc' ? 'Sort: Amount' : 'Sort: Name'}
                 </button>
               </div>
             </div>
@@ -664,7 +712,9 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
               {filteredCustomers.length === 0 ? (
                 <div className="p-8 text-center">
                   <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-slate-500 font-medium text-xs">No customer dues found</p>
+                  <p className="text-slate-500 font-medium text-xs">
+                    {customerColumnView === 'advances' ? 'No customer advance balances found' : 'No customer dues found'}
+                  </p>
                 </div>
               ) : (
                 filteredCustomers.map(c => {
@@ -679,11 +729,17 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
                           setActiveTab('ledger');
                         }
                       }}
-                      className="p-3.5 flex items-center justify-between hover:bg-emerald-50/40 transition-all cursor-pointer group"
+                      className={cn(
+                        "p-3.5 flex items-center justify-between transition-all cursor-pointer group",
+                        customerColumnView === 'advances' ? "hover:bg-cyan-50/40" : "hover:bg-emerald-50/40"
+                      )}
                       title="Click to view Customer Statement in Ledger"
                     >
                       <div className="flex items-center gap-3 min-w-0 pr-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center shrink-0">
+                        <div className={cn(
+                          "w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shrink-0",
+                          customerColumnView === 'advances' ? "bg-cyan-100 text-cyan-800" : "bg-emerald-100 text-emerald-800"
+                        )}>
                           {initial}
                         </div>
                         <div className="min-w-0">
@@ -709,11 +765,19 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
 
                       <div className="text-right shrink-0 flex items-center gap-2">
                         <div>
-                          <span className="font-black text-sm text-rose-600 block tracking-tight">
+                          <span className={cn(
+                            "font-black text-sm block tracking-tight",
+                            customerColumnView === 'advances' ? "text-cyan-700" : "text-rose-600"
+                          )}>
                             {formatCurrency(c.currentBalance, settings)}
                           </span>
-                          <span className="text-[9px] uppercase font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/50 block text-center mt-0.5">
-                            Due
+                          <span className={cn(
+                            "text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border block text-center mt-0.5",
+                            customerColumnView === 'advances'
+                              ? "text-cyan-700 bg-cyan-50 border-cyan-200/60"
+                              : "text-emerald-600 bg-emerald-50 border-emerald-200/50"
+                          )}>
+                            {customerColumnView === 'advances' ? 'Advance' : 'Due'}
                           </span>
                         </div>
                         <div className="text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all print:hidden">
@@ -729,12 +793,19 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
             {/* Column Footer */}
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
               <div>
-                <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500 block">Total Receivables</span>
-                <span className="text-[11px] text-slate-400 font-medium">Outstanding from customers</span>
+                <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500 block">
+                  {customerColumnView === 'advances' ? 'Total Advances (Liability)' : 'Total Receivables'}
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  {customerColumnView === 'advances' ? 'Advance deposits held' : 'Outstanding from customers'}
+                </span>
               </div>
               <div className="text-right">
-                <span className="font-black text-base md:text-lg text-emerald-700 block tracking-tight">
-                  {formatCurrency(totalReceivables, settings)}
+                <span className={cn(
+                  "font-black text-base md:text-lg block tracking-tight",
+                  customerColumnView === 'advances' ? "text-cyan-700" : "text-emerald-700"
+                )}>
+                  {formatCurrency(customerColumnView === 'advances' ? totalCustomerAdvances : totalReceivables, settings)}
                 </span>
               </div>
             </div>

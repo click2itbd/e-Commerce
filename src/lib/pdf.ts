@@ -689,6 +689,7 @@ export const generatePDF = async (
         0
       );
       const discount = (Number(o.discountAmount) || 0) + itemDiscounts;
+      const billTotal = Number(o.total || 0);
 
       const alignRightX = pageWidth - 15;
       const labelX = pageWidth - 68;
@@ -750,8 +751,12 @@ export const generatePDF = async (
         finalY += 7;
       }
 
-      const billTotal = Number(o.total || 0);
       const paidVal = Number(o.paidAmount || 0);
+      const advanceAppliedVal = Number((o as any).advanceApplied || 0);
+      const cashPaidVal =
+        (o as any).cashPaidAmount !== undefined
+          ? Number((o as any).cashPaidAmount || 0)
+          : Math.max(0, paidVal - advanceAppliedVal);
       const billRemainingDue = Math.max(0, billTotal - paidVal);
       const isPaid = o.paymentStatus === 'paid' || (paidVal >= billTotal && billTotal > 0);
 
@@ -763,10 +768,25 @@ export const generatePDF = async (
       doc.text(billTotal.toFixed(2), alignRightX, finalY, { align: "right" });
       finalY += 7;
 
+      if (advanceAppliedVal > 0) {
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(4, 120, 87);
+        doc.text("Advance Adjusted:", labelX, finalY);
+        doc.text(advanceAppliedVal.toFixed(2), alignRightX, finalY, { align: "right" });
+        finalY += 7;
+      }
+
       if (isPaid) {
+        if (advanceAppliedVal > 0 && cashPaidVal > 0) {
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(22, 163, 74);
+          doc.text("Cash/Bank Paid:", labelX, finalY);
+          doc.text(cashPaidVal.toFixed(2), alignRightX, finalY, { align: "right" });
+          finalY += 7;
+        }
         doc.setFont("helvetica", "normal");
         doc.setTextColor(22, 163, 74);
-        doc.text("Paid Amount:", labelX, finalY);
+        doc.text("Total Paid:", labelX, finalY);
         doc.text((paidVal > 0 ? paidVal : billTotal).toFixed(2), alignRightX, finalY, { align: "right" });
         finalY += 7;
 
@@ -779,7 +799,7 @@ export const generatePDF = async (
         if (paidVal > 0) {
           doc.setFont("helvetica", "normal");
           doc.setTextColor(22, 163, 74);
-          doc.text("Paid Amount:", labelX, finalY);
+          doc.text(advanceAppliedVal > 0 ? "Total Paid:" : "Paid Amount:", labelX, finalY);
           doc.text(paidVal.toFixed(2), alignRightX, finalY, { align: "right" });
           finalY += 7;
         }

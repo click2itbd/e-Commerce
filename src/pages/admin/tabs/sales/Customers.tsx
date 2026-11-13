@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, deleteDoc, doc, query, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../../../firebase';
-import { Customer } from '../../../../types';
+import { Customer, PaymentAccount, Transaction } from '../../../../types';
 import { toast } from 'react-hot-toast';
 import {
   Users,
@@ -17,10 +17,15 @@ import {
   X,
   CheckCircle,
   FileText,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
+import { useSettings } from '../../../../context/SettingsContext';
+import { formatCurrency } from '../../../../lib/utils';
 import { moveToTrash } from '../../../../lib/trash';
 import { Pagination } from '../../../../components/common/Pagination';
+import { calculateCustomerAccountPosition } from '../../../../utils/customerAdvanceAccounting';
+import { CustomerAdvanceModal } from '../../modals/CustomerAdvanceModal';
 
 interface CustomersProps {
   customers?: Customer[];
@@ -36,8 +41,13 @@ const Customers: React.FC<CustomersProps> = ({
   setActiveTab,
 }) => {
   const { user, isAdmin, hasPermission } = useAuth();
+  const { settings } = useSettings();
 
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [advanceTargetCustomer, setAdvanceTargetCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(!initialCustomers || initialCustomers.length === 0);
 
   // Form State
@@ -129,7 +139,24 @@ const Customers: React.FC<CustomersProps> = ({
       }
     );
 
-    return () => unsubscribe();
+    const unsubTx = onSnapshot(
+      collection(db, 'transactions'),
+      (snap) => {
+        setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Transaction[]);
+      },
+      (err) => console.warn('Customers transactions listener warning:', err)
+    );
+
+    getDocs(collection(db, 'payment_accounts'))
+      .then((snap) => {
+        setPaymentAccounts(snap.docs.map(d => ({ id: d.id, ...d.data() })) as PaymentAccount[]);
+      })
+      .catch((err) => console.warn('Failed loading payment accounts in Customers:', err));
+
+    return () => {
+      unsubscribe();
+      unsubTx();
+    };
   }, [user]);
 
   const handleSaveCustomer = async (e: React.FormEvent) => {
@@ -252,18 +279,30 @@ const Customers: React.FC<CustomersProps> = ({
             </p>
           </div>
           
-          <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto shrink-0">
             {hasPermission('manage_orders') && (
-              <button
-                onClick={() => {
-                  setEditingCustomer(null);
-                  setCustomerFormData({ name: '', phone: '', email: '', address: '', company: 'main', branchName: '', branchesText: '' });
-                  setIsAddingCustomer(true);
-                }}
-                className="w-full md:w-auto bg-emerald-500 text-white px-5 py-3 rounded-xl hover:bg-emerald-400 transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
-              >
-                <Plus size={18} /> Add Customer
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdvanceTargetCustomer(null);
+                    setShowAdvanceModal(true);
+                  }}
+                  className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-3 rounded-xl hover:bg-indigo-500 transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20"
+                >
+                  <Wallet size={17} /> Receive Advance
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingCustomer(null);
+                    setCustomerFormData({ name: '', phone: '', email: '', address: '', company: 'main', branchName: '', branchesText: '' });
+                    setIsAddingCustomer(true);
+                  }}
+                  className="w-full sm:w-auto bg-emerald-500 text-white px-5 py-3 rounded-xl hover:bg-emerald-400 transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+                >
+                  <Plus size={18} /> Add Customer
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -434,17 +473,18 @@ const Customers: React.FC<CustomersProps> = ({
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Customer Name</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Contact Details</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Address</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-right">Due / Advance</th>
               <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50 bg-white">
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium">Loading customers...</td>
+                <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium">Loading customers...</td>
               </tr>
             ) : filteredCustomers.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">
+                <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
                   No customers found. Click "Add Customer" to add one.
                 </td>
               </tr>
@@ -504,8 +544,41 @@ const Customers: React.FC<CustomersProps> = ({
                       <span className="text-slate-400">-</span>
                     )}
                   </td>
+                  <td className="px-6 py-4 text-right whitespace-nowrap">
+                    {(() => {
+                      const pos = calculateCustomerAccountPosition(transactions, customer);
+                      if (pos.advanceBalance > 0.01) {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Advance: {formatCurrency(pos.advanceBalance, settings)}
+                          </span>
+                        );
+                      }
+                      if (pos.dueBalance > 0.01) {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-rose-50 text-rose-700 border border-rose-200">
+                            Due: {formatCurrency(pos.dueBalance, settings)}
+                          </span>
+                        );
+                      }
+                      return <span className="text-xs font-semibold text-slate-400">Settled</span>;
+                    })()}
+                  </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-70 group-hover:opacity-100 transition-opacity">
+                      {hasPermission('manage_orders') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdvanceTargetCustomer(customer);
+                            setShowAdvanceModal(true);
+                          }}
+                          className="flex items-center gap-1.5 text-xs bg-white hover:bg-indigo-50 text-indigo-700 font-bold px-3 py-2 rounded-lg border border-indigo-200 transition-all shadow-sm"
+                          title="Receive or Refund Customer Advance"
+                        >
+                          <Wallet size={14} /> <span className="hidden xl:inline">Advance</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => handleViewLedger(customer)}
                         className="flex items-center gap-1.5 text-xs bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-bold px-3 py-2 rounded-lg border border-slate-200 hover:border-emerald-200 transition-all shadow-sm"
@@ -562,6 +635,15 @@ const Customers: React.FC<CustomersProps> = ({
           onItemsPerPageChange={setItemsPerPage}
         />
       </div>
+      <CustomerAdvanceModal
+        isOpen={showAdvanceModal}
+        onClose={() => setShowAdvanceModal(false)}
+        customers={customers}
+        paymentAccounts={paymentAccounts}
+        transactions={transactions}
+        initialCustomer={advanceTargetCustomer}
+        onSuccess={() => fetchData?.()}
+      />
     </div>
   );
 };
