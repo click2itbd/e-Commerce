@@ -47,8 +47,8 @@ const defaultSidebanners = [
 
 const resolveImageUrl = (url: string) => {
   if (url === '/banners/hero-main.jpg') return heroMainImg;
-  if (url === '/banners/side-acc.jpg') return sideAccImg;
-  if (url === '/banners/side-gadget.jpg') return sideGadgetImg;
+  if (url === '/banners/side-acc.jpg' || url === '/banners/side-1.jpg') return sideAccImg;
+  if (url === '/banners/side-gadget.jpg' || url === '/banners/side-2.jpg') return sideGadgetImg;
   return url;
 };
 
