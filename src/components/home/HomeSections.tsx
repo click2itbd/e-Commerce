@@ -151,18 +151,15 @@ export const TopBrands = () => {
               />
             </div>
 
-            {/* Brand Title & Category */}
-            <div className="mt-3 w-full">
+            {/* Brand Title */}
+            <div className="mt-2.5 w-full">
               <h3 className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-[#F97316] transition-colors truncate">
                 {brand.name}
               </h3>
-              <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
-                {brand.category || 'Authorized Gear'}
-              </p>
             </div>
 
             {/* Explore Micro Link */}
-            <div className="mt-2 text-[10px] font-bold text-[#F97316] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 transform translate-y-1 group-hover:translate-y-0">
+            <div className="mt-1.5 text-[10px] font-bold text-[#F97316] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 transform translate-y-1 group-hover:translate-y-0">
               <span>View Gear</span>
               <ArrowRight size={10} />
             </div>
@@ -175,21 +172,21 @@ export const TopBrands = () => {
 
       {/* Trust Guarantee Strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 mt-4 pt-4 border-t border-slate-200/70 text-slate-600 text-xs relative z-10">
-        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs">
+        <div className="flex items-center justify-center gap-1.5 sm:gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs text-center">
           <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
-          <span className="font-bold text-slate-800 text-[11px] sm:text-xs">100% Genuine Tech</span>
+          <span className="font-bold text-slate-800 text-[11px] sm:text-xs leading-tight">100% Genuine Tech</span>
         </div>
-        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs">
+        <div className="flex items-center justify-center gap-1.5 sm:gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs text-center">
           <Award size={16} className="text-blue-600 shrink-0" />
-          <span className="font-bold text-slate-800 text-[11px] sm:text-xs">Official Brand Warranty</span>
+          <span className="font-bold text-slate-800 text-[11px] sm:text-xs leading-tight">Official Brand Warranty</span>
         </div>
-        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs">
+        <div className="flex items-center justify-center gap-1.5 sm:gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs text-center">
           <Zap size={16} className="text-amber-500 shrink-0" />
-          <span className="font-bold text-slate-800 text-[11px] sm:text-xs">Authorized Partners</span>
+          <span className="font-bold text-slate-800 text-[11px] sm:text-xs leading-tight">Authorized Partners</span>
         </div>
-        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs">
+        <div className="flex items-center justify-center gap-1.5 sm:gap-2 p-2.5 rounded-xl bg-white/80 border border-slate-200/60 shadow-2xs text-center">
           <CheckCircle2 size={16} className="text-orange-500 shrink-0" />
-          <span className="font-bold text-slate-800 text-[11px] sm:text-xs">Direct Support & EMI</span>
+          <span className="font-bold text-slate-800 text-[11px] sm:text-xs leading-tight">Direct Support &amp; EMI</span>
         </div>
       </div>
     </section>
