@@ -32,9 +32,18 @@ import { getCompanyTheme, getHierarchicalCompanyGroups } from '../../../../hooks
 import {
   buildOrderScopeLookup,
   computeWorkOrderFinancials,
+  discoverProjectWorkOrders,
   doesTxMatchProjectOrWorkOrder,
+  type DiscoveredProjectWorkOrder,
+  type WorkOrderFinancialSummary,
 } from '../../../../utils/customerAdvanceAccounting';
 import { CustomerAdvanceModal } from '../../modals/CustomerAdvanceModal';
+
+interface TrackedWorkOrder extends WorkOrder {
+  scopeKey: string;
+  isRegisteredWO: boolean;
+  financials: WorkOrderFinancialSummary;
+}
 
 interface WorkOrderTrackerProps {
   orders: Order[];
@@ -63,7 +72,7 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
-  const [advanceModalTarget, setAdvanceModalTarget] = useState<WorkOrder | null>(null);
+  const [advanceModalTarget, setAdvanceModalTarget] = useState<TrackedWorkOrder | null>(null);
 
   const loadFinancialData = useCallback(async () => {
     try {
@@ -90,41 +99,49 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
 
   const orderScopeLookup = useMemo(() => buildOrderScopeLookup(orders), [orders]);
 
-  const findCustomerForWO = (wo: WorkOrder) =>
+  const findCustomerForWO = (wo: Pick<WorkOrder, 'customerId' | 'clientName' | 'branchName'>) =>
     customers.find(
       c =>
         (wo.customerId && c.id === wo.customerId) ||
-        (wo.clientName && c.name.trim().toLowerCase() === wo.clientName.trim().toLowerCase()),
+        (wo.clientName && c.name.trim().toLowerCase() === wo.clientName.trim().toLowerCase()) ||
+        (wo.branchName &&
+          (c.name.trim().toLowerCase() === wo.branchName.trim().toLowerCase() ||
+            (c.branchName || '').trim().toLowerCase() === wo.branchName.trim().toLowerCase())),
     );
 
-  const openSalesDraftForWO = (wo: WorkOrder) => {
+  const openSalesDraftForWO = (wo: TrackedWorkOrder) => {
     if (!setActiveTab) return;
     const matchedCust = findCustomerForWO(wo);
     if (typeof window !== 'undefined') {
       localStorage.setItem('sales_form_draft', JSON.stringify({
-        customerId: matchedCust?.id || '',
-        customerName: matchedCust?.name || wo.clientName,
+        customerId: matchedCust?.id || wo.customerId || '',
+        customerName: matchedCust?.name || wo.clientName || wo.branchName || '',
         customerPhone: matchedCust?.phone || wo.contactPhone || '',
         customerEmail: matchedCust?.email || '',
         shippingAddress: matchedCust?.address || '',
-        company: wo.company,
+        company: wo.company || 'main',
         branchName: wo.branchName || '',
-        workOrderNumber: wo.orderNumber,
-        notes: `Ref Work Order #${wo.orderNumber}`,
+        workOrderNumber: wo.orderNumber || '',
+        notes: wo.orderNumber ? `Ref Work Order #${wo.orderNumber}` : wo.branchName ? `Ref Project: ${wo.branchName}` : '',
         items: [],
       }));
     }
     setActiveTab('sales');
   };
 
-  const openPurchaseDraftForWO = (wo: WorkOrder) => {
+  const openPurchaseDraftForWO = (wo: TrackedWorkOrder) => {
     if (!setActiveTab) return;
+    const matchedCust = findCustomerForWO(wo);
     if (typeof window !== 'undefined') {
       localStorage.setItem('draft_purchase_form', JSON.stringify({
         forceOpen: true,
-        workOrderNumber: wo.orderNumber,
+        workOrderNumber: wo.orderNumber || '',
         projectName: wo.branchName || wo.title || '',
-        notes: `Purchase for WO #${wo.orderNumber} (${wo.clientName})`,
+        customerId: matchedCust?.id || wo.customerId || '',
+        customerName: matchedCust?.name || wo.clientName || '',
+        notes: wo.orderNumber
+          ? `Purchase for WO #${wo.orderNumber}${wo.clientName ? ` (${wo.clientName})` : ''}`
+          : `Purchase for ${wo.branchName || wo.title}`,
       }));
     }
     setActiveTab('purchases');
@@ -180,20 +197,20 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
     setIsModalOpen(true);
   };
 
-  const openEditModal = (wo: WorkOrder) => {
-    setEditingWO(wo);
+  const openEditModal = (wo: TrackedWorkOrder) => {
+    setEditingWO(wo.isRegisteredWO ? wo : null);
     setFormData({
-      orderNumber: wo.orderNumber,
-      company: wo.company,
+      orderNumber: wo.orderNumber || (wo.branchName ? `PRJ-${wo.branchName.toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 8)}` : ''),
+      company: wo.company || 'simpletree',
       branchName: wo.branchName || '',
-      clientName: wo.clientName,
-      title: wo.title,
-      budget: wo.budget.toString(),
-      issuedDate: wo.issuedDate,
+      clientName: wo.clientName || '',
+      title: wo.title || '',
+      budget: wo.budget > 0 ? wo.budget.toString() : '',
+      issuedDate: wo.issuedDate || new Date().toISOString().split('T')[0],
       deadlineDate: wo.deadlineDate || '',
       contactPerson: wo.contactPerson || '',
       contactPhone: wo.contactPhone || '',
-      status: wo.status,
+      status: wo.status || 'active',
       notes: wo.notes || '',
     });
     setIsModalOpen(true);
@@ -245,8 +262,11 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
     }
   };
 
-  const handleDeleteWO = async (wo: WorkOrder) => {
-    if (!wo.id) return;
+  const handleDeleteWO = async (wo: TrackedWorkOrder) => {
+    if (!wo.isRegisteredWO || !wo.id) {
+      toast('Auto-tracked from Advance Deposits / Purchases / Sales. Edit or delete the underlying voucher to remove it.', { icon: 'ℹ️' });
+      return;
+    }
     if (!window.confirm(`Are you sure you want to delete Work Order #${wo.orderNumber}?`)) return;
 
     try {
@@ -258,22 +278,52 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
     }
   };
 
-  // Match orders with work order
-  const getLinkedOrders = (woNumber: string) => {
-    if (!woNumber) return [];
-    const cleanWO = woNumber.toLowerCase().trim();
+  // Unify registered work_orders with Work Orders & Projects discovered across Advances, Purchases, and Sales
+  const allTrackedWorkOrders = useMemo<TrackedWorkOrder[]>(() => {
+    const discovered = discoverProjectWorkOrders({
+      workOrders,
+      transactions,
+      orders,
+      purchases,
+      customers,
+    });
+    return discovered.map((d: DiscoveredProjectWorkOrder) => ({
+      id: d.registeredWorkOrder?.id || d.key,
+      scopeKey: d.key,
+      isRegisteredWO: d.isRegisteredWO,
+      financials: d.financials,
+      orderNumber: d.workOrderNumber,
+      company: d.company || 'main',
+      customerId: d.customerId || undefined,
+      branchName: d.projectName || '',
+      clientName: d.clientName || d.projectName || '',
+      title: d.title,
+      budget: d.budget,
+      issuedDate: d.issuedDate,
+      deadlineDate: d.deadlineDate || '',
+      contactPerson: d.contactPerson || '',
+      contactPhone: d.contactPhone || '',
+      status: d.status || 'active',
+      notes: d.notes || '',
+      createdAt: d.registeredWorkOrder?.createdAt || d.issuedDate,
+    }));
+  }, [workOrders, transactions, orders, purchases, customers]);
+
+  // Match orders with work order or project scope
+  const getLinkedOrders = (wo: Pick<TrackedWorkOrder, 'orderNumber' | 'branchName'>) => {
     return orders.filter(o => {
       if (o.status === 'cancelled' || o.type === 'quotation') return false;
-      const oWO = (o as any).workOrderNumber ? String((o as any).workOrderNumber).toLowerCase().trim() : '';
-      const notes = (o.notes || '').toLowerCase();
-      return oWO === cleanWO || (oWO && cleanWO.includes(oWO)) || notes.includes(cleanWO);
+      return doesTxMatchProjectOrWorkOrder(o, {
+        workOrderNumber: wo.orderNumber || undefined,
+        projectName: wo.branchName || undefined,
+      });
     });
   };
 
   // Filtered Work Orders
   const filteredWorkOrders = useMemo(() => {
-    return workOrders.filter(wo => {
-      if (selectedCompany !== 'all' && wo.company.toLowerCase() !== selectedCompany.toLowerCase()) {
+    return allTrackedWorkOrders.filter(wo => {
+      if (selectedCompany !== 'all' && wo.isRegisteredWO && (wo.company || '').toLowerCase() !== selectedCompany.toLowerCase()) {
         return false;
       }
       if (statusFilter !== 'all' && wo.status !== statusFilter) {
@@ -282,16 +332,16 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matches = 
-          wo.orderNumber.toLowerCase().includes(q) ||
-          wo.title.toLowerCase().includes(q) ||
-          wo.clientName.toLowerCase().includes(q) ||
+          (wo.orderNumber || '').toLowerCase().includes(q) ||
+          (wo.title || '').toLowerCase().includes(q) ||
+          (wo.clientName || '').toLowerCase().includes(q) ||
           (wo.branchName || '').toLowerCase().includes(q) ||
           (wo.contactPerson || '').toLowerCase().includes(q);
         if (!matches) return false;
       }
       return true;
     });
-  }, [workOrders, selectedCompany, statusFilter, searchQuery]);
+  }, [allTrackedWorkOrders, selectedCompany, statusFilter, searchQuery]);
 
   // Overall Metrics
   const summary = useMemo(() => {
@@ -300,16 +350,15 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
     let totalRemaining = 0;
 
     filteredWorkOrders.forEach(wo => {
-      const linked = getLinkedOrders(wo.orderNumber);
-      const inv = linked.reduce((s, o) => s + Number(o.total || 0), 0);
+      const inv = wo.financials.totalSalesInvoiced;
       totalBudget += wo.budget;
       totalInvoiced += inv;
-      totalRemaining += Math.max(0, wo.budget - inv);
+      totalRemaining += wo.budget > 0 ? Math.max(0, wo.budget - inv) : 0;
     });
 
     const utilization = totalBudget > 0 ? Math.round((totalInvoiced / totalBudget) * 100) : 0;
     return { totalBudget, totalInvoiced, totalRemaining, utilization, count: filteredWorkOrders.length };
-  }, [filteredWorkOrders, orders]);
+  }, [filteredWorkOrders]);
 
   return (
     <div className="space-y-6">
@@ -387,7 +436,7 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
             onClick={() => setStatusFilter('all')}
             className={cn("px-3 py-1.5 rounded-xl text-xs font-bold transition-all", statusFilter === 'all' ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}
           >
-            All ({workOrders.length})
+            All ({allTrackedWorkOrders.length})
           </button>
           <button
             onClick={() => setStatusFilter('active')}
@@ -419,7 +468,7 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
           <FileCheck2 size={36} className="mx-auto text-slate-300 mb-3" />
           <h4 className="text-sm font-bold text-slate-700">No Work Orders Found</h4>
-          <p className="text-xs text-slate-400 mt-1">Register a client Work Order / Purchase Order to track budget utilization.</p>
+          <p className="text-xs text-slate-400 mt-1">Register a client Work Order or tag any Advance / Purchase / Sale with a WO # or Project name.</p>
           <button
             onClick={openCreateModal}
             className="mt-4 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-sm hover:bg-indigo-700 transition-all inline-flex items-center gap-1.5"
@@ -430,33 +479,32 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
       ) : (
         <div className="space-y-4">
           {filteredWorkOrders.map(wo => {
-            const linked = getLinkedOrders(wo.orderNumber);
-            const invoiced = linked.reduce((s, o) => s + Number(o.total || 0), 0);
-            const paid = linked.reduce((s, o) => s + Number(o.paidAmount || (o as any).amountPaid || 0), 0);
+            const linked = getLinkedOrders(wo);
+            const invoiced = wo.financials.totalSalesInvoiced;
+            const paid = wo.financials.totalCashCollectedOnSales + wo.financials.advanceAppliedOnSales;
             const due = Math.max(0, invoiced - paid);
-            const remaining = wo.budget - invoiced;
+            const remaining = wo.budget > 0 ? wo.budget - invoiced : 0;
             const pct = wo.budget > 0 ? Math.round((invoiced / wo.budget) * 100) : 0;
-            const isOverBudget = invoiced > wo.budget;
+            const isOverBudget = wo.budget > 0 && invoiced > wo.budget;
             const isExpanded = expandedWOId === wo.id;
             const companyObj = companies.find(c => c.id === wo.company);
             const theme = getCompanyTheme(companyObj?.color || 'indigo');
-            const woNumNorm = (wo.orderNumber || '').trim().toLowerCase();
-            const fin = computeWorkOrderFinancials({
-              workOrderNumber: wo.orderNumber,
-              transactions,
-              orders,
-              purchases,
-            });
-            const linkedPurchases = purchases.filter(
-              (p: any) => (p.workOrderNumber || '').trim().toLowerCase() === woNumNorm,
+            const scopeObj = {
+              workOrderNumber: wo.orderNumber || undefined,
+              projectName: wo.branchName || undefined,
+            };
+            const fin = wo.financials;
+            const linkedPurchases = purchases.filter((p: any) =>
+              doesTxMatchProjectOrWorkOrder(p, scopeObj),
             );
             const linkedAdvances = transactions.filter(
               t =>
                 (t.type === 'advance_refund' ||
                   Boolean((t as any).isAdvance) ||
                   t.category === 'Customer Advance') &&
-                doesTxMatchProjectOrWorkOrder(t, { workOrderNumber: wo.orderNumber }, orderScopeLookup),
+                doesTxMatchProjectOrWorkOrder(t, scopeObj, orderScopeLookup),
             );
+            const scopeDisplayLabel = wo.orderNumber ? `#${wo.orderNumber}` : `Project: ${wo.branchName || wo.clientName}`;
 
             return (
               <div 
@@ -468,24 +516,31 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="px-2.5 py-0.5 rounded-lg text-xs font-black tracking-wider bg-slate-900 text-white font-mono">
-                        #{wo.orderNumber}
+                        {wo.orderNumber ? `#${wo.orderNumber}` : 'PROJECT'}
                       </span>
-                      <span className={cn("px-2.5 py-0.5 rounded-lg text-[10px] font-black border", theme.badgeBg)}>
-                        {companyObj?.name || wo.company}
-                      </span>
+                      {!wo.isRegisteredWO && (
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          Auto-Tracked
+                        </span>
+                      )}
+                      {wo.isRegisteredWO && (
+                        <span className={cn("px-2.5 py-0.5 rounded-lg text-[10px] font-black border", theme.badgeBg)}>
+                          {companyObj?.name || wo.company}
+                        </span>
+                      )}
                       {wo.branchName && (
                         <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                          Branch: {wo.branchName}
+                          Project: {wo.branchName}
                         </span>
                       )}
                       <span className={cn(
                         "px-2 py-0.5 rounded-full text-[10px] font-black uppercase",
                         isOverBudget ? "bg-rose-100 text-rose-800" :
-                        pct >= 100 ? "bg-blue-100 text-blue-800" :
+                        wo.budget > 0 && pct >= 100 ? "bg-blue-100 text-blue-800" :
                         wo.status === 'completed' ? "bg-emerald-100 text-emerald-800" :
                         "bg-amber-100 text-amber-800"
                       )}>
-                        {isOverBudget ? 'Budget Exceeded' : pct >= 100 ? '100% Invoiced' : wo.status === 'completed' ? 'Completed' : 'Active'}
+                        {isOverBudget ? 'Budget Exceeded' : wo.budget > 0 && pct >= 100 ? '100% Invoiced' : wo.status === 'completed' ? 'Completed' : 'Active'}
                       </span>
                     </div>
 
@@ -496,7 +551,7 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                     <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
                       <span className="flex items-center gap-1">
                         <User size={12} className="text-slate-400" />
-                        {wo.clientName}
+                        {wo.clientName || wo.branchName || 'Unassigned Client'}
                       </span>
                       {wo.contactPerson && (
                         <span className="flex items-center gap-1">
@@ -504,11 +559,13 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                           {wo.contactPerson} {wo.contactPhone ? `(${wo.contactPhone})` : ''}
                         </span>
                       )}
-                      <span className="flex items-center gap-1">
-                        <Calendar size={12} className="text-slate-400" />
-                        Issued: {wo.issuedDate}
-                        {wo.deadlineDate && `  |  Deadline: ${wo.deadlineDate}`}
-                      </span>
+                      {wo.issuedDate && (
+                        <span className="flex items-center gap-1">
+                          <Calendar size={12} className="text-slate-400" />
+                          {wo.isRegisteredWO ? `Issued: ${wo.issuedDate}` : `Activity: ${wo.issuedDate}`}
+                          {wo.deadlineDate && `  |  Deadline: ${wo.deadlineDate}`}
+                        </span>
+                      )}
                     </div>
 
                     {/* Per-WorkOrder Advance -> Purchase -> Sale Financial Pills */}
@@ -541,25 +598,29 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
 
                   {/* Right: Budget Utilization & Controls */}
                   <div className="flex items-center gap-4 shrink-0 self-end lg:self-auto flex-wrap justify-end">
-                    <div className="text-right">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Approved Budget</div>
-                      <div className="text-base font-black text-slate-900">{formatCurrency(wo.budget, settings)}</div>
-                    </div>
+                    {wo.budget > 0 && (
+                      <>
+                        <div className="text-right">
+                          <div className="text-[10px] uppercase font-bold text-slate-400">Approved Budget</div>
+                          <div className="text-base font-black text-slate-900">{formatCurrency(wo.budget, settings)}</div>
+                        </div>
 
-                    <div className="w-32">
-                      <div className="flex items-center justify-between text-[10px] font-bold mb-1">
-                        <span className="text-slate-500">{pct}% Invoiced</span>
-                        <span className={isOverBudget ? "text-rose-600" : "text-slate-700"}>
-                          {isOverBudget ? `+${formatCurrency(Math.abs(remaining), settings)} Over` : `${formatCurrency(remaining, settings)} Left`}
-                        </span>
-                      </div>
-                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={cn("h-full rounded-full transition-all", isOverBudget ? "bg-rose-500" : pct >= 100 ? "bg-blue-600" : "bg-emerald-500")}
-                          style={{ width: `${Math.min(100, pct)}%` }}
-                        />
-                      </div>
-                    </div>
+                        <div className="w-32">
+                          <div className="flex items-center justify-between text-[10px] font-bold mb-1">
+                            <span className="text-slate-500">{pct}% Invoiced</span>
+                            <span className={isOverBudget ? "text-rose-600" : "text-slate-700"}>
+                              {isOverBudget ? `+${formatCurrency(Math.abs(remaining), settings)} Over` : `${formatCurrency(remaining, settings)} Left`}
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div 
+                              className={cn("h-full rounded-full transition-all", isOverBudget ? "bg-rose-500" : pct >= 100 ? "bg-blue-600" : "bg-emerald-500")}
+                              style={{ width: `${Math.min(100, pct)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -598,7 +659,7 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                         type="button"
                         onClick={() => openEditModal(wo)}
                         className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all"
-                        title="Edit Work Order"
+                        title={wo.isRegisteredWO ? 'Edit Work Order' : 'Save Budget / Register Formal Work Order'}
                       >
                         <Edit3 size={14} />
                       </button>
@@ -723,7 +784,7 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                       <div className="flex items-center justify-between text-xs">
                         <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
                           <ShoppingBag size={14} className="text-amber-600" />
-                          Purchases Tagged to #{wo.orderNumber} ({linkedPurchases.length})
+                          Purchases Tagged to {scopeDisplayLabel} ({linkedPurchases.length})
                         </h4>
                         {setActiveTab && (
                           <button
@@ -731,13 +792,13 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                             onClick={() => openPurchaseDraftForWO(wo)}
                             className="text-amber-700 font-bold hover:underline text-[11px]"
                           >
-                            + Record Purchase for #{wo.orderNumber}
+                            + Record Purchase for {scopeDisplayLabel}
                           </button>
                         )}
                       </div>
                       {linkedPurchases.length === 0 ? (
                         <div className="p-3 bg-slate-50 rounded-xl text-center text-xs text-slate-400">
-                          No purchases tagged to this Work Order yet.
+                          No purchases tagged to this Project / Work Order yet.
                         </div>
                       ) : (
                         <div className="overflow-x-auto rounded-xl border border-slate-100">
@@ -778,7 +839,7 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                     <div className="flex items-center justify-between text-xs">
                       <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
                         <Receipt size={14} className="text-indigo-600" />
-                        Invoices Billed against #{wo.orderNumber} ({linked.length} bills)
+                        Invoices Billed against {scopeDisplayLabel} ({linked.length} bills)
                       </h4>
                       <div className="flex items-center gap-3 text-[11px] font-bold">
                         <span className="text-slate-600">Total Billed: <strong className="text-slate-900">{formatCurrency(invoiced, settings)}</strong></span>
@@ -1057,8 +1118,8 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
           transactions={transactions}
           workOrders={workOrders}
           initialCustomer={findCustomerForWO(advanceModalTarget) || null}
-          initialCustomerName={advanceModalTarget.clientName}
-          initialWorkOrderNumber={advanceModalTarget.orderNumber}
+          initialCustomerName={advanceModalTarget.clientName || advanceModalTarget.branchName || ''}
+          initialWorkOrderNumber={advanceModalTarget.orderNumber || ''}
           initialProjectName={advanceModalTarget.branchName || advanceModalTarget.title || ''}
           onSuccess={() => {
             loadFinancialData();

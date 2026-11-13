@@ -9,6 +9,7 @@ import {
   classifyCustomerTransaction,
   computeAllCustomerPositions,
   computeWorkOrderFinancials,
+  discoverProjectWorkOrders,
   doesTxBelongToCustomer,
   doesTxMatchProjectOrWorkOrder,
   isCashRegisterMovement,
@@ -647,5 +648,163 @@ describe('customerAdvanceAccounting', () => {
     expect(summary.totalCashCollectedOnSales).toBe(0);
     expect(summary.grossProfit).toBe(28000);
     expect(summary.netCashFlow).toBe(50000); // +100k advance in - 50k vendor paid out
+  });
+
+  it('auto-discovers Work Orders & Projects from Advances, Purchases, and Sales even without formal work_orders docs and normalizes leading #', () => {
+    const yeasin = makeCustomer('cust-yeasin', 'Yeasin');
+    const rahim = makeCustomer('cust-rahim', 'Rahim');
+
+    const workOrders: WorkOrder[] = [
+      {
+        id: 'wo-formal',
+        orderNumber: 'WO-2026-001',
+        company: 'simpletree',
+        branchName: 'HQ Setup',
+        clientName: 'Rahim',
+        customerId: 'cust-rahim',
+        title: 'HQ Network Setup',
+        budget: 120000,
+        issuedDate: '2026-11-01',
+        status: 'active',
+        createdAt: '2026-11-01T00:00:00.000Z',
+      },
+    ];
+
+    const transactions: Partial<Transaction>[] = [
+      {
+        id: 'tx-adv-5520',
+        type: 'payment_received',
+        entityId: yeasin.id,
+        entityName: yeasin.name,
+        entityType: 'customer',
+        isAdvance: true,
+        category: 'Customer Advance',
+        amount: 50000,
+        workOrderNumber: '#5520',
+        projectName: 'Yeasin',
+        paymentAccountId: 'acc-bkash',
+        paymentAccountName: 'bKash Merchant',
+        date: '2026-11-12',
+      },
+      {
+        id: 'tx-pur-only',
+        type: 'purchase',
+        entityId: 'ven-1',
+        entityType: 'vendor',
+        amount: 32000,
+        workOrderNumber: '5520',
+        projectName: 'Yeasin',
+        linkedCustomerId: yeasin.id,
+        linkedCustomerName: yeasin.name,
+        date: '2026-11-13',
+      },
+      {
+        id: 'tx-sale-5520',
+        type: 'sale',
+        entityId: yeasin.id,
+        entityName: yeasin.name,
+        entityType: 'customer',
+        referenceId: 'ord-5520',
+        amount: 42000,
+        advanceApplied: 42000,
+        workOrderNumber: '5520',
+        projectName: 'Yeasin',
+        date: '2026-11-13',
+      },
+      {
+        id: 'tx-wo-formal-adv',
+        type: 'payment_received',
+        entityId: rahim.id,
+        entityName: rahim.name,
+        entityType: 'customer',
+        isAdvance: true,
+        amount: 20000,
+        workOrderNumber: '#WO-2026-001',
+        paymentAccountId: 'acc-bank',
+        date: '2026-11-02',
+      },
+    ];
+
+    const purchases = [
+      {
+        id: 'pur-5520',
+        total: 32000,
+        paidAmount: 32000,
+        workOrderNumber: '5520',
+        projectName: 'Yeasin',
+        customerId: yeasin.id,
+        customerName: yeasin.name,
+        date: '2026-11-13',
+      },
+      {
+        id: 'pur-proj-only',
+        total: 15000,
+        paidAmount: 0,
+        projectName: 'Mirpur Branch Expansion',
+        date: '2026-11-10',
+      },
+    ];
+
+    const orders: Partial<Order>[] = [
+      {
+        id: 'ord-5520',
+        total: 42000,
+        advanceApplied: 42000,
+        paidAmount: 42000,
+        workOrderNumber: '5520',
+        projectName: 'Yeasin',
+        customerId: yeasin.id,
+        customerName: yeasin.name,
+        status: 'completed',
+        createdAt: '2026-11-13T10:00:00.000Z',
+      },
+    ];
+
+    const discovered = discoverProjectWorkOrders({
+      workOrders,
+      transactions,
+      purchases,
+      orders,
+      customers: [yeasin, rahim],
+    });
+
+    // 3 unique scopes: WO 5520, WO WO-2026-001 (deduplicated with #WO-2026-001), and Project Mirpur Branch Expansion
+    expect(discovered).toHaveLength(3);
+
+    const wo5520 = discovered.find(d => d.workOrderNumber === '5520');
+    expect(wo5520).toBeDefined();
+    expect(wo5520?.isRegisteredWO).toBe(false);
+    expect(wo5520?.customerId).toBe('cust-yeasin');
+    expect(wo5520?.clientName).toBe('Yeasin');
+    expect(wo5520?.preferredPaymentAccountId).toBe('acc-bkash');
+    expect(wo5520?.financials.advancesReceived).toBe(50000);
+    expect(wo5520?.financials.totalPurchasesCost).toBe(32000);
+    expect(wo5520?.financials.totalSalesInvoiced).toBe(42000);
+    expect(wo5520?.financials.remainingCustomerAdvance).toBe(8000);
+    expect(wo5520?.financials.grossProfit).toBe(10000);
+
+    const woFormal = discovered.find(d => d.workOrderNumber === 'WO-2026-001');
+    expect(woFormal).toBeDefined();
+    expect(woFormal?.isRegisteredWO).toBe(true);
+    expect(woFormal?.budget).toBe(120000);
+    expect(woFormal?.financials.advancesReceived).toBe(20000);
+
+    const projOnly = discovered.find(d => d.key === 'proj:mirpur branch expansion');
+    expect(projOnly).toBeDefined();
+    expect(projOnly?.workOrderNumber).toBe('');
+    expect(projOnly?.projectName).toBe('Mirpur Branch Expansion');
+    expect(projOnly?.financials.totalPurchasesCost).toBe(15000);
+
+    // #5520 and 5520 also normalize identically in customer scope listing & direct matching
+    expect(
+      doesTxMatchProjectOrWorkOrder(
+        { workOrderNumber: '#5520' },
+        { workOrderNumber: '5520' }
+      )
+    ).toBe(true);
+    const yeasinScopes = listCustomerProjectWorkOrderScopes(yeasin, transactions, orders, workOrders);
+    expect(yeasinScopes).toHaveLength(1);
+    expect(yeasinScopes[0].key).toBe('wo:5520');
+    expect(yeasinScopes[0].advanceBalance).toBe(8000);
   });
 });

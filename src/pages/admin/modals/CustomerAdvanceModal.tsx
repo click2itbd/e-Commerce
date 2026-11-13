@@ -9,6 +9,7 @@ import {
   Printer,
   Search,
   UserCheck,
+  UserPlus,
   AlertCircle,
   Package,
   Calendar,
@@ -26,6 +27,7 @@ import { logAudit } from '../../../lib/audit';
 import { calculateAccountBalance, validateSufficientBalance } from '../../../lib/accountBalance';
 import {
   calculateCustomerAccountPosition,
+  discoverProjectWorkOrders,
   hasActiveProjectOrWorkOrderScope,
 } from '../../../utils/customerAdvanceAccounting';
 
@@ -43,6 +45,7 @@ interface CustomerAdvanceModalProps {
   initialItemNote?: string;
   initialWorkOrderNumber?: string;
   initialProjectName?: string;
+  onCustomerCreated?: (customer: Customer) => void;
   onSuccess?: () => void;
 }
 
@@ -60,6 +63,7 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
   initialItemNote = '',
   initialWorkOrderNumber = '',
   initialProjectName = '',
+  onCustomerCreated,
   onSuccess,
 }) => {
   const { profile, user } = useAuth();
@@ -68,6 +72,12 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
   const [mode, setMode] = useState<'receive' | 'refund'>(initialMode);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [customerSearch, setCustomerSearch] = useState('');
+  const [localAddedCustomers, setLocalAddedCustomers] = useState<Customer[]>([]);
+  const [showQuickAddCust, setShowQuickAddCust] = useState(false);
+  const [quickCustName, setQuickCustName] = useState('');
+  const [quickCustPhone, setQuickCustPhone] = useState('');
+  const [quickCustBranch, setQuickCustBranch] = useState('');
+  const [creatingCust, setCreatingCust] = useState(false);
   const [workOrderNumber, setWorkOrderNumber] = useState<string>('');
   const [projectName, setProjectName] = useState<string>('');
   const [loadedWorkOrders, setLoadedWorkOrders] = useState<WorkOrder[]>([]);
@@ -80,6 +90,21 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
   const [submitting, setSubmitting] = useState<boolean>(false);
 
   const availableWorkOrders = propWorkOrders && propWorkOrders.length > 0 ? propWorkOrders : loadedWorkOrders;
+
+  const allCustomers = useMemo(() => {
+    const existingIds = new Set(customers.map(c => c.id));
+    return [...localAddedCustomers.filter(c => !existingIds.has(c.id)), ...customers];
+  }, [customers, localAddedCustomers]);
+
+  const discoveredWOs = useMemo(
+    () =>
+      discoverProjectWorkOrders({
+        workOrders: availableWorkOrders,
+        transactions,
+        customers: allCustomers,
+      }),
+    [availableWorkOrders, transactions, allCustomers]
+  );
 
   useEffect(() => {
     if (!isOpen || (propWorkOrders && propWorkOrders.length > 0)) return;
@@ -100,17 +125,29 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     setMode(initialMode);
+    setShowQuickAddCust(false);
+    setQuickCustName(initialCustomerName || initialProjectName || '');
+    setQuickCustPhone('');
+    setQuickCustBranch(initialProjectName || '');
 
     let resolvedCustomerId = initialCustomer?.id || '';
-    if (!resolvedCustomerId && initialCustomerName.trim()) {
-      const targetLow = initialCustomerName.trim().toLowerCase();
-      const matched = customers.find(c => (c.name || '').trim().toLowerCase() === targetLow);
+    const candidateNames = [initialCustomerName, initialProjectName]
+      .map(s => String(s || '').trim().toLowerCase())
+      .filter(Boolean);
+
+    if (!resolvedCustomerId && candidateNames.length > 0) {
+      const matched = allCustomers.find(c => {
+        const cName = (c.name || '').trim().toLowerCase();
+        const cBr = (c.branchName || '').trim().toLowerCase();
+        const cBrs = (c.branches || []).map(b => (b || '').trim().toLowerCase());
+        return candidateNames.some(q => cName === q || cBr === q || cBrs.includes(q));
+      });
       if (matched) resolvedCustomerId = matched.id;
     }
 
     setSelectedCustomerId(resolvedCustomerId);
     setCustomerSearch(resolvedCustomerId ? '' : initialCustomerName || '');
-    setWorkOrderNumber(initialWorkOrderNumber || '');
+    setWorkOrderNumber(String(initialWorkOrderNumber || '').trim().replace(/^#+/, '').trim());
     setProjectName(initialProjectName || initialCustomer?.branchName || '');
     setAmount(initialAmount && initialAmount > 0 ? String(initialAmount) : '');
     setItemNote(initialItemNote || '');
@@ -133,33 +170,34 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
     initialWorkOrderNumber,
     initialProjectName,
     paymentAccounts,
-    customers,
+    allCustomers,
   ]);
 
   const activeCustomer = useMemo(
-    () => customers.find(c => c.id === selectedCustomerId) || null,
-    [customers, selectedCustomerId]
+    () => allCustomers.find(c => c.id === selectedCustomerId) || null,
+    [allCustomers, selectedCustomerId]
   );
 
   const filteredCustomers = useMemo(() => {
     const q = customerSearch.trim().toLowerCase();
-    if (!q) return customers.slice(0, 60);
-    return customers
+    if (!q) return allCustomers.slice(0, 60);
+    return allCustomers
       .filter(
         c =>
           (c.name || '').toLowerCase().includes(q) ||
           (c.phone || '').toLowerCase().includes(q) ||
-          (c.email || '').toLowerCase().includes(q)
+          (c.email || '').toLowerCase().includes(q) ||
+          (c.branchName || '').toLowerCase().includes(q)
       )
       .slice(0, 60);
-  }, [customers, customerSearch]);
+  }, [allCustomers, customerSearch]);
 
   const customerProjectSuggestions = useMemo(() => {
     const set = new Set<string>();
     if (activeCustomer?.branchName) set.add(activeCustomer.branchName.trim());
     (activeCustomer?.branches || []).forEach(b => b && set.add(b.trim()));
-    availableWorkOrders.forEach(wo => {
-      if (wo.branchName) set.add(wo.branchName.trim());
+    discoveredWOs.forEach(w => {
+      if (w.projectName) set.add(w.projectName.trim());
     });
     if (activeCustomer) {
       transactions.forEach(t => {
@@ -169,7 +207,7 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
       });
     }
     return Array.from(set).filter(Boolean);
-  }, [activeCustomer, availableWorkOrders, transactions]);
+  }, [activeCustomer, discoveredWOs, transactions]);
 
   const currentScope = useMemo(
     () => ({
@@ -206,22 +244,61 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
       ? Math.max(0, customerPosition.advanceBalance + numAmount - customerPosition.dueBalance)
       : Math.max(0, customerPosition.advanceBalance - numAmount);
 
+  const handleQuickCreateCustomer = async () => {
+    const nameTrim = quickCustName.trim();
+    if (!nameTrim) {
+      toast.error('Please enter customer name');
+      return;
+    }
+    try {
+      setCreatingCust(true);
+      const branchTrim = quickCustBranch.trim();
+      const newCustPayload = {
+        name: nameTrim,
+        phone: quickCustPhone.trim(),
+        email: '',
+        address: '',
+        company: 'main',
+        branchName: branchTrim,
+        branches: branchTrim ? [branchTrim] : [],
+        createdAt: new Date().toISOString(),
+      };
+      const ref = await addDoc(collection(db, 'customers'), newCustPayload);
+      const createdCust = { id: ref.id, ...newCustPayload } as Customer;
+      setLocalAddedCustomers(prev => [createdCust, ...prev]);
+      setSelectedCustomerId(createdCust.id);
+      setCustomerSearch('');
+      if (branchTrim && !projectName.trim()) {
+        setProjectName(branchTrim);
+      }
+      setShowQuickAddCust(false);
+      onCustomerCreated?.(createdCust);
+      toast.success(`Customer "${nameTrim}" created & selected!`);
+    } catch (err: any) {
+      console.error('Quick create customer error:', err);
+      toast.error(err?.message || 'Failed to create customer');
+    } finally {
+      setCreatingCust(false);
+    }
+  };
+
   const handleWorkOrderSelect = (woVal: string) => {
     setWorkOrderNumber(woVal);
-    const clean = woVal.trim().toLowerCase();
-    const matchedWO = availableWorkOrders.find(
-      w => (w.orderNumber || '').trim().toLowerCase() === clean
-    );
-    if (matchedWO) {
-      if (matchedWO.branchName || matchedWO.title) {
-        setProjectName(matchedWO.branchName || matchedWO.title);
+    const clean = woVal.trim().replace(/^#+/, '').trim().toLowerCase();
+    const matchedDisc = clean
+      ? discoveredWOs.find(w => w.workOrderNumber.trim().toLowerCase() === clean)
+      : undefined;
+    if (matchedDisc) {
+      if (matchedDisc.projectName || matchedDisc.title) {
+        setProjectName(matchedDisc.projectName || matchedDisc.title);
       }
-      if (!selectedCustomerId && matchedWO.clientName) {
-        const custMatch = customers.find(
-          c =>
-            (c.name || '').trim().toLowerCase() ===
-            matchedWO.clientName.trim().toLowerCase()
-        );
+      if (!selectedCustomerId) {
+        const custMatch =
+          (matchedDisc.customerId && allCustomers.find(c => c.id === matchedDisc.customerId)) ||
+          (matchedDisc.clientName &&
+            allCustomers.find(
+              c => (c.name || '').trim().toLowerCase() === matchedDisc.clientName.trim().toLowerCase()
+            ));
         if (custMatch) setSelectedCustomerId(custMatch.id);
       }
     }
@@ -421,9 +498,65 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
           {/* Customer Picker */}
           {!initialCustomer ? (
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                Customer *
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                  Customer *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickAddCust(prev => !prev);
+                    if (!showQuickAddCust && !quickCustName.trim()) {
+                      setQuickCustName(customerSearch.trim() || initialProjectName || '');
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  <UserPlus size={12} /> {showQuickAddCust ? 'Cancel New Customer' : '+ Quick New Customer'}
+                </button>
+              </div>
+
+              {showQuickAddCust && (
+                <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+                  <div className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+                    Quick Create Customer
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      value={quickCustName}
+                      onChange={e => setQuickCustName(e.target.value)}
+                      placeholder="Customer Name *"
+                      className="px-2.5 py-1.5 bg-white border border-emerald-200 rounded-lg text-xs font-bold text-slate-800 outline-none"
+                    />
+                    <input
+                      type="text"
+                      value={quickCustPhone}
+                      onChange={e => setQuickCustPhone(e.target.value)}
+                      placeholder="Phone (Optional)"
+                      className="px-2.5 py-1.5 bg-white border border-emerald-200 rounded-lg text-xs font-medium text-slate-800 outline-none"
+                    />
+                    <input
+                      type="text"
+                      value={quickCustBranch}
+                      onChange={e => setQuickCustBranch(e.target.value)}
+                      placeholder="Project / Branch"
+                      className="px-2.5 py-1.5 bg-white border border-emerald-200 rounded-lg text-xs font-medium text-slate-800 outline-none"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={creatingCust || !quickCustName.trim()}
+                      onClick={handleQuickCreateCustomer}
+                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold cursor-pointer"
+                    >
+                      {creatingCust ? 'Saving...' : 'Save & Select Customer'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-3 text-slate-400" />
                 <input
@@ -443,7 +576,7 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
                 <option value="">-- Choose a Customer --</option>
                 {filteredCustomers.map(c => (
                   <option key={c.id} value={c.id}>
-                    {c.name} {c.phone ? `(${c.phone})` : ''}
+                    {c.name} {c.phone ? `(${c.phone})` : ''}{c.branchName ? ` — ${c.branchName}` : ''}
                   </option>
                 ))}
               </select>
@@ -480,15 +613,17 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
                 list="modal-work-orders-list"
                 value={workOrderNumber}
                 onChange={e => handleWorkOrderSelect(e.target.value)}
-                placeholder="e.g. WO-2026-001"
+                placeholder="e.g. 5520 or WO-2026-001"
                 className="w-full px-3 py-2 border border-indigo-200 rounded-lg text-xs font-bold text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
               />
               <datalist id="modal-work-orders-list">
-                {availableWorkOrders.map(wo => (
-                  <option key={wo.id || wo.orderNumber} value={wo.orderNumber}>
-                    {wo.title} {wo.branchName ? `(${wo.branchName})` : ''}
-                  </option>
-                ))}
+                {discoveredWOs
+                  .filter(wo => wo.workOrderNumber)
+                  .map(wo => (
+                    <option key={wo.key} value={wo.workOrderNumber}>
+                      {wo.projectName || wo.title} {wo.clientName ? `(${wo.clientName})` : ''}
+                    </option>
+                  ))}
               </datalist>
             </div>
             <div>

@@ -1,10 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc, setDoc, where, increment, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../../../../firebase';
-import { Product, Vendor, Transaction, SiteSettings, PaymentAccount, WorkOrder } from '../../../../types';
+import { Product, Vendor, Customer, Order, Transaction, SiteSettings, PaymentAccount, WorkOrder } from '../../../../types';
 import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, type WarrantyUnit } from '../../../../lib/utils';
 import { calculateAccountBalance, validateSufficientBalance } from '../../../../lib/accountBalance';
+import {
+  calculateCustomerAccountPosition,
+  computeWorkOrderFinancials,
+  discoverProjectWorkOrders,
+  hasActiveProjectOrWorkOrderScope,
+} from '../../../../utils/customerAdvanceAccounting';
+import { CustomerAdvanceModal } from '../../modals/CustomerAdvanceModal';
 
 const itemWarrantyMonths = (i: any): number =>
   i.warrantyValue !== undefined
@@ -35,6 +42,11 @@ import {
   Image as ImageIcon,
   Truck,
   ExternalLink,
+  Wallet,
+  FolderKanban,
+  FileText,
+  ArrowRight,
+  UserCheck,
 } from 'lucide-react';
 import { generateDocumentNumber } from '../../../../lib/numbering';
 import { AIPolishButton } from '../../../../components/common/AIPolishButton';
@@ -88,6 +100,8 @@ interface PurchaseRecord {
   workOrderNumber?: string;
   projectName?: string;
   branchName?: string;
+  customerId?: string;
+  customerName?: string;
   attachmentUrl?: string;
   notes?: string;
   createdAt: string;
@@ -96,6 +110,7 @@ interface PurchaseRecord {
 interface PurchasesProps {
   users?: any[];
   vendors?: Vendor[];
+  customers?: Customer[];
   products?: Product[];
   transactions?: Transaction[];
   settings?: SiteSettings;
@@ -107,6 +122,7 @@ interface PurchasesProps {
 const Purchases: React.FC<PurchasesProps> = ({
   users = [],
   vendors: initialVendors = [],
+  customers: initialCustomers = [],
   products: initialProducts = [],
   transactions: initialTransactions = [],
   settings,
@@ -116,12 +132,16 @@ const Purchases: React.FC<PurchasesProps> = ({
 }) => {
   const { profile } = useAuth();
   const [vendors, setVendors] = useState<Vendor[]>(initialVendors);
+  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [purchaseHistory, setPurchaseHistory] = useState<PurchaseRecord[]>([]);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [workOrderFilter, setWorkOrderFilter] = useState<string>('all');
   const [rawMenus, setRawMenus] = useState<any[]>([]);
   const [globalBrands, setGlobalBrands] = useState<any[]>([]);
   const [pickForm, setPickForm] = useState({
@@ -181,6 +201,8 @@ const Purchases: React.FC<PurchasesProps> = ({
             reference: '',
             workOrderNumber: '',
             projectName: '',
+            customerId: '',
+            customerName: '',
             items: [] as PurchaseItem[],
             paymentAccountId: '',
             paymentMethod: '',
@@ -205,6 +227,8 @@ const Purchases: React.FC<PurchasesProps> = ({
       reference: '',
       workOrderNumber: '',
       projectName: '',
+      customerId: '',
+      customerName: '',
       items: [] as PurchaseItem[],
       paymentAccountId: '',
       paymentMethod: '',
@@ -222,7 +246,7 @@ const Purchases: React.FC<PurchasesProps> = ({
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   useEffect(() => {
-    if (purchaseForm.vendorId || purchaseForm.workOrderNumber || purchaseForm.projectName || purchaseForm.items.length > 0) {
+    if (purchaseForm.vendorId || purchaseForm.workOrderNumber || purchaseForm.projectName || purchaseForm.customerId || purchaseForm.items.length > 0) {
       localStorage.setItem('draft_purchase_form', JSON.stringify(purchaseForm));
     }
   }, [purchaseForm]);
@@ -243,8 +267,9 @@ const Purchases: React.FC<PurchasesProps> = ({
   const loadData = async () => {
     try {
       setLoading(true);
-      const [venSnap, prodSnap, accSnap, purSnap, catSnap, brandSnap, txSnap, woSnap] = await Promise.all([
+      const [venSnap, custSnap, prodSnap, accSnap, purSnap, catSnap, brandSnap, txSnap, woSnap, ordSnap] = await Promise.all([
         getDocs(query(collection(db, 'vendors'), orderBy('name'))),
+        getDocs(query(collection(db, 'customers'), orderBy('name'))).catch(() => ({ docs: [] })),
         getDocs(query(collection(db, 'products'), orderBy('name'))),
         getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
         getDocs(query(collection(db, 'purchases'), orderBy('createdAt', 'desc'))).catch(() => ({ docs: [] })),
@@ -252,14 +277,18 @@ const Purchases: React.FC<PurchasesProps> = ({
         getDocs(query(collection(db, 'brands'))).catch(() => ({ docs: [] })),
         getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc'))).catch(() => ({ docs: [] })),
         getDocs(collection(db, 'work_orders')).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'orders')).catch(() => ({ docs: [] })),
       ]);
 
       const vens = venSnap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor));
+      const custs = custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer));
       const prods = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
       const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       const purs = purSnap.docs.map(d => ({ id: d.id, ...d.data() } as PurchaseRecord));
       const wos = woSnap.docs.map(d => ({ id: d.id, ...d.data() } as WorkOrder));
       wos.sort((a, b) => new Date(b.issuedDate || b.createdAt || 0).getTime() - new Date(a.issuedDate || a.createdAt || 0).getTime());
+      setCustomers(custs);
+      setOrders(ordSnap.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
       setWorkOrders(wos);
       setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
       
@@ -743,6 +772,142 @@ const Purchases: React.FC<PurchasesProps> = ({
   const totalDiscount = Number(purchaseForm.discountAmount) || 0;
   const billTotal = Math.max(0, itemsSubtotal + totalShippingCost - totalDiscount);
 
+  useEffect(() => {
+    if (initialCustomers.length > 0 && customers.length === 0) {
+      setCustomers(initialCustomers);
+    }
+  }, [initialCustomers, customers.length]);
+
+  const discoveredScopes = useMemo(
+    () =>
+      discoverProjectWorkOrders({
+        workOrders,
+        transactions,
+        orders,
+        purchases: purchaseHistory,
+        customers,
+      }),
+    [workOrders, transactions, orders, purchaseHistory, customers]
+  );
+
+  const projectSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    discoveredScopes.forEach(s => {
+      if (s.projectName) set.add(s.projectName);
+    });
+    customers.forEach(c => {
+      if (c.branchName) set.add(c.branchName.trim());
+      (c.branches || []).forEach(b => b && set.add(b.trim()));
+      if (c.name) set.add(c.name.trim());
+    });
+    return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [discoveredScopes, customers]);
+
+  const customersWithAdvance = useMemo(() => {
+    return customers
+      .map(c => ({
+        customer: c,
+        pos: calculateCustomerAccountPosition(transactions, c),
+      }))
+      .filter(entry => entry.pos.advanceBalance > 0.01)
+      .sort((a, b) => b.pos.advanceBalance - a.pos.advanceBalance);
+  }, [customers, transactions]);
+
+  const activePurchaseContext = useMemo(() => {
+    const cleanWO = String(purchaseForm.workOrderNumber || '').trim().replace(/^#+/, '').trim();
+    const cleanProj = String(purchaseForm.projectName || '').trim();
+    const hasScope = hasActiveProjectOrWorkOrderScope({
+      workOrderNumber: cleanWO || undefined,
+      projectName: cleanProj || undefined,
+    });
+
+    const matchedScope = cleanWO
+      ? discoveredScopes.find(
+          s => s.workOrderNumber.trim().toLowerCase() === cleanWO.toLowerCase()
+        )
+      : cleanProj
+      ? discoveredScopes.find(
+          s => !s.workOrderNumber && s.projectName.trim().toLowerCase() === cleanProj.toLowerCase()
+        ) ||
+        discoveredScopes.find(
+          s => s.projectName.trim().toLowerCase() === cleanProj.toLowerCase()
+        )
+      : undefined;
+
+    const cleanProjLow = cleanProj.toLowerCase();
+    const matchedCustomer =
+      (purchaseForm.customerId && customers.find(c => c.id === purchaseForm.customerId)) ||
+      (matchedScope?.customerId && customers.find(c => c.id === matchedScope.customerId)) ||
+      (matchedScope?.clientName &&
+        customers.find(
+          c => c.name.trim().toLowerCase() === matchedScope.clientName.trim().toLowerCase()
+        )) ||
+      (cleanProjLow
+        ? customers.find(
+            c =>
+              c.name.trim().toLowerCase() === cleanProjLow ||
+              (c.branchName || '').trim().toLowerCase() === cleanProjLow ||
+              (c.branches || []).some(b => b.trim().toLowerCase() === cleanProjLow)
+          )
+        : undefined) ||
+      null;
+
+    const otherPurchases = purchaseForm.id
+      ? purchaseHistory.filter(p => p.id !== purchaseForm.id)
+      : purchaseHistory;
+
+    const scopedFinancials = hasScope
+      ? computeWorkOrderFinancials({
+          workOrderNumber: cleanWO || undefined,
+          projectName: cleanProj || undefined,
+          transactions,
+          orders,
+          purchases: otherPurchases,
+        })
+      : null;
+
+    const overallCustomerPos = matchedCustomer
+      ? calculateCustomerAccountPosition(transactions, matchedCustomer)
+      : null;
+
+    let preferredAccountId = matchedScope?.preferredPaymentAccountId || '';
+    if (!preferredAccountId && matchedCustomer) {
+      const advTx = transactions.find(
+        t =>
+          (t.type === 'payment_received' || t.type === 'money_receipt') &&
+          Boolean((t as any).isAdvance || t.category === 'Customer Advance') &&
+          t.entityId === matchedCustomer.id &&
+          Boolean(t.paymentAccountId)
+      );
+      if (advTx?.paymentAccountId) preferredAccountId = advTx.paymentAccountId;
+    }
+    const preferredAccount = preferredAccountId
+      ? paymentAccounts.find(a => a.id === preferredAccountId)
+      : undefined;
+
+    return {
+      cleanWO,
+      cleanProj,
+      hasScope,
+      matchedScope,
+      matchedCustomer,
+      scopedFinancials,
+      overallCustomerPos,
+      preferredAccount,
+    };
+  }, [
+    purchaseForm.workOrderNumber,
+    purchaseForm.projectName,
+    purchaseForm.customerId,
+    purchaseForm.id,
+    discoveredScopes,
+    customers,
+    purchaseHistory,
+    transactions,
+    orders,
+    paymentAccounts,
+  ]);
+
   // Bill total computed
 
   // Merged categories: saved + product-derived (deduplicated)
@@ -1213,8 +1378,14 @@ const Purchases: React.FC<PurchasesProps> = ({
         return clean;
       });
 
-      const cleanWo = (purchaseForm.workOrderNumber || '').trim();
+      const cleanWo = (purchaseForm.workOrderNumber || '').trim().replace(/^#+/, '').trim();
       const cleanProj = (purchaseForm.projectName || '').trim();
+      const linkedCustomerId =
+        purchaseForm.customerId || activePurchaseContext.matchedCustomer?.id || '';
+      const linkedCustomerName =
+        purchaseForm.customerName ||
+        activePurchaseContext.matchedCustomer?.name ||
+        '';
       const scopeTagParts = [cleanWo ? `WO: #${cleanWo}` : '', cleanProj ? `Project: ${cleanProj}` : ''].filter(Boolean);
       const scopeSuffix = scopeTagParts.length > 0 ? ` [${scopeTagParts.join(' | ')}]` : '';
 
@@ -1240,6 +1411,8 @@ const Purchases: React.FC<PurchasesProps> = ({
         workOrderNumber: cleanWo,
         projectName: cleanProj,
         branchName: cleanProj,
+        customerId: linkedCustomerId,
+        customerName: linkedCustomerName,
         attachmentUrl: purchaseForm.attachmentUrl || '',
         notes: purchaseForm.notes || '',
         createdAt,
@@ -1265,6 +1438,8 @@ const Purchases: React.FC<PurchasesProps> = ({
         workOrderNumber: cleanWo,
         projectName: cleanProj,
         branchName: cleanProj,
+        linkedCustomerId,
+        linkedCustomerName,
         paymentAccountId: '', // No payment for the purchase itself
         paymentMethod: '',
         createdAt,
@@ -1287,6 +1462,8 @@ const Purchases: React.FC<PurchasesProps> = ({
           workOrderNumber: cleanWo,
           projectName: cleanProj,
           branchName: cleanProj,
+          linkedCustomerId,
+          linkedCustomerName,
           paymentAccountId: selectedAcc?.id || '',
           paymentMethod: selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash',
           createdAt: new Date().toISOString(),
@@ -1361,6 +1538,8 @@ const Purchases: React.FC<PurchasesProps> = ({
         reference: '',
         workOrderNumber: '',
         projectName: '',
+        customerId: '',
+        customerName: '',
         items: [],
         paymentAccountId: '',
         paymentMethod: '',
@@ -1389,6 +1568,16 @@ const Purchases: React.FC<PurchasesProps> = ({
 
     if (vendorFilter !== 'all' && pur.vendorId !== vendorFilter) return false;
 
+    if (workOrderFilter !== 'all') {
+      const target = workOrderFilter.toLowerCase();
+      const purKey = pur.workOrderNumber
+        ? `wo:${pur.workOrderNumber.trim().replace(/^#+/, '').toLowerCase()}`
+        : (pur.projectName || pur.branchName)
+        ? `proj:${(pur.projectName || pur.branchName || '').trim().toLowerCase()}`
+        : '';
+      if (purKey !== target) return false;
+    }
+
     if (searchHistory.trim()) {
       const q = searchHistory.toLowerCase();
       const matchesDoc = (pur.documentNumber || '').toLowerCase().includes(q);
@@ -1396,7 +1585,8 @@ const Purchases: React.FC<PurchasesProps> = ({
       const matchesRef = (pur.reference || '').toLowerCase().includes(q);
       const matchesWO = (pur.workOrderNumber || '').toLowerCase().includes(q);
       const matchesProj = (pur.projectName || pur.branchName || '').toLowerCase().includes(q);
-      if (!matchesDoc && !matchesVen && !matchesRef && !matchesWO && !matchesProj) return false;
+      const matchesCust = (pur.customerName || '').toLowerCase().includes(q);
+      if (!matchesDoc && !matchesVen && !matchesRef && !matchesWO && !matchesProj && !matchesCust) return false;
     }
 
     return true;
@@ -1483,6 +1673,33 @@ const Purchases: React.FC<PurchasesProps> = ({
     doc.save(`Purchase_Report_${startDate}_to_${endDate}.pdf`);
   };
 
+  const resetPurchaseForm = () => {
+    setPurchaseForm({
+      id: undefined,
+      documentNumber: undefined,
+      vendorId: '',
+      vendorName: '',
+      date: new Date().toISOString().split('T')[0],
+      reference: '',
+      workOrderNumber: '',
+      projectName: '',
+      customerId: '',
+      customerName: '',
+      items: [],
+      paymentAccountId: '',
+      paymentMethod: '',
+      paidAmount: 0,
+      isChequePayment: false,
+      chequeNumber: '',
+      chequeClearingDate: new Date().toISOString().split('T')[0],
+      discountAmount: 0,
+      shippingCost: 0,
+      attachmentUrl: '',
+      notes: '',
+      createdBy: '',
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* ── TOP ACTION & SUMMARY BAR ── */}
@@ -1517,43 +1734,9 @@ const Purchases: React.FC<PurchasesProps> = ({
               onClick={() => {
                 if (isCreatingPurchase) {
                   setIsCreatingPurchase(false);
-                  setPurchaseForm({
-                    id: undefined,
-                    documentNumber: undefined,
-                    vendorId: '',
-                    vendorName: '',
-                    date: new Date().toISOString().split('T')[0],
-                    reference: '',
-                    workOrderNumber: '',
-                    projectName: '',
-                    items: [],
-                    paymentAccountId: '',
-                    paymentMethod: '',
-                    paidAmount: 0,
-                    shippingCost: 0,
-                    attachmentUrl: '',
-                    notes: '',
-                    createdBy: ''
-                  });
+                  resetPurchaseForm();
                 } else {
-                  setPurchaseForm({
-                    id: undefined,
-                    documentNumber: undefined,
-                    vendorId: '',
-                    vendorName: '',
-                    date: new Date().toISOString().split('T')[0],
-                    reference: '',
-                    workOrderNumber: '',
-                    projectName: '',
-                    items: [],
-                    paymentAccountId: '',
-                    paymentMethod: '',
-                    paidAmount: 0,
-                    shippingCost: 0,
-                    attachmentUrl: '',
-                    notes: '',
-                    createdBy: ''
-                  });
+                  resetPurchaseForm();
                   setIsCreatingPurchase(true);
                 }
               }}
@@ -1587,7 +1770,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                     onClick={() => {
                       if(window.confirm('Clear all drafted data?')) {
                         localStorage.removeItem('draft_purchase_form');
-                        setPurchaseForm({ id: undefined, documentNumber: undefined, vendorId: '', vendorName: '', date: new Date().toISOString().split('T')[0], reference: '', workOrderNumber: '', projectName: '', items: [], paymentAccountId: '', paymentMethod: 'cash', paidAmount: 0, shippingCost: 0, attachmentUrl: '', notes: '', createdBy: '' });
+                        resetPurchaseForm();
                       }
                     }}
                     className="text-xs text-red-500 hover:text-red-700 font-bold"
@@ -1669,48 +1852,405 @@ const Purchases: React.FC<PurchasesProps> = ({
                   </div>
 
                   {/* Project / Work Order Allocation */}
-                  <div>
-                    <label className="block font-bold text-indigo-800 uppercase mb-1">
-                      Work Order # / PO (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      list="purchase-work-orders-list"
-                      placeholder="e.g. WO-2026-001"
-                      value={purchaseForm.workOrderNumber || ''}
-                      onChange={e => {
-                        const val = e.target.value;
-                        const matched = workOrders.find(
-                          w => (w.orderNumber || '').trim().toLowerCase() === val.trim().toLowerCase()
-                        );
-                        setPurchaseForm({
-                          ...purchaseForm,
-                          workOrderNumber: val,
-                          projectName: matched ? (matched.branchName || matched.title || purchaseForm.projectName) : purchaseForm.projectName,
-                        });
-                      }}
-                      className="w-full border border-indigo-200 bg-indigo-50/30 rounded-lg p-2.5 font-bold text-slate-800"
-                    />
-                    <datalist id="purchase-work-orders-list">
-                      {workOrders.map(wo => (
-                        <option key={wo.id || wo.orderNumber} value={wo.orderNumber}>
-                          {wo.title} ({wo.clientName})
-                        </option>
-                      ))}
-                    </datalist>
-                  </div>
+                  <div className="md:col-span-2 bg-indigo-50/50 border border-indigo-200/80 rounded-xl p-3.5 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[10px] font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <FolderKanban size={13} className="text-indigo-600" />
+                        Work Order / Project & Customer Advance Link (Optional)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAdvanceModal(true)}
+                        className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold rounded-lg transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
+                      >
+                        <Wallet size={11} /> + Receive Customer Advance
+                      </button>
+                    </div>
 
-                  <div>
-                    <label className="block font-bold text-indigo-800 uppercase mb-1">
-                      Project / Branch (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. HQ Setup / Server Room"
-                      value={purchaseForm.projectName || ''}
-                      onChange={e => setPurchaseForm({ ...purchaseForm, projectName: e.target.value })}
-                      className="w-full border border-indigo-200 bg-indigo-50/30 rounded-lg p-2.5 font-bold text-slate-800"
-                    />
+                    {/* Quick-Pick Pills for Active Advances / Work Orders */}
+                    {(discoveredScopes.length > 0 || customersWithAdvance.length > 0) && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-slate-500 mr-1">Quick Pick:</span>
+                        {discoveredScopes.slice(0, 6).map(scope => {
+                          const isSelected =
+                            (scope.workOrderNumber &&
+                              activePurchaseContext.cleanWO.toLowerCase() === scope.workOrderNumber.trim().toLowerCase()) ||
+                            (!scope.workOrderNumber &&
+                              scope.projectName &&
+                              activePurchaseContext.cleanProj.toLowerCase() === scope.projectName.trim().toLowerCase());
+                          const prefAcc = scope.preferredPaymentAccountId
+                            ? paymentAccounts.find(a => a.id === scope.preferredPaymentAccountId)
+                            : undefined;
+                          return (
+                            <button
+                              key={scope.key}
+                              type="button"
+                              onClick={() => {
+                                setPurchaseForm(prev => ({
+                                  ...prev,
+                                  workOrderNumber: scope.workOrderNumber || '',
+                                  projectName: scope.projectName || scope.clientName || scope.title || prev.projectName,
+                                  customerId: scope.customerId || prev.customerId || '',
+                                  customerName: scope.clientName || prev.customerName || '',
+                                  ...(!prev.paymentAccountId && prefAcc
+                                    ? {
+                                        paymentAccountId: prefAcc.id,
+                                        paymentMethod: prefAcc.type || 'cash',
+                                      }
+                                    : {}),
+                                }));
+                              }}
+                              className={cn(
+                                "px-2 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1",
+                                isSelected
+                                  ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
+                                  : scope.financials.remainingCustomerAdvance > 0
+                                  ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-emerald-200"
+                                  : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200"
+                              )}
+                            >
+                              <span className="font-mono">
+                                {scope.workOrderNumber ? `#${scope.workOrderNumber}` : scope.projectName}
+                              </span>
+                              {scope.clientName && (
+                                <span className={isSelected ? "text-indigo-100" : "text-slate-500"}>
+                                  · {scope.clientName}
+                                </span>
+                              )}
+                              {scope.financials.remainingCustomerAdvance > 0 && (
+                                <span className={cn(
+                                  "px-1 py-0.2 rounded font-black",
+                                  isSelected ? "bg-emerald-400/30 text-white" : "bg-emerald-100 text-emerald-800"
+                                )}>
+                                  Adv {formatCurrency(scope.financials.remainingCustomerAdvance, settings)}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                        {customersWithAdvance
+                          .filter(
+                            cEntry =>
+                              !discoveredScopes.slice(0, 6).some(s => s.customerId === cEntry.customer.id)
+                          )
+                          .slice(0, 3)
+                          .map(({ customer, pos }) => {
+                            const isSelected = purchaseForm.customerId === customer.id;
+                            const advTx = transactions.find(
+                              t =>
+                                (t.type === 'payment_received' || t.type === 'money_receipt') &&
+                                Boolean((t as any).isAdvance || t.category === 'Customer Advance') &&
+                                t.entityId === customer.id &&
+                                Boolean(t.paymentAccountId)
+                            );
+                            const prefAcc = advTx?.paymentAccountId
+                              ? paymentAccounts.find(a => a.id === advTx.paymentAccountId)
+                              : undefined;
+                            return (
+                              <button
+                                key={`adv-${customer.id}`}
+                                type="button"
+                                onClick={() => {
+                                  setPurchaseForm(prev => ({
+                                    ...prev,
+                                    customerId: customer.id,
+                                    customerName: customer.name,
+                                    workOrderNumber: prev.workOrderNumber || String((advTx as any)?.workOrderNumber || ''),
+                                    projectName:
+                                      prev.projectName ||
+                                      String((advTx as any)?.projectName || (advTx as any)?.branchName || customer.branchName || customer.name),
+                                    ...(!prev.paymentAccountId && prefAcc
+                                      ? {
+                                          paymentAccountId: prefAcc.id,
+                                          paymentMethod: prefAcc.type || 'cash',
+                                        }
+                                      : {}),
+                                  }));
+                                }}
+                                className={cn(
+                                  "px-2 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1",
+                                  isSelected
+                                    ? "bg-teal-600 text-white border-teal-700 shadow-xs"
+                                    : "bg-teal-50 hover:bg-teal-100 text-teal-900 border-teal-200"
+                                )}
+                              >
+                                <UserCheck size={10} />
+                                <span>{customer.name}</span>
+                                <span className={cn(
+                                  "px-1 rounded font-black",
+                                  isSelected ? "bg-white/20 text-white" : "bg-teal-100 text-teal-800"
+                                )}>
+                                  Adv {formatCurrency(pos.advanceBalance, settings)}
+                                </span>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">
+                          Work Order # / PO (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          list="purchase-work-orders-list"
+                          placeholder="e.g. 5520 or WO-2026-001"
+                          value={purchaseForm.workOrderNumber || ''}
+                          onChange={e => {
+                            const val = e.target.value;
+                            const valClean = val.trim().replace(/^#+/, '').trim().toLowerCase();
+                            const matchedScope = valClean
+                              ? discoveredScopes.find(
+                                  s => s.workOrderNumber.trim().toLowerCase() === valClean
+                                )
+                              : undefined;
+                            const prefAcc = matchedScope?.preferredPaymentAccountId
+                              ? paymentAccounts.find(a => a.id === matchedScope.preferredPaymentAccountId)
+                              : undefined;
+                            setPurchaseForm(prev => ({
+                              ...prev,
+                              workOrderNumber: val,
+                              ...(matchedScope
+                                ? {
+                                    projectName: matchedScope.projectName || matchedScope.title || prev.projectName,
+                                    customerId: matchedScope.customerId || prev.customerId,
+                                    customerName: matchedScope.clientName || prev.customerName,
+                                    ...(!prev.paymentAccountId && prefAcc
+                                      ? {
+                                          paymentAccountId: prefAcc.id,
+                                          paymentMethod: prefAcc.type || 'cash',
+                                        }
+                                      : {}),
+                                  }
+                                : {}),
+                            }));
+                          }}
+                          className="w-full border border-indigo-200 bg-white rounded-lg p-2 font-bold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-indigo-400"
+                        />
+                        <datalist id="purchase-work-orders-list">
+                          {discoveredScopes
+                            .filter(s => s.workOrderNumber)
+                            .map(s => (
+                              <option key={s.key} value={s.workOrderNumber}>
+                                {`${s.projectName || s.title}${s.clientName ? ` (${s.clientName})` : ''}${
+                                  s.financials.advancesReceived > 0 ? ` — Adv ৳${s.financials.advancesReceived}` : ''
+                                }`}
+                              </option>
+                            ))}
+                        </datalist>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">
+                          Project / Branch (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          list="purchase-projects-list"
+                          placeholder="e.g. Yeasin / HQ Setup"
+                          value={purchaseForm.projectName || ''}
+                          onChange={e => {
+                            const val = e.target.value;
+                            const valLow = val.trim().toLowerCase();
+                            const matchedCust = valLow
+                              ? customers.find(
+                                  c =>
+                                    c.name.trim().toLowerCase() === valLow ||
+                                    (c.branchName || '').trim().toLowerCase() === valLow ||
+                                    (c.branches || []).some(b => b.trim().toLowerCase() === valLow)
+                                )
+                              : undefined;
+                            const matchedScope = valLow
+                              ? discoveredScopes.find(s => s.projectName.trim().toLowerCase() === valLow)
+                              : undefined;
+                            setPurchaseForm(prev => ({
+                              ...prev,
+                              projectName: val,
+                              ...(!prev.customerId && (matchedCust || matchedScope?.customerId)
+                                ? {
+                                    customerId: matchedCust?.id || matchedScope?.customerId || '',
+                                    customerName: matchedCust?.name || matchedScope?.clientName || '',
+                                  }
+                                : {}),
+                              ...(!prev.workOrderNumber && matchedScope?.workOrderNumber
+                                ? { workOrderNumber: matchedScope.workOrderNumber }
+                                : {}),
+                            }));
+                          }}
+                          className="w-full border border-indigo-200 bg-white rounded-lg p-2 font-bold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-indigo-400"
+                        />
+                        <datalist id="purchase-projects-list">
+                          {projectSuggestions.map(p => (
+                            <option key={p} value={p} />
+                          ))}
+                        </datalist>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">
+                          Client / Customer (Advance Track)
+                        </label>
+                        <select
+                          value={purchaseForm.customerId || activePurchaseContext.matchedCustomer?.id || ''}
+                          onChange={e => {
+                            const cust = customers.find(c => c.id === e.target.value);
+                            setPurchaseForm(prev => ({
+                              ...prev,
+                              customerId: cust?.id || '',
+                              customerName: cust?.name || '',
+                              projectName: prev.projectName || cust?.branchName || cust?.name || '',
+                            }));
+                          }}
+                          className="w-full border border-indigo-200 bg-white rounded-lg p-2 font-bold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-indigo-400"
+                        >
+                          <option value="">-- Optional Customer Link --</option>
+                          {customers.map(c => {
+                            const pos = calculateCustomerAccountPosition(transactions, c);
+                            return (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                                {pos.advanceBalance > 0 ? ` (Adv: ৳${pos.advanceBalance.toLocaleString()})` : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Live Work Order / Customer Advance Status Banner */}
+                    {(activePurchaseContext.hasScope || activePurchaseContext.matchedCustomer) && (
+                      <div className="bg-white/95 border border-indigo-200 rounded-xl p-3 space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                          <div className="flex items-center gap-2 flex-wrap font-bold text-slate-800">
+                            {activePurchaseContext.cleanWO && (
+                              <span className="px-2 py-0.5 bg-slate-900 text-white rounded font-mono text-[10px]">
+                                WO #{activePurchaseContext.cleanWO}
+                              </span>
+                            )}
+                            {activePurchaseContext.cleanProj && (
+                              <span className="px-2 py-0.5 bg-cyan-50 text-cyan-800 border border-cyan-200 rounded text-[10px]">
+                                Project: {activePurchaseContext.cleanProj}
+                              </span>
+                            )}
+                            {activePurchaseContext.matchedCustomer ? (
+                              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-[10px] flex items-center gap-1">
+                                <UserCheck size={10} /> Customer: {activePurchaseContext.matchedCustomer.name}
+                              </span>
+                            ) : (
+                              activePurchaseContext.cleanProj && (
+                                <span className="text-[10px] text-amber-700 font-semibold">
+                                  No customer matched "{activePurchaseContext.cleanProj}" yet — select Client above or log Advance.
+                                </span>
+                              )
+                            )}
+                          </div>
+
+                          {activePurchaseContext.preferredAccount &&
+                            purchaseForm.paymentAccountId !== activePurchaseContext.preferredAccount.id && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPurchaseForm(prev => ({
+                                    ...prev,
+                                    paymentAccountId: activePurchaseContext.preferredAccount!.id,
+                                    paymentMethod: activePurchaseContext.preferredAccount!.type || 'cash',
+                                  }))
+                                }
+                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                              >
+                                <Wallet size={10} /> Use {activePurchaseContext.preferredAccount.name}
+                              </button>
+                            )}
+                        </div>
+
+                        {activePurchaseContext.scopedFinancials &&
+                        (activePurchaseContext.scopedFinancials.advancesReceived > 0 ||
+                          activePurchaseContext.scopedFinancials.totalPurchasesCost > 0 ||
+                          activePurchaseContext.scopedFinancials.totalSalesInvoiced > 0) ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                            <div className="bg-teal-50/80 border border-teal-200 rounded-lg px-2.5 py-1.5">
+                              <div className="text-[9px] font-bold uppercase text-teal-700">Customer Advance</div>
+                              <div className="text-xs font-black text-teal-900">
+                                {formatCurrency(activePurchaseContext.scopedFinancials.advancesReceived, settings)}
+                              </div>
+                            </div>
+                            <div className="bg-amber-50/80 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                              <div className="text-[9px] font-bold uppercase text-amber-700">Prior Purchases</div>
+                              <div className="text-xs font-black text-amber-900">
+                                {formatCurrency(activePurchaseContext.scopedFinancials.totalPurchasesCost, settings)}
+                              </div>
+                            </div>
+                            {(() => {
+                              const availAdvForPurchases =
+                                activePurchaseContext.scopedFinancials.netAdvanceDeposits -
+                                activePurchaseContext.scopedFinancials.totalPurchasesCost;
+                              const leftAfterBill = availAdvForPurchases - billTotal;
+                              return (
+                                <div
+                                  className={cn(
+                                    "rounded-lg px-2.5 py-1.5 border",
+                                    leftAfterBill >= 0
+                                      ? "bg-emerald-50/80 border-emerald-200"
+                                      : "bg-rose-50/80 border-rose-200"
+                                  )}
+                                >
+                                  <div
+                                    className={cn(
+                                      "text-[9px] font-bold uppercase",
+                                      leftAfterBill >= 0 ? "text-emerald-700" : "text-rose-700"
+                                    )}
+                                  >
+                                    {leftAfterBill >= 0 ? 'Adv Left After Bill' : 'Extra Above Advance'}
+                                  </div>
+                                  <div
+                                    className={cn(
+                                      "text-xs font-black",
+                                      leftAfterBill >= 0 ? "text-emerald-900" : "text-rose-800"
+                                    )}
+                                  >
+                                    {formatCurrency(Math.abs(leftAfterBill), settings)}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            <div className="bg-blue-50/80 border border-blue-200 rounded-lg px-2.5 py-1.5">
+                              <div className="text-[9px] font-bold uppercase text-blue-700">Sales Billed</div>
+                              <div className="text-xs font-black text-blue-900">
+                                {formatCurrency(activePurchaseContext.scopedFinancials.totalSalesInvoiced, settings)}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-50/70 border border-amber-200 rounded-lg px-2.5 py-2 text-[11px] text-amber-900">
+                            <span>
+                              No Customer Advance recorded yet for{' '}
+                              <b>
+                                {activePurchaseContext.cleanWO
+                                  ? `WO #${activePurchaseContext.cleanWO}`
+                                  : activePurchaseContext.cleanProj || activePurchaseContext.matchedCustomer?.name}
+                              </b>
+                              {activePurchaseContext.overallCustomerPos &&
+                                activePurchaseContext.overallCustomerPos.advanceBalance > 0 && (
+                                  <span className="ml-1.5 text-teal-800 font-bold">
+                                    (Customer Overall Advance Wallet:{' '}
+                                    {formatCurrency(activePurchaseContext.overallCustomerPos.advanceBalance, settings)})
+                                  </span>
+                                )}
+                              .
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowAdvanceModal(true)}
+                              className="px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded text-[10px] font-bold cursor-pointer shrink-0"
+                            >
+                              + Record Advance Here
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Vendor Bill Attachment */}
@@ -2197,6 +2737,22 @@ const Purchases: React.FC<PurchasesProps> = ({
                           );
                         })}
                       </select>
+                      {activePurchaseContext.preferredAccount &&
+                        purchaseForm.paymentAccountId !== activePurchaseContext.preferredAccount.id && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPurchaseForm(prev => ({
+                                ...prev,
+                                paymentAccountId: activePurchaseContext.preferredAccount!.id,
+                                paymentMethod: activePurchaseContext.preferredAccount!.type || 'cash',
+                              }))
+                            }
+                            className="mt-1.5 w-full px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Wallet size={12} /> Pay from Customer Advance Account ({activePurchaseContext.preferredAccount.name})
+                          </button>
+                        )}
                       {selectedAccount && (
                         <div className={cn(
                           "mt-2 text-xs px-2.5 py-1.5 rounded-lg flex items-center justify-between font-bold",
@@ -2281,7 +2837,29 @@ const Purchases: React.FC<PurchasesProps> = ({
                   </div>
 
                   <div className="bg-gray-50/70 p-3.5 rounded-xl border border-gray-200 space-y-3">
-                    <span className="font-bold text-gray-700 uppercase block">Disbursement / Paid Amount</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-gray-700 uppercase">Disbursement / Paid Amount</span>
+                      <div className="flex items-center gap-1">
+                        {billTotal > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setPurchaseForm(prev => ({ ...prev, paidAmount: billTotal }))}
+                            className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[10px] font-bold cursor-pointer"
+                          >
+                            Pay Full
+                          </button>
+                        )}
+                        {purchaseForm.paidAmount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setPurchaseForm(prev => ({ ...prev, paidAmount: 0 }))}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 rounded text-[10px] font-bold cursor-pointer"
+                          >
+                            Clear (Due)
+                          </button>
+                        )}
+                      </div>
+                    </div>
                     <div>
                       <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
                         Paid Amount (৳) — Bill: {formatCurrency(billTotal, settings)}
@@ -2695,6 +3273,23 @@ const Purchases: React.FC<PurchasesProps> = ({
               </select>
             </div>
 
+            <div>
+              <select
+                value={workOrderFilter}
+                onChange={e => { setWorkOrderFilter(e.target.value); setCurrentPage(1); }}
+                className="py-2.5 px-4 text-xs bg-indigo-50/70 border border-indigo-200 rounded-xl outline-none font-bold text-indigo-800 focus:ring-2 focus:ring-indigo-500 transition-all"
+              >
+                <option value="all">-- All Work Orders / Projects --</option>
+                {discoveredScopes.map(s => (
+                  <option key={s.key} value={s.key}>
+                    {s.workOrderNumber ? `WO #${s.workOrderNumber}` : 'Project'}
+                    {s.projectName ? ` — ${s.projectName}` : ''}
+                    {s.clientName && s.clientName !== s.projectName ? ` (${s.clientName})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">From</label>
               <input
@@ -2775,15 +3370,43 @@ const Purchases: React.FC<PurchasesProps> = ({
                             <span className="text-[10px] text-slate-400 font-mono font-medium">Challan: #{pur.reference}</span>
                           )}
                           {pur.workOrderNumber && (
-                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded font-mono">
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                const k = `wo:${pur.workOrderNumber!.trim().replace(/^#+/, '').toLowerCase()}`;
+                                setWorkOrderFilter(prev => (prev === k ? 'all' : k));
+                                setCurrentPage(1);
+                              }}
+                              title="Click to filter by this Work Order"
+                              className="text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-1.5 py-0.5 rounded font-mono cursor-pointer transition-colors"
+                            >
                               WO: #{pur.workOrderNumber}
-                            </span>
+                            </button>
                           )}
                           {(pur.projectName || pur.branchName) && (
-                            <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 px-1.5 py-0.5 rounded">
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                if (!pur.workOrderNumber) {
+                                  const k = `proj:${(pur.projectName || pur.branchName || '').trim().toLowerCase()}`;
+                                  setWorkOrderFilter(prev => (prev === k ? 'all' : k));
+                                  setCurrentPage(1);
+                                }
+                              }}
+                              className="text-[10px] font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 px-1.5 py-0.5 rounded"
+                            >
                               {pur.projectName || pur.branchName}
-                            </span>
+                            </button>
                           )}
+                          {pur.customerName &&
+                            pur.customerName.trim().toLowerCase() !==
+                              (pur.projectName || pur.branchName || '').trim().toLowerCase() && (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                Client: {pur.customerName}
+                              </span>
+                            )}
                           {pur.attachmentUrl && (
                             <a
                               href={pur.attachmentUrl}
@@ -2846,18 +3469,24 @@ const Purchases: React.FC<PurchasesProps> = ({
                                  documentNumber: pur.documentNumber,
                                  vendorId: pur.vendorId,
                                  vendorName: pur.vendorName,
-                                 date: pur.date.split('T')[0],
+                                 date: (pur.date || pur.createdAt || new Date().toISOString()).split('T')[0],
                                  reference: pur.reference || '',
                                  workOrderNumber: pur.workOrderNumber || '',
                                  projectName: pur.projectName || pur.branchName || '',
+                                 customerId: pur.customerId || '',
+                                 customerName: pur.customerName || '',
                                  items: pur.items || [],
                                  paymentAccountId: pur.paymentAccountId || '',
                                  paymentMethod: pur.paymentMethod || 'cash',
                                  paidAmount: pur.paidAmount || 0,
+                                 isChequePayment: Boolean(pur.isChequePayment),
+                                 chequeNumber: pur.chequeNumber || '',
+                                 chequeClearingDate: pur.chequeClearingDate || new Date().toISOString().split('T')[0],
                                  shippingCost: pur.shippingCost || 0,
                                  discountAmount: pur.discountAmount || 0,
                                  attachmentUrl: pur.attachmentUrl || '',
                                  notes: pur.notes || '',
+                                 createdBy: pur.createdBy || '',
                              });
                              setIsCreatingPurchase(true);
                           }}
@@ -2935,6 +3564,29 @@ const Purchases: React.FC<PurchasesProps> = ({
             </div>
 
             <div className="p-6 space-y-4 text-xs">
+              {(viewingPurchase.workOrderNumber ||
+                viewingPurchase.projectName ||
+                viewingPurchase.branchName ||
+                viewingPurchase.customerName) && (
+                <div className="flex flex-wrap items-center gap-2 bg-indigo-50/70 border border-indigo-200 rounded-xl px-3.5 py-2.5 text-[11px] font-bold">
+                  {viewingPurchase.workOrderNumber && (
+                    <span className="px-2 py-0.5 bg-indigo-600 text-white rounded font-mono">
+                      WO #{viewingPurchase.workOrderNumber}
+                    </span>
+                  )}
+                  {(viewingPurchase.projectName || viewingPurchase.branchName) && (
+                    <span className="px-2 py-0.5 bg-cyan-50 text-cyan-800 border border-cyan-200 rounded">
+                      Project: {viewingPurchase.projectName || viewingPurchase.branchName}
+                    </span>
+                  )}
+                  {viewingPurchase.customerName && (
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded">
+                      Customer: {viewingPurchase.customerName}
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <table className="w-full text-left">
                   <thead className="bg-gray-50 font-bold text-gray-600 border-b border-gray-200">
@@ -3022,10 +3674,56 @@ const Purchases: React.FC<PurchasesProps> = ({
                 </div>
               )}
 
-              <div className="flex justify-end pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                {setActiveTab &&
+                (viewingPurchase.workOrderNumber ||
+                  viewingPurchase.projectName ||
+                  viewingPurchase.branchName ||
+                  viewingPurchase.customerId) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetProj = viewingPurchase.projectName || viewingPurchase.branchName || '';
+                      const matchedCust = customers.find(
+                        c =>
+                          (viewingPurchase.customerId && c.id === viewingPurchase.customerId) ||
+                          (viewingPurchase.customerName &&
+                            c.name.trim().toLowerCase() === viewingPurchase.customerName.trim().toLowerCase()) ||
+                          (targetProj && c.name.trim().toLowerCase() === targetProj.trim().toLowerCase())
+                      );
+                      localStorage.setItem(
+                        'sales_form_draft',
+                        JSON.stringify({
+                          customerId: matchedCust?.id || viewingPurchase.customerId || '',
+                          customerName:
+                            matchedCust?.name || viewingPurchase.customerName || targetProj || '',
+                          customerPhone: matchedCust?.phone || '',
+                          customerEmail: matchedCust?.email || '',
+                          shippingAddress: matchedCust?.address || '',
+                          workOrderNumber: viewingPurchase.workOrderNumber || '',
+                          branchName: targetProj,
+                          notes: viewingPurchase.workOrderNumber
+                            ? `Ref Work Order #${viewingPurchase.workOrderNumber}`
+                            : targetProj
+                            ? `Ref Project: ${targetProj}`
+                            : '',
+                          items: [],
+                        })
+                      );
+                      setViewingPurchase(null);
+                      setActiveTab('sales');
+                      toast.success('Loaded Work Order / Customer into Sales Form!');
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    Bill / Create Sale for This WO <ArrowRight size={14} />
+                  </button>
+                ) : (
+                  <span />
+                )}
                 <button
                   onClick={() => setViewingPurchase(null)}
-                  className="px-5 py-2 bg-gray-800 hover:bg-black text-white font-bold rounded-lg transition-all"
+                  className="px-5 py-2 bg-gray-800 hover:bg-black text-white font-bold rounded-lg transition-all cursor-pointer"
                 >
                   Close
                 </button>
@@ -3034,6 +3732,34 @@ const Purchases: React.FC<PurchasesProps> = ({
           </div>
         </div>
       )}
+
+      <CustomerAdvanceModal
+        isOpen={showAdvanceModal}
+        onClose={() => setShowAdvanceModal(false)}
+        customers={customers}
+        paymentAccounts={paymentAccounts}
+        transactions={transactions}
+        workOrders={workOrders}
+        initialCustomer={activePurchaseContext.matchedCustomer}
+        initialCustomerName={
+          purchaseForm.customerName || activePurchaseContext.matchedCustomer?.name || ''
+        }
+        initialWorkOrderNumber={activePurchaseContext.cleanWO}
+        initialProjectName={activePurchaseContext.cleanProj}
+        onCustomerCreated={newCust => {
+          setCustomers(prev => (prev.some(c => c.id === newCust.id) ? prev : [...prev, newCust]));
+          setPurchaseForm(prev => ({
+            ...prev,
+            customerId: newCust.id,
+            customerName: newCust.name,
+            projectName: prev.projectName || newCust.branchName || newCust.name,
+          }));
+        }}
+        onSuccess={async () => {
+          await loadData();
+          await fetchData();
+        }}
+      />
     </div>
   );
 };

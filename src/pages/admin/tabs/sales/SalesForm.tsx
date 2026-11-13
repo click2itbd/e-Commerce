@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { collection, addDoc, updateDoc, doc, query, getDocs, getDoc, orderBy, where, deleteDoc, increment, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../../../../firebase';
 import { Product, ProductVariant, Customer, DiscountCode, SiteSettings, PaymentAccount } from '../../../../types';
@@ -52,6 +52,7 @@ import { recordSensitiveAlert } from '../../../../lib/alerts';
 import { AIPolishButton } from '../../../../components/common/AIPolishButton';
 import {
   calculateCustomerAccountPosition,
+  discoverProjectWorkOrders,
   hasActiveProjectOrWorkOrderScope,
   splitSalePaymentWithAdvance,
 } from '../../../../utils/customerAdvanceAccounting';
@@ -687,6 +688,17 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     : (saleData.discountAmount || 0);
   const netTotal = Math.max(0, subtotal - effectiveDiscount);
 
+  const discoveredScopes = useMemo(
+    () =>
+      discoverProjectWorkOrders({
+        workOrders,
+        transactions,
+        orders: ordersList,
+        customers,
+      }),
+    [workOrders, transactions, ordersList, customers]
+  );
+
   // Net total computed
   const handleCustomerChange = (customerId: string) => {
     const selected = customers.find(c => c.id === customerId);
@@ -698,8 +710,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         customerPhone: selected.phone || '',
         customerEmail: selected.email || '',
         shippingAddress: selected.address || '',
-        branchName: '', // Keep empty unless explicitly chosen/added
-        company: (selected as any).company || 'main',
+        branchName: prev.workOrderNumber ? prev.branchName : '',
+        company: (selected as any).company || prev.company || 'main',
       }));
     } else {
       setSaleData(prev => ({
@@ -1707,29 +1719,31 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 <input
                   type="text"
                   list="sales-work-orders-list"
-                  placeholder="Optional WO # or ref"
+                  placeholder="Optional WO # or ref (e.g. 5520)"
                   value={saleData.workOrderNumber || ''}
                   onChange={e => {
                     const val = e.target.value;
-                    const normalized = val.trim().toLowerCase();
-                    const matchedWo = workOrders.find(
-                      w => (w.orderNumber || '').trim().toLowerCase() === normalized,
-                    );
-                    if (matchedWo) {
+                    const normalized = val.trim().replace(/^#+/, '').trim().toLowerCase();
+                    const matchedScope = normalized
+                      ? discoveredScopes.find(
+                          s => s.workOrderNumber.trim().toLowerCase() === normalized,
+                        )
+                      : undefined;
+                    if (matchedScope) {
                       const matchedCust = !saleData.customerId
                         ? customers.find(
                             c =>
-                              (matchedWo.customerId && c.id === matchedWo.customerId) ||
-                              (matchedWo.clientName &&
-                                c.name.trim().toLowerCase() === matchedWo.clientName.trim().toLowerCase()),
+                              (matchedScope.customerId && c.id === matchedScope.customerId) ||
+                              (matchedScope.clientName &&
+                                c.name.trim().toLowerCase() === matchedScope.clientName.trim().toLowerCase()),
                           )
                         : undefined;
                       setSaleData(prev => ({
                         ...prev,
                         workOrderNumber: val,
-                        branchName: matchedWo.branchName || matchedWo.title || prev.branchName,
-                        projectName: matchedWo.branchName || matchedWo.title || prev.projectName,
-                        company: matchedWo.company || prev.company,
+                        branchName: matchedScope.projectName || matchedScope.title || prev.branchName,
+                        projectName: matchedScope.projectName || matchedScope.title || prev.projectName,
+                        company: matchedScope.company || prev.company,
                         ...(matchedCust
                           ? {
                               customerId: matchedCust.id,
@@ -1747,13 +1761,15 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   className="w-full h-10 border border-slate-200 bg-white rounded-xl px-3 font-semibold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all shadow-2xs"
                 />
                 <datalist id="sales-work-orders-list">
-                  {workOrders.map(wo => (
-                    <option
-                      key={wo.id}
-                      value={wo.orderNumber}
-                      label={`${wo.title}${wo.clientName ? ` — ${wo.clientName}` : ''}`}
-                    />
-                  ))}
+                  {discoveredScopes
+                    .filter(s => s.workOrderNumber)
+                    .map(wo => (
+                      <option
+                        key={wo.key}
+                        value={wo.workOrderNumber}
+                        label={`${wo.projectName || wo.title}${wo.clientName ? ` — ${wo.clientName}` : ''}`}
+                      />
+                    ))}
                 </datalist>
               </div>
 
@@ -1952,6 +1968,17 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     if (selCust?.branchName && typeof selCust.branchName === 'string' && selCust.branchName.trim()) {
                       bSet.add(selCust.branchName.trim());
                     }
+                    const activeWoClean = String(saleData.workOrderNumber || '').trim().replace(/^#+/, '').trim().toLowerCase();
+                    discoveredScopes.forEach(s => {
+                      if (!s.projectName) return;
+                      const matchesCust =
+                        (selCust && s.customerId === selCust.id) ||
+                        (selCust?.name && s.clientName && s.clientName.trim().toLowerCase() === selCust.name.trim().toLowerCase());
+                      const matchesActiveWo = activeWoClean && s.workOrderNumber.trim().toLowerCase() === activeWoClean;
+                      if (matchesCust || matchesActiveWo) {
+                        bSet.add(s.projectName.trim());
+                      }
+                    });
                     const bList = Array.from(bSet).filter(Boolean);
 
                     return (

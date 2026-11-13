@@ -6139,10 +6139,12 @@ handleReturnOrder={handleReturnOrder}
                 <PurchasesTab
                   users={users}
                   vendors={vendors}
+                  customers={customers}
                   products={products}
                   transactions={transactions}
                   settings={settings}
                   setSelectedLedgerEntity={setSelectedLedgerEntity}
+                  setActiveTab={setActiveTab}
                   fetchData={fetchData}
                 />
               ) : activeTab === "business_units" ? (

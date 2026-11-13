@@ -54,11 +54,13 @@ export interface CalculateCustomerPositionOptions {
 }
 
 const normalizeTag = (val: unknown): string => String(val || '').trim().toLowerCase();
+const normalizeWOTag = (val: unknown): string =>
+  String(val || '').trim().replace(/^#+/, '').trim().toLowerCase();
 
 export const hasActiveProjectOrWorkOrderScope = (
   scope?: ProjectWorkOrderScope | null
 ): boolean => {
-  return Boolean(normalizeTag(scope?.workOrderNumber) || normalizeTag(scope?.projectName));
+  return Boolean(normalizeWOTag(scope?.workOrderNumber) || normalizeTag(scope?.projectName));
 };
 
 /**
@@ -71,7 +73,7 @@ export function doesTxMatchProjectOrWorkOrder(
   scope?: ProjectWorkOrderScope | null,
   orderScopeLookup?: Map<string, { workOrderNumber: string; projectName: string }>
 ): boolean {
-  const targetWO = normalizeTag(scope?.workOrderNumber);
+  const targetWO = normalizeWOTag(scope?.workOrderNumber);
   const targetProj = normalizeTag(scope?.projectName);
 
   if (!targetWO && !targetProj) return true;
@@ -81,7 +83,7 @@ export function doesTxMatchProjectOrWorkOrder(
     (tx.referenceId && orderScopeLookup?.get(String(tx.referenceId))) ||
     (tx.documentNumber && orderScopeLookup?.get(String(tx.documentNumber)));
 
-  const txWO = normalizeTag(tx.workOrderNumber || refOrder?.workOrderNumber);
+  const txWO = normalizeWOTag(tx.workOrderNumber || refOrder?.workOrderNumber);
   const txProj = normalizeTag(tx.projectName || tx.branchName || refOrder?.projectName);
 
   if (targetWO && targetProj) {
@@ -292,7 +294,7 @@ export function listCustomerProjectWorkOrderScopes(
 
   const scopeMap = new Map<string, { workOrderNumber?: string; projectName?: string }>();
   const addScope = (wo?: string, proj?: string) => {
-    const cleanWO = String(wo || '').trim();
+    const cleanWO = String(wo || '').trim().replace(/^#+/, '').trim();
     const cleanProj = String(proj || '').trim();
     if (!cleanWO && !cleanProj) return;
     const key = cleanWO ? `wo:${cleanWO.toLowerCase()}` : `proj:${cleanProj.toLowerCase()}`;
@@ -558,4 +560,215 @@ export function isCashRegisterMovement(tx: Partial<Transaction> | any): boolean 
   }
 
   return false;
+}
+
+export interface DiscoveredProjectWorkOrder {
+  key: string;
+  id: string;
+  workOrderNumber: string;
+  projectName: string;
+  customerId: string;
+  clientName: string;
+  company: string;
+  title: string;
+  budget: number;
+  issuedDate: string;
+  deadlineDate: string;
+  contactPerson: string;
+  contactPhone: string;
+  notes: string;
+  status: 'active' | 'completed' | 'on_hold' | 'cancelled';
+  isRegisteredWO: boolean;
+  registeredWorkOrder?: WorkOrder;
+  preferredPaymentAccountId?: string;
+  preferredPaymentAccountName?: string;
+  financials: WorkOrderFinancialSummary;
+}
+
+/**
+ * Unifies explicit `work_orders` documents with Work Orders and Projects referenced across
+ * Customer Advances (`transactions`), Supplier Purchases (`purchases`), and Invoices (`orders`)
+ * so every Project / Work Order is automatically discoverable across Purchase, Sale, and Tracking UIs.
+ */
+export function discoverProjectWorkOrders(input: {
+  workOrders?: WorkOrder[];
+  transactions?: (Partial<Transaction> | any)[];
+  orders?: Partial<Order>[];
+  purchases?: any[];
+  customers?: Customer[];
+}): DiscoveredProjectWorkOrder[] {
+  const map = new Map<string, Omit<DiscoveredProjectWorkOrder, 'financials'>>();
+  const customerList = input.customers || [];
+
+  const resolveCustomerByNameOrProj = (name?: string, proj?: string, custId?: string): Customer | undefined => {
+    if (custId) {
+      const byId = customerList.find(c => c.id === custId);
+      if (byId) return byId;
+    }
+    const cleanName = normalizeTag(name);
+    const cleanProj = normalizeTag(proj);
+    if (cleanName) {
+      const byName = customerList.find(c => normalizeTag(c.name) === cleanName);
+      if (byName) return byName;
+    }
+    if (cleanProj) {
+      const byProj = customerList.find(
+        c =>
+          normalizeTag(c.name) === cleanProj ||
+          normalizeTag(c.branchName) === cleanProj ||
+          (c.branches || []).some(b => normalizeTag(b) === cleanProj)
+      );
+      if (byProj) return byProj;
+    }
+    return undefined;
+  };
+
+  const upsert = (entry: {
+    wo?: string;
+    proj?: string;
+    customerId?: string;
+    clientName?: string;
+    company?: string;
+    title?: string;
+    issuedDate?: string;
+    preferredPaymentAccountId?: string;
+    preferredPaymentAccountName?: string;
+    registeredWorkOrder?: WorkOrder;
+  }) => {
+    const cleanWO = String(entry.wo || '').trim().replace(/^#+/, '').trim();
+    const cleanProj = String(entry.proj || '').trim();
+    if (!cleanWO && !cleanProj) return;
+
+    const woNorm = normalizeWOTag(cleanWO);
+    const projNorm = normalizeTag(cleanProj);
+    const key = woNorm ? `wo:${woNorm}` : `proj:${projNorm}`;
+
+    const prev = map.get(key);
+    const matchedCustomer = resolveCustomerByNameOrProj(
+      entry.clientName || prev?.clientName,
+      cleanProj || prev?.projectName,
+      entry.customerId || prev?.customerId
+    );
+    const reg = entry.registeredWorkOrder || prev?.registeredWorkOrder;
+
+    map.set(key, {
+      key,
+      id: reg?.id || key,
+      workOrderNumber: cleanWO || prev?.workOrderNumber || '',
+      projectName: prev?.projectName || cleanProj || reg?.branchName || '',
+      customerId: prev?.customerId || entry.customerId || reg?.customerId || matchedCustomer?.id || '',
+      clientName:
+        matchedCustomer?.name ||
+        prev?.clientName ||
+        entry.clientName ||
+        reg?.clientName ||
+        '',
+      company: reg?.company || prev?.company || entry.company || 'main',
+      title:
+        reg?.title ||
+        prev?.title ||
+        entry.title ||
+        (cleanWO && cleanProj
+          ? `${cleanProj} — WO #${cleanWO}`
+          : cleanWO
+          ? `Work Order #${cleanWO}`
+          : `Project: ${cleanProj}`),
+      budget: reg?.budget || prev?.budget || 0,
+      issuedDate:
+        reg?.issuedDate ||
+        prev?.issuedDate ||
+        (entry.issuedDate ? String(entry.issuedDate).split('T')[0] : new Date().toISOString().split('T')[0]),
+      deadlineDate: reg?.deadlineDate || prev?.deadlineDate || '',
+      contactPerson: reg?.contactPerson || prev?.contactPerson || '',
+      contactPhone: reg?.contactPhone || prev?.contactPhone || matchedCustomer?.phone || '',
+      notes: reg?.notes || prev?.notes || '',
+      status: reg?.status || prev?.status || 'active',
+      isRegisteredWO: Boolean(reg),
+      registeredWorkOrder: reg,
+      preferredPaymentAccountId: entry.preferredPaymentAccountId || prev?.preferredPaymentAccountId || '',
+      preferredPaymentAccountName: entry.preferredPaymentAccountName || prev?.preferredPaymentAccountName || '',
+    });
+  };
+
+  for (const wo of input.workOrders || []) {
+    if (!wo) continue;
+    upsert({
+      wo: wo.orderNumber,
+      proj: wo.branchName,
+      customerId: wo.customerId,
+      clientName: wo.clientName,
+      company: wo.company,
+      title: wo.title,
+      issuedDate: wo.issuedDate || wo.createdAt,
+      registeredWorkOrder: wo,
+    });
+  }
+
+  for (const tx of input.transactions || []) {
+    if (!tx) continue;
+    const wo = String(tx.workOrderNumber || '').trim();
+    const proj = String(tx.projectName || tx.branchName || '').trim();
+    if (!wo && !proj) continue;
+    const isAdv = Boolean(tx.isAdvance) || tx.category === 'Customer Advance';
+    const isCustomerSide = !tx.entityType || tx.entityType === 'customer';
+    upsert({
+      wo,
+      proj,
+      customerId: isCustomerSide ? tx.entityId : tx.linkedCustomerId,
+      clientName: isCustomerSide ? tx.entityName : tx.linkedCustomerName,
+      company: tx.company,
+      issuedDate: tx.date || tx.createdAt,
+      preferredPaymentAccountId: isAdv && tx.paymentAccountId ? tx.paymentAccountId : undefined,
+      preferredPaymentAccountName: isAdv && tx.paymentAccountName ? tx.paymentAccountName : undefined,
+    });
+  }
+
+  for (const p of input.purchases || []) {
+    if (!p) continue;
+    const wo = String(p.workOrderNumber || '').trim();
+    const proj = String(p.projectName || p.branchName || '').trim();
+    if (!wo && !proj) continue;
+    upsert({
+      wo,
+      proj,
+      customerId: p.customerId,
+      clientName: p.customerName,
+      issuedDate: p.date || p.createdAt,
+    });
+  }
+
+  for (const o of input.orders || []) {
+    if (!o || o.status === 'cancelled' || o.type === 'quotation') continue;
+    const wo = String(o.workOrderNumber || '').trim();
+    const proj = String(o.projectName || o.branchName || '').trim();
+    if (!wo && !proj) continue;
+    upsert({
+      wo,
+      proj,
+      customerId: o.customerId,
+      clientName: o.customerName,
+      company: o.company,
+      issuedDate: o.createdAt,
+    });
+  }
+
+  const results: DiscoveredProjectWorkOrder[] = Array.from(map.values()).map(item => ({
+    ...item,
+    financials: computeWorkOrderFinancials({
+      workOrderNumber: item.workOrderNumber || undefined,
+      projectName: item.projectName || undefined,
+      transactions: input.transactions || [],
+      orders: input.orders || [],
+      purchases: input.purchases || [],
+    }),
+  }));
+
+  return results.sort((a, b) => {
+    const aAdv = a.financials.remainingCustomerAdvance > 0 ? 1 : 0;
+    const bAdv = b.financials.remainingCustomerAdvance > 0 ? 1 : 0;
+    if (aAdv !== bAdv) return bAdv - aAdv;
+    const dateDiff = new Date(b.issuedDate || 0).getTime() - new Date(a.issuedDate || 0).getTime();
+    if (!isNaN(dateDiff) && dateDiff !== 0) return dateDiff;
+    return a.workOrderNumber.localeCompare(b.workOrderNumber);
+  });
 }
