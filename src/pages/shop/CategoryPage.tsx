@@ -363,8 +363,8 @@ export const CategoryPage: React.FC = () => {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
     'name': `${formattedCategoryName} Products in Bangladesh`,
-    'numberOfItems': sortedProducts.length,
-    'itemListElement': sortedProducts.slice(0, 12).map((p, idx) => ({
+    'numberOfItems': filteredProducts.length,
+    'itemListElement': filteredProducts.slice(0, 12).map((p, idx) => ({
       '@type': 'ListItem',
       'position': idx + 1,
       'name': p.name,
