@@ -13,6 +13,8 @@ import {
   doesTxBelongToCustomer,
   doesTxMatchProjectOrWorkOrder,
   isCashRegisterMovement,
+  isExplicitCustomerAdvanceTx,
+  isGenericBranchOrProjectTag,
   listCustomerProjectWorkOrderScopes,
   splitSalePaymentWithAdvance,
 } from '../../../src/utils/customerAdvanceAccounting';
@@ -806,5 +808,212 @@ describe('customerAdvanceAccounting', () => {
     expect(yeasinScopes).toHaveLength(1);
     expect(yeasinScopes[0].key).toBe('wo:5520');
     expect(yeasinScopes[0].advanceBalance).toBe(8000);
+  });
+
+  it('prevents cross-customer duplicate invoiceNumber leaks and loose description false matches', () => {
+    const volOrder: Partial<Order> = {
+      id: 'ord-vol-206',
+      invoiceNumber: 'INV-00206',
+      customerId: 'cust-vol',
+      customerName: 'Volumezero',
+      branchName: 'Corporate',
+      total: 51800,
+    };
+    const saifulOrder: Partial<Order> = {
+      id: 'ord-saiful-206',
+      invoiceNumber: 'INV-00206',
+      customerId: 'cust-saiful',
+      customerName: 'Md Saiful Islam',
+      total: 6100,
+    };
+    const lookup = buildOrderScopeLookup([volOrder, saifulOrder]);
+
+    const saifulPayTx: Partial<Transaction> = {
+      id: 'tx-saiful-pay',
+      type: 'payment_received',
+      entityId: 'cust-saiful',
+      entityName: 'Md Saiful Islam',
+      entityType: 'customer',
+      amount: 6100,
+      referenceId: 'ord-saiful-206',
+      documentNumber: 'INV-00206',
+      description: 'Payment for INV-00206',
+    };
+    expect(doesTxMatchProjectOrWorkOrder(saifulPayTx, { projectName: 'Corporate' }, lookup)).toBe(false);
+
+    const looseCorpSaleTx: Partial<Transaction> = {
+      id: 'tx-corp-desc',
+      type: 'sale',
+      entityName: 'Corporate',
+      entityType: 'customer',
+      amount: 4400,
+      documentNumber: 'INV-00212',
+      description: 'Sale to Corporate (#INV-00212)',
+    };
+    expect(doesTxMatchProjectOrWorkOrder(looseCorpSaleTx, { projectName: 'Corporate' }, lookup)).toBe(false);
+
+    const explicitTaggedTx: Partial<Transaction> = {
+      id: 'tx-tagged',
+      type: 'sale',
+      description: 'Order #INV-00300 (WO: 5520 | Project: Yeasin)',
+    };
+    expect(doesTxMatchProjectOrWorkOrder(explicitTaggedTx, { workOrderNumber: '5520' }, lookup)).toBe(true);
+    expect(doesTxMatchProjectOrWorkOrder(explicitTaggedTx, { projectName: 'Yeasin' }, lookup)).toBe(true);
+
+    const singleTagTx: Partial<Transaction> = {
+      id: 'tx-single-tag',
+      type: 'sale',
+      description: 'Order #INV-00301 (Project: Simpletree Shahzada)',
+    };
+    expect(doesTxMatchProjectOrWorkOrder(singleTagTx, { projectName: 'Simpletree Shahzada' }, lookup)).toBe(true);
+  });
+
+  it('distinguishes explicit customer advances from unmatched receipt credits and overpayments', () => {
+    const zahid = makeCustomer('cust-zahid', 'Mr Zahid');
+    const rashid = makeCustomer('cust-rashid', 'Md Abdur Rashid');
+    const jahirul = makeCustomer('cust-jahirul', 'Mr Jahirul Islam');
+    const resti = makeCustomer('cust-resti', 'MD Muntasir Alam Resti');
+
+    const zahidPos = calculateCustomerAccountPosition(
+      [
+        {
+          id: 'tx-z-1',
+          type: 'payment_received',
+          entityId: zahid.id,
+          entityName: zahid.name,
+          entityType: 'customer',
+          amount: 22462,
+          description: 'Received customer due payment',
+          date: '2026-10-08',
+        },
+        {
+          id: 'tx-z-2',
+          type: 'sale',
+          entityId: zahid.id,
+          entityName: zahid.name,
+          entityType: 'customer',
+          amount: 9800,
+          documentNumber: 'INV-00142',
+          date: '2026-10-09',
+        },
+      ],
+      zahid
+    );
+    expect(zahidPos.advanceBalance).toBe(12662);
+    expect(zahidPos.explicitAdvanceBalance).toBe(0);
+    expect(zahidPos.unmatchedCreditBalance).toBe(12662);
+
+    const rashidPos = calculateCustomerAccountPosition(
+      [
+        {
+          id: 'tx-r-1',
+          type: 'payment_received',
+          entityId: rashid.id,
+          entityName: rashid.name,
+          entityType: 'customer',
+          amount: 4000,
+          description: 'Payment for Invoice #INV-00149',
+          date: '2026-10-09',
+        },
+      ],
+      rashid
+    );
+    expect(rashidPos.advanceBalance).toBe(4000);
+    expect(rashidPos.explicitAdvanceBalance).toBe(0);
+    expect(rashidPos.unmatchedCreditBalance).toBe(4000);
+
+    const jahirulPos = calculateCustomerAccountPosition(
+      [
+        {
+          id: 'tx-j-1',
+          type: 'sale',
+          entityId: jahirul.id,
+          entityName: jahirul.name,
+          entityType: 'customer',
+          amount: 400,
+          documentNumber: 'INV-00210',
+          date: '2026-10-20',
+        },
+        {
+          id: 'tx-j-2',
+          type: 'payment_received',
+          entityId: jahirul.id,
+          entityName: jahirul.name,
+          entityType: 'customer',
+          amount: 4000,
+          documentNumber: 'INV-00210',
+          date: '2026-10-20',
+        },
+      ],
+      jahirul
+    );
+    expect(jahirulPos.advanceBalance).toBe(3600);
+    expect(jahirulPos.explicitAdvanceBalance).toBe(0);
+    expect(jahirulPos.unmatchedCreditBalance).toBe(3600);
+
+    const restiAdvTx: Partial<Transaction> = {
+      id: 'tx-resti-adv',
+      type: 'payment_received',
+      entityId: resti.id,
+      entityName: resti.name,
+      entityType: 'customer',
+      amount: 8000,
+      category: 'Customer Advance',
+      isAdvance: true,
+      workOrderNumber: '5520',
+      projectName: 'Yeasin',
+      date: '2026-11-13',
+    };
+    expect(isExplicitCustomerAdvanceTx(restiAdvTx)).toBe(true);
+    const restiPos = calculateCustomerPositionFromTransactions([restiAdvTx]);
+    expect(restiPos.advanceBalance).toBe(8000);
+    expect(restiPos.explicitAdvanceBalance).toBe(8000);
+    expect(restiPos.unmatchedCreditBalance).toBe(0);
+  });
+
+  it('filters standalone generic branch placeholders like Corporate from discovered project scopes', () => {
+    expect(isGenericBranchOrProjectTag('Corporate')).toBe(true);
+    expect(isGenericBranchOrProjectTag('Main')).toBe(true);
+    expect(isGenericBranchOrProjectTag('Simpletree The September')).toBe(false);
+
+    const orders: Partial<Order>[] = [
+      {
+        id: 'ord-corp',
+        invoiceNumber: 'INV-00206',
+        customerId: 'cust-vol',
+        customerName: 'Volumezero',
+        branchName: 'Corporate',
+        total: 51800,
+      },
+      {
+        id: 'ord-sept',
+        invoiceNumber: 'INV-00250',
+        customerId: 'cust-spacezero',
+        customerName: 'Spacezero Ltd',
+        branchName: 'Simpletree The September',
+        total: 12000,
+      },
+    ];
+    const txs: Partial<Transaction>[] = [
+      {
+        id: 'tx-adv-5520',
+        type: 'payment_received',
+        entityId: 'cust-resti',
+        entityName: 'MD Muntasir Alam Resti',
+        entityType: 'customer',
+        amount: 5,
+        category: 'Customer Advance',
+        isAdvance: true,
+        workOrderNumber: '5520',
+        projectName: 'Yeasin',
+        date: '2026-11-13',
+      },
+    ];
+
+    const discovered = discoverProjectWorkOrders({ transactions: txs, orders, workOrders: [] });
+    expect(discovered.some(d => d.projectName.toLowerCase() === 'corporate')).toBe(false);
+    expect(discovered.some(d => d.projectName === 'Simpletree The September')).toBe(true);
+    expect(discovered[0].workOrderNumber).toBe('5520');
+    expect(discovered[0].financials.explicitRemainingAdvance).toBe(5);
   });
 });

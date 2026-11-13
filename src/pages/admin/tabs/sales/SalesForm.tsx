@@ -1938,9 +1938,20 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                               : activeScope.projectName
                             : '';
                           if (pos.advanceBalance > 0) {
+                            const isExplicit = pos.explicitAdvanceBalance > 0.01;
+                            const advLabel = scopeLabel
+                              ? `${scopeLabel} ${isExplicit ? 'Advance' : 'Credit'}`
+                              : isExplicit
+                              ? 'Advance Credit'
+                              : 'Overpayment / Ledger Credit';
                             return (
-                              <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-extrabold">
-                                {scopeLabel ? `${scopeLabel} Advance` : 'Advance Credit'}: {formatCurrency(pos.advanceBalance, settings)}
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-[10px] font-extrabold border",
+                                isExplicit
+                                  ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                                  : "bg-amber-50 text-amber-800 border-amber-200"
+                              )}>
+                                {advLabel}: {formatCurrency(pos.advanceBalance, settings)}
                               </span>
                             );
                           }

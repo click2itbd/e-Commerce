@@ -39,12 +39,24 @@ export interface ProjectWorkOrderScope {
 export interface CustomerAccountPosition {
   totalDebits: number;
   totalCredits: number;
-  /** totalDebits - totalCredits. Positive = Customer Due (Receivable), Negative = Customer Advance (Liability). */
+  /** totalDebits - totalCredits. Positive = Customer Due (Receivable), Negative = Customer Credit / Advance (Liability). */
   netBalance: number;
   /** Accounts Receivable asset portion: Math.max(0, netBalance) */
   dueBalance: number;
-  /** Customer Advance Credit liability portion: Math.max(0, -netBalance) */
+  /** Total net Customer Credit / Advance Liability portion: Math.max(0, -netBalance) */
   advanceBalance: number;
+  /** Portion of `advanceBalance` explicitly recorded as Customer Advance Deposits (`isAdvance` / `Customer Advance`) */
+  explicitAdvanceBalance: number;
+  /** Portion of `advanceBalance` coming from un-tagged overpayments, old un-invoiced receipts, or credit returns */
+  unmatchedCreditBalance: number;
+}
+
+export interface OrderScopeLookupEntry {
+  orderId?: string;
+  workOrderNumber: string;
+  projectName: string;
+  customerId?: string;
+  customerName?: string;
 }
 
 export interface CalculateCustomerPositionOptions {
@@ -56,11 +68,85 @@ export interface CalculateCustomerPositionOptions {
 const normalizeTag = (val: unknown): string => String(val || '').trim().toLowerCase();
 const normalizeWOTag = (val: unknown): string =>
   String(val || '').trim().replace(/^#+/, '').trim().toLowerCase();
+const escapeRegExp = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const GENERIC_BRANCH_TAGS = new Set([
+  'main',
+  'main office',
+  'none',
+  'n/a',
+  'na',
+  'default',
+  'corporate',
+  '-',
+  '-- main office / none --',
+  '-- none / no project --',
+  '-- main / default --',
+]);
+
+export const isGenericBranchOrProjectTag = (val: unknown): boolean => {
+  const norm = normalizeTag(val);
+  return !norm || GENERIC_BRANCH_TAGS.has(norm);
+};
+
+export const isExplicitCustomerAdvanceTx = (tx: Partial<Transaction> | any): boolean => {
+  if (!tx) return false;
+  return Boolean(
+    tx.isAdvance === true ||
+      tx.category === 'Customer Advance' ||
+      (tx.type === 'deposit' && tx.entityType === 'customer' && tx.isAdvance)
+  );
+};
 
 export const hasActiveProjectOrWorkOrderScope = (
   scope?: ProjectWorkOrderScope | null
 ): boolean => {
   return Boolean(normalizeWOTag(scope?.workOrderNumber) || normalizeTag(scope?.projectName));
+};
+
+const orderDocBucketsMap = new WeakMap<
+  Map<string, OrderScopeLookupEntry>,
+  Map<string, OrderScopeLookupEntry[]>
+>();
+
+const doesDescriptionMatchScope = (descRaw: unknown, targetWO: string, targetProj: string): boolean => {
+  const desc = String(descRaw || '');
+  if (!desc.trim()) return false;
+
+  if (targetWO) {
+    const woRe = new RegExp(
+      `(?:^|[\\s(\\[|,;])(?:wo|work\\s*order)\\s*[:#-]*\\s*#?${escapeRegExp(targetWO)}(?=$|[\\s)\\]|,;])`,
+      'i'
+    );
+    return woRe.test(desc);
+  }
+
+  if (targetProj && !isGenericBranchOrProjectTag(targetProj)) {
+    const projRe = new RegExp(
+      `(?:project|branch(?:\\s*\\/\\s*project)?)\\s*[:\\-]+\\s*${escapeRegExp(targetProj)}(?=$|[\\s)\\]|,;])`,
+      'i'
+    );
+    return projRe.test(desc);
+  }
+
+  return false;
+};
+
+const doesOrderEntryMatchTxCustomer = (
+  entry: OrderScopeLookupEntry,
+  tx: Partial<Transaction> | any
+): boolean => {
+  const txCustId = String(tx?.entityId || tx?.customerId || '').trim();
+  const ordCustId = String(entry.customerId || '').trim();
+  if (txCustId && ordCustId) {
+    return txCustId === ordCustId;
+  }
+  const txCustName = normalizeTag(tx?.entityName || tx?.customerName);
+  const ordCustName = normalizeTag(entry.customerName);
+  if (txCustName && ordCustName) {
+    return txCustName === ordCustName;
+  }
+  return true;
 };
 
 /**
@@ -71,7 +157,7 @@ export const hasActiveProjectOrWorkOrderScope = (
 export function doesTxMatchProjectOrWorkOrder(
   tx: Partial<Transaction> | any,
   scope?: ProjectWorkOrderScope | null,
-  orderScopeLookup?: Map<string, { workOrderNumber: string; projectName: string }>
+  orderScopeLookup?: Map<string, OrderScopeLookupEntry>
 ): boolean {
   const targetWO = normalizeWOTag(scope?.workOrderNumber);
   const targetProj = normalizeTag(scope?.projectName);
@@ -79,9 +165,38 @@ export function doesTxMatchProjectOrWorkOrder(
   if (!targetWO && !targetProj) return true;
   if (!tx) return false;
 
-  const refOrder =
-    (tx.referenceId && orderScopeLookup?.get(String(tx.referenceId))) ||
-    (tx.documentNumber && orderScopeLookup?.get(String(tx.documentNumber)));
+  // 1. Resolve linked order safely:
+  //    - Prefer exact match by `tx.referenceId` (Firestore Order ID); if that exact order exists
+  //      and has no WO/Project, never fall back to duplicate documentNumber collisions.
+  //    - Only use `tx.documentNumber` fallback when `referenceId` didn't resolve an order ID,
+  //      and verify customer identity so duplicate invoice numbers across customers cannot leak.
+  let refOrder: OrderScopeLookupEntry | undefined;
+  let hasResolvedOrder = false;
+
+  const refId = tx.referenceId ? String(tx.referenceId) : '';
+  if (refId && orderScopeLookup?.has(refId)) {
+    refOrder = orderScopeLookup.get(refId);
+    hasResolvedOrder = true;
+  } else if (tx.documentNumber && orderScopeLookup) {
+    const docNum = String(tx.documentNumber);
+    const buckets = orderDocBucketsMap.get(orderScopeLookup)?.get(docNum);
+    if (buckets && buckets.length > 0) {
+      const custMatched = buckets.filter(c => doesOrderEntryMatchTxCustomer(c, tx));
+      if (custMatched.length > 0) {
+        refOrder =
+          (targetWO && custMatched.find(c => normalizeWOTag(c.workOrderNumber) === targetWO)) ||
+          (targetProj && custMatched.find(c => normalizeTag(c.projectName) === targetProj)) ||
+          custMatched[0];
+        hasResolvedOrder = true;
+      }
+    } else {
+      const single = orderScopeLookup.get(docNum);
+      if (single && doesOrderEntryMatchTxCustomer(single, tx)) {
+        refOrder = single;
+        hasResolvedOrder = true;
+      }
+    }
+  }
 
   const txWO = normalizeWOTag(tx.workOrderNumber || refOrder?.workOrderNumber);
   const txProj = normalizeTag(tx.projectName || tx.branchName || refOrder?.projectName);
@@ -89,20 +204,20 @@ export function doesTxMatchProjectOrWorkOrder(
   if (targetWO && targetProj) {
     if (txWO) return txWO === targetWO;
     if (txProj) return txProj === targetProj;
-    const desc = normalizeTag(tx.description);
-    return desc.includes(targetWO);
+    if (hasResolvedOrder) return false;
+    return doesDescriptionMatchScope(tx.description, targetWO, '');
   }
 
   if (targetWO) {
     if (txWO) return txWO === targetWO;
-    const desc = normalizeTag(tx.description);
-    return desc.includes(targetWO);
+    if (hasResolvedOrder) return false;
+    return doesDescriptionMatchScope(tx.description, targetWO, '');
   }
 
   if (targetProj) {
     if (txProj) return txProj === targetProj;
-    const desc = normalizeTag(tx.description);
-    return desc.includes(targetProj);
+    if (hasResolvedOrder) return false;
+    return doesDescriptionMatchScope(tx.description, '', targetProj);
   }
 
   return false;
@@ -110,18 +225,39 @@ export function doesTxMatchProjectOrWorkOrder(
 
 export function buildOrderScopeLookup(
   orders?: Partial<Order>[] | null
-): Map<string, { workOrderNumber: string; projectName: string }> {
-  const map = new Map<string, { workOrderNumber: string; projectName: string }>();
+): Map<string, OrderScopeLookupEntry> {
+  const map = new Map<string, OrderScopeLookupEntry>();
+  const docBuckets = new Map<string, OrderScopeLookupEntry[]>();
+
   for (const o of orders || []) {
     if (!o) continue;
     const wo = String(o.workOrderNumber || '').trim();
     const proj = String(o.projectName || o.branchName || '').trim();
-    if (!wo && !proj) continue;
-    const entry = { workOrderNumber: wo, projectName: proj };
-    if (o.id) map.set(String(o.id), entry);
-    if (o.documentNumber) map.set(String(o.documentNumber), entry);
-    if (o.invoiceNumber) map.set(String(o.invoiceNumber), entry);
+    const entry: OrderScopeLookupEntry = {
+      orderId: o.id ? String(o.id) : undefined,
+      workOrderNumber: wo,
+      projectName: proj,
+      customerId: o.customerId ? String(o.customerId) : undefined,
+      customerName: o.customerName ? String(o.customerName) : undefined,
+    };
+
+    // Always index every order by its exact document ID so regular invoices cleanly stop fallback lookups.
+    if (o.id) {
+      map.set(String(o.id), entry);
+    }
+
+    const docNums = [o.documentNumber, o.invoiceNumber].filter(Boolean).map(v => String(v));
+    for (const dNum of docNums) {
+      const prevList = docBuckets.get(dNum) || [];
+      prevList.push(entry);
+      docBuckets.set(dNum, prevList);
+      if ((wo || proj) && !map.has(dNum)) {
+        map.set(dNum, entry);
+      }
+    }
   }
+
+  orderDocBucketsMap.set(map, docBuckets);
   return map;
 }
 
@@ -184,6 +320,8 @@ export function calculateCustomerPositionFromTransactions(
 ): CustomerAccountPosition {
   let totalDebits = 0;
   let totalCredits = 0;
+  let explicitAdvDeposited = 0;
+  let explicitAdvRefunded = 0;
 
   const hasScope = hasActiveProjectOrWorkOrderScope(options?.scope);
   const lookup = hasScope ? buildOrderScopeLookup(options?.orders) : undefined;
@@ -197,17 +335,32 @@ export function calculateCustomerPositionFromTransactions(
     if (amount <= 0) continue;
 
     const { isDebit, isCredit } = classifyCustomerTransaction(tx);
-    if (isDebit) totalDebits += amount;
-    if (isCredit) totalCredits += amount;
+    if (isDebit) {
+      totalDebits += amount;
+      if (tx.type === 'advance_refund') explicitAdvRefunded += amount;
+    }
+    if (isCredit) {
+      totalCredits += amount;
+      if (isExplicitCustomerAdvanceTx(tx)) explicitAdvDeposited += amount;
+    }
   }
 
   const netBalance = totalDebits - totalCredits;
+  const advanceBalance = netBalance < -0.005 ? Math.abs(netBalance) : 0;
+  const explicitAdvanceBalance = Math.min(
+    advanceBalance,
+    Math.max(0, explicitAdvDeposited - explicitAdvRefunded)
+  );
+  const unmatchedCreditBalance = Math.max(0, advanceBalance - explicitAdvanceBalance);
+
   return {
     totalDebits,
     totalCredits,
     netBalance,
     dueBalance: netBalance > 0.005 ? netBalance : 0,
-    advanceBalance: netBalance < -0.005 ? Math.abs(netBalance) : 0,
+    advanceBalance,
+    explicitAdvanceBalance,
+    unmatchedCreditBalance,
   };
 }
 
@@ -221,12 +374,28 @@ export function calculateCustomerAccountPosition(
   options?: CalculateCustomerPositionOptions
 ): CustomerAccountPosition {
   if (!transactions || !customer) {
-    return { totalDebits: 0, totalCredits: 0, netBalance: 0, dueBalance: 0, advanceBalance: 0 };
+    return {
+      totalDebits: 0,
+      totalCredits: 0,
+      netBalance: 0,
+      dueBalance: 0,
+      advanceBalance: 0,
+      explicitAdvanceBalance: 0,
+      unmatchedCreditBalance: 0,
+    };
   }
 
   const targetCustomer = typeof customer === 'string' ? { id: customer, name: '' } : customer;
   if (!targetCustomer.id && !targetCustomer.name) {
-    return { totalDebits: 0, totalCredits: 0, netBalance: 0, dueBalance: 0, advanceBalance: 0 };
+    return {
+      totalDebits: 0,
+      totalCredits: 0,
+      netBalance: 0,
+      dueBalance: 0,
+      advanceBalance: 0,
+      explicitAdvanceBalance: 0,
+      unmatchedCreditBalance: 0,
+    };
   }
 
   const matched = transactions.filter(tx => {
@@ -293,10 +462,11 @@ export function listCustomerProjectWorkOrderScopes(
   if (!customer) return [];
 
   const scopeMap = new Map<string, { workOrderNumber?: string; projectName?: string }>();
-  const addScope = (wo?: string, proj?: string) => {
+  const addScope = (wo?: string, proj?: string, allowGeneric?: boolean) => {
     const cleanWO = String(wo || '').trim().replace(/^#+/, '').trim();
     const cleanProj = String(proj || '').trim();
     if (!cleanWO && !cleanProj) return;
+    if (!cleanWO && !allowGeneric && isGenericBranchOrProjectTag(cleanProj)) return;
     const key = cleanWO ? `wo:${cleanWO.toLowerCase()}` : `proj:${cleanProj.toLowerCase()}`;
     const prev = scopeMap.get(key);
     scopeMap.set(key, {
@@ -320,7 +490,7 @@ export function listCustomerProjectWorkOrderScopes(
 
   transactions.forEach(tx => {
     if (doesTxBelongToCustomer(tx, customer)) {
-      addScope(tx.workOrderNumber, tx.projectName || tx.branchName);
+      addScope(tx.workOrderNumber, tx.projectName || tx.branchName, isExplicitCustomerAdvanceTx(tx));
     }
   });
 
@@ -354,6 +524,7 @@ export interface WorkOrderFinancialSummary {
   netAdvanceDeposits: number;
   advanceAppliedOnSales: number;
   remainingCustomerAdvance: number;
+  explicitRemainingAdvance: number;
   customerDue: number;
   totalPurchasesCost: number;
   totalVendorPaid: number;
@@ -459,13 +630,17 @@ export function computeWorkOrderFinancials(input: {
 
   const netAdvanceDeposits = Math.max(0, advancesReceived - advancesRefunded);
   const netCustomerBal = customerDebits - customerCredits;
+  const remainingCustomerAdvance = netCustomerBal < -0.005 ? Math.abs(netCustomerBal) : 0;
+  const explicitRemainingAdvance =
+    advancesReceived > 0 ? Math.min(remainingCustomerAdvance, netAdvanceDeposits) : 0;
 
   return {
     advancesReceived,
     advancesRefunded,
     netAdvanceDeposits,
     advanceAppliedOnSales,
-    remainingCustomerAdvance: netCustomerBal < -0.005 ? Math.abs(netCustomerBal) : 0,
+    remainingCustomerAdvance,
+    explicitRemainingAdvance,
     customerDue: netCustomerBal > 0.005 ? netCustomerBal : 0,
     totalPurchasesCost,
     totalVendorPaid,
@@ -634,6 +809,7 @@ export function discoverProjectWorkOrders(input: {
     preferredPaymentAccountId?: string;
     preferredPaymentAccountName?: string;
     registeredWorkOrder?: WorkOrder;
+    isExplicitAdvance?: boolean;
   }) => {
     const cleanWO = String(entry.wo || '').trim().replace(/^#+/, '').trim();
     const cleanProj = String(entry.proj || '').trim();
@@ -642,8 +818,13 @@ export function discoverProjectWorkOrders(input: {
     const woNorm = normalizeWOTag(cleanWO);
     const projNorm = normalizeTag(cleanProj);
     const key = woNorm ? `wo:${woNorm}` : `proj:${projNorm}`;
-
     const prev = map.get(key);
+
+    // Ignore generic branch/office placeholders (like 'Corporate', 'Main') unless paired with a Work Order
+    // or a registered WorkOrder document or an explicit Customer Advance transaction.
+    if (!woNorm && !prev && isGenericBranchOrProjectTag(cleanProj) && !entry.registeredWorkOrder && !entry.isExplicitAdvance) {
+      return;
+    }
     const matchedCustomer = resolveCustomerByNameOrProj(
       entry.clientName || prev?.clientName,
       cleanProj || prev?.projectName,
@@ -709,7 +890,7 @@ export function discoverProjectWorkOrders(input: {
     const wo = String(tx.workOrderNumber || '').trim();
     const proj = String(tx.projectName || tx.branchName || '').trim();
     if (!wo && !proj) continue;
-    const isAdv = Boolean(tx.isAdvance) || tx.category === 'Customer Advance';
+    const isAdv = isExplicitCustomerAdvanceTx(tx);
     const isCustomerSide = !tx.entityType || tx.entityType === 'customer';
     upsert({
       wo,
@@ -720,6 +901,7 @@ export function discoverProjectWorkOrders(input: {
       issuedDate: tx.date || tx.createdAt,
       preferredPaymentAccountId: isAdv && tx.paymentAccountId ? tx.paymentAccountId : undefined,
       preferredPaymentAccountName: isAdv && tx.paymentAccountName ? tx.paymentAccountName : undefined,
+      isExplicitAdvance: isAdv,
     });
   }
 
@@ -764,9 +946,15 @@ export function discoverProjectWorkOrders(input: {
   }));
 
   return results.sort((a, b) => {
-    const aAdv = a.financials.remainingCustomerAdvance > 0 ? 1 : 0;
-    const bAdv = b.financials.remainingCustomerAdvance > 0 ? 1 : 0;
-    if (aAdv !== bAdv) return bAdv - aAdv;
+    const aExplicit = a.financials.explicitRemainingAdvance > 0 ? 1 : 0;
+    const bExplicit = b.financials.explicitRemainingAdvance > 0 ? 1 : 0;
+    if (aExplicit !== bExplicit) return bExplicit - aExplicit;
+    const aHasAdv = a.financials.advancesReceived > 0 ? 1 : 0;
+    const bHasAdv = b.financials.advancesReceived > 0 ? 1 : 0;
+    if (aHasAdv !== bHasAdv) return bHasAdv - aHasAdv;
+    const aReg = a.isRegisteredWO ? 1 : 0;
+    const bReg = b.isRegisteredWO ? 1 : 0;
+    if (aReg !== bReg) return bReg - aReg;
     const dateDiff = new Date(b.issuedDate || 0).getTime() - new Date(a.issuedDate || 0).getTime();
     if (!isNaN(dateDiff) && dateDiff !== 0) return dateDiff;
     return a.workOrderNumber.localeCompare(b.workOrderNumber);

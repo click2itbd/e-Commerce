@@ -809,9 +809,19 @@ const Purchases: React.FC<PurchasesProps> = ({
         customer: c,
         pos: calculateCustomerAccountPosition(transactions, c),
       }))
-      .filter(entry => entry.pos.advanceBalance > 0.01)
-      .sort((a, b) => b.pos.advanceBalance - a.pos.advanceBalance);
+      .filter(entry => entry.pos.explicitAdvanceBalance > 0.01)
+      .sort((a, b) => b.pos.explicitAdvanceBalance - a.pos.explicitAdvanceBalance);
   }, [customers, transactions]);
+
+  const quickPickScopes = useMemo(() => {
+    return discoveredScopes.filter(
+      s =>
+        s.financials.explicitRemainingAdvance > 0 ||
+        (s.isRegisteredWO && s.status === 'active') ||
+        (s.financials.totalPurchasesCost > s.financials.totalSalesInvoiced &&
+          s.financials.customerDue <= 0)
+    );
+  }, [discoveredScopes]);
 
   const activePurchaseContext = useMemo(() => {
     const cleanWO = String(purchaseForm.workOrderNumber || '').trim().replace(/^#+/, '').trim();
@@ -1868,10 +1878,10 @@ const Purchases: React.FC<PurchasesProps> = ({
                     </div>
 
                     {/* Quick-Pick Pills for Active Advances / Work Orders */}
-                    {(discoveredScopes.length > 0 || customersWithAdvance.length > 0) && (
+                    {(quickPickScopes.length > 0 || customersWithAdvance.length > 0) && (
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-[10px] font-bold text-slate-500 mr-1">Quick Pick:</span>
-                        {discoveredScopes.slice(0, 6).map(scope => {
+                        {quickPickScopes.slice(0, 5).map(scope => {
                           const isSelected =
                             (scope.workOrderNumber &&
                               activePurchaseContext.cleanWO.toLowerCase() === scope.workOrderNumber.trim().toLowerCase()) ||
@@ -1881,6 +1891,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                           const prefAcc = scope.preferredPaymentAccountId
                             ? paymentAccounts.find(a => a.id === scope.preferredPaymentAccountId)
                             : undefined;
+                          const hasExplicitAdv = scope.financials.explicitRemainingAdvance > 0;
                           return (
                             <button
                               key={scope.key}
@@ -1904,7 +1915,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                                 "px-2 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1",
                                 isSelected
                                   ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
-                                  : scope.financials.remainingCustomerAdvance > 0
+                                  : hasExplicitAdv
                                   ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-emerald-200"
                                   : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200"
                               )}
@@ -1917,12 +1928,12 @@ const Purchases: React.FC<PurchasesProps> = ({
                                   · {scope.clientName}
                                 </span>
                               )}
-                              {scope.financials.remainingCustomerAdvance > 0 && (
+                              {hasExplicitAdv && (
                                 <span className={cn(
                                   "px-1 py-0.2 rounded font-black",
                                   isSelected ? "bg-emerald-400/30 text-white" : "bg-emerald-100 text-emerald-800"
                                 )}>
-                                  Adv {formatCurrency(scope.financials.remainingCustomerAdvance, settings)}
+                                  Adv {formatCurrency(scope.financials.explicitRemainingAdvance, settings)}
                                 </span>
                               )}
                             </button>
@@ -1931,7 +1942,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                         {customersWithAdvance
                           .filter(
                             cEntry =>
-                              !discoveredScopes.slice(0, 6).some(s => s.customerId === cEntry.customer.id)
+                              !quickPickScopes.slice(0, 5).some(s => s.customerId === cEntry.customer.id)
                           )
                           .slice(0, 3)
                           .map(({ customer, pos }) => {
@@ -1980,7 +1991,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                                   "px-1 rounded font-black",
                                   isSelected ? "bg-white/20 text-white" : "bg-teal-100 text-teal-800"
                                 )}>
-                                  Adv {formatCurrency(pos.advanceBalance, settings)}
+                                  Adv {formatCurrency(pos.explicitAdvanceBalance, settings)}
                                 </span>
                               </button>
                             );
@@ -2111,7 +2122,9 @@ const Purchases: React.FC<PurchasesProps> = ({
                             return (
                               <option key={c.id} value={c.id}>
                                 {c.name}
-                                {pos.advanceBalance > 0 ? ` (Adv: ৳${pos.advanceBalance.toLocaleString()})` : ''}
+                                {pos.explicitAdvanceBalance > 0
+                                  ? ` (Adv: ৳${pos.explicitAdvanceBalance.toLocaleString()})`
+                                  : ''}
                               </option>
                             );
                           })}
@@ -2232,10 +2245,10 @@ const Purchases: React.FC<PurchasesProps> = ({
                                   : activePurchaseContext.cleanProj || activePurchaseContext.matchedCustomer?.name}
                               </b>
                               {activePurchaseContext.overallCustomerPos &&
-                                activePurchaseContext.overallCustomerPos.advanceBalance > 0 && (
+                                activePurchaseContext.overallCustomerPos.explicitAdvanceBalance > 0 && (
                                   <span className="ml-1.5 text-teal-800 font-bold">
                                     (Customer Overall Advance Wallet:{' '}
-                                    {formatCurrency(activePurchaseContext.overallCustomerPos.advanceBalance, settings)})
+                                    {formatCurrency(activePurchaseContext.overallCustomerPos.explicitAdvanceBalance, settings)})
                                   </span>
                                 )}
                               .

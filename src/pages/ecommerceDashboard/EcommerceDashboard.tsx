@@ -160,14 +160,21 @@ const EcommerceDashboard: React.FC = () => {
       if (paymentStatus === 'paid') {
         const order = orders.find(o => o.id === orderId);
         if (order) {
-          const paidAmount = Number(order.total || 0) - Number(order.advancePaidAmount || 0);
-          if (paidAmount > 0) {
+          const existingPaySnap = await getDocs(
+            query(collection(db, 'transactions'), where('referenceId', '==', orderId), where('type', '==', 'payment_received'))
+          );
+          const alreadyLoggedPay = existingPaySnap.docs.reduce(
+            (sum, d) => sum + (Number(d.data()?.amount) || 0),
+            0
+          );
+          const remainingToRecord = Math.max(0, Number(order.total || 0) - alreadyLoggedPay);
+          if (remainingToRecord > 0.01) {
             await addDoc(collection(db, 'transactions'), {
               type: 'payment_received',
-              amount: paidAmount,
+              amount: remainingToRecord,
               date: new Date().toISOString(),
               description: `Payment for Order #${order.documentNumber || order.id.slice(0, 8)}`,
-              entityId: order.userId || 'web_customer',
+              entityId: (order as any).customerId || order.userId || 'web_customer',
               entityName: order.customerName || 'Online Customer',
               entityType: 'customer',
               referenceId: order.id,
@@ -270,10 +277,15 @@ const EcommerceDashboard: React.FC = () => {
             }
 
             const txSnap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', orderId), where('type', '==', 'payment_received')));
-            if (txSnap.empty) {
+            const alreadyLoggedCod = txSnap.docs.reduce(
+              (sum, d) => sum + (Number(d.data()?.amount) || 0),
+              0
+            );
+            const remainingCodAmount = Math.max(0, (Number(order.total) || 0) - alreadyLoggedCod);
+            if (remainingCodAmount > 0.01) {
               await addDoc(collection(db, 'transactions'), {
                 type: 'payment_received',
-                amount: Number(order.total) || 0,
+                amount: remainingCodAmount,
                 date: new Date().toISOString().split('T')[0],
                 description: `COD Collected by Courier for Order #${order.documentNumber || order.id.slice(0, 8)} (${(order as any).courier || 'Steadfast'})`,
                 entityId: order.customerId || (order as any).userId || 'general',

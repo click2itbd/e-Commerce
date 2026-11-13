@@ -121,7 +121,12 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
   }, [customerPositionsSummary]);
 
   const calculatedAdvanceCustomers = useMemo(() => {
-    return customerPositionsSummary.withAdvance.map(c => ({ ...c.customer, currentBalance: c.advanceBalance }));
+    return customerPositionsSummary.withAdvance.map(c => ({
+      ...c.customer,
+      currentBalance: c.advanceBalance,
+      explicitAdvanceBalance: c.explicitAdvanceBalance,
+      unmatchedCreditBalance: c.unmatchedCreditBalance,
+    }));
   }, [customerPositionsSummary]);
 
   const totalCustomerAdvances = customerPositionsSummary.totalCustomerAdvances;
@@ -774,10 +779,16 @@ const AccountBalanceTab: React.FC<AccountBalanceProps> = ({ setSelectedLedgerEnt
                           <span className={cn(
                             "text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border block text-center mt-0.5",
                             customerColumnView === 'advances'
-                              ? "text-cyan-700 bg-cyan-50 border-cyan-200/60"
+                              ? (c as any).explicitAdvanceBalance > 0.01
+                                ? "text-cyan-700 bg-cyan-50 border-cyan-200/60"
+                                : "text-amber-700 bg-amber-50 border-amber-200/60"
                               : "text-emerald-600 bg-emerald-50 border-emerald-200/50"
                           )}>
-                            {customerColumnView === 'advances' ? 'Advance' : 'Due'}
+                            {customerColumnView === 'advances'
+                              ? (c as any).explicitAdvanceBalance > 0.01
+                                ? 'Advance'
+                                : 'Overpay / Credit'
+                              : 'Due'}
                           </span>
                         </div>
                         <div className="text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all print:hidden">

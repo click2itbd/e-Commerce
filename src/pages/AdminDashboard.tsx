@@ -2259,10 +2259,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           }
 
           const txSnap = await getDocs(query(collection(db, 'transactions'), where('referenceId', '==', orderId), where('type', '==', 'payment_received')));
-          if (txSnap.empty) {
+          const alreadyLoggedCod = txSnap.docs.reduce(
+            (sum, d) => sum + (Number(d.data()?.amount) || 0),
+            0
+          );
+          const remainingCodAmount = Math.max(0, (Number(order.total) || 0) - alreadyLoggedCod);
+          if (remainingCodAmount > 0.01) {
             await addDoc(collection(db, 'transactions'), {
               type: 'payment_received',
-              amount: Number(order.total) || 0,
+              amount: remainingCodAmount,
               date: new Date().toISOString().split('T')[0],
               description: `COD Collected by Courier for Order #${order.documentNumber || order.id.slice(0, 8)} (${(order as any).courier || 'Steadfast'})`,
               entityId: order.customerId || (order as any).userId || 'general',

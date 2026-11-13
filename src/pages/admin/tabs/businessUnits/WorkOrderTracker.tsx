@@ -572,12 +572,12 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                     <div className="flex items-center gap-2 flex-wrap pt-1">
                       <span className={cn(
                         "px-2 py-0.5 rounded-md text-[10px] font-bold border",
-                        fin.remainingCustomerAdvance > 0
+                        fin.explicitRemainingAdvance > 0
                           ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                           : "bg-slate-50 text-slate-600 border-slate-200"
                       )}>
                         Adv Received: {formatCurrency(fin.advancesReceived, settings)}
-                        {fin.remainingCustomerAdvance > 0 && ` (Credit Left: ${formatCurrency(fin.remainingCustomerAdvance, settings)})`}
+                        {fin.explicitRemainingAdvance > 0 && ` (Credit Left: ${formatCurrency(fin.explicitRemainingAdvance, settings)})`}
                       </span>
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                         Purchase Cost: {formatCurrency(fin.totalPurchasesCost, settings)}

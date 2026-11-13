@@ -41,6 +41,7 @@ import {
   buildOrderScopeLookup,
   classifyCustomerTransaction,
   doesTxMatchProjectOrWorkOrder,
+  isExplicitCustomerAdvanceTx,
   listCustomerProjectWorkOrderScopes,
 } from '../../../../utils/customerAdvanceAccounting';
 
@@ -1360,9 +1361,22 @@ export default function CustomerDueList() {
                     {/* Aging Status Badge */}
                     <td className="px-6 py-4">
                       {customer.due < -0.01 ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 w-fit">
-                          <Wallet size={11} /> Advance Held
-                        </span>
+                        (() => {
+                          const hasExplicitAdv = transactions.some(
+                            t =>
+                              (t.entityId === customer.id || (customer.linkedIds || []).includes(t.entityId || '')) &&
+                              isExplicitCustomerAdvanceTx(t)
+                          );
+                          return hasExplicitAdv ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 w-fit">
+                              <Wallet size={11} /> Advance Held
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 border border-amber-200 w-fit">
+                              <Wallet size={11} /> Overpay / Credit
+                            </span>
+                          );
+                        })()
                       ) : customer.daysOld > 0 && customer.due > 0.01 ? (
                         <div className="flex flex-col gap-1">
                           <span className={cn(
@@ -1389,14 +1403,29 @@ export default function CustomerDueList() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex flex-col items-end gap-1">
                         {customer.due < -0.01 ? (
-                          <div>
-                            <span className="font-black text-base text-emerald-700 tracking-tight block">
-                              {formatCurrency(Math.abs(customer.due), settings)}
-                            </span>
-                            <span className="text-[10px] font-extrabold uppercase text-emerald-600">
-                              Advance Credit
-                            </span>
-                          </div>
+                          (() => {
+                            const hasExplicitAdv = transactions.some(
+                              t =>
+                                (t.entityId === customer.id || (customer.linkedIds || []).includes(t.entityId || '')) &&
+                                isExplicitCustomerAdvanceTx(t)
+                            );
+                            return (
+                              <div>
+                                <span className={cn(
+                                  "font-black text-base tracking-tight block",
+                                  hasExplicitAdv ? "text-emerald-700" : "text-amber-700"
+                                )}>
+                                  {formatCurrency(Math.abs(customer.due), settings)}
+                                </span>
+                                <span className={cn(
+                                  "text-[10px] font-extrabold uppercase",
+                                  hasExplicitAdv ? "text-emerald-600" : "text-amber-600"
+                                )}>
+                                  {hasExplicitAdv ? 'Advance Credit' : 'Excess / Unmatched Credit'}
+                                </span>
+                              </div>
+                            );
+                          })()
                         ) : (
                           <span className="font-black text-base text-red-600 tracking-tight">
                             {formatCurrency(customer.due, settings)}
