@@ -71,7 +71,7 @@ export const CRMPage: React.FC = () => {
   
     const socialLeadsCount = leads.filter(l => ['social', 'facebook', 'instagram', 'twitter', 'linkedin'].includes(l.source?.toLowerCase() || '')).length;
   const whatsappLeadsCount = leads.filter(l => l.source?.toLowerCase().includes('whatsapp')).length;
-  const webLeadsCount = leads.filter(l => ['web', 'web_form', 'floating live_chat', 'web chat'].includes(l.source?.toLowerCase() || '')).length;
+  const webLeadsCount = leads.filter(l => ['web', 'web_form', 'floating live_chat', 'floating_live_chat', 'floating_live_chat_callback', 'web chat'].includes(l.source?.toLowerCase() || '')).length;
   const googleAdsLeadsCount = leads.filter(l => l.source?.toLowerCase().includes('google')).length;
 
   const filteredLeads = leads.filter(l => 

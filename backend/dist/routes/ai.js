@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateChatResponse, polishText } from '../services/ai.js';
+import { generateChatResponse, generateStorefrontChatResponse, polishText, } from '../services/ai.js';
 const aiRouter = Router();
 aiRouter.post('/chat', async (req, res) => {
     try {
@@ -19,12 +19,20 @@ aiRouter.post('/chat', async (req, res) => {
                 pageTitle: typeof context.pageTitle === 'string' ? context.pageTitle.slice(0, 120) : undefined,
                 cartCount: typeof context.cartCount === 'number' ? context.cartCount : undefined,
                 cartTotal: typeof context.cartTotal === 'number' ? context.cartTotal : undefined,
+                productId: typeof context.productId === 'string' ? context.productId.slice(0, 100) : undefined,
             }
             : undefined;
+        if (mode === 'storefront_chat') {
+            const result = await generateStorefrontChatResponse(message.trim(), {
+                history: sanitizedHistory,
+                context: sanitizedContext,
+            });
+            return res.json(result);
+        }
         const reply = await generateChatResponse(message.trim(), {
             history: sanitizedHistory,
             context: sanitizedContext,
-            mode: mode === 'storefront_chat' ? 'storefront_chat' : 'general',
+            mode: 'general',
         });
         return res.json({ reply });
     }

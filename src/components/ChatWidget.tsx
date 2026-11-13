@@ -16,19 +16,43 @@ import {
   Copy,
   Check,
   Sparkles,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getApiUrl } from '../services/apiClient';
+import { apiPost } from '../services/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { useCart } from '../context/CartContext';
+import {
+  MatchedChatProduct,
+  ChatWidgetType,
+  ChatProductCards,
+  ChatOrderTrackerCard,
+  ChatEMICalculatorCard,
+  ChatCouponCheckerCard,
+  ChatCallbackFormCard,
+} from './chat/ChatInteractiveCards';
 
 interface Message {
   id: string;
   sender: 'user' | 'bot';
   text: string;
   timestamp: string;
+  products?: MatchedChatProduct[];
+  followUps?: string[];
+  widget?: ChatWidgetType;
+  suggestedAmount?: number;
+  feedback?: 'up' | 'down';
+}
+
+interface ChatApiResponse {
+  reply?: string;
+  products?: MatchedChatProduct[];
+  followUps?: string[];
+  widget?: ChatWidgetType;
+  suggestedAmount?: number;
 }
 
 const STORAGE_KEY = 'click2it_chat_history_v1';
@@ -190,6 +214,50 @@ export const ChatWidget: React.FC = () => {
     }).catch(() => {});
   };
 
+  const navigateFromChat = (path: string) => {
+    navigate(path);
+    if (window.innerWidth < 640) setIsOpen(false);
+  };
+
+  const currentProductId = useMemo(() => {
+    const match = location.pathname.match(/^\/product\/([^/?#]+)/);
+    return match ? decodeURIComponent(match[1]) : undefined;
+  }, [location.pathname]);
+
+  const lastUserMessageText = useMemo(() => {
+    const lastUser = [...messages].reverse().find((m) => m.sender === 'user');
+    return lastUser?.text || '';
+  }, [messages]);
+
+  const waPrefilledUrl = useMemo(() => {
+    const baseText = lastUserMessageText
+      ? `Assalamu Alaikum ${brandName}, I was chatting on your website regarding: "${lastUserMessageText.slice(0, 140)}"`
+      : `Assalamu Alaikum ${brandName}, I need assistance.`;
+    return `https://wa.me/${waNumber}?text=${encodeURIComponent(baseText)}`;
+  }, [waNumber, brandName, lastUserMessageText]);
+
+  const handleOpenQuickWidget = (
+    widget: Exclude<ChatWidgetType, null>,
+    titleText: string,
+    suggestedAmount?: number
+  ) => {
+    const quickMsg: Message = {
+      id: `widget-${Date.now()}`,
+      sender: 'bot',
+      text: titleText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      widget,
+      ...(suggestedAmount ? { suggestedAmount } : {}),
+    };
+    setMessages((prev) => [...prev, quickMsg]);
+  };
+
+  const handleMessageFeedback = (id: string, vote: 'up' | 'down') => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, feedback: vote } : m))
+    );
+  };
+
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend ?? inputValue).trim();
     if (!text || loading) return;
@@ -230,26 +298,18 @@ export const ChatWidget: React.FC = () => {
     }
 
     try {
-      const response = await fetch(getApiUrl('/api/ai/chat'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          mode: 'storefront_chat',
-          history: historySnapshot,
-          context: {
-            currentPath: location.pathname,
-            pageTitle: document.title,
-            cartCount: cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
-            cartTotal,
-          },
-        }),
+      const data = await apiPost<ChatApiResponse>('/api/ai/chat', {
+        message: text,
+        mode: 'storefront_chat',
+        history: historySnapshot,
+        context: {
+          currentPath: location.pathname,
+          pageTitle: document.title,
+          cartCount: cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
+          cartTotal,
+          productId: currentProductId,
+        },
       });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'AI service unavailable');
-      }
 
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -258,6 +318,10 @@ export const ChatWidget: React.FC = () => {
           data.reply ||
           `ধন্যবাদ! আমাদের টিম আপনাকে সহায়তা করতে প্রস্তুত। যেকোনো জরুরি প্রয়োজনে **${contactPhone}** নম্বরে কল বা WhatsApp করতে পারেন।`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        products: Array.isArray(data.products) ? data.products : undefined,
+        followUps: Array.isArray(data.followUps) ? data.followUps : undefined,
+        widget: data.widget || null,
+        suggestedAmount: data.suggestedAmount,
       };
       setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
@@ -265,8 +329,9 @@ export const ChatWidget: React.FC = () => {
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'bot',
-        text: `দুঃখিত, এই মুহূর্তে AI সার্ভারে সাময়িক সংযোগ সমস্যা হচ্ছে।\n\nতাৎক্ষণিক সহায়তার জন্য সরাসরি কল করুন **${contactPhone}** নম্বরে অথবা উপরের **WhatsApp** বাটনে ক্লিক করে আমাদের সেলস ও টেকনিক্যাল টিমের সাথে কথা বলুন।`,
+        text: `দুঃখিত, এই মুহূর্তে AI সার্ভারে সাময়িক সংযোগ সমস্যা হচ্ছে।\n\nতাৎক্ষণিক সহায়তার জন্য সরাসরি কল করুন **${contactPhone}**, **WhatsApp** বা নিচে থেকে কলব্যাক রিকোয়েস্ট পাঠান:`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        widget: 'callback_form',
       };
       setMessages((prev) => [...prev, fallbackMessage]);
     } finally {
@@ -400,7 +465,7 @@ export const ChatWidget: React.FC = () => {
         </button>
       ) : (
         /* Upgraded Storefront Chat Window */
-        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-[calc(100vw-24px)] max-w-[385px] sm:w-[390px] h-[74vh] sm:h-[540px] max-h-[82vh] flex flex-col border border-slate-200/80 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-[calc(100vw-24px)] max-w-[395px] sm:w-[400px] h-[min(560px,80dvh)] max-h-[84dvh] flex flex-col border border-slate-200/80 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
           {/* Branded Header */}
           <div className="bg-gradient-to-r from-[#0E2A47] via-[#123558] to-[#1a4977] px-4 py-3.5 flex justify-between items-center shrink-0 text-white shadow-xs">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -418,18 +483,18 @@ export const ChatWidget: React.FC = () => {
                   </span>
                 </h3>
                 <p className="text-[11px] text-blue-100/80 font-medium leading-tight mt-0.5 truncate">
-                  PC Build • EMI • Orders • Support
+                  PC Build • EMI • Track • Support
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
               <a
-                href={`https://wa.me/${waNumber}?text=${encodeURIComponent(`Assalamu Alaikum ${brandName}, I need assistance.`)}`}
+                href={waPrefilledUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 hover:text-white rounded-lg transition-colors"
-                title="Chat on WhatsApp"
+                title="Continue on WhatsApp"
                 aria-label="Chat on WhatsApp"
               >
                 <MessageCircle size={15} />
@@ -465,8 +530,9 @@ export const ChatWidget: React.FC = () => {
 
           {/* Chat Messages Body */}
           <div className="flex-1 p-3.5 sm:p-4 overflow-y-auto space-y-3 bg-slate-50/70 text-xs">
-            {messages.map((msg) => {
+            {messages.map((msg, msgIdx) => {
               const isUser = msg.sender === 'user';
+              const isLatestBot = !isUser && msgIdx === messages.length - 1;
               return (
                 <div
                   key={msg.id}
@@ -478,7 +544,7 @@ export const ChatWidget: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="max-w-[84%] group/msg">
+                  <div className={`${isUser ? 'max-w-[84%]' : 'max-w-[90%] w-full'} group/msg`}>
                     <div
                       className={`p-3 rounded-2xl leading-relaxed text-xs ${
                         isUser
@@ -488,6 +554,44 @@ export const ChatWidget: React.FC = () => {
                     >
                       {isUser ? msg.text : renderBotText(msg.text)}
                     </div>
+
+                    {/* Interactive Rich Product Cards */}
+                    {!isUser && msg.products && msg.products.length > 0 && (
+                      <ChatProductCards
+                        products={msg.products}
+                        onNavigate={navigateFromChat}
+                        onCalculateEmi={(price, name) =>
+                          handleOpenQuickWidget(
+                            'emi_calculator',
+                            `**${name}**-এর জন্য নিচের ১৬ ব্যাংকের EMI কিস্তি হিসাব করুন:`,
+                            price
+                          )
+                        }
+                      />
+                    )}
+
+                    {/* Inline Interactive Action Card */}
+                    {!isUser && msg.widget === 'order_tracker' && (
+                      <ChatOrderTrackerCard onNavigate={navigateFromChat} />
+                    )}
+                    {!isUser && msg.widget === 'emi_calculator' && (
+                      <ChatEMICalculatorCard
+                        initialAmount={msg.suggestedAmount || (cartTotal >= 5000 ? cartTotal : 50000)}
+                        onNavigate={navigateFromChat}
+                      />
+                    )}
+                    {!isUser && msg.widget === 'coupon_checker' && (
+                      <ChatCouponCheckerCard />
+                    )}
+                    {!isUser && msg.widget === 'callback_form' && (
+                      <ChatCallbackFormCard
+                        initialNote={lastUserMessageText}
+                        pagePath={location.pathname}
+                        waUrl={waPrefilledUrl}
+                      />
+                    )}
+
+                    {/* Message Timestamp + Copy + Helpful Feedback */}
                     <div
                       className={`flex items-center gap-2 mt-1 px-1 ${
                         isUser ? 'justify-end' : 'justify-between'
@@ -495,26 +599,79 @@ export const ChatWidget: React.FC = () => {
                     >
                       <span className="text-[10px] text-slate-400">{msg.timestamp}</span>
                       {!isUser && msg.id !== 'welcome-1' && (
-                        <button
-                          type="button"
-                          onClick={() => handleCopyMessage(msg.id, msg.text)}
-                          className="opacity-0 group-hover/msg:opacity-100 focus:opacity-100 text-[10px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5 transition-opacity cursor-pointer"
-                          title="Copy reply"
-                        >
-                          {copiedId === msg.id ? (
-                            <>
-                              <Check size={10} className="text-emerald-600" />
-                              <span className="text-emerald-600">Copied</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy size={10} />
-                              <span>Copy</span>
-                            </>
-                          )}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleMessageFeedback(msg.id, 'up')}
+                              className={`p-0.5 rounded transition-colors cursor-pointer ${
+                                msg.feedback === 'up'
+                                  ? 'text-emerald-600'
+                                  : 'text-slate-300 hover:text-slate-500'
+                              }`}
+                              title="Helpful"
+                              aria-label="Helpful reply"
+                            >
+                              <ThumbsUp size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleMessageFeedback(msg.id, 'down');
+                                handleOpenQuickWidget(
+                                  'callback_form',
+                                  'দুঃখিত, উত্তরটি পর্যাপ্ত না হলে সরাসরি আমাদের সাপোর্ট টিমের সাথে কথা বলুন অথবা কলব্যাক রিকোয়েস্ট পাঠান:'
+                                );
+                              }}
+                              className={`p-0.5 rounded transition-colors cursor-pointer ${
+                                msg.feedback === 'down'
+                                  ? 'text-rose-500'
+                                  : 'text-slate-300 hover:text-slate-500'
+                              }`}
+                              title="Need human support"
+                              aria-label="Request human help"
+                            >
+                              <ThumbsDown size={11} />
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleCopyMessage(msg.id, msg.text)}
+                            className="opacity-70 sm:opacity-0 group-hover/msg:opacity-100 focus:opacity-100 text-[10px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5 transition-opacity cursor-pointer"
+                            title="Copy reply"
+                          >
+                            {copiedId === msg.id ? (
+                              <>
+                                <Check size={10} className="text-emerald-600" />
+                                <span className="text-emerald-600">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={10} />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       )}
                     </div>
+
+                    {/* Dynamic Follow-up Suggestion Chips */}
+                    {isLatestBot && !loading && msg.followUps && msg.followUps.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {msg.followUps.map((chip, cIdx) => (
+                          <button
+                            key={cIdx}
+                            type="button"
+                            onClick={() => handleSendMessage(chip)}
+                            className="text-[10px] font-semibold text-[#0E2A47] bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 px-2.5 py-1 rounded-full transition-colors cursor-pointer text-left"
+                          >
+                            {chip}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -586,26 +743,64 @@ export const ChatWidget: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Store Shortcut Chips Strip */}
+          {/* Instant Action & Store Shortcut Strip */}
           <div className="px-3 py-1.5 bg-white border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
-            {[
-              { label: '🖥️ PC Builder', path: '/pc-build' },
-              { label: '💳 EMI Plans', path: '/emi-terms' },
-              { label: '📦 Track Order', path: '/track-order' },
-              { label: '🔥 Deals', path: '/deals' },
-            ].map((item) => (
-              <button
-                key={item.path}
-                type="button"
-                onClick={() => {
-                  navigate(item.path);
-                  if (window.innerWidth < 640) setIsOpen(false);
-                }}
-                className="text-[10px] font-semibold text-slate-600 hover:text-[#0E2A47] bg-slate-100 hover:bg-slate-200/70 px-2.5 py-1 rounded-full whitespace-nowrap transition-colors shrink-0 cursor-pointer"
-              >
-                {item.label}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() =>
+                handleOpenQuickWidget(
+                  'emi_calculator',
+                  'নিচের ক্যালকুলেটরে পরিমাণ ও ব্যাংক সিলেক্ট করে মাসিক EMI কিস্তি দেখে নিন:',
+                  cartTotal >= 5000 ? cartTotal : 50000
+                )
+              }
+              className="text-[10px] font-semibold text-slate-700 hover:text-[#0E2A47] bg-orange-50 hover:bg-orange-100 border border-orange-200/70 px-2.5 py-1 rounded-full whitespace-nowrap transition-colors shrink-0 cursor-pointer"
+            >
+              💳 EMI Calc
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleOpenQuickWidget(
+                  'order_tracker',
+                  'আপনার Order ID এবং ফোন নম্বর দিয়ে সরাসরি স্ট্যাটাস চেক করুন:'
+                )
+              }
+              className="text-[10px] font-semibold text-slate-700 hover:text-[#0E2A47] bg-slate-100 hover:bg-slate-200/70 px-2.5 py-1 rounded-full whitespace-nowrap transition-colors shrink-0 cursor-pointer"
+            >
+              📦 Track Order
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleOpenQuickWidget(
+                  'coupon_checker',
+                  'আপনার Promo / Coupon কোডটি এখানে যাচাই করে কার্টে যোগ করুন:'
+                )
+              }
+              className="text-[10px] font-semibold text-slate-700 hover:text-[#0E2A47] bg-slate-100 hover:bg-slate-200/70 px-2.5 py-1 rounded-full whitespace-nowrap transition-colors shrink-0 cursor-pointer"
+            >
+              🎟️ Coupon
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateFromChat('/pc-build')}
+              className="text-[10px] font-semibold text-slate-700 hover:text-[#0E2A47] bg-slate-100 hover:bg-slate-200/70 px-2.5 py-1 rounded-full whitespace-nowrap transition-colors shrink-0 cursor-pointer"
+            >
+              🖥️ PC Builder
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleOpenQuickWidget(
+                  'callback_form',
+                  'সরাসরি আমাদের টিমের কাছ থেকে কল পেতে আপনার নম্বর দিন:'
+                )
+              }
+              className="text-[10px] font-semibold text-slate-700 hover:text-[#0E2A47] bg-slate-100 hover:bg-slate-200/70 px-2.5 py-1 rounded-full whitespace-nowrap transition-colors shrink-0 cursor-pointer"
+            >
+              📞 Callback
+            </button>
           </div>
 
           {/* Sleek Input Footer */}

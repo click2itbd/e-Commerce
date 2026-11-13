@@ -13,6 +13,32 @@ export interface ChatContextPayload {
   pageTitle?: string;
   cartCount?: number;
   cartTotal?: number;
+  productId?: string;
+}
+
+export interface MatchedProductCard {
+  id: string;
+  name: string;
+  category: string;
+  brand: string;
+  price: number;
+  discountPrice: number;
+  finalPrice: number;
+  inStock: boolean;
+  stock: number;
+  warranty: string;
+  imageUrl: string;
+  isFreeShipping?: boolean;
+}
+
+export type ChatWidgetType = 'order_tracker' | 'emi_calculator' | 'coupon_checker' | 'callback_form' | null;
+
+export interface StorefrontChatResult {
+  reply: string;
+  products: MatchedProductCard[];
+  followUps: string[];
+  widget: ChatWidgetType;
+  suggestedAmount?: number;
 }
 
 interface CachedProductSummary {
@@ -25,6 +51,9 @@ interface CachedProductSummary {
   inStock: boolean;
   stock: number;
   warranty: string;
+  imageUrl: string;
+  isFreeShipping: boolean;
+  specsSnippet: string;
 }
 
 interface SiteInfoSummary {
@@ -80,6 +109,49 @@ async function getCachedSiteInfo(): Promise<SiteInfoSummary> {
   }
 }
 
+function normalizeSearchText(text: string): string {
+  // Convert Bengali digits (০-৯) to ASCII digits and strip zero-width joiners (e.g. র‍্যাম -> র্যাম)
+  const bnDigits = '০১২৩৪৫৬৭৮৯';
+  const asciiConverted = text.replace(/[০-৯]/g, (d) => String(bnDigits.indexOf(d)));
+  return asciiConverted.replace(/[\u200C\u200D]/g, '').toLowerCase();
+}
+
+function buildSpecsSnippet(p: any): string {
+  const parts: string[] = [];
+  if (p.model) parts.push(`Model: ${p.model}`);
+  if (p.socketType) parts.push(`Socket: ${p.socketType}`);
+  if (p.ramType) parts.push(`RAM: ${p.ramType}`);
+  if (p.chipset) parts.push(`Chipset: ${p.chipset}`);
+  if (p.tdp) parts.push(`TDP: ${p.tdp}W`);
+  if (p.specs && typeof p.specs === 'object') {
+    for (const [k, v] of Object.entries(p.specs)) {
+      if (parts.length >= 7) break;
+      if (v && typeof v === 'string') {
+        parts.push(`${k}: ${v.slice(0, 60)}`);
+      }
+    }
+  }
+  return parts.join(', ');
+}
+
+function toProductCard(p: CachedProductSummary): MatchedProductCard {
+  const finalPrice = p.discountPrice > 0 && p.discountPrice < p.price ? p.discountPrice : p.price;
+  return {
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    brand: p.brand,
+    price: p.price,
+    discountPrice: p.discountPrice,
+    finalPrice,
+    inStock: p.inStock,
+    stock: p.stock,
+    warranty: p.warranty,
+    imageUrl: p.imageUrl,
+    isFreeShipping: p.isFreeShipping,
+  };
+}
+
 async function loadCatalogProducts(): Promise<CachedProductSummary[]> {
   const now = Date.now();
   if (cachedCatalog && now - cachedCatalog.fetchedAt < CACHE_TTL_MS) {
@@ -101,6 +173,9 @@ async function loadCatalogProducts(): Promise<CachedProductSummary[]> {
         p.warrantyMonths && Number(p.warrantyMonths) > 0
           ? `${p.warrantyMonths} ${p.warrantyUnit || 'months'}`
           : '';
+      const imageUrl = String(
+        p.imageUrl || (Array.isArray(p.images) && p.images[0]) || ''
+      ).trim();
 
       products.push({
         id: docSnap.id,
@@ -112,6 +187,9 @@ async function loadCatalogProducts(): Promise<CachedProductSummary[]> {
         inStock,
         stock,
         warranty,
+        imageUrl,
+        isFreeShipping: Boolean(p.isFreeShipping),
+        specsSnippet: buildSpecsSnippet(p),
       });
     });
 
@@ -134,14 +212,66 @@ const QUERY_SYNONYMS: Record<string, string[]> = {
   cctv: ['camera', 'dvr', 'nvr', 'hikvision', 'dahua'],
   camera: ['cctv', 'webcam', 'imou', 'ezviz'],
   pc: ['desktop', 'computer', 'processor', 'monitor'],
+  monitor: ['display', 'led', 'ips', 'hz'],
+  motherboard: ['board', 'b550', 'b760', 'h610', 'am4', 'am5'],
+  casing: ['case', 'cabinet', 'rgb'],
+  keyboard: ['mechanical', 'rgb'],
+  mouse: ['gaming', 'wireless'],
+  laptop: ['notebook', 'ultrabook'],
+  router: ['wifi', 'mesh', 'tp-link', 'tenda'],
+  ups: ['va', 'battery', 'offline', 'online'],
+  // Bengali script & Banglish synonyms
+  'মনিটর': ['monitor', 'display', 'ips', 'led', 'hz'],
+  'গ্রাফিক্স': ['graphics', 'gpu', 'rtx', 'gtx', 'rx'],
+  'প্রসেসর': ['processor', 'cpu', 'ryzen', 'intel', 'core'],
+  'মাদারবোর্ড': ['motherboard', 'board', 'b550', 'b760', 'h610'],
+  'র্যাম': ['ram', 'memory', 'ddr4', 'ddr5'],
+  'এসএসডি': ['ssd', 'nvme', 'm.2', 'storage'],
+  'হার্ডডিস্ক': ['hdd', 'hard', 'storage'],
+  'পাওয়ার': ['psu', 'power supply', 'watt'],
+  'ক্যাসিং': ['casing', 'case', 'cabinet'],
+  'কুলার': ['cooler', 'liquid', 'fan'],
+  'ইউপিএস': ['ups', 'battery'],
+  'রাউটার': ['router', 'wifi', 'tp-link', 'tenda', 'mesh'],
+  'ল্যাপটপ': ['laptop', 'notebook'],
+  'কিবোর্ড': ['keyboard', 'mechanical'],
+  'মাউস': ['mouse', 'gaming', 'wireless'],
+  'হেডফোন': ['headphone', 'headset', 'earphone'],
+  'স্পিকার': ['speaker', 'soundbar', 'subwoofer'],
+  'প্রিন্টার': ['printer', 'toner', 'epson', 'canon', 'hp'],
+  'সিসিটিভি': ['cctv', 'camera', 'dvr', 'nvr', 'hikvision', 'dahua'],
+  'ক্যামেরা': ['camera', 'cctv', 'webcam', 'imou', 'ezviz'],
+  'পিসি': ['pc', 'desktop', 'computer', 'processor', 'monitor'],
 };
+
+const BUDGET_HINT_REGEX =
+  /(?:under|below|within|budget|moddhe|taka|takay|takar|মধ্যে|নিচে|বাজেট|টাকা)/i;
+
+function extractAmountFromText(rawText: string): number | null {
+  const norm = normalizeSearchText(rawText).replace(/,/g, '');
+  const kMatch = norm.match(/\b(\d+(?:\.\d+)?)\s*k\b/i);
+  if (kMatch) {
+    const val = Math.round(Number(kMatch[1]) * 1000);
+    if (val >= 1000 && val <= 1000000) return val;
+  }
+  const numMatch = norm.match(/\b(\d{4,7})\b/);
+  if (numMatch) {
+    const val = Number(numMatch[1]);
+    if (val >= 1000 && val <= 1000000) return val;
+  }
+  return null;
+}
 
 function findRelevantProducts(message: string, products: CachedProductSummary[]): CachedProductSummary[] {
   if (!products.length) return [];
 
-  const normalized = message.toLowerCase().replace(/[^\w\s.\-/]/g, ' ');
+  const normalized = normalizeSearchText(message).replace(/[^\w\u0980-\u09FF\s.\-/]/g, ' ');
   const rawTokens = normalized.split(/\s+/).filter((t) => t.length >= 2);
   if (!rawTokens.length) return [];
+
+  const budgetCeiling = BUDGET_HINT_REGEX.test(normalized)
+    ? extractAmountFromText(normalized)
+    : null;
 
   const expandedTokens = new Set<string>(rawTokens);
   for (const token of rawTokens) {
@@ -151,56 +281,192 @@ function findRelevantProducts(message: string, products: CachedProductSummary[])
 
   const scored = products
     .map((p) => {
-      const hay = `${p.name} ${p.category} ${p.brand}`.toLowerCase();
+      const hay = normalizeSearchText(`${p.name} ${p.category} ${p.brand} ${p.specsSnippet}`);
+      const finalPrice = p.discountPrice > 0 && p.discountPrice < p.price ? p.discountPrice : p.price;
       let score = 0;
+
       for (const tok of expandedTokens) {
         if (hay.includes(tok)) {
           score += rawTokens.includes(tok) ? 3 : 1;
         }
       }
+
       if (score > 0 && p.inStock) score += 2;
+      if (score > 0 && budgetCeiling && finalPrice > 0) {
+        if (finalPrice <= budgetCeiling) score += 3;
+        else if (finalPrice <= budgetCeiling * 1.15) score += 1;
+      }
+
       return { p, score };
     })
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 10)
+    .slice(0, 12)
     .map((item) => item.p);
 
   return scored;
 }
 
-export async function generateChatResponse(
+function isBengaliOrBanglish(text: string): boolean {
+  if (/[\u0980-\u09FF]/.test(text)) return true;
+  return /\b(koto|kivabe|hobe|lagbe|chai|kothay|taka|kisti|amar|nibo|ache|vai|bhai|daam|dam|bhalo|valo|korbo|koro|din|dao|dekhao|moddhe|takar|takay)\b/i.test(
+    text
+  );
+}
+
+function detectWidgetIntent(
   message: string,
-  options?: { history?: ChatHistoryTurn[]; context?: ChatContextPayload; mode?: 'storefront_chat' | 'general' }
-): Promise<string> {
+  viewedProduct?: CachedProductSummary,
+  ctx?: ChatContextPayload
+): { widget: ChatWidgetType; suggestedAmount?: number } {
+  const cleanMsg = normalizeSearchText(message);
+
+  if (
+    /(track\s*order|order\s*status|where\s*is\s*my\s*order|parcel\s*status|invoice\s*status|অর্ডার\s*ট্র্যাক|অর্ডার\s*কই|অর্ডার\s*কোথায়|পার্সেল|ট্র্যাক\s*কর)/i.test(
+      cleanMsg
+    )
+  ) {
+    return { widget: 'order_tracker' };
+  }
+
+  if (
+    /(emi|installment|কিস্তি|মাসিক\s*কিস্তি|bank\s*charge|ক্রেডিট\s*কার্ড\s*ইএমআই|ইএমআই)/i.test(
+      cleanMsg
+    )
+  ) {
+    const mentioned = extractAmountFromText(cleanMsg);
+    const viewedPrice = viewedProduct
+      ? viewedProduct.discountPrice > 0 && viewedProduct.discountPrice < viewedProduct.price
+        ? viewedProduct.discountPrice
+        : viewedProduct.price
+      : 0;
+    const candidateAmount =
+      mentioned && mentioned >= 5000
+        ? mentioned
+        : viewedPrice >= 5000
+          ? viewedPrice
+          : (ctx?.cartTotal || 0) >= 5000
+            ? Number(ctx?.cartTotal)
+            : 50000;
+    return { widget: 'emi_calculator', suggestedAmount: candidateAmount };
+  }
+
+  if (
+    /(coupon|promo\s*code|voucher|discount\s*code|কুপন|প্রোমো|ডিসকাউন্ট\s*কোড)/i.test(cleanMsg)
+  ) {
+    return { widget: 'coupon_checker' };
+  }
+
+  if (
+    /(callback|call\s*me|human|real\s*person|talk\s*to\s*(?:agent|support|someone)|quotation|corporate\s*quote|কল\s*করুন|কলব্যাক|কথা\s*বলতে\s*চাই|মানুষ|এজেন্ট|কোটেশন)/i.test(
+      cleanMsg
+    )
+  ) {
+    return { widget: 'callback_form' };
+  }
+
+  return { widget: null };
+}
+
+function buildDynamicFollowUps(params: {
+  isBangla: boolean;
+  widget: ChatWidgetType;
+  products: MatchedProductCard[];
+  ctx?: ChatContextPayload;
+}): string[] {
+  const { isBangla, widget, products, ctx } = params;
+
+  if (products.length > 0 && widget !== 'emi_calculator') {
+    return isBangla
+      ? [
+          'এই পণ্যের EMI কিস্তি হিসাব করো',
+          'এর চেয়ে কম দামের বিকল্প দেখাও',
+          'ডেলিভারি সময় ও চার্জ কত?',
+        ]
+      : [
+          'Calculate EMI for these items',
+          'Show cheaper alternatives',
+          'Delivery time & charges?',
+        ];
+  }
+
+  if (widget === 'emi_calculator') {
+    return isBangla
+      ? [
+          '১৬টি ব্যাংকের EMI শর্তাবলি জানো',
+          '৬০,০০০ টাকার পিসি বিল্ড দেখাও',
+          'আমার কুপন কোড যাচাই করো',
+        ]
+      : [
+          'See all 16 EMI banks & terms',
+          'Suggest a ৳60,000 PC build',
+          'Validate a coupon code',
+        ];
+  }
+
+  if (widget === 'order_tracker') {
+    return isBangla
+      ? [
+          'ঢাকা ও ঢাকার বাইরে ডেলিভারি সময়',
+          'সাপোর্ট টিমের কলব্যাক চাই',
+          'চলমান হট ডিলস দেখুন',
+        ]
+      : [
+          'Dhaka & outside Dhaka delivery time',
+          'Request a support callback',
+          'Show hot deals',
+        ];
+  }
+
+  if (widget === 'coupon_checker') {
+    return isBangla
+      ? [
+          'Credit Card EMI কিস্তি হিসাব',
+          'অর্ডার ট্র্যাক করো',
+          'সেরা গেমিং পিসি পার্টস',
+        ]
+      : [
+          'Check Credit Card EMI plans',
+          'Track my order',
+          'Recommend gaming PC parts',
+        ];
+  }
+
+  if (ctx?.cartCount && ctx.cartCount > 0) {
+    return isBangla
+      ? [
+          'কার্টের টাকার ওপর EMI কিস্তি',
+          'আমার কুপন কোড যাচাই করো',
+          'চেকআউট ও ডেলিভারি তথ্য',
+        ]
+      : [
+          'Calculate EMI on my cart',
+          'Check a coupon code',
+          'Checkout & delivery info',
+        ];
+  }
+
+  return isBangla
+    ? [
+        '৫০,০০০ টাকায় পিসি বিল্ড সাজেশন',
+        '১৬ ব্যাংকের EMI হিসাব দেখো',
+        'আমার অর্ডার ট্র্যাক করো',
+      ]
+    : [
+        'Suggest a ৳50,000 PC build',
+        'Calculate Credit Card EMI',
+        'Track my order',
+      ];
+}
+
+export async function generateStorefrontChatResponse(
+  message: string,
+  options?: { history?: ChatHistoryTurn[]; context?: ChatContextPayload }
+): Promise<StorefrontChatResult> {
   const client = getAiClient();
 
   if (!message || typeof message !== 'string' || message.trim().length === 0 || message.length > 2000) {
     throw new Error('Message is required and must be under 2000 characters');
-  }
-
-  const isStorefrontChat = options?.mode === 'storefront_chat';
-
-  if (!isStorefrontChat) {
-    try {
-      const response = await client.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: message.trim(),
-      });
-      return response.text || '';
-    } catch (error: any) {
-      console.error('AI chat error with primary model, trying fallback:', error.message);
-      try {
-        const fallbackResponse = await client.models.generateContent({
-          model: 'gemini-flash-latest',
-          contents: message.trim(),
-        });
-        return fallbackResponse.text || '';
-      } catch (fallbackError: any) {
-        console.error('AI chat fallback error:', fallbackError.message);
-        throw new Error('AI service error');
-      }
-    }
   }
 
   const [siteInfo, catalog] = await Promise.all([
@@ -208,29 +474,57 @@ export async function generateChatResponse(
     loadCatalogProducts(),
   ]);
 
+  const ctx = options?.context || {};
+  const viewedProduct = ctx.productId
+    ? catalog.find((p) => p.id === ctx.productId)
+    : undefined;
+
   const historyText = (options?.history || [])
     .slice(-8)
     .map((h) => `${h.sender === 'user' ? 'Customer' : 'Assistant'}: ${h.text}`)
     .join('\n');
 
-  const recentQueryContext = `${historyText} ${message}`;
-  const matchedProducts = findRelevantProducts(recentQueryContext, catalog);
+  const queryMatches = findRelevantProducts(`${message} ${historyText.slice(-300)}`, catalog);
+  const directMatches = findRelevantProducts(message, catalog);
+  const combinedMatches = queryMatches.slice(0, 10);
 
-  const productSnippet = matchedProducts.length
-    ? matchedProducts
+  if (viewedProduct && !combinedMatches.some((p) => p.id === viewedProduct.id)) {
+    combinedMatches.unshift(viewedProduct);
+  }
+
+  const productSnippet = combinedMatches.length
+    ? combinedMatches
+        .slice(0, 10)
         .map((p) => {
           const finalPrice = p.discountPrice > 0 && p.discountPrice < p.price ? p.discountPrice : p.price;
           const stockLabel = p.inStock ? `In Stock (${p.stock})` : 'Out of Stock';
           const warrantyInfo = p.warranty ? `, Warranty: ${p.warranty}` : '';
-          return `- ${p.name} | Brand: ${p.brand || 'N/A'} | Price: ৳${finalPrice.toLocaleString('en-IN')} | ${stockLabel}${warrantyInfo} | Link: /product/${p.id}`;
+          const specs = p.specsSnippet ? ` | Specs: ${p.specsSnippet}` : '';
+          return `- ${p.name} | Brand: ${p.brand || 'N/A'} | Price: ৳${finalPrice.toLocaleString('en-IN')} | ${stockLabel}${warrantyInfo}${specs} | Link: /product/${p.id}`;
         })
         .join('\n')
     : 'No exact catalog keyword matches found for this message (direct user to /shop, /deals, or /pc-build if looking for products).';
 
-  const ctx = options?.context || {};
-  const pageContextStr = ctx.currentPath
-    ? `Customer is currently viewing page: ${ctx.currentPath}${ctx.pageTitle ? ` (${ctx.pageTitle})` : ''}${typeof ctx.cartCount === 'number' && ctx.cartCount > 0 ? `, Cart items: ${ctx.cartCount} (৳${Number(ctx.cartTotal || 0).toLocaleString('en-IN')})` : ''}.`
+  const viewedProductContext = viewedProduct
+    ? `\nACTIVE VIEWED PRODUCT ON SCREEN RIGHT NOW:\n- Name: ${viewedProduct.name} (/product/${viewedProduct.id})\n- Price: ৳${(viewedProduct.discountPrice > 0 && viewedProduct.discountPrice < viewedProduct.price ? viewedProduct.discountPrice : viewedProduct.price).toLocaleString('en-IN')}\n- Stock: ${viewedProduct.inStock ? `In Stock (${viewedProduct.stock})` : 'Out of Stock'}\n- Warranty: ${viewedProduct.warranty || 'Official / Check product page'}${viewedProduct.specsSnippet ? `\n- Specs: ${viewedProduct.specsSnippet}` : ''}`
     : '';
+
+  const pageContextStr = ctx.currentPath
+    ? `Customer is currently viewing page: ${ctx.currentPath}${ctx.pageTitle ? ` (${ctx.pageTitle})` : ''}${typeof ctx.cartCount === 'number' && ctx.cartCount > 0 ? `, Cart items: ${ctx.cartCount} (৳${Number(ctx.cartTotal || 0).toLocaleString('en-IN')})` : ''}.${viewedProductContext}`
+    : viewedProductContext;
+
+  const { widget, suggestedAmount } = detectWidgetIntent(message, viewedProduct, ctx);
+
+  const widgetHint =
+    widget === 'order_tracker'
+      ? '\nNOTE: An interactive Order Tracker card will automatically render directly beneath your reply, so invite the customer to enter their Order ID and Phone number right below.'
+      : widget === 'emi_calculator'
+        ? '\nNOTE: An interactive 16-Bank EMI Calculator card will automatically render directly beneath your reply, so mention they can adjust bank & tenure right below.'
+        : widget === 'coupon_checker'
+          ? '\nNOTE: An interactive Coupon Validator card will automatically render directly beneath your reply, so invite them to test & apply their promo code right below.'
+          : widget === 'callback_form'
+            ? '\nNOTE: A Request Callback form will automatically render directly beneath your reply, so let them know they can leave their name & phone number right below or click WhatsApp.'
+            : '';
 
   const systemInstruction = `You are the friendly, knowledgeable AI Shopping & Tech Support Assistant for **${siteInfo.brandName}** — a premier Computer Hardware, Custom PC, Laptop, CCTV, Networking & Electronics E-Commerce Store in Bangladesh.
 
@@ -244,14 +538,14 @@ STORE INFORMATION & POLICIES:
   • Shop All Products: /shop
   • Hot Deals & Campaigns: /deals
   • Custom PC Builder (auto compatibility + PSU wattage + EMI): /pc-build
-  • Credit Card EMI Plans: /emi-terms (Available on orders ≥ ৳5,000 across 16 Bangladeshi banks for 3–36 months; selectable directly at /checkout)
+  • Credit Card EMI Plans: /emi-terms (Minimum ৳5,000 across 16 Bangladeshi banks: Dutch-Bangla, Eastern Bank/EBL, City Bank, BRAC Bank, Southeast, Midland, Pubali, Prime, Mutual Trust, Bank Asia, Dhaka Bank, Standard, LankaBangla, Mercantile, AB Bank, Jamuna Bank; Tenures: 3M ~4.25%, 6M ~5.75%, 9M ~8.5%, 12M ~10.25%, 18M ~12.25%, 24M ~15.25%, 36M ~18.25–22.25%; selectable directly at /checkout)
   • Track Order: /track-order
   • Delivery Policy: /online-delivery (Inside Dhaka fast delivery ৳80–৳150 in 1–2 days; Outside Dhaka via courier in 2–4 days)
   • Payment Methods: Cash on Delivery (COD), Online Payment via EPS Gateway (Card / bKash / Nagad / Net Banking), and Credit Card EMI
   • Warranty & Refund Policy: /warranty-policy and /refund-policy
   • Corporate IT / CCTV Projects & Contact: /projects and /contact
 
-${pageContextStr ? `CURRENT SESSION CONTEXT:\n${pageContextStr}\n` : ''}
+${pageContextStr ? `CURRENT SESSION CONTEXT:\n${pageContextStr}\n` : ''}${widgetHint}
 LIVE MATCHING PRODUCTS FROM STORE DATABASE (Use ONLY these exact prices/links if quoting store inventory; NEVER invent fake prices):
 ${productSnippet}
 
@@ -275,6 +569,7 @@ RESPONSE GUIDELINES:
     },
   ];
 
+  let reply = '';
   try {
     const response = await client.models.generateContent({
       model: 'gemini-3.8-flash',
@@ -284,7 +579,7 @@ RESPONSE GUIDELINES:
         temperature: 0.4,
       },
     });
-    return response.text || '';
+    reply = response.text || '';
   } catch (error: any) {
     console.error('AI chat error with primary model, trying fallback:', error.message);
     try {
@@ -295,6 +590,94 @@ RESPONSE GUIDELINES:
           systemInstruction,
           temperature: 0.4,
         },
+      });
+      reply = fallbackResponse.text || '';
+    } catch (fallbackError: any) {
+      console.error('AI chat fallback error:', fallbackError.message);
+      throw new Error('AI service error');
+    }
+  }
+
+  // Pick matched product cards to render visually: prioritize products explicitly linked in AI reply, then direct query matches
+  const replyProductIds = Array.from(reply.matchAll(/\/product\/([a-zA-Z0-9_-]+)/g)).map(
+    (m) => m[1]
+  );
+  const selectedForCards: CachedProductSummary[] = [];
+  const seenIds = new Set<string>();
+
+  for (const pid of replyProductIds) {
+    const found = catalog.find((p) => p.id === pid);
+    if (found && !seenIds.has(found.id)) {
+      seenIds.add(found.id);
+      selectedForCards.push(found);
+    }
+  }
+
+  const suppressFallbackCards =
+    widget === 'order_tracker' || widget === 'coupon_checker' || widget === 'callback_form';
+
+  if (!suppressFallbackCards && selectedForCards.length < 4) {
+    const fallbackSource =
+      directMatches.length > 0
+        ? directMatches
+        : viewedProduct && /(price|stock|warranty|dam|দাম|ওয়ারেন্টি|স্টক|emi|কিস্তি)/i.test(message)
+          ? [viewedProduct]
+          : [];
+
+    for (const p of fallbackSource) {
+      if (selectedForCards.length >= 4) break;
+      if (!seenIds.has(p.id)) {
+        seenIds.add(p.id);
+        selectedForCards.push(p);
+      }
+    }
+  }
+
+  const productCards = selectedForCards.slice(0, 4).map(toProductCard);
+  const isBangla = isBengaliOrBanglish(`${message} ${reply.slice(0, 120)}`);
+  const followUps = buildDynamicFollowUps({
+    isBangla,
+    widget,
+    products: productCards,
+    ctx,
+  });
+
+  return {
+    reply,
+    products: productCards,
+    followUps,
+    widget,
+    ...(suggestedAmount ? { suggestedAmount } : {}),
+  };
+}
+
+export async function generateChatResponse(
+  message: string,
+  options?: { history?: ChatHistoryTurn[]; context?: ChatContextPayload; mode?: 'storefront_chat' | 'general' }
+): Promise<string> {
+  const client = getAiClient();
+
+  if (!message || typeof message !== 'string' || message.trim().length === 0 || message.length > 2000) {
+    throw new Error('Message is required and must be under 2000 characters');
+  }
+
+  if (options?.mode === 'storefront_chat') {
+    const result = await generateStorefrontChatResponse(message, options);
+    return result.reply;
+  }
+
+  try {
+    const response = await client.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: message.trim(),
+    });
+    return response.text || '';
+  } catch (error: any) {
+    console.error('AI chat error with primary model, trying fallback:', error.message);
+    try {
+      const fallbackResponse = await client.models.generateContent({
+        model: 'gemini-flash-latest',
+        contents: message.trim(),
       });
       return fallbackResponse.text || '';
     } catch (fallbackError: any) {
