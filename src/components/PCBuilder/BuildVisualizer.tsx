@@ -9,7 +9,14 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
   constructor(props: any) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error: any) { return { hasError: true, error }; }
   render() {
-    if (this.state.hasError) return <div className="p-4 text-red-500">3D Preview Error: {this.state.error?.message}</div>;
+    if (this.state.hasError) {
+      return (
+        <div className="p-4 text-xs text-slate-500 text-center">
+          3D Preview সাময়িকভাবে এই ডিভাইসে লোড হচ্ছে না।
+          {import.meta.env.DEV && this.state.error?.message ? ` (${this.state.error.message})` : ''}
+        </div>
+      );
+    }
     return this.props.children;
   }
 }

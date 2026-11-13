@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './context/AuthContext';
@@ -15,47 +15,62 @@ import { CompareProvider } from './context/CompareContext';
 import { WishlistProvider } from './context/WishlistContext';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
-import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { ErrorBoundary, isChunkLoadError, tryAutoChunkReload } from './components/common/ErrorBoundary';
 import { Toaster } from 'react-hot-toast';
 
-const Home = lazy(() => import('./pages/shop/Home').then(m => ({ default: m.Home })));
-const ProductDetails = lazy(() => import('./pages/shop/ProductDetails').then(m => ({ default: m.ProductDetails })));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
-const EcommerceDashboard = lazy(() => import('./pages/ecommerceDashboard/EcommerceDashboard'));
-const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
-const PCBuilder = lazy(() => import('./pages/shop/PCBuilder').then(m => ({ default: m.PCBuilder })));
-const Projects = lazy(() => import('./pages/shop/Projects').then(m => ({ default: m.Projects })));
-const ComparePage = lazy(() => import('./pages/shop/Compare').then(m => ({ default: m.ComparePage })));
-const CategoryPage = lazy(() => import('./pages/shop/CategoryPage').then(m => ({ default: m.CategoryPage })));
-const WishlistPage = lazy(() => import('./pages/shop/WishlistPage').then(m => ({ default: m.WishlistPage })));
-const SearchPage = lazy(() => import('./pages/shop/SearchPage').then(m => ({ default: m.SearchPage })));
-const PreBook = lazy(() => import('./pages/shop/PreBook').then(m => ({ default: m.PreBook })));
-const AccountingDashboard = lazy(() => import('./pages/AccountingDashboard').then(m => ({ default: m.AccountingDashboard })));
-const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
-const Checkout = lazy(() => import('./pages/shop/Checkout').then(m => ({ default: m.Checkout })));
-const OrderSuccess = lazy(() => import('./pages/shop/OrderSuccess').then(m => ({ default: m.OrderSuccess })));
-const RetailPOS = lazy(() => import('./pages/RetailPOS').then(m => ({ default: m.RetailPOS })));
-const Cart = lazy(() => import('./pages/shop/Cart').then(m => ({ default: m.Cart })));
-const CampaignLanding = lazy(() => import('./pages/shop/CampaignLanding').then(m => ({ default: m.CampaignLanding })));
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>
+) {
+  return lazy(async () => {
+    try {
+      return await factory();
+    } catch (error) {
+      if (isChunkLoadError(error) && tryAutoChunkReload()) {
+        return new Promise<{ default: T }>(() => {});
+      }
+      throw error;
+    }
+  });
+}
 
-const TermsOfService = lazy(() => import('./pages/policies/TermsOfService'));
-const PrivacyPolicy = lazy(() => import('./pages/policies/PrivacyPolicy'));
-const NotFound = lazy(() => import('./pages/NotFound'));
-const RefundPolicy = lazy(() => import('./pages/policies/RefundPolicy'));
-const EMITerms = lazy(() => import('./pages/policies/EMITerms'));
-const StarPointPolicy = lazy(() => import('./pages/policies/StarPointPolicy'));
-const OnlineDelivery = lazy(() => import('./pages/policies/OnlineDelivery'));
-const WarrantyPolicy = lazy(() => import('./pages/policies/WarrantyPolicy'));
-const Brands = lazy(() => import('./pages/shop/Brands'));
-const UsedItems = lazy(() => import('./pages/shop/UsedItems'));
-const Blog = lazy(() => import('./pages/shop/Blog'));
-const TrackOrder = lazy(() => import('./pages/shop/TrackOrder'));
-const BlogPost = lazy(() => import('./pages/shop/BlogPost'));
-const AboutUs = lazy(() => import('./pages/AboutUs'));
-const ContactUs = lazy(() => import('./pages/ContactUs'));
-const PaymentSimulation = lazy(() => import('./pages/PaymentSimulation'));
-const PaymentCallback = lazy(() => import('./pages/PaymentCallback'));
-const PaymentReturn = lazy(() => import('./pages/PaymentReturn').then(m => ({ default: m.default || m.PaymentReturn })));
+const Home = lazyWithRetry(() => import('./pages/shop/Home').then(m => ({ default: m.Home })));
+const ProductDetails = lazyWithRetry(() => import('./pages/shop/ProductDetails').then(m => ({ default: m.ProductDetails })));
+const AdminDashboard = lazyWithRetry(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const EcommerceDashboard = lazyWithRetry(() => import('./pages/ecommerceDashboard/EcommerceDashboard'));
+const Login = lazyWithRetry(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const PCBuilder = lazyWithRetry(() => import('./pages/shop/PCBuilder').then(m => ({ default: m.PCBuilder })));
+const Projects = lazyWithRetry(() => import('./pages/shop/Projects').then(m => ({ default: m.Projects })));
+const ComparePage = lazyWithRetry(() => import('./pages/shop/Compare').then(m => ({ default: m.ComparePage })));
+const CategoryPage = lazyWithRetry(() => import('./pages/shop/CategoryPage').then(m => ({ default: m.CategoryPage })));
+const WishlistPage = lazyWithRetry(() => import('./pages/shop/WishlistPage').then(m => ({ default: m.WishlistPage })));
+const SearchPage = lazyWithRetry(() => import('./pages/shop/SearchPage').then(m => ({ default: m.SearchPage })));
+const PreBook = lazyWithRetry(() => import('./pages/shop/PreBook').then(m => ({ default: m.PreBook })));
+const AccountingDashboard = lazyWithRetry(() => import('./pages/AccountingDashboard').then(m => ({ default: m.AccountingDashboard })));
+const Profile = lazyWithRetry(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
+const Checkout = lazyWithRetry(() => import('./pages/shop/Checkout').then(m => ({ default: m.Checkout })));
+const OrderSuccess = lazyWithRetry(() => import('./pages/shop/OrderSuccess').then(m => ({ default: m.OrderSuccess })));
+const RetailPOS = lazyWithRetry(() => import('./pages/RetailPOS').then(m => ({ default: m.RetailPOS })));
+const Cart = lazyWithRetry(() => import('./pages/shop/Cart').then(m => ({ default: m.Cart })));
+const CampaignLanding = lazyWithRetry(() => import('./pages/shop/CampaignLanding').then(m => ({ default: m.CampaignLanding })));
+
+const TermsOfService = lazyWithRetry(() => import('./pages/policies/TermsOfService'));
+const PrivacyPolicy = lazyWithRetry(() => import('./pages/policies/PrivacyPolicy'));
+const NotFound = lazyWithRetry(() => import('./pages/NotFound'));
+const RefundPolicy = lazyWithRetry(() => import('./pages/policies/RefundPolicy'));
+const EMITerms = lazyWithRetry(() => import('./pages/policies/EMITerms'));
+const StarPointPolicy = lazyWithRetry(() => import('./pages/policies/StarPointPolicy'));
+const OnlineDelivery = lazyWithRetry(() => import('./pages/policies/OnlineDelivery'));
+const WarrantyPolicy = lazyWithRetry(() => import('./pages/policies/WarrantyPolicy'));
+const Brands = lazyWithRetry(() => import('./pages/shop/Brands'));
+const UsedItems = lazyWithRetry(() => import('./pages/shop/UsedItems'));
+const Blog = lazyWithRetry(() => import('./pages/shop/Blog'));
+const TrackOrder = lazyWithRetry(() => import('./pages/shop/TrackOrder'));
+const BlogPost = lazyWithRetry(() => import('./pages/shop/BlogPost'));
+const AboutUs = lazyWithRetry(() => import('./pages/AboutUs'));
+const ContactUs = lazyWithRetry(() => import('./pages/ContactUs'));
+const PaymentSimulation = lazyWithRetry(() => import('./pages/PaymentSimulation'));
+const PaymentCallback = lazyWithRetry(() => import('./pages/PaymentCallback'));
+const PaymentReturn = lazyWithRetry(() => import('./pages/PaymentReturn').then(m => ({ default: m.default || m.PaymentReturn })));
 
 import { PageLoader } from './components/Loading';
 
@@ -77,6 +92,14 @@ function SharePhpRedirect() {
 }
 
 export default function App() {
+  useEffect(() => {
+    const handlePreloadError = () => {
+      tryAutoChunkReload();
+    };
+    window.addEventListener('vite:preloadError', handlePreloadError);
+    return () => window.removeEventListener('vite:preloadError', handlePreloadError);
+  }, []);
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -89,11 +112,13 @@ export default function App() {
                 <CartProvider>
                   <Router>
                 <Toaster position="top-right" />
-                <TrackingScripts />
-            <ReferralTracker />
-                <WebsitePopup />
-                <ReviewRewardPopup />
-                <ChatWidget />
+                <ErrorBoundary fallback={null}>
+                  <TrackingScripts />
+                  <ReferralTracker />
+                  <WebsitePopup />
+                  <ReviewRewardPopup />
+                  <ChatWidget />
+                </ErrorBoundary>
                 <Routes>
                   {/* --- COMMON ROUTES --- */}
                   <Route path="/login" element={<LazyWrapper><Login /></LazyWrapper>} />

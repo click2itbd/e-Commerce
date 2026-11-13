@@ -148,7 +148,12 @@ export const ChatWidget: React.FC = () => {
       const saved = sessionStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter(
+            (m: any) => m && (m.sender === 'user' || m.sender === 'bot') && typeof m.text === 'string'
+          );
+          if (valid.length > 0) return valid;
+        }
       }
     } catch {
       // ignore storage errors
