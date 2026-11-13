@@ -613,7 +613,7 @@ export const Checkout: React.FC = () => {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-8 md:py-12 mb-28 sm:mb-20 min-h-screen">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 pt-1 sm:pt-4 pb-2 sm:pb-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
           <div>
