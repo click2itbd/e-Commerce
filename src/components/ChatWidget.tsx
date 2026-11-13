@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Bot,
   MessageCircle,
   X,
   Send,
@@ -25,6 +24,7 @@ import { apiPost } from '../services/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { useCart } from '../context/CartContext';
+import supportAvatar from '../assets/support-avatar.jpg';
 import {
   MatchedChatProduct,
   ChatWidgetType,
@@ -56,6 +56,7 @@ interface ChatApiResponse {
 }
 
 const STORAGE_KEY = 'click2it_chat_history_v1';
+const GREETING_DISMISSED_KEY = 'click2it_chat_greeting_dismissed_v1';
 
 const ROUTE_LABEL_MAP: Record<string, string> = {
   '/pc-build': 'Open PC Builder',
@@ -164,7 +165,13 @@ export const ChatWidget: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [showGreeting, setShowGreeting] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem(GREETING_DISMISSED_KEY) !== '1';
+    } catch {
+      return true;
+    }
+  });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -183,21 +190,15 @@ export const ChatWidget: React.FC = () => {
     }
   }, [messages]);
 
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) setIsExpanded(true);
-    };
-    window.addEventListener('resize', handleResize);
-
-    if (window.innerWidth < 768) {
-      const timer = setTimeout(() => setIsExpanded(false), 3500);
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener('resize', handleResize);
-      };
+  const handleDismissGreeting = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowGreeting(false);
+    try {
+      sessionStorage.setItem(GREETING_DISMISSED_KEY, '1');
+    } catch {
+      // ignore storage errors
     }
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -438,36 +439,56 @@ export const ChatWidget: React.FC = () => {
   return (
     <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-50 font-sans">
       {!isOpen ? (
-        /* Floating Launcher Button */
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          onMouseEnter={() => setIsExpanded(true)}
-          onMouseLeave={() => {
-            if (window.innerWidth < 768) setIsExpanded(false);
-          }}
-          className={`group flex items-center bg-gradient-to-r from-[#0E2A47] to-[#1d4ed8] hover:from-[#0b223a] hover:to-[#1e40af] text-white rounded-full shadow-lg shadow-blue-900/25 hover:shadow-blue-900/35 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer border border-white/10 ${
-            isExpanded ? 'py-2.5 pl-3.5 pr-4 sm:py-3 sm:pl-4 sm:pr-5' : 'p-2.5 sm:p-3'
-          }`}
-          aria-label="Open Live Chat"
-        >
-          <div className="relative flex items-center justify-center shrink-0">
-            <MessageCircle className="w-5 h-5 sm:w-[22px] sm:h-[22px]" />
-            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400" />
-            </span>
-          </div>
-          <div
-            className={`overflow-hidden transition-all duration-500 ease-in-out ${
-              isExpanded ? 'max-w-[130px] opacity-100 ml-2.5' : 'max-w-0 opacity-0 ml-0'
-            }`}
+        /* Floating Support Avatar & Greeting Speech Bubble */
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          {showGreeting && (
+            <div className="relative animate-in fade-in slide-in-from-right-3 duration-300">
+              <button
+                type="button"
+                onClick={handleDismissGreeting}
+                className="absolute -top-2 -left-2 z-10 w-5 h-5 sm:w-[22px] sm:h-[22px] rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200/90 shadow-xs flex items-center justify-center transition-colors cursor-pointer"
+                title="Close"
+                aria-label="Close greeting bubble"
+              >
+                <X size={11} strokeWidth={2.5} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsOpen(true)}
+                className="relative bg-white hover:bg-slate-50/90 text-slate-800 rounded-xl sm:rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 shadow-[0_6px_24px_rgba(15,23,42,0.14)] border border-slate-200/70 text-center leading-snug cursor-pointer transition-all hover:shadow-[0_8px_28px_rgba(15,23,42,0.18)]"
+                aria-label="Open support chat"
+              >
+                <span className="block text-[12px] sm:text-[13px] font-semibold text-slate-800 whitespace-nowrap">
+                  স্যার, কিভাবে সহযোগিতা
+                </span>
+                <span className="block text-[12px] sm:text-[13px] font-semibold text-slate-800">
+                  করতে পারি?
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="absolute top-1/2 -translate-y-1/2 -right-1.5 w-3 h-3 bg-white border-r border-t border-slate-200/70 rotate-45"
+                />
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsOpen(true)}
+            className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full p-0.5 bg-white shadow-[0_6px_22px_rgba(15,23,42,0.22)] hover:scale-105 active:scale-95 transition-transform duration-200 cursor-pointer shrink-0"
+            aria-label={`Open ${brandName} Live Support`}
           >
-            <span className="text-xs sm:text-sm font-semibold tracking-tight whitespace-nowrap flex items-center gap-1">
-              <span>Ask AI / Help</span>
+            <img
+              src={supportAvatar}
+              alt={`${brandName} Support`}
+              className="w-full h-full rounded-full object-cover object-top"
+            />
+            <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 sm:h-4 sm:w-4">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-emerald-500 border-2 border-white shadow-xs" />
             </span>
-          </div>
-        </button>
+          </button>
+        </div>
       ) : (
         /* Upgraded Storefront Chat Window */
         <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-[calc(100vw-24px)] max-w-[395px] sm:w-[400px] h-[min(560px,80dvh)] max-h-[84dvh] flex flex-col border border-slate-200/80 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
@@ -475,9 +496,11 @@ export const ChatWidget: React.FC = () => {
           <div className="bg-gradient-to-r from-[#0E2A47] via-[#123558] to-[#1a4977] px-4 py-3 flex justify-between items-center shrink-0 text-white shadow-xs">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="relative shrink-0">
-                <div className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-xs border border-white/20 flex items-center justify-center text-white">
-                  <Bot size={18} />
-                </div>
+                <img
+                  src={supportAvatar}
+                  alt={brandName}
+                  className="w-9 h-9 rounded-full object-cover object-top border border-white/25 bg-white"
+                />
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-[#0E2A47] rounded-full" />
               </div>
               <div className="min-w-0">
@@ -538,9 +561,11 @@ export const ChatWidget: React.FC = () => {
                   className={`flex gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}
                 >
                   {!isUser && (
-                    <div className="w-6 h-6 rounded-full bg-[#0E2A47]/10 text-[#0E2A47] flex items-center justify-center shrink-0 mt-0.5">
-                      <Bot size={13} />
-                    </div>
+                    <img
+                      src={supportAvatar}
+                      alt={brandName}
+                      className="w-6 h-6 rounded-full object-cover object-top border border-slate-200 shrink-0 mt-0.5 bg-white"
+                    />
                   )}
 
                   <div className={`${isUser ? 'max-w-[84%]' : 'max-w-[90%] w-full'} group/msg`}>
@@ -678,9 +703,11 @@ export const ChatWidget: React.FC = () => {
 
             {loading && (
               <div className="flex gap-2 justify-start items-center">
-                <div className="w-6 h-6 rounded-full bg-[#0E2A47]/10 text-[#0E2A47] flex items-center justify-center shrink-0">
-                  <Bot size={13} />
-                </div>
+                <img
+                  src={supportAvatar}
+                  alt={brandName}
+                  className="w-6 h-6 rounded-full object-cover object-top border border-slate-200 shrink-0 bg-white"
+                />
                 <div className="bg-white px-3.5 py-2.5 rounded-2xl rounded-bl-xs border border-slate-200/70 shadow-2xs flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#0E2A47] animate-bounce" />
                   <span className="w-1.5 h-1.5 rounded-full bg-[#0E2A47] animate-bounce [animation-delay:0.2s]" />
