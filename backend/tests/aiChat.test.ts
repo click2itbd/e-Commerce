@@ -220,4 +220,27 @@ describe('Storefront AI Chat API (/api/ai/chat)', () => {
     expect(res.body.reply).toContain('নোট: সরাসরি /checkout পেজ থেকে Credit Card EMI নির্বাচন করুন।');
     expect(res.body.followUps.every((chip: string) => !/(করো|দেখো|জানো|দেখাও)/.test(chip))).toBe(true);
   });
+
+  it('forwards selected support specialist agentName & agentEnName into Gemini systemInstruction', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      text: 'নমস্কার/আসসালামু আলাইকুম! আমি তানভীর আহমেদ বলছি—বলুন কীভাবে সহায়তা করতে পারি?',
+    });
+
+    const res = await request(app)
+      .post('/api/ai/chat')
+      .send({
+        message: 'আপনার নাম কী?',
+        mode: 'storefront_chat',
+        context: {
+          currentPath: '/',
+          agentName: 'তানভীর আহমেদ',
+          agentEnName: 'Tanvir Ahmed',
+        },
+      });
+
+    expect(res.status).toBe(200);
+    const geminiCall = mockGenerateContent.mock.calls.at(-1)?.[0];
+    expect(geminiCall?.config?.systemInstruction).toContain('তানভীর আহমেদ');
+    expect(geminiCall?.config?.systemInstruction).toContain('Tanvir Ahmed');
+  });
 });

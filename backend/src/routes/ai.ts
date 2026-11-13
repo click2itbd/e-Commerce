@@ -29,6 +29,12 @@ aiRouter.post('/chat', async (req: any, res: Response) => {
             cartCount: typeof context.cartCount === 'number' ? context.cartCount : undefined,
             cartTotal: typeof context.cartTotal === 'number' ? context.cartTotal : undefined,
             productId: typeof context.productId === 'string' ? context.productId.slice(0, 100) : undefined,
+            ...(typeof context.agentName === 'string' && context.agentName.trim()
+              ? { agentName: context.agentName.trim().slice(0, 60) }
+              : {}),
+            ...(typeof context.agentEnName === 'string' && context.agentEnName.trim()
+              ? { agentEnName: context.agentEnName.trim().slice(0, 60) }
+              : {}),
           }
         : undefined;
 

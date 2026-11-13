@@ -40,6 +40,7 @@ import { ChatMessageText, stripMarkdownForCopy } from './chat/ChatMessageText';
 interface Message {
   id: string;
   sender: 'user' | 'bot';
+  agentIndex?: number;
   text: string;
   timestamp: string;
   products?: MatchedChatProduct[];
@@ -57,9 +58,40 @@ interface ChatApiResponse {
   suggestedAmount?: number;
 }
 
-const STORAGE_KEY = 'click2it_chat_history_v1';
+export interface SupportAgent {
+  id: string;
+  bnName: string;
+  enName: string;
+  shortName: string;
+  avatar: string;
+}
+
+export const SUPPORT_AGENTS: SupportAgent[] = [
+  {
+    id: 'nusrat',
+    bnName: 'নুসরাত জাহান',
+    enName: 'Nusrat Jahan',
+    shortName: 'নুসরাত',
+    avatar: supportAvatar1,
+  },
+  {
+    id: 'tanvir',
+    bnName: 'তানভীর আহমেদ',
+    enName: 'Tanvir Ahmed',
+    shortName: 'তানভীর',
+    avatar: supportAvatar2,
+  },
+  {
+    id: 'farhana',
+    bnName: 'ফারহানা ইসলাম',
+    enName: 'Farhana Islam',
+    shortName: 'ফারহানা',
+    avatar: supportAvatar3,
+  },
+];
+
+const STORAGE_KEY = 'click2it_chat_history_v2';
 const GREETING_DISMISSED_KEY = 'click2it_chat_greeting_dismissed_v1';
-const SUPPORT_AVATARS = [supportAvatar1, supportAvatar2, supportAvatar3];
 
 const ECOMMERCE_STARTER_PROMPTS = [
   {
@@ -124,12 +156,17 @@ export const ChatWidget: React.FC = () => {
   const contactPhone = settings.contactPhone || '+8809640887777';
   const waNumber = formatWhatsAppPhone(contactPhone);
 
-  const buildWelcomeMessage = (): Message => ({
-    id: 'welcome-1',
-    sender: 'bot',
-    text: `আসসালামু আলাইকুম! **${brandName}**-এ স্বাগতম।\nপ্রোডাক্টের মূল্য, স্টক, **Custom PC Build**, **Credit Card EMI** অথবা অর্ডার সংক্রান্ত যেকোনো তথ্যের জন্য প্রশ্ন করতে পারেন।`,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-  });
+  const buildWelcomeMessage = (agentIdx = 0): Message => {
+    const normalizedIdx = Math.abs(agentIdx) % SUPPORT_AGENTS.length;
+    const agent = SUPPORT_AGENTS[normalizedIdx];
+    return {
+      id: 'welcome-1',
+      sender: 'bot',
+      agentIndex: normalizedIdx,
+      text: `আসসালামু আলাইকুম! **${brandName}**-এ আপনাকে আন্তরিক স্বাগতম। 😊\nআমি **${agent.bnName}** বলছি—আপনার যেকোনো সহায়তায় পাশে আছি।\n\nপ্রোডাক্টের মূল্য ও স্টক, **Custom PC Build**, **Credit Card EMI** কিংবা আপনার অর্ডার সংক্রান্ত যেকোনো বিষয়ে নির্দ্বিধায় জিজ্ঞাসা করুন।`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+  };
 
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -147,7 +184,7 @@ export const ChatWidget: React.FC = () => {
     } catch {
       // ignore storage errors
     }
-    return [buildWelcomeMessage()];
+    return [buildWelcomeMessage(0)];
   });
 
   const [inputValue, setInputValue] = useState('');
@@ -161,7 +198,7 @@ export const ChatWidget: React.FC = () => {
     }
   });
   const [avatarIndex, setAvatarIndex] = useState(0);
-  const currentSupportAvatar = SUPPORT_AVATARS[avatarIndex % SUPPORT_AVATARS.length];
+  const currentSupportAgent = SUPPORT_AGENTS[avatarIndex % SUPPORT_AGENTS.length];
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -175,7 +212,7 @@ export const ChatWidget: React.FC = () => {
   useEffect(() => {
     if (isOpen) return;
     const timer = setInterval(() => {
-      setAvatarIndex((prev) => (prev + 1) % SUPPORT_AVATARS.length);
+      setAvatarIndex((prev) => (prev + 1) % SUPPORT_AGENTS.length);
     }, 6500);
     return () => clearInterval(timer);
   }, [isOpen]);
@@ -241,6 +278,15 @@ export const ChatWidget: React.FC = () => {
     return `https://wa.me/${waNumber}?text=${encodeURIComponent(baseText)}`;
   }, [waNumber, brandName, lastUserMessageText]);
 
+  const handleOpenChat = () => {
+    setIsOpen(true);
+    setMessages((prev) =>
+      prev.length === 1 && prev[0].id === 'welcome-1'
+        ? [buildWelcomeMessage(avatarIndex)]
+        : prev
+    );
+  };
+
   const handleOpenQuickWidget = (
     widget: Exclude<ChatWidgetType, null>,
     titleText: string,
@@ -249,6 +295,7 @@ export const ChatWidget: React.FC = () => {
     const quickMsg: Message = {
       id: `widget-${Date.now()}`,
       sender: 'bot',
+      agentIndex: avatarIndex,
       text: titleText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       widget,
@@ -313,15 +360,18 @@ export const ChatWidget: React.FC = () => {
           cartCount: cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
           cartTotal,
           productId: currentProductId,
+          agentName: currentSupportAgent.bnName,
+          agentEnName: currentSupportAgent.enName,
         },
       });
 
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'bot',
+        agentIndex: avatarIndex,
         text:
           data.reply ||
-          `ধন্যবাদ! আমাদের টিম আপনাকে সহায়তা করতে প্রস্তুত। যেকোনো জরুরি প্রয়োজনে **${contactPhone}** নম্বরে কল বা WhatsApp করতে পারেন।`,
+          `ধন্যবাদ! আমি **${currentSupportAgent.bnName}** বলছি—আপনাকে সহায়তা করতে প্রস্তুত। যেকোনো জরুরি প্রয়োজনে **${contactPhone}** নম্বরে কল বা WhatsApp করতে পারেন।`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         products: Array.isArray(data.products) ? data.products : undefined,
         followUps: Array.isArray(data.followUps) ? data.followUps : undefined,
@@ -334,6 +384,7 @@ export const ChatWidget: React.FC = () => {
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'bot',
+        agentIndex: avatarIndex,
         text: `দুঃখিত, এই মুহূর্তে তাৎক্ষণিক সংযোগে সাময়িক বিলম্ব হচ্ছে।\n\nদ্রুত সহায়তার জন্য সরাসরি কল করুন **${contactPhone}**, **WhatsApp** করুন অথবা নিচে থেকে কলব্যাক রিকোয়েস্ট পাঠান:`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         widget: 'callback_form',
@@ -346,7 +397,9 @@ export const ChatWidget: React.FC = () => {
 
   const handleResetChat = () => {
     hasLoggedLeadRef.current = false;
-    const fresh = [buildWelcomeMessage()];
+    const nextIdx = (avatarIndex + 1) % SUPPORT_AGENTS.length;
+    setAvatarIndex(nextIdx);
+    const fresh = [buildWelcomeMessage(nextIdx)];
     setMessages(fresh);
     try {
       sessionStorage.removeItem(STORAGE_KEY);
@@ -356,7 +409,7 @@ export const ChatWidget: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-50 font-sans">
+    <div className="fixed bottom-4 right-3 sm:bottom-5 sm:right-5 z-50 font-sans">
       {!isOpen ? (
         /* Floating Support Avatar & Greeting Speech Bubble */
         <div className="flex items-center gap-2.5 sm:gap-3">
@@ -373,7 +426,7 @@ export const ChatWidget: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setIsOpen(true)}
+                onClick={handleOpenChat}
                 className="relative bg-white hover:bg-slate-50/90 text-slate-800 rounded-xl sm:rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 shadow-[0_6px_24px_rgba(15,23,42,0.14)] border border-slate-200/70 text-center leading-snug cursor-pointer transition-all hover:shadow-[0_8px_28px_rgba(15,23,42,0.18)]"
                 aria-label="Open support chat"
               >
@@ -393,16 +446,17 @@ export const ChatWidget: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setIsOpen(true)}
+            onClick={handleOpenChat}
             className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full p-0.5 bg-white shadow-[0_6px_22px_rgba(15,23,42,0.22)] hover:scale-105 active:scale-95 transition-transform duration-200 cursor-pointer shrink-0"
-            aria-label={`Open ${brandName} Live Support`}
+            aria-label={`Open ${brandName} Live Support — ${currentSupportAgent.bnName}`}
+            title={`${currentSupportAgent.bnName} — ${brandName}`}
           >
             <div className="relative w-full h-full rounded-full overflow-hidden">
-              {SUPPORT_AVATARS.map((avatarSrc, idx) => (
+              {SUPPORT_AGENTS.map((agent, idx) => (
                 <img
-                  key={idx}
-                  src={avatarSrc}
-                  alt={`${brandName} Support`}
+                  key={agent.id}
+                  src={agent.avatar}
+                  alt={`${agent.bnName} — ${brandName}`}
                   className={`absolute inset-0 w-full h-full rounded-full object-cover object-top transition-all duration-700 ease-in-out ${
                     idx === avatarIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
                   }`}
@@ -412,6 +466,9 @@ export const ChatWidget: React.FC = () => {
             <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 sm:h-4 sm:w-4">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
               <span className="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-emerald-500 border-2 border-white shadow-xs" />
+            </span>
+            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-[1px] rounded-full bg-[#0E2A47] text-white text-[10px] font-semibold leading-tight tracking-tight border border-white shadow-xs whitespace-nowrap pointer-events-none">
+              {currentSupportAgent.shortName}
             </span>
           </button>
         </div>
@@ -423,8 +480,9 @@ export const ChatWidget: React.FC = () => {
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="relative shrink-0">
                 <img
-                  src={currentSupportAvatar}
-                  alt={brandName}
+                  src={currentSupportAgent.avatar}
+                  alt={currentSupportAgent.bnName}
+                  title={`${currentSupportAgent.bnName} (${brandName})`}
                   className="w-9 h-9 rounded-full object-cover object-top border border-white/25 bg-white"
                 />
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-[#0E2A47] rounded-full" />
@@ -481,6 +539,11 @@ export const ChatWidget: React.FC = () => {
             {messages.map((msg, msgIdx) => {
               const isUser = msg.sender === 'user';
               const isLatestBot = !isUser && msgIdx === messages.length - 1;
+              const resolvedAgentIdx =
+                typeof msg.agentIndex === 'number'
+                  ? Math.abs(msg.agentIndex) % SUPPORT_AGENTS.length
+                  : avatarIndex;
+              const msgAgent = SUPPORT_AGENTS[resolvedAgentIdx] || currentSupportAgent;
               return (
                 <div
                   key={msg.id}
@@ -488,13 +551,18 @@ export const ChatWidget: React.FC = () => {
                 >
                   {!isUser && (
                     <img
-                      src={currentSupportAvatar}
-                      alt={brandName}
-                      className="w-6 h-6 rounded-full object-cover object-top border border-slate-200 shrink-0 mt-0.5 bg-white"
+                      src={msgAgent.avatar}
+                      alt={msgAgent.bnName}
+                      className="w-6 h-6 rounded-full object-cover object-top border border-slate-200 shrink-0 mt-4 bg-white"
                     />
                   )}
 
                   <div className={`${isUser ? 'max-w-[84%]' : 'max-w-[90%] w-full'} group/msg`}>
+                    {!isUser && (
+                      <span className="block text-[10px] font-semibold text-[#0E2A47]/80 mb-0.5 px-1">
+                        {msgAgent.bnName}
+                      </span>
+                    )}
                     <div
                       className={`px-3.5 py-2.5 rounded-2xl text-[12.5px] leading-[1.6] ${
                         isUser
@@ -634,8 +702,8 @@ export const ChatWidget: React.FC = () => {
             {loading && (
               <div className="flex gap-2 justify-start items-center">
                 <img
-                  src={currentSupportAvatar}
-                  alt={brandName}
+                  src={currentSupportAgent.avatar}
+                  alt={currentSupportAgent.bnName}
                   className="w-6 h-6 rounded-full object-cover object-top border border-slate-200 shrink-0 bg-white"
                 />
                 <div className="bg-white px-3.5 py-2.5 rounded-2xl rounded-bl-xs border border-slate-200/70 shadow-2xs flex items-center gap-1.5">
