@@ -41,6 +41,7 @@ import {
   buildOrderScopeLookup,
   classifyCustomerTransaction,
   doesTxMatchProjectOrWorkOrder,
+  listCustomerProjectWorkOrderScopes,
 } from '../../../../utils/customerAdvanceAccounting';
 
 import { where } from 'firebase/firestore';
@@ -1386,20 +1387,61 @@ export default function CustomerDueList() {
 
                     {/* Due / Advance Amount */}
                     <td className="px-6 py-4 text-right">
-                      {customer.due < -0.01 ? (
-                        <div>
-                          <span className="font-black text-base text-emerald-700 tracking-tight block">
-                            {formatCurrency(Math.abs(customer.due), settings)}
+                      <div className="flex flex-col items-end gap-1">
+                        {customer.due < -0.01 ? (
+                          <div>
+                            <span className="font-black text-base text-emerald-700 tracking-tight block">
+                              {formatCurrency(Math.abs(customer.due), settings)}
+                            </span>
+                            <span className="text-[10px] font-extrabold uppercase text-emerald-600">
+                              Advance Credit
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-black text-base text-red-600 tracking-tight">
+                            {formatCurrency(customer.due, settings)}
                           </span>
-                          <span className="text-[10px] font-extrabold uppercase text-emerald-600">
-                            Advance Credit
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="font-black text-base text-red-600 tracking-tight">
-                          {formatCurrency(customer.due, settings)}
-                        </span>
-                      )}
+                        )}
+                        {(() => {
+                          const custObj = customers.find(c => c.id === customer.id) || {
+                            id: customer.id,
+                            name: customer.name,
+                          };
+                          const scopes = listCustomerProjectWorkOrderScopes(
+                            custObj,
+                            transactions,
+                            orders,
+                          ).filter(s => s.advanceBalance > 0.01 || s.dueBalance > 0.01);
+                          if (scopes.length === 0) return null;
+                          return (
+                            <div className="flex flex-wrap justify-end gap-1 max-w-[240px]">
+                              {scopes.map(sc => (
+                                <button
+                                  key={sc.key}
+                                  type="button"
+                                  onClick={() => {
+                                    setHistoryCustomer({ id: customer.id, name: customer.name });
+                                    setLedgerBranchFilter(
+                                      sc.workOrderNumber ? `WO: #${sc.workOrderNumber}` : (sc.projectName || 'all'),
+                                    );
+                                  }}
+                                  title="Open ledger filtered to this Work Order / Project"
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                                    sc.advanceBalance > 0.01
+                                      ? 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
+                                      : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                                  }`}
+                                >
+                                  {sc.workOrderNumber ? `WO #${sc.workOrderNumber}` : sc.projectName}:{' '}
+                                  {sc.advanceBalance > 0.01
+                                    ? `Adv ${formatCurrency(sc.advanceBalance, settings)}`
+                                    : `Due ${formatCurrency(sc.dueBalance, settings)}`}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </td>
 
                     {/* Actions */}

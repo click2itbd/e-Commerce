@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, deleteDoc, doc, query, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../../../firebase';
-import { Customer, PaymentAccount, Transaction } from '../../../../types';
+import { Customer, Order, PaymentAccount, Transaction, WorkOrder } from '../../../../types';
 import { toast } from 'react-hot-toast';
 import {
   Users,
@@ -18,14 +18,20 @@ import {
   CheckCircle,
   FileText,
   Wallet,
+  FileCheck2,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 import { useSettings } from '../../../../context/SettingsContext';
+import { useBusinessUnits } from '../../../../hooks/useBusinessUnits';
 import { formatCurrency } from '../../../../lib/utils';
 import { moveToTrash } from '../../../../lib/trash';
 import { Pagination } from '../../../../components/common/Pagination';
-import { calculateCustomerAccountPosition } from '../../../../utils/customerAdvanceAccounting';
+import {
+  calculateCustomerAccountPosition,
+  listCustomerProjectWorkOrderScopes,
+} from '../../../../utils/customerAdvanceAccounting';
 import { CustomerAdvanceModal } from '../../modals/CustomerAdvanceModal';
+import { WorkOrderTracker } from '../businessUnits/WorkOrderTracker';
 
 interface CustomersProps {
   customers?: Customer[];
@@ -42,12 +48,18 @@ const Customers: React.FC<CustomersProps> = ({
 }) => {
   const { user, isAdmin, hasPermission } = useAuth();
   const { settings } = useSettings();
+  const { companies } = useBusinessUnits();
 
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [customerViewMode, setCustomerViewMode] = useState<'customers' | 'work_orders'>('customers');
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [advanceTargetCustomer, setAdvanceTargetCustomer] = useState<Customer | null>(null);
+  const [advanceScopeWO, setAdvanceScopeWO] = useState('');
+  const [advanceScopeProj, setAdvanceScopeProj] = useState('');
   const [loading, setLoading] = useState(!initialCustomers || initialCustomers.length === 0);
 
   // Form State
@@ -152,6 +164,18 @@ const Customers: React.FC<CustomersProps> = ({
         setPaymentAccounts(snap.docs.map(d => ({ id: d.id, ...d.data() })) as PaymentAccount[]);
       })
       .catch((err) => console.warn('Failed loading payment accounts in Customers:', err));
+
+    getDocs(collection(db, 'orders'))
+      .then((snap) => {
+        setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Order[]);
+      })
+      .catch((err) => console.warn('Failed loading orders in Customers:', err));
+
+    getDocs(collection(db, 'work_orders'))
+      .then((snap) => {
+        setWorkOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })) as WorkOrder[]);
+      })
+      .catch((err) => console.warn('Failed loading work_orders in Customers:', err));
 
     return () => {
       unsubscribe();
@@ -280,12 +304,38 @@ const Customers: React.FC<CustomersProps> = ({
           </div>
           
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto shrink-0">
+            <div className="inline-flex bg-white/10 p-1 rounded-xl border border-white/15">
+              <button
+                type="button"
+                onClick={() => setCustomerViewMode('customers')}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  customerViewMode === 'customers'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-200 hover:bg-white/10'
+                }`}
+              >
+                <Users size={14} /> Customers
+              </button>
+              <button
+                type="button"
+                onClick={() => setCustomerViewMode('work_orders')}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  customerViewMode === 'work_orders'
+                    ? 'bg-amber-400 text-slate-900 shadow-sm'
+                    : 'text-slate-200 hover:bg-white/10'
+                }`}
+              >
+                <FileCheck2 size={14} /> Work Orders / Projects
+              </button>
+            </div>
             {hasPermission('manage_orders') && (
               <>
                 <button
                   type="button"
                   onClick={() => {
                     setAdvanceTargetCustomer(null);
+                    setAdvanceScopeWO('');
+                    setAdvanceScopeProj('');
                     setShowAdvanceModal(true);
                   }}
                   className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-3 rounded-xl hover:bg-indigo-500 transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20"
@@ -308,6 +358,19 @@ const Customers: React.FC<CustomersProps> = ({
         </div>
       </div>
 
+      {customerViewMode === 'work_orders' ? (
+        <div className="p-4 sm:p-6">
+          <WorkOrderTracker
+            orders={orders}
+            companies={companies}
+            customers={customers}
+            selectedCompany="all"
+            setActiveTab={setActiveTab}
+            settings={settings}
+          />
+        </div>
+      ) : (
+      <>
       {/* Search Bar */}
       <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
          <div className="relative w-full max-w-lg">
@@ -547,21 +610,55 @@ const Customers: React.FC<CustomersProps> = ({
                   <td className="px-6 py-4 text-right whitespace-nowrap">
                     {(() => {
                       const pos = calculateCustomerAccountPosition(transactions, customer);
-                      if (pos.advanceBalance > 0.01) {
-                        return (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Advance: {formatCurrency(pos.advanceBalance, settings)}
-                          </span>
-                        );
-                      }
-                      if (pos.dueBalance > 0.01) {
-                        return (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-rose-50 text-rose-700 border border-rose-200">
-                            Due: {formatCurrency(pos.dueBalance, settings)}
-                          </span>
-                        );
-                      }
-                      return <span className="text-xs font-semibold text-slate-400">Settled</span>;
+                      const scopedBalances = listCustomerProjectWorkOrderScopes(
+                        customer,
+                        transactions,
+                        orders,
+                        workOrders,
+                      ).filter(s => s.advanceBalance > 0.01 || s.dueBalance > 0.01);
+
+                      return (
+                        <div className="flex flex-col items-end gap-1">
+                          {pos.advanceBalance > 0.01 ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Advance: {formatCurrency(pos.advanceBalance, settings)}
+                            </span>
+                          ) : pos.dueBalance > 0.01 ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-rose-50 text-rose-700 border border-rose-200">
+                              Due: {formatCurrency(pos.dueBalance, settings)}
+                            </span>
+                          ) : (
+                            <span className="text-xs font-semibold text-slate-400">Settled</span>
+                          )}
+                          {scopedBalances.length > 0 && (
+                            <div className="flex flex-wrap justify-end gap-1 max-w-[260px] whitespace-normal">
+                              {scopedBalances.map(sc => (
+                                <button
+                                  key={sc.key}
+                                  type="button"
+                                  onClick={() => {
+                                    setAdvanceTargetCustomer(customer);
+                                    setAdvanceScopeWO(sc.workOrderNumber || '');
+                                    setAdvanceScopeProj(sc.projectName || '');
+                                    setShowAdvanceModal(true);
+                                  }}
+                                  title="Click to record Advance / Refund for this Work Order or Project"
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                                    sc.advanceBalance > 0.01
+                                      ? 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
+                                      : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                                  }`}
+                                >
+                                  {sc.workOrderNumber ? `WO #${sc.workOrderNumber}` : sc.projectName}:{' '}
+                                  {sc.advanceBalance > 0.01
+                                    ? `Adv ${formatCurrency(sc.advanceBalance, settings)}`
+                                    : `Due ${formatCurrency(sc.dueBalance, settings)}`}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
                     })()}
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -571,6 +668,8 @@ const Customers: React.FC<CustomersProps> = ({
                           type="button"
                           onClick={() => {
                             setAdvanceTargetCustomer(customer);
+                            setAdvanceScopeWO('');
+                            setAdvanceScopeProj('');
                             setShowAdvanceModal(true);
                           }}
                           className="flex items-center gap-1.5 text-xs bg-white hover:bg-indigo-50 text-indigo-700 font-bold px-3 py-2 rounded-lg border border-indigo-200 transition-all shadow-sm"
@@ -635,13 +734,18 @@ const Customers: React.FC<CustomersProps> = ({
           onItemsPerPageChange={setItemsPerPage}
         />
       </div>
+      </>
+      )}
       <CustomerAdvanceModal
         isOpen={showAdvanceModal}
         onClose={() => setShowAdvanceModal(false)}
         customers={customers}
         paymentAccounts={paymentAccounts}
         transactions={transactions}
+        workOrders={workOrders}
         initialCustomer={advanceTargetCustomer}
+        initialWorkOrderNumber={advanceScopeWO}
+        initialProjectName={advanceScopeProj}
         onSuccess={() => fetchData?.()}
       />
     </div>
