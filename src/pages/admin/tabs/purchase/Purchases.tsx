@@ -3,7 +3,7 @@ import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc,
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../../../../firebase';
 import { Product, Vendor, Customer, Order, Transaction, SiteSettings, PaymentAccount, WorkOrder } from '../../../../types';
-import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, type WarrantyUnit } from '../../../../lib/utils';
+import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, addWarranty, type WarrantyUnit } from '../../../../lib/utils';
 import { calculateAccountBalance, validateSufficientBalance } from '../../../../lib/accountBalance';
 import {
   calculateCustomerAccountPosition,
@@ -47,6 +47,7 @@ import {
   FileText,
   ArrowRight,
   UserCheck,
+  Zap,
 } from 'lucide-react';
 import { generateDocumentNumber } from '../../../../lib/numbering';
 import { AIPolishButton } from '../../../../components/common/AIPolishButton';
@@ -215,6 +216,8 @@ const Purchases: React.FC<PurchasesProps> = ({
             attachmentUrl: '',
             notes: '',
             createdBy: '',
+            advanceReceivedNow: 0,
+            autoCreateSaleInvoice: false,
             ...parsed,
           };
         }
@@ -240,13 +243,15 @@ const Purchases: React.FC<PurchasesProps> = ({
       shippingCost: 0,
       attachmentUrl: '',
       notes: '',
-      createdBy: ''
+      createdBy: '',
+      advanceReceivedNow: 0,
+      autoCreateSaleInvoice: false,
     };
   });
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   useEffect(() => {
-    if (purchaseForm.vendorId || purchaseForm.workOrderNumber || purchaseForm.projectName || purchaseForm.customerId || purchaseForm.items.length > 0) {
+    if (purchaseForm.vendorId || purchaseForm.workOrderNumber || purchaseForm.projectName || purchaseForm.customerId || purchaseForm.items.length > 0 || Number((purchaseForm as any).advanceReceivedNow) > 0) {
       localStorage.setItem('draft_purchase_form', JSON.stringify(purchaseForm));
     }
   }, [purchaseForm]);
@@ -771,6 +776,16 @@ const Purchases: React.FC<PurchasesProps> = ({
   const totalShippingCost = Number(purchaseForm.shippingCost) || 0;
   const totalDiscount = Number(purchaseForm.discountAmount) || 0;
   const billTotal = Math.max(0, itemsSubtotal + totalShippingCost - totalDiscount);
+  const saleItemsTotal = purchaseForm.items.reduce(
+    (sum, item) =>
+      sum +
+      (Number(item.salesPrice) > 0 ? Number(item.salesPrice) : Number(item.purchasePrice) || 0) *
+        (Number(item.quantity) || 1),
+    0
+  );
+  const inlineAdvanceNow = !purchaseForm.id
+    ? Math.max(0, Number((purchaseForm as any).advanceReceivedNow) || 0)
+    : 0;
 
   useEffect(() => {
     if (initialCustomers.length > 0 && customers.length === 0) {
@@ -1155,7 +1170,24 @@ const Purchases: React.FC<PurchasesProps> = ({
       }
     }
 
-    // 6. Paid Amount Limit
+    // 6. Inline Advance / Auto-Sale & Paid Amount Limit
+    const resolvedCustomerIdForValidation =
+      purchaseForm.customerId || activePurchaseContext.matchedCustomer?.id || '';
+    if (inlineAdvanceNow > 0) {
+      if (!resolvedCustomerIdForValidation) {
+        toast.error('অ্যাডভান্স জমা নিতে অনুগ্রহ করে Client / Customer সিলেক্ট করুন!');
+        return;
+      }
+      if (!purchaseForm.paymentAccountId) {
+        toast.error('কাস্টমারের অ্যাডভান্স কোন অ্যাকাউন্টে জমা হয়েছে তা Payment Source Account থেকে সিলেক্ট করুন!');
+        return;
+      }
+    }
+    if (Boolean((purchaseForm as any).autoCreateSaleInvoice) && !purchaseForm.id && !resolvedCustomerIdForValidation) {
+      toast.error('অটো সেল ইনভয়েস তৈরি করতে অনুগ্রহ করে Client / Customer সিলেক্ট করুন!');
+      return;
+    }
+
     const paid = Number(purchaseForm.paidAmount) || 0;
     if (paid < 0) {
       toast.error('Paid amount cannot be negative!');
@@ -1177,10 +1209,13 @@ const Purchases: React.FC<PurchasesProps> = ({
           return;
         }
       } else {
-        const validation = validateSufficientBalance(selectedAcc, transactions, paid);
-        if (!validation.valid) {
-          toast.error(validation.error || 'Insufficient account balance!');
-          return;
+        const netOutflowFromPrior = Math.max(0, paid - inlineAdvanceNow);
+        if (netOutflowFromPrior > 0) {
+          const validation = validateSufficientBalance(selectedAcc, transactions, netOutflowFromPrior);
+          if (!validation.valid) {
+            toast.error(validation.error || 'Insufficient account balance!');
+            return;
+          }
         }
       }
     }
@@ -1232,8 +1267,25 @@ const Purchases: React.FC<PurchasesProps> = ({
       const paymentStatus: 'paid' | 'partial' | 'unpaid' =
         paid >= billTotal ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
 
+      const cleanWo = (purchaseForm.workOrderNumber || '').trim().replace(/^#+/, '').trim();
+      const cleanProj = (purchaseForm.projectName || '').trim();
+      const linkedCustomerId =
+        purchaseForm.customerId || activePurchaseContext.matchedCustomer?.id || '';
+      const linkedCustomerName =
+        purchaseForm.customerName ||
+        activePurchaseContext.matchedCustomer?.name ||
+        '';
+      const scopeTagParts = [cleanWo ? `WO: #${cleanWo}` : '', cleanProj ? `Project: ${cleanProj}` : ''].filter(Boolean);
+      const scopeSuffix = scopeTagParts.length > 0 ? ` [${scopeTagParts.join(' | ')}]` : '';
+      const autoSaleActive = Boolean(
+        (purchaseForm as any).autoCreateSaleInvoice &&
+          !purchaseForm.id &&
+          linkedCustomerId &&
+          purchaseForm.items.length > 0
+      );
+
       // 1. Prepare Product Inventory & Stock & Cost Price
-      const updatedItems = [...purchaseForm.items];
+      const updatedItems = purchaseForm.items.map(it => ({ ...it }));
       
       const totalQuantity = updatedItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
       const totalShippingCost = Number(purchaseForm.shippingCost) || 0;
@@ -1270,13 +1322,14 @@ const Purchases: React.FC<PurchasesProps> = ({
           const newCost = effectivePurchasePrice;
           
           const totalStock = oldStock + newStock;
+          const finalStock = autoSaleActive ? oldStock : totalStock;
           const averageCostPrice = totalStock > 0 
             ? ((oldStock * oldCost) + (newStock * newCost)) / totalStock 
             : newCost;
 
           const productRef = doc(db, 'products', currentProduct.id);
           const updates: any = {
-            stock: totalStock,
+            stock: finalStock,
             costPrice: averageCostPrice,
           };
 
@@ -1284,7 +1337,9 @@ const Purchases: React.FC<PurchasesProps> = ({
              let existingVariants = currentProduct.variants || [];
              const vIndex = existingVariants.findIndex((v: any) => v.name.toLowerCase() === item.variantName?.toLowerCase() || (item.sku && v.sku === item.sku));
              if (vIndex > -1) {
-               existingVariants[vIndex].stock = (Number(existingVariants[vIndex].stock) || 0) + Number(item.quantity);
+               if (!autoSaleActive) {
+                 existingVariants[vIndex].stock = (Number(existingVariants[vIndex].stock) || 0) + Number(item.quantity);
+               }
                if (item.salesPrice) existingVariants[vIndex].price = Number(item.salesPrice);
              } else {
                existingVariants.push({
@@ -1292,7 +1347,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                  name: item.variantName,
                  sku: item.sku || '',
                  price: Number(item.salesPrice) || 0,
-                 stock: Number(item.quantity) || 0
+                 stock: autoSaleActive ? 0 : (Number(item.quantity) || 0)
                });
              }
              updates.variants = existingVariants;
@@ -1316,7 +1371,9 @@ const Purchases: React.FC<PurchasesProps> = ({
                   .filter((s: string) => s);
 
             updates.hasSerialTracking = true;
-            updates.availableSerials = [...(currentProduct.availableSerials || []), ...addedSerials];
+            if (!autoSaleActive) {
+              updates.availableSerials = [...(currentProduct.availableSerials || []), ...addedSerials];
+            }
             if (!updates.sku && addedSerials[0]) updates.sku = addedSerials[0];
           }
 
@@ -1324,7 +1381,7 @@ const Purchases: React.FC<PurchasesProps> = ({
           batch.update(productRef, publicData);
           addProductPrivateCostToBatch(batch, currentProduct.id, privateCostData);
           
-          currentProduct.stock = totalStock;
+          currentProduct.stock = finalStock;
           currentProduct.costPrice = averageCostPrice;
           localProductsMap.set(currentProduct.id, currentProduct);
           updatedItems[i].id = currentProduct.id;
@@ -1348,12 +1405,12 @@ const Purchases: React.FC<PurchasesProps> = ({
              sku: item.variantName ? '' : (item.sku || ''),
              costPrice: Number(item.purchasePrice) || 0,
              price: Number(item.salesPrice) || 0,
-             stock: Number(item.quantity) || 0,
+             stock: autoSaleActive ? 0 : (Number(item.quantity) || 0),
              hasWarranty: Boolean(item.hasWarranty),
              warrantyMonths: item.hasWarranty ? itemWarrantyMonths(item) : 0,
              warrantyUnit: item.warrantyUnit || 'years',
              hasSerialTracking: Boolean(item.hasSerialTracking || (addedSerials && addedSerials.length > 0)),
-             availableSerials: addedSerials,
+             availableSerials: autoSaleActive ? [] : addedSerials,
              createdAt: new Date().toISOString()
           };
 
@@ -1363,7 +1420,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                 name: item.variantName,
                 sku: item.sku || '',
                 price: Number(item.salesPrice) || 0,
-                stock: Number(item.quantity) || 0
+                stock: autoSaleActive ? 0 : (Number(item.quantity) || 0)
              }];
           }
           
@@ -1388,16 +1445,12 @@ const Purchases: React.FC<PurchasesProps> = ({
         return clean;
       });
 
-      const cleanWo = (purchaseForm.workOrderNumber || '').trim().replace(/^#+/, '').trim();
-      const cleanProj = (purchaseForm.projectName || '').trim();
-      const linkedCustomerId =
-        purchaseForm.customerId || activePurchaseContext.matchedCustomer?.id || '';
-      const linkedCustomerName =
-        purchaseForm.customerName ||
-        activePurchaseContext.matchedCustomer?.name ||
-        '';
-      const scopeTagParts = [cleanWo ? `WO: #${cleanWo}` : '', cleanProj ? `Project: ${cleanProj}` : ''].filter(Boolean);
-      const scopeSuffix = scopeTagParts.length > 0 ? ` [${scopeTagParts.join(' | ')}]` : '';
+      const saleDocNumber = autoSaleActive ? await generateDocumentNumber('INV') : '';
+      const saleOrderRef = autoSaleActive ? doc(collection(db, 'orders')) : null;
+      const advDocNumber =
+        inlineAdvanceNow > 0 && linkedCustomerId && selectedAcc
+          ? await generateDocumentNumber('ADV')
+          : '';
 
       const purchaseRecord: Record<string, any> = {
         documentNumber: docNumber,
@@ -1423,6 +1476,12 @@ const Purchases: React.FC<PurchasesProps> = ({
         branchName: cleanProj,
         customerId: linkedCustomerId,
         customerName: linkedCustomerName,
+        ...(autoSaleActive && saleOrderRef
+          ? {
+              linkedSaleOrderId: saleOrderRef.id,
+              linkedSaleInvoiceNumber: saleDocNumber,
+            }
+          : {}),
         attachmentUrl: purchaseForm.attachmentUrl || '',
         notes: purchaseForm.notes || '',
         createdAt,
@@ -1431,6 +1490,34 @@ const Purchases: React.FC<PurchasesProps> = ({
 
       const purchaseDocRef = purchaseForm.id ? doc(db, 'purchases', purchaseForm.id) : doc(collection(db, 'purchases'));
       batch.set(purchaseDocRef, purchaseRecord);
+
+      // 2.5 Record Inline Customer Advance Deposit if entered in 1-step form
+      if (inlineAdvanceNow > 0 && linkedCustomerId && selectedAcc) {
+        const advTxRef = doc(collection(db, 'transactions'));
+        const advScopeTag = scopeTagParts.length > 0 ? ` (${scopeTagParts.join(' | ')})` : '';
+        batch.set(advTxRef, {
+          type: 'payment_received',
+          amount: inlineAdvanceNow,
+          date: new Date(purchaseForm.date).toISOString(),
+          description: `Customer Advance Deposit${advScopeTag} [With Purchase #${docNumber}]`,
+          entityId: linkedCustomerId,
+          entityName: linkedCustomerName,
+          entityType: 'customer',
+          category: 'Customer Advance',
+          isAdvance: true,
+          documentNumber: advDocNumber,
+          referenceId: advDocNumber,
+          paymentAccountId: selectedAcc.id,
+          paymentAccountName: selectedAcc.name,
+          paymentMethod: selectedAcc.type || selectedAcc.name || 'cash',
+          workOrderNumber: cleanWo,
+          branchName: cleanProj,
+          projectName: cleanProj,
+          company: 'main',
+          createdAt,
+          createdBy: purchaseForm.createdBy || 'Admin',
+        });
+      }
 
       // 3. Record Outflow in Firestore `transactions`
       // Always record the full purchase amount to update the vendor ledger (Payable)
@@ -1480,6 +1567,129 @@ const Purchases: React.FC<PurchasesProps> = ({
         });
       }
 
+      // 3.5 Record Auto-Created Customer Sale Invoice + Advance Adjustment in the same batch
+      if (autoSaleActive && saleOrderRef) {
+        const saleOrderItems = updatedItems.map(item => {
+          const wMonths = item.hasWarranty ? itemWarrantyMonths(item) : 0;
+          const serialList = Array.isArray(item.newSerials)
+            ? item.newSerials.map((s: string) => s.trim()).filter(Boolean)
+            : String(item.newSerials || '')
+                .split(/[\n,]/)
+                .map((s: string) => s.trim())
+                .filter(Boolean);
+          return {
+            id: item.id,
+            productId: item.id,
+            name: item.name,
+            price: Number(item.salesPrice) > 0 ? Number(item.salesPrice) : Number(item.purchasePrice) || 0,
+            costPrice: Number(item.purchasePrice) || 0,
+            quantity: Number(item.quantity) || 1,
+            unit: item.unit || 'pcs',
+            hasWarranty: Boolean(item.hasWarranty),
+            warrantyMonths: wMonths,
+            warrantyUnit: item.warrantyUnit || 'years',
+            brand: item.brand || '',
+            selectedSerials: serialList,
+          };
+        });
+
+        const saleNetTotal = saleOrderItems.reduce((s, it) => s + it.price * it.quantity, 0);
+        const priorAdv = activePurchaseContext.scopedFinancials
+          ? activePurchaseContext.scopedFinancials.explicitRemainingAdvance
+          : (activePurchaseContext.overallCustomerPos?.explicitAdvanceBalance || 0);
+        const totalAdvAvailable = Math.max(0, priorAdv + inlineAdvanceNow);
+        const advanceAppliedOnSale = Math.min(saleNetTotal, totalAdvAvailable);
+        const saleDueAmount = Math.max(0, saleNetTotal - advanceAppliedOnSale);
+        const salePaymentStatus =
+          advanceAppliedOnSale >= saleNetTotal - 0.01
+            ? 'paid'
+            : advanceAppliedOnSale > 0
+            ? 'partial'
+            : 'unpaid';
+
+        batch.set(saleOrderRef, {
+          previousDue: 0,
+          documentNumber: saleDocNumber,
+          type: 'invoice',
+          saleSource: 'in_store',
+          company: 'main',
+          createdBy: purchaseForm.createdBy || 'Admin',
+          preparedBy: purchaseForm.createdBy || 'Admin',
+          customerId: linkedCustomerId,
+          customerName: linkedCustomerName,
+          customerPhone: activePurchaseContext.matchedCustomer?.phone || '',
+          customerEmail: activePurchaseContext.matchedCustomer?.email || '',
+          shippingAddress: activePurchaseContext.matchedCustomer?.address || '',
+          workOrderNumber: cleanWo,
+          branchName: cleanProj,
+          projectName: cleanProj,
+          items: saleOrderItems,
+          subtotal: saleNetTotal,
+          discountAmount: 0,
+          total: saleNetTotal,
+          totalCost: billTotal,
+          profit: saleNetTotal - billTotal,
+          paidAmount: advanceAppliedOnSale,
+          advanceApplied: advanceAppliedOnSale,
+          cashPaidAmount: 0,
+          dueAmount: saleDueAmount,
+          paymentStatus: salePaymentStatus,
+          paymentMethod: advanceAppliedOnSale > 0 ? 'Customer Advance' : 'cash',
+          paymentAccountId: '',
+          status: 'delivered',
+          userId: 'admin',
+          linkedPurchaseId: purchaseDocRef.id,
+          linkedPurchaseNumber: docNumber,
+          notes: purchaseForm.notes || '',
+          createdAt,
+        });
+
+        for (const sItem of saleOrderItems) {
+          for (const serial of sItem.selectedSerials) {
+            const warrantyEndDate = new Date(purchaseForm.date || createdAt);
+            warrantyEndDate.setTime(addWarranty(warrantyEndDate, sItem.warrantyMonths || 0).getTime());
+            const soldSerialRef = doc(collection(db, 'sold_serials'));
+            batch.set(soldSerialRef, {
+              serial,
+              productId: sItem.productId,
+              productName: sItem.name,
+              orderId: saleOrderRef.id,
+              documentNumber: saleDocNumber,
+              customerName: linkedCustomerName,
+              customerPhone: activePurchaseContext.matchedCustomer?.phone || '',
+              soldAt: createdAt,
+              warrantyEndDate: warrantyEndDate.toISOString(),
+              status: 'active',
+            });
+          }
+        }
+
+        const saleTxRef = doc(collection(db, 'transactions'));
+        batch.set(saleTxRef, {
+          type: 'sale',
+          amount: saleNetTotal,
+          date: new Date(purchaseForm.date).toISOString(),
+          description:
+            advanceAppliedOnSale > 0
+              ? `Sale to ${linkedCustomerName} (#${saleDocNumber}) [Advance Adjusted: ${formatCurrency(advanceAppliedOnSale, settings)}]${scopeSuffix}`
+              : `Sale to ${linkedCustomerName} (#${saleDocNumber})${scopeSuffix}`,
+          entityId: linkedCustomerId,
+          entityName: linkedCustomerName,
+          entityType: 'customer',
+          referenceId: saleOrderRef.id,
+          documentNumber: saleDocNumber,
+          workOrderNumber: cleanWo,
+          branchName: cleanProj,
+          projectName: cleanProj,
+          company: 'main',
+          paymentAccountId: '',
+          paymentMethod: advanceAppliedOnSale > 0 ? 'advance' : '',
+          advanceApplied: advanceAppliedOnSale,
+          cashPaidAmount: 0,
+          createdAt,
+        });
+      }
+
       // ATOMICALLY COMMIT ALL DATABASE OPERATIONS
       await batch.commit();
 
@@ -1503,7 +1713,15 @@ const Purchases: React.FC<PurchasesProps> = ({
         });
       }
 
-      toast.success(`Purchase #${docNumber} recorded & inventory restocked successfully!`);
+      if (autoSaleActive) {
+        toast.success(
+          `অ্যাডভান্স, পারচেজ (#${docNumber}) এবং কাস্টমার সেল (#${saleDocNumber}) একসাথে সেভ হয়েছে!`
+        );
+      } else if (advDocNumber) {
+        toast.success(`অ্যাডভান্স (#${advDocNumber}) ও পারচেজ (#${docNumber}) একসাথে সেভ হয়েছে!`);
+      } else {
+        toast.success(`Purchase #${docNumber} recorded & inventory restocked successfully!`);
+      }
 
       // Log purchase to Audit Trail
       const isPurchaseEdit = Boolean(purchaseForm.id);
@@ -1558,6 +1776,8 @@ const Purchases: React.FC<PurchasesProps> = ({
         attachmentUrl: '',
         notes: '',
         createdBy: '',
+        advanceReceivedNow: 0,
+        autoCreateSaleInvoice: false,
       });
 
       loadData();
@@ -2262,6 +2482,189 @@ const Purchases: React.FC<PurchasesProps> = ({
                             </button>
                           </div>
                         )}
+
+                        {!purchaseForm.id && (
+                          <div className="bg-gradient-to-r from-indigo-50/90 via-teal-50/70 to-emerald-50/80 border border-indigo-200 rounded-xl p-3 space-y-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-[11px] font-black text-indigo-950 flex items-center gap-1.5">
+                                <Zap size={13} className="text-indigo-600" />
+                                1-Click Workflow: এখানেই Advance + Auto-Sale (ঐচ্ছিক)
+                              </span>
+                              <span className="text-[10px] font-semibold text-slate-600">
+                                আগে আলাদা Advance/Sale পেজে না গিয়েই একসাথে হিসাব শেষ করুন
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                              <div>
+                                <label className="block text-[10px] font-bold text-teal-900 uppercase mb-1">
+                                  এখন নতুন অ্যাডভান্স জমা (Advance Received Now ৳)
+                                </label>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    placeholder="e.g. 0"
+                                    value={(purchaseForm as any).advanceReceivedNow || ''}
+                                    onChange={e =>
+                                      setPurchaseForm(prev => ({
+                                        ...prev,
+                                        advanceReceivedNow: Math.max(0, Number(e.target.value) || 0),
+                                      }))
+                                    }
+                                    className="w-32 bg-white border border-teal-300 rounded-lg px-2.5 py-1.5 font-black text-teal-900 text-xs outline-none focus:ring-2 focus:ring-teal-400"
+                                  />
+                                  {saleItemsTotal > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setPurchaseForm(prev => ({
+                                          ...prev,
+                                          advanceReceivedNow: saleItemsTotal,
+                                          autoCreateSaleInvoice: true,
+                                          ...(!(prev.paidAmount > 0) && billTotal > 0 ? { paidAmount: billTotal } : {}),
+                                        }))
+                                      }
+                                      className="px-2 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[10px] font-bold cursor-pointer"
+                                    >
+                                      = সেল বিল ({formatCurrency(saleItemsTotal, settings)})
+                                    </button>
+                                  )}
+                                  {billTotal > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setPurchaseForm(prev => ({
+                                          ...prev,
+                                          advanceReceivedNow: billTotal,
+                                        }))
+                                      }
+                                      className="px-2 py-1.5 bg-white hover:bg-teal-50 text-teal-800 border border-teal-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                                    >
+                                      = কেনা খরচ ({formatCurrency(billTotal, settings)})
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="flex items-start gap-2 cursor-pointer bg-white/90 border border-indigo-200 rounded-lg p-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean((purchaseForm as any).autoCreateSaleInvoice)}
+                                    onChange={e =>
+                                      setPurchaseForm(prev => ({
+                                        ...prev,
+                                        autoCreateSaleInvoice: e.target.checked,
+                                      }))
+                                    }
+                                    className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer shrink-0"
+                                  />
+                                  <span className="text-[11px] font-bold text-indigo-950 leading-snug">
+                                    এক ক্লিকেই কাস্টমারের কাছে সেল দেখান (Auto-Create Sale Invoice &amp; Adjust Advance)
+                                  </span>
+                                </label>
+
+                                {(() => {
+                                  const priorAdv = activePurchaseContext.scopedFinancials
+                                    ? activePurchaseContext.scopedFinancials.explicitRemainingAdvance
+                                    : (activePurchaseContext.overallCustomerPos?.explicitAdvanceBalance || 0);
+                                  const totalAdvAvailable = Math.max(0, priorAdv + inlineAdvanceNow);
+                                  const autoSaleChecked = Boolean((purchaseForm as any).autoCreateSaleInvoice);
+
+                                  if (!autoSaleChecked) return null;
+
+                                  return (
+                                    <div className="space-y-2 pt-1">
+                                      {purchaseForm.items.length > 0 &&
+                                        totalAdvAvailable > 0 &&
+                                        Math.abs(saleItemsTotal - totalAdvAvailable) > 0.01 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setPurchaseForm(prev => {
+                                                const items = prev.items.map(it => ({ ...it }));
+                                                if (items.length === 1) {
+                                                  const qty = Math.max(1, Number(items[0].quantity) || 1);
+                                                  items[0].salesPrice = Number((totalAdvAvailable / qty).toFixed(2));
+                                                } else if (items.length > 1) {
+                                                  const currentTotal = items.reduce(
+                                                    (s, it) =>
+                                                      s +
+                                                      (Number(it.salesPrice) > 0
+                                                        ? Number(it.salesPrice)
+                                                        : Number(it.purchasePrice) || 0) *
+                                                        (Number(it.quantity) || 1),
+                                                    0
+                                                  );
+                                                  if (currentTotal > 0) {
+                                                    const ratio = totalAdvAvailable / currentTotal;
+                                                    let running = 0;
+                                                    items.forEach((it, idx) => {
+                                                      const qty = Math.max(1, Number(it.quantity) || 1);
+                                                      const base =
+                                                        Number(it.salesPrice) > 0
+                                                          ? Number(it.salesPrice)
+                                                          : Number(it.purchasePrice) || 0;
+                                                      if (idx === items.length - 1) {
+                                                        it.salesPrice = Math.max(
+                                                          0,
+                                                          Number(((totalAdvAvailable - running) / qty).toFixed(2))
+                                                        );
+                                                      } else {
+                                                        const unitP = Number((base * ratio).toFixed(2));
+                                                        it.salesPrice = unitP;
+                                                        running += unitP * qty;
+                                                      }
+                                                    });
+                                                  } else {
+                                                    const qty0 = Math.max(1, Number(items[0].quantity) || 1);
+                                                    items[0].salesPrice = Number((totalAdvAvailable / qty0).toFixed(2));
+                                                  }
+                                                }
+                                                return { ...prev, items };
+                                              });
+                                            }}
+                                            className="w-full px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black cursor-pointer flex items-center justify-center gap-1"
+                                          >
+                                            🎯 সেল বিল = মোট অ্যাডভান্স ({formatCurrency(totalAdvAvailable, settings)}) মিলিয়ে দিন
+                                          </button>
+                                        )}
+
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                                        <div className="bg-white border border-teal-200 rounded-lg px-2 py-1">
+                                          <div className="text-[9px] font-bold text-teal-700 uppercase">মোট অ্যাডভান্স</div>
+                                          <div className="text-[11px] font-black text-teal-900">
+                                            {formatCurrency(totalAdvAvailable, settings)}
+                                          </div>
+                                        </div>
+                                        <div className="bg-white border border-amber-200 rounded-lg px-2 py-1">
+                                          <div className="text-[9px] font-bold text-amber-700 uppercase">কেনা খরচ</div>
+                                          <div className="text-[11px] font-black text-amber-900">
+                                            {formatCurrency(billTotal, settings)}
+                                          </div>
+                                        </div>
+                                        <div className="bg-white border border-blue-200 rounded-lg px-2 py-1">
+                                          <div className="text-[9px] font-bold text-blue-700 uppercase">কাস্টমার সেল বিল</div>
+                                          <div className="text-[11px] font-black text-blue-900">
+                                            {formatCurrency(saleItemsTotal, settings)}
+                                          </div>
+                                        </div>
+                                        <div className="bg-white border border-emerald-200 rounded-lg px-2 py-1">
+                                          <div className="text-[9px] font-bold text-emerald-700 uppercase">লাভ ও সমন্বয়</div>
+                                          <div className="text-[10px] font-black text-emerald-900">
+                                            Profit: {formatCurrency(saleItemsTotal - billTotal, settings)} · Adv Adjust:{' '}
+                                            {formatCurrency(Math.min(totalAdvAvailable, saleItemsTotal), settings)}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2721,7 +3124,9 @@ const Purchases: React.FC<PurchasesProps> = ({
                 {(() => {
                   const selectedAccount = paymentAccounts.find(a => a.id === purchaseForm.paymentAccountId);
                   const availableBalance = selectedAccount ? calculateAccountBalance(selectedAccount, transactions) : 0;
-                  const isInsufficient = Boolean(selectedAccount && purchaseForm.paidAmount > availableBalance);
+                  const effectiveAvailableBalance =
+                    availableBalance + (activePurchaseContext.matchedCustomer ? inlineAdvanceNow : 0);
+                  const isInsufficient = Boolean(selectedAccount && purchaseForm.paidAmount > effectiveAvailableBalance);
                   return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
                   <div className="bg-gray-50/70 p-3.5 rounded-xl border border-gray-200 space-y-3">
@@ -2768,11 +3173,19 @@ const Purchases: React.FC<PurchasesProps> = ({
                         )}
                       {selectedAccount && (
                         <div className={cn(
-                          "mt-2 text-xs px-2.5 py-1.5 rounded-lg flex items-center justify-between font-bold",
-                          availableBalance > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
+                          "mt-2 text-xs px-2.5 py-1.5 rounded-lg space-y-1 font-bold",
+                          effectiveAvailableBalance > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
                         )}>
-                          <span>Current Balance:</span>
-                          <span>{formatCurrency(availableBalance, settings)}</span>
+                          <div className="flex items-center justify-between">
+                            <span>Current Balance:</span>
+                            <span>{formatCurrency(availableBalance, settings)}</span>
+                          </div>
+                          {inlineAdvanceNow > 0 && activePurchaseContext.matchedCustomer && (
+                            <div className="flex items-center justify-between text-[11px] text-teal-800 border-t border-emerald-200/70 pt-1">
+                              <span>+ Advance Deposit ({formatCurrency(inlineAdvanceNow, settings)}) → Total Available:</span>
+                              <span>{formatCurrency(effectiveAvailableBalance, settings)}</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2899,16 +3312,16 @@ const Purchases: React.FC<PurchasesProps> = ({
                             Insufficient Balance! Account balance cannot go below zero.
                           </div>
                           <p className="text-[11px] text-red-700">
-                            "{selectedAccount?.name}" has available balance <b>{formatCurrency(availableBalance, settings)}</b>, but you entered <b>{formatCurrency(purchaseForm.paidAmount, settings)}</b>.
+                            "{selectedAccount?.name}" has available balance <b>{formatCurrency(effectiveAvailableBalance, settings)}</b>, but you entered <b>{formatCurrency(purchaseForm.paidAmount, settings)}</b>.
                           </p>
                           <div className="flex flex-wrap gap-2 pt-1">
-                            {availableBalance > 0 && (
+                            {effectiveAvailableBalance > 0 && (
                               <button
                                 type="button"
-                                onClick={() => setPurchaseForm({ ...purchaseForm, paidAmount: Math.min(billTotal, availableBalance) })}
+                                onClick={() => setPurchaseForm({ ...purchaseForm, paidAmount: Math.min(billTotal, effectiveAvailableBalance) })}
                                 className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-black rounded text-[11px] transition shadow-xs cursor-pointer"
                               >
-                                Pay {formatCurrency(Math.min(billTotal, availableBalance), settings)} (Remaining {formatCurrency(billTotal - Math.min(billTotal, availableBalance), settings)} Due)
+                                Pay {formatCurrency(Math.min(billTotal, effectiveAvailableBalance), settings)} (Remaining {formatCurrency(billTotal - Math.min(billTotal, effectiveAvailableBalance), settings)} Due)
                               </button>
                             )}
                             <button
@@ -2992,13 +3405,39 @@ const Purchases: React.FC<PurchasesProps> = ({
 
                 <button
                   type="submit"
-                  disabled={submitting || purchaseForm.items.length === 0 || !purchaseForm.vendorId || (Boolean(!purchaseForm.isChequePayment && purchaseForm.paymentAccountId && purchaseForm.paidAmount > calculateAccountBalance(paymentAccounts.find(a => a.id === purchaseForm.paymentAccountId), transactions)))}
-                  className="w-full bg-[#081621] hover:bg-[#EF4444] disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                  disabled={
+                    submitting ||
+                    purchaseForm.items.length === 0 ||
+                    !purchaseForm.vendorId ||
+                    Boolean(
+                      !purchaseForm.isChequePayment &&
+                        purchaseForm.paymentAccountId &&
+                        purchaseForm.paidAmount >
+                          calculateAccountBalance(
+                            paymentAccounts.find(a => a.id === purchaseForm.paymentAccountId),
+                            transactions
+                          ) +
+                            (activePurchaseContext.matchedCustomer ? inlineAdvanceNow : 0)
+                    )
+                  }
+                  className="w-full bg-[#081621] hover:bg-[#EF4444] disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <CheckCircle size={18} />
-                  {submitting 
-                    ? (purchaseForm.id ? 'Updating Purchase...' : 'Restocking Inventory...') 
-                    : (purchaseForm.id ? 'Update & Save Purchase' : 'Confirm Purchase & Restock Inventory')}
+                  {submitting
+                    ? purchaseForm.id
+                      ? 'Updating Purchase...'
+                      : (purchaseForm as any).autoCreateSaleInvoice
+                        ? 'Saving Advance, Purchase & Sale Invoice...'
+                        : 'Restocking Inventory...'
+                    : purchaseForm.id
+                      ? 'Update & Save Purchase'
+                      : (purchaseForm as any).autoCreateSaleInvoice
+                        ? inlineAdvanceNow > 0
+                          ? 'Record Advance, Purchase & Customer Sale in 1 Click'
+                          : 'Confirm Purchase & Auto-Create Customer Sale Invoice'
+                        : inlineAdvanceNow > 0
+                          ? 'Record Advance & Confirm Purchase'
+                          : 'Confirm Purchase & Restock Inventory'}
                 </button>
               </form>
             </div>
@@ -3432,6 +3871,11 @@ const Purchases: React.FC<PurchasesProps> = ({
                               <Paperclip size={10} /> Bill Copy
                             </a>
                           )}
+                          {(pur as any).linkedSaleInvoiceNumber && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded font-mono">
+                              ✓ Sale: #{(pur as any).linkedSaleInvoiceNumber}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center text-xs font-bold text-slate-600">
@@ -3467,6 +3911,21 @@ const Purchases: React.FC<PurchasesProps> = ({
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex items-center justify-center gap-2">
+                        {!(pur as any).linkedSaleInvoiceNumber &&
+                          (pur.workOrderNumber || pur.projectName || pur.customerId) && (
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                localStorage.setItem('pos_pending_purchase_to_sale', JSON.stringify(pur));
+                                setActiveTab?.('sales');
+                              }}
+                              className="px-2 py-1 text-[10px] font-black text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-all cursor-pointer whitespace-nowrap"
+                              title="এই কেনা প্রোডাক্টগুলো দিয়ে ১-ক্লিকে কাস্টমার সেল ইনভয়েস তৈরি করুন"
+                            >
+                              ⚡ Sale Invoice
+                            </button>
+                          )}
                         <button
                           onClick={() => setViewingPurchase(pur)}
                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all border border-transparent hover:border-blue-200 shadow-sm opacity-100 md:opacity-70 group-hover:opacity-100"

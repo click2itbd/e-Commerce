@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { collection, addDoc, updateDoc, doc, query, getDocs, getDoc, orderBy, where, deleteDoc, increment, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../../../../firebase';
 import { Product, ProductVariant, Customer, DiscountCode, SiteSettings, PaymentAccount } from '../../../../types';
-import { formatCurrency, cn, addWarranty, formatWarranty } from '../../../../lib/utils';
+import { formatCurrency, cn, addWarranty, formatWarranty, warrantyToMonths, type WarrantyUnit } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../../context/AuthContext';
 import { generatePDF } from '../../../../lib/pdf';
@@ -222,6 +222,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const [useAllProjectsAdvance, setUseAllProjectsAdvance] = useState(false);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [ordersList, setOrdersList] = useState<Partial<Order>[]>([]);
+  const [purchasesList, setPurchasesList] = useState<any[]>([]);
 
   useEffect(() => {
     if (editingOrder) {
@@ -434,14 +435,81 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     }
   };
 
-  // Sync customers, accounts, work orders, and orders lookup
+  const loadPurchaseIntoSale = (pur: any, custList: Customer[] = customers) => {
+    if (!pur || !Array.isArray(pur.items) || pur.items.length === 0) return;
+
+    const purCustNameLow = String(pur.customerName || '').trim().toLowerCase();
+    const purProjLow = String(pur.projectName || pur.branchName || '').trim().toLowerCase();
+    const matchedCust =
+      (pur.customerId && custList.find(c => c.id === pur.customerId)) ||
+      (purCustNameLow && custList.find(c => (c.name || '').trim().toLowerCase() === purCustNameLow)) ||
+      (purProjLow &&
+        custList.find(
+          c =>
+            (c.name || '').trim().toLowerCase() === purProjLow ||
+            (c.branchName || '').trim().toLowerCase() === purProjLow ||
+            (c.branches || []).some(b => (b || '').trim().toLowerCase() === purProjLow)
+        )) ||
+      null;
+
+    const mappedItems = pur.items.map((it: any) => {
+      const prodObj = products.find(pr => pr.id === it.id);
+      const wMonths = Boolean(it.hasWarranty)
+        ? Number(it.warrantyMonths) ||
+          (it.warrantyValue !== undefined
+            ? warrantyToMonths(Number(it.warrantyValue) || 0, (it.warrantyUnit || 'years') as WarrantyUnit)
+            : (Number(it.warrantyYears) || 0) * 12)
+        : 0;
+      const serials = Array.isArray(it.newSerials)
+        ? it.newSerials.filter((s: string) => {
+            if (!prodObj || !prodObj.hasSerialTracking) return true;
+            return (prodObj.availableSerials || []).includes(s);
+          })
+        : [];
+      return {
+        id: it.id,
+        productId: it.id,
+        name: it.name,
+        price: Number(it.salesPrice) > 0 ? Number(it.salesPrice) : Number(it.purchasePrice) || 0,
+        costPrice: Number(it.purchasePrice) || 0,
+        quantity: Number(it.quantity) || 1,
+        unit: it.unit || prodObj?.unit || 'pcs',
+        hasWarranty: Boolean(it.hasWarranty),
+        warrantyMonths: wMonths,
+        hasSerialTracking: Boolean(prodObj?.hasSerialTracking || it.hasSerialTracking || serials.length > 0),
+        selectedSerials: serials,
+      };
+    });
+
+    setSaleData(prev => ({
+      ...prev,
+      items: mappedItems,
+      customerId: matchedCust?.id || pur.customerId || prev.customerId,
+      customerName: matchedCust?.name || pur.customerName || prev.customerName,
+      customerPhone: matchedCust?.phone || prev.customerPhone,
+      customerEmail: matchedCust?.email || prev.customerEmail,
+      shippingAddress: matchedCust?.address || prev.shippingAddress,
+      workOrderNumber: pur.workOrderNumber || prev.workOrderNumber,
+      branchName: pur.projectName || pur.branchName || prev.branchName,
+      projectName: pur.projectName || pur.branchName || prev.projectName,
+    }));
+    setApplyCustomerAdvance(true);
+    playBeep('success');
+    toast.success(
+      `Purchase #${pur.documentNumber || ''} থেকে ${mappedItems.length}টি আইটেম ও কাস্টমার লোড হয়েছে!`,
+      { duration: 3500 }
+    );
+  };
+
+  // Sync customers, accounts, work orders, orders, and purchases lookup
   const loadData = async () => {
     try {
-      const [custSnap, accSnap, woSnap, ordSnap] = await Promise.all([
+      const [custSnap, accSnap, woSnap, ordSnap, purSnap] = await Promise.all([
         getDocs(query(collection(db, 'customers'), orderBy('name'))),
         getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
         getDocs(collection(db, 'work_orders')).catch(() => ({ docs: [] })),
         getDocs(collection(db, 'orders')).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'purchases')).catch(() => ({ docs: [] })),
       ]);
       const fetchedCusts = custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer));
       setCustomers(fetchedCusts);
@@ -449,6 +517,9 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       wos.sort((a, b) => new Date(b.issuedDate || b.createdAt || 0).getTime() - new Date(a.issuedDate || a.createdAt || 0).getTime());
       setWorkOrders(wos);
       setOrdersList(ordSnap.docs.map(d => ({ id: d.id, ...d.data() } as Partial<Order>)));
+      const purs = purSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      purs.sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime());
+      setPurchasesList(purs);
 
       const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(accs);
@@ -468,6 +539,19 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
       // Apply pending service item once customers & accounts are loaded
       applyPendingServiceItem(fetchedCusts, accs);
+
+      // Apply pending purchase -> sale handoff if triggered from Purchase History
+      const pendingPurchaseRaw = localStorage.getItem('pos_pending_purchase_to_sale');
+      if (pendingPurchaseRaw) {
+        try {
+          const parsedPur = JSON.parse(pendingPurchaseRaw);
+          loadPurchaseIntoSale(parsedPur, fetchedCusts);
+        } catch (parseErr) {
+          console.warn('Failed to parse pending purchase for sale:', parseErr);
+        } finally {
+          localStorage.removeItem('pos_pending_purchase_to_sale');
+        }
+      }
       
     } catch (err) {
       console.error(err);
@@ -694,9 +778,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         workOrders,
         transactions,
         orders: ordersList,
+        purchases: purchasesList,
         customers,
       }),
-    [workOrders, transactions, ordersList, customers]
+    [workOrders, transactions, ordersList, purchasesList, customers]
   );
 
   // Net total computed
@@ -2166,6 +2251,48 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 </div>
               )}
             </div>
+
+            {/* 1-Click Load Purchased Items Banner */}
+            {saleData.items.length === 0 &&
+              Boolean(saleData.workOrderNumber || saleData.branchName || saleData.customerId) &&
+              (() => {
+                const woClean = String(saleData.workOrderNumber || '').trim().replace(/^#+/, '').toLowerCase();
+                const projClean = String(saleData.branchName || '').trim().toLowerCase();
+                const custIdClean = String(saleData.customerId || '').trim();
+                const matchingPurchase = purchasesList.find(pur => {
+                  if (!pur || pur.linkedSaleInvoiceNumber || !Array.isArray(pur.items) || pur.items.length === 0) {
+                    return false;
+                  }
+                  const pWo = String(pur.workOrderNumber || '').trim().replace(/^#+/, '').toLowerCase();
+                  const pProj = String(pur.projectName || pur.branchName || '').trim().toLowerCase();
+                  const pCustId = String(pur.customerId || '').trim();
+                  if (woClean && pWo && pWo === woClean) return true;
+                  if (projClean && pProj && pProj === projClean) return true;
+                  if (custIdClean && pCustId && pCustId === custIdClean) return true;
+                  return false;
+                });
+                if (!matchingPurchase) return null;
+                return (
+                  <div className="bg-gradient-to-r from-indigo-50 via-blue-50 to-teal-50 border border-indigo-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2 text-xs text-indigo-950 font-bold">
+                      <span>📦</span>
+                      <span>
+                        এই ওয়ার্ক অর্ডার/কাস্টমারের কেনা প্রোডাক্ট রেডি আছে (
+                        <strong className="font-mono">#{matchingPurchase.documentNumber}</strong> ·{' '}
+                        {matchingPurchase.items.length} items · বিল{' '}
+                        {formatCurrency(Number(matchingPurchase.total) || 0, settings)})
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => loadPurchaseIntoSale(matchingPurchase)}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-black cursor-pointer shadow-xs transition-all shrink-0"
+                    >
+                      ⚡ ১-ক্লিকে কার্টে লোড করুন
+                    </button>
+                  </div>
+                );
+              })()}
 
             {/* Cart Items Section */}
             <div>
