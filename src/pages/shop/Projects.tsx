@@ -308,7 +308,7 @@ export const Projects = () => {
   return (
     <Layout fullWidth>
       <div className="bg-slate-50 min-h-screen py-5 sm:py-10 lg:py-12">
-        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-6 sm:mb-10">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/70 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider mb-2.5 sm:mb-4">
               <Award size={12} className="text-blue-600" />
@@ -324,7 +324,7 @@ export const Projects = () => {
 
           {/* Category Filter Pills (horizontal scroll on mobile, centered wrap on tablet/desktop) */}
           {categories.length > 2 && (
-            <div className="flex items-center sm:justify-center gap-2 overflow-x-auto sm:flex-wrap pb-2 sm:pb-0 -mx-3.5 px-3.5 sm:mx-0 sm:px-0 mb-6 sm:mb-10 no-scrollbar">
+            <div className="flex items-center sm:justify-center gap-2 overflow-x-auto sm:flex-wrap pb-2 sm:pb-0 -mx-3 px-3 sm:mx-0 sm:px-0 mb-5 sm:mb-10 no-scrollbar">
               {categories.map(cat => (
                 <button
                   type="button"
@@ -342,7 +342,7 @@ export const Projects = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6 lg:gap-8">
             {visibleProjects.map(project => (
               <div
                 key={project.id}
@@ -350,11 +350,11 @@ export const Projects = () => {
                   setActiveProjectModal(project);
                   setActivePhotoUrl(project.image);
                 }}
-                className={`bg-white rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 border group flex flex-col cursor-pointer ${
+                className={`bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 border group flex flex-col cursor-pointer ${
                   project.isFeatured ? 'border-amber-300 ring-1 ring-amber-200/60' : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <div className="relative aspect-[16/10] sm:aspect-auto sm:h-48 overflow-hidden bg-slate-100">
+                <div className="relative aspect-[4/3] sm:aspect-auto sm:h-48 overflow-hidden bg-slate-100">
                   <img
                     src={project.image}
                     alt={project.title}
@@ -362,54 +362,55 @@ export const Projects = () => {
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  <div className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3 max-w-[60%] bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold text-slate-900 flex items-center gap-1.5 shadow-xs truncate">
+                  <div className="absolute top-1.5 left-1.5 sm:top-3 sm:left-3 max-w-[56%] sm:max-w-[60%] bg-white/95 backdrop-blur-sm px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[9px] sm:text-[11px] font-bold text-slate-900 flex items-center gap-1 sm:gap-1.5 shadow-xs">
                     {(() => {
                       const Icon = Icons[project.iconName] || Briefcase;
-                      return <Icon size={12} className="text-blue-600 shrink-0" />;
+                      return <Icon size={12} className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-blue-600 shrink-0" />;
                     })()}
                     <span className="truncate">{project.category}</span>
                   </div>
                   {project.isFeatured && (
-                    <div className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black flex items-center gap-1 shadow-xs">
-                      <Star size={10} className="fill-slate-950" /> FEATURED
+                    <div className="absolute top-1.5 right-1.5 sm:top-3 sm:right-3 bg-amber-400 text-slate-950 px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded-full text-[8px] sm:text-[10px] font-black flex items-center gap-0.5 sm:gap-1 shadow-xs">
+                      <Star size={10} className="w-2 h-2 sm:w-2.5 sm:h-2.5 fill-slate-950" /> FEATURED
                     </div>
                   )}
                   {(project.location || project.duration) && (
-                    <div className="absolute bottom-2 left-2.5 right-2.5 sm:bottom-2.5 sm:left-3 sm:right-3 flex items-center justify-between text-white/95 text-[10px] sm:text-[11px] font-medium gap-2">
+                    <div className="absolute bottom-1.5 left-1.5 right-1.5 sm:bottom-2.5 sm:left-3 sm:right-3 flex items-center justify-between text-white/95 text-[9px] sm:text-[11px] font-medium gap-1 sm:gap-2">
                       {project.location && (
-                        <span className="flex items-center gap-1 truncate max-w-[60%]">
-                          <MapPin size={10} className="shrink-0" /> {project.location}
+                        <span className="flex items-center gap-0.5 sm:gap-1 min-w-0 max-w-[62%] sm:max-w-[60%]">
+                          <MapPin size={10} className="w-2.5 h-2.5 shrink-0" />
+                          <span className="truncate">{project.location}</span>
                         </span>
                       )}
                       {project.duration && (
-                        <span className="flex items-center gap-1 bg-black/45 px-2 py-0.5 rounded-full text-[10px] ml-auto shrink-0">
-                          <Clock size={10} /> {project.duration}
+                        <span className="flex items-center gap-0.5 sm:gap-1 bg-black/50 backdrop-blur-[2px] px-1.5 py-0.5 sm:px-2 rounded-full text-[8px] sm:text-[10px] ml-auto shrink-0 whitespace-nowrap">
+                          <Clock size={10} className="w-2 h-2 sm:w-2.5 sm:h-2.5 shrink-0" /> {project.duration}
                         </span>
                       )}
                     </div>
                   )}
                 </div>
 
-                <div className="p-4 sm:p-5 flex flex-col flex-grow">
+                <div className="p-2.5 sm:p-5 flex flex-col flex-grow">
                   {project.client && (
-                    <div className="mb-1 text-[10px] sm:text-[11px] font-bold text-blue-600 uppercase tracking-wider line-clamp-1">
+                    <div className="mb-0.5 sm:mb-1 text-[9px] sm:text-[11px] font-bold text-blue-600 uppercase tracking-wider line-clamp-1">
                       {project.client}
                     </div>
                   )}
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2 mb-1.5 sm:mb-2">
+                  <h3 className="text-xs sm:text-base font-bold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors line-clamp-2 mb-1 sm:mb-2">
                     {project.title}
                   </h3>
-                  <p className="text-slate-500 text-xs sm:text-sm line-clamp-2 mb-3.5 sm:mb-4 leading-relaxed flex-grow">
+                  <p className="text-slate-500 text-[11px] sm:text-sm line-clamp-2 mb-2.5 sm:mb-4 leading-snug sm:leading-relaxed flex-grow">
                     {project.description}
                   </p>
 
-                  <div className="pt-2.5 sm:pt-3 border-t border-slate-100 flex items-center justify-between mt-auto gap-2">
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:text-blue-700 transition-colors">
+                  <div className="pt-2 sm:pt-3 border-t border-slate-100 flex flex-wrap sm:flex-nowrap items-center justify-between mt-auto gap-1 sm:gap-2">
+                    <span className="inline-flex items-center gap-0.5 text-[10px] sm:text-xs font-bold text-blue-600 group-hover:text-blue-700 transition-colors whitespace-nowrap">
                       View Details &rarr;
                     </span>
                     {project.liveUrl && (
-                      <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md shrink-0">
-                        <Globe size={11} className="text-blue-600" /> Live Demo
+                      <span className="inline-flex items-center gap-1 text-[9px] sm:text-[11px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 sm:px-2 rounded-md shrink-0 whitespace-nowrap">
+                        <Globe size={11} className="w-2.5 h-2.5 sm:w-[11px] sm:h-[11px] text-blue-600" /> Live Demo
                       </span>
                     )}
                   </div>
