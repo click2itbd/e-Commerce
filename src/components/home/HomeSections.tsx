@@ -6,8 +6,8 @@ import { ProductCard } from '../ProductCard';
 import { formatCurrency } from '../../lib/utils';
 import { collection, onSnapshot, query, orderBy, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import promoLaptopsImg from '../../../public/banners/promo-laptops.jpg';
-import promoAccessoriesImg from '../../../public/banners/promo-accessories.jpg';
+import promoMonitorImg from '../../../public/banners/promo-monitor-x22.jpg';
+import promoWdPurpleImg from '../../../public/banners/promo-wd-purple.jpg';
 
 // --- Top Brands ---
 export const TopBrands = () => {
@@ -338,55 +338,206 @@ export const ProductCarousel = ({ title, products }: { title: string, products: 
 };
 
 // --- Promo Bento Grid ---
-const resolvePromoBannerUrl = (url: string | undefined, fallback: string): string => {
-  if (!url) return fallback;
-  if (url === '/banners/promo-laptops.jpg' || url.includes('photo-1603302576837')) {
-    return promoLaptopsImg;
+const FEATURED_MONITOR_PRODUCT_ID = 'NklFu19GnV9irMMt2q7X';
+const FEATURED_HDD_PRODUCT_ID = 'CY4nYT9KsuJzrwGh0NfF';
+
+const isLegacyPromoBanner = (banner: any, slot: 'left' | 'right'): boolean => {
+  if (!banner) return true;
+  const img = String(banner.imageUrl || '');
+  const target = String(banner.targetUrl || '');
+  if (slot === 'left') {
+    return (
+      !img ||
+      img.includes('photo-1603302576837') ||
+      img === '/banners/promo-laptops.jpg' ||
+      img === '/banners/promo-monitor-x22.jpg' ||
+      target === '/category/laptop' ||
+      target === `/product/${FEATURED_MONITOR_PRODUCT_ID}`
+    );
   }
-  if (
-    url === '/banners/promo-accessories.jpg' ||
-    url.includes('photo-1598550476439') ||
-    url.includes('photo-1615663245857')
-  ) {
-    return promoAccessoriesImg;
-  }
-  return url;
+  return (
+    !img ||
+    img.includes('photo-1598550476439') ||
+    img.includes('photo-1615663245857') ||
+    img === '/banners/promo-accessories.jpg' ||
+    img === '/banners/promo-wd-purple.jpg' ||
+    target === '/category/accessories' ||
+    target === `/product/${FEATURED_HDD_PRODUCT_ID}`
+  );
 };
 
-export const PromoBentoGrid = () => {
+export const PromoBentoGrid: React.FC<{ products?: Product[] }> = ({ products = [] }) => {
   const [promoBanners, setPromoBanners] = useState<any[]>([]);
 
   useEffect(() => {
     const q = query(collection(db, 'store_banners'), orderBy('order', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const activeDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((b: any) => b.isActive);
-        const leftPromo = activeDocs.find((b: any) => b.position === 'promo_banner_left' || (b.position === 'promo_banner' && b.order === 0));
-        const rightPromo = activeDocs.find((b: any) => b.position === 'promo_banner_right' || (b.position === 'promo_banner' && b.order === 1));
-        
-        const combinedPromos = [];
-        if (leftPromo) combinedPromos.push(leftPromo);
-        if (rightPromo) combinedPromos.push(rightPromo);
-        
-        setPromoBanners(combinedPromos);
+      const leftPromo = activeDocs.find((b: any) => b.position === 'promo_banner_left' || (b.position === 'promo_banner' && b.order === 0));
+      const rightPromo = activeDocs.find((b: any) => b.position === 'promo_banner_right' || (b.position === 'promo_banner' && b.order === 1));
+
+      const combinedPromos = [];
+      if (leftPromo) combinedPromos.push(leftPromo);
+      if (rightPromo) combinedPromos.push(rightPromo);
+
+      setPromoBanners(combinedPromos);
     });
     return () => unsubscribe();
   }, []);
 
   const banner1 = promoBanners[0];
   const banner2 = promoBanners[1];
-  const banner1Img = resolvePromoBannerUrl(banner1?.imageUrl, promoLaptopsImg);
-  const banner2Img = resolvePromoBannerUrl(banner2?.imageUrl, promoAccessoriesImg);
+
+  const useFeaturedMonitor = isLegacyPromoBanner(banner1, 'left');
+  const useFeaturedHdd = isLegacyPromoBanner(banner2, 'right');
+
+  const monitorProduct = products.find((p) => p.id === FEATURED_MONITOR_PRODUCT_ID);
+  const monitorBasePrice = monitorProduct?.price || 9400;
+  const monitorSalePrice =
+    monitorProduct?.discountPrice && monitorProduct.discountPrice > 0 && monitorProduct.discountPrice < monitorBasePrice
+      ? monitorProduct.discountPrice
+      : monitorProduct?.price || 8600;
+  const monitorSavings = monitorBasePrice > monitorSalePrice ? monitorBasePrice - monitorSalePrice : 0;
+
+  const hddProduct = products.find((p) => p.id === FEATURED_HDD_PRODUCT_ID);
+  const hddBasePrice = hddProduct?.price || 25500;
+  const hddSalePrice =
+    hddProduct?.discountPrice && hddProduct.discountPrice > 0 && hddProduct.discountPrice < hddBasePrice
+      ? hddProduct.discountPrice
+      : hddBasePrice;
 
   return (
-    <section className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-4">
-      <Link to={banner1?.targetUrl || "/category/laptop"} className="md:col-span-2 relative rounded-2xl overflow-hidden group h-[190px] sm:h-[230px] md:h-[250px] bg-gradient-to-r from-gray-900 to-gray-800">
-        <img src={banner1Img} alt={banner1?.title || "Laptops"} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" loading="lazy" />
-        
+    <section className="mb-12 grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4">
+      {/* Left Promo Card: Featured Monitor -> /product/NklFu19GnV9irMMt2q7X */}
+      <Link
+        to={useFeaturedMonitor ? `/product/${FEATURED_MONITOR_PRODUCT_ID}` : banner1?.targetUrl || `/product/${FEATURED_MONITOR_PRODUCT_ID}`}
+        className="md:col-span-7 lg:col-span-8 relative rounded-2xl overflow-hidden group h-[215px] sm:h-[235px] md:h-[255px] bg-[#060D18] border border-slate-800/70 shadow-sm hover:shadow-xl transition-all duration-300 flex items-center"
+      >
+        <img
+          src={useFeaturedMonitor ? promoMonitorImg : banner1?.imageUrl}
+          alt={useFeaturedMonitor ? 'Value-Top X22IFR100 21.5" 100Hz FHD IPS Monitor' : banner1?.title || 'Featured Deal'}
+          className="absolute inset-0 w-full h-full object-cover object-right group-hover:scale-[1.03] transition-transform duration-500"
+          loading="lazy"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-r from-[#050C18]/95 via-[#071528]/80 sm:via-[#071528]/65 to-transparent"
+        />
+
+        {useFeaturedMonitor ? (
+          <div className="relative z-10 p-5 sm:p-7 max-w-[70%] sm:max-w-[58%] flex flex-col justify-between h-full gap-3">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-orange-500/20 text-orange-300 border border-orange-400/35 backdrop-blur-xs">
+                  {monitorSavings > 0 ? `Save ৳${monitorSavings.toLocaleString('en-IN')}` : 'Monitor Deal'}
+                </span>
+                <span className="hidden sm:inline-flex items-center text-[10px] font-semibold tracking-wider uppercase text-cyan-300">
+                  Value-Top • 21.5" IPS
+                </span>
+              </div>
+
+              <h3 className="text-lg sm:text-2xl font-extrabold text-white leading-tight tracking-tight drop-shadow-xs">
+                Value-Top X22IFR100
+                <span className="block text-sm sm:text-base font-bold text-cyan-200/95 mt-0.5">
+                  100Hz FHD IPS Monitor
+                </span>
+              </h3>
+
+              <p className="text-[11px] sm:text-xs text-slate-300 font-medium line-clamp-1">
+                1920×1080 FHD • 100Hz • HDMI &amp; VGA • VESA Mount
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3.5 pt-1">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-lg sm:text-2xl font-extrabold text-white tracking-tight">
+                  ৳{monitorSalePrice.toLocaleString('en-IN')}
+                </span>
+                {monitorSavings > 0 && (
+                  <span className="text-xs text-slate-400 line-through">
+                    ৳{monitorBasePrice.toLocaleString('en-IN')}
+                  </span>
+                )}
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#F97316] group-hover:bg-orange-500 text-white text-[11px] sm:text-xs font-bold shadow-sm transition-colors">
+                <span>Shop Now</span>
+                <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </div>
+          </div>
+        ) : (
+          banner1?.title && (
+            <div className="relative z-10 p-5 sm:p-7 max-w-[68%] flex flex-col justify-end h-full gap-2">
+              <h3 className="text-lg sm:text-2xl font-extrabold text-white leading-tight">{banner1.title}</h3>
+              <span className="inline-flex w-fit items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#F97316] text-white text-xs font-bold">
+                <span>Shop Now</span>
+                <ArrowRight size={13} />
+              </span>
+            </div>
+          )
+        )}
       </Link>
-      
-      <Link to={banner2?.targetUrl || "/category/accessories"} className="md:col-span-1 relative rounded-2xl overflow-hidden group h-[190px] sm:h-[230px] md:h-[250px] bg-gradient-to-br from-blue-900 to-indigo-900">
-        <img src={banner2Img} alt={banner2?.title || "Accessories"} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" loading="lazy" />
-        
+
+      {/* Right Promo Card: Featured WD Purple 4TB HDD -> /product/CY4nYT9KsuJzrwGh0NfF */}
+      <Link
+        to={useFeaturedHdd ? `/product/${FEATURED_HDD_PRODUCT_ID}` : banner2?.targetUrl || `/product/${FEATURED_HDD_PRODUCT_ID}`}
+        className="md:col-span-5 lg:col-span-4 relative rounded-2xl overflow-hidden group h-[215px] sm:h-[235px] md:h-[255px] bg-[#08091A] border border-purple-900/50 shadow-sm hover:shadow-xl transition-all duration-300 flex items-center"
+      >
+        <img
+          src={useFeaturedHdd ? promoWdPurpleImg : banner2?.imageUrl}
+          alt={useFeaturedHdd ? 'Western Digital 4TB Purple Surveillance Hard Disk' : banner2?.title || 'Featured Storage'}
+          className="absolute inset-0 w-full h-full object-cover object-right group-hover:scale-[1.03] transition-transform duration-500"
+          loading="lazy"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-r from-[#08091A]/95 via-[#100D2B]/80 to-transparent"
+        />
+
+        {useFeaturedHdd ? (
+          <div className="relative z-10 p-5 sm:p-6 max-w-[70%] sm:max-w-[66%] flex flex-col justify-between h-full gap-3">
+            <div className="space-y-1.5">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-purple-500/25 text-purple-200 border border-purple-400/35 backdrop-blur-xs">
+                24×7 Surveillance
+              </span>
+
+              <p className="text-[10px] font-bold tracking-widest uppercase text-purple-300/95 pt-0.5">
+                Western Digital • WD40PURZ
+              </p>
+
+              <h3 className="text-lg sm:text-xl font-extrabold text-white leading-tight tracking-tight drop-shadow-xs">
+                WD Purple 4TB
+                <span className="block text-xs sm:text-sm font-semibold text-purple-200/95 mt-0.5">
+                  Surveillance Hard Disk
+                </span>
+              </h3>
+
+              <p className="text-[11px] text-slate-300 font-medium line-clamp-1">
+                SATA 6Gb/s • 5400 RPM • 64MB Cache
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 pt-1">
+              <span className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+                ৳{hddSalePrice.toLocaleString('en-IN')}
+              </span>
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-600 group-hover:bg-purple-500 text-white text-[11px] font-bold shadow-sm transition-colors">
+                <span>Shop Now</span>
+                <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </div>
+          </div>
+        ) : (
+          banner2?.title && (
+            <div className="relative z-10 p-5 sm:p-6 max-w-[70%] flex flex-col justify-end h-full gap-2">
+              <h3 className="text-lg sm:text-xl font-extrabold text-white leading-tight">{banner2.title}</h3>
+              <span className="inline-flex w-fit items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-600 text-white text-[11px] font-bold">
+                <span>Shop Now</span>
+                <ArrowRight size={12} />
+              </span>
+            </div>
+          )
+        )}
       </Link>
     </section>
   );

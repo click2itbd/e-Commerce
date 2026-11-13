@@ -78,9 +78,9 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
   useEffect(() => {
     banners.forEach(b => {
       if (typeof b.imageUrl === 'string' && b.imageUrl.includes('photo-1603302576837')) {
-        updateDoc(doc(db, 'store_banners', b.id), { imageUrl: '/banners/promo-laptops.jpg' }).catch(console.error);
+        updateDoc(doc(db, 'store_banners', b.id), { title: 'Value-Top X22IFR100 21.5" 100Hz FHD IPS Monitor', imageUrl: '/banners/promo-monitor-x22.jpg', targetUrl: '/product/NklFu19GnV9irMMt2q7X' }).catch(console.error);
       } else if (typeof b.imageUrl === 'string' && (b.imageUrl.includes('photo-1615663245857') || b.imageUrl.includes('photo-1598550476439'))) {
-        updateDoc(doc(db, 'store_banners', b.id), { imageUrl: '/banners/promo-accessories.jpg' }).catch(console.error);
+        updateDoc(doc(db, 'store_banners', b.id), { title: 'Western Digital 4TB Purple Surveillance HDD', imageUrl: '/banners/promo-wd-purple.jpg', targetUrl: '/product/CY4nYT9KsuJzrwGh0NfF' }).catch(console.error);
       }
     });
   }, [banners]);
@@ -94,8 +94,8 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
       { title: 'MONITORS & DISPLAYS', imageUrl: '/banners/hero-main.jpg', targetUrl: '/category/components/monitor', position: 'hero_slider', isActive: true, order: 1 },
       { title: 'ACCESSORIES', imageUrl: '/banners/side-acc.jpg', targetUrl: '/category/components', position: 'sidebar_ad_top', isActive: true, order: 0 },
       { title: 'GADGETS', imageUrl: '/banners/side-gadget.jpg', targetUrl: '/category/components', position: 'sidebar_ad_bottom', isActive: true, order: 0 },
-      { title: 'Premium Gaming Laptops', imageUrl: '/banners/promo-laptops.jpg', targetUrl: '/category/laptop', position: 'promo_banner_left', isActive: true, order: 0 },
-      { title: 'Gaming Accessories', imageUrl: '/banners/promo-accessories.jpg', targetUrl: '/category/accessories', position: 'promo_banner_right', isActive: true, order: 0 }
+      { title: 'Value-Top X22IFR100 21.5" 100Hz FHD IPS Monitor', imageUrl: '/banners/promo-monitor-x22.jpg', targetUrl: '/product/NklFu19GnV9irMMt2q7X', position: 'promo_banner_left', isActive: true, order: 0 },
+      { title: 'Western Digital 4TB Purple Surveillance HDD', imageUrl: '/banners/promo-wd-purple.jpg', targetUrl: '/product/CY4nYT9KsuJzrwGh0NfF', position: 'promo_banner_right', isActive: true, order: 0 }
     ];
     
     const loadingToast = toast.loading('Restoring default banners...');

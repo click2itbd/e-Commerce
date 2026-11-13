@@ -240,7 +240,7 @@ export const Home: React.FC = () => {
       <ProductCarousel title="New Arrivals" products={products.filter(p => p.isNewArrival).slice(0, 8).length > 0 ? products.filter(p => p.isNewArrival).slice(0, 8) : products.slice(0, 8)} />
 
       {/* Promo Bento Grid */}
-      <PromoBentoGrid />
+      <PromoBentoGrid products={products} />
 
       {/* Best Sellers */}
       <ProductCarousel
