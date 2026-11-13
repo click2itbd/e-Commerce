@@ -11,7 +11,6 @@ import {
   Cpu,
   Truck,
   ShieldCheck,
-  ExternalLink,
   Copy,
   Check,
   Sparkles,
@@ -36,6 +35,7 @@ import {
   ChatCouponCheckerCard,
   ChatCallbackFormCard,
 } from './chat/ChatInteractiveCards';
+import { ChatMessageText, stripMarkdownForCopy } from './chat/ChatMessageText';
 
 interface Message {
   id: string;
@@ -61,41 +61,26 @@ const STORAGE_KEY = 'click2it_chat_history_v1';
 const GREETING_DISMISSED_KEY = 'click2it_chat_greeting_dismissed_v1';
 const SUPPORT_AVATARS = [supportAvatar1, supportAvatar2, supportAvatar3];
 
-const ROUTE_LABEL_MAP: Record<string, string> = {
-  '/pc-build': 'Open PC Builder',
-  '/emi-terms': 'View EMI Plans',
-  '/track-order': 'Track Order',
-  '/shop': 'Browse Shop',
-  '/deals': 'Hot Deals',
-  '/online-delivery': 'Delivery Info',
-  '/warranty-policy': 'Warranty Policy',
-  '/refund-policy': 'Refund Policy',
-  '/checkout': 'Go to Checkout',
-  '/cart': 'View Cart',
-  '/projects': 'IT Solutions',
-  '/contact': 'Contact Us',
-};
-
 const ECOMMERCE_STARTER_PROMPTS = [
   {
     icon: Cpu,
     label: 'Custom PC Build & Parts Advice',
-    text: 'আমি একটি Custom PC বানাতে চাই। বাজেট অনুযায়ী সেরা পার্টস ও /pc-build সম্পর্কে সাজেস্ট করুন।',
+    text: 'আমি একটি Custom PC বানাতে চাই। বাজেট অনুযায়ী সেরা কনফিগারেশন ও পার্টস সাজেস্ট করুন।',
   },
   {
     icon: CreditCard,
     label: 'Credit Card EMI (16 Banks, 3–36M)',
-    text: 'Credit Card EMI সুবিধা সম্পর্কে বিস্তারিত জানতে চাই (কোন ব্যাংক ও কত মাসের কিস্তি আছে)?',
+    text: 'Credit Card EMI সুবিধা সম্পর্কে বিস্তারিত জানতে চাই (ব্যাংক তালিকা, মেয়াদ ও চার্জ)।',
   },
   {
     icon: Truck,
     label: 'Order Tracking & Delivery Time',
-    text: 'আমার অর্ডার ট্র্যাক করব কীভাবে এবং ঢাকা ও ঢাকার বাইরে ডেলিভারি চার্জ ও সময় কত?',
+    text: 'আমার অর্ডারটি কীভাবে ট্র্যাক করব এবং ঢাকা ও ঢাকার বাইরে ডেলিভারি চার্জ ও সময়সীমা কত?',
   },
   {
     icon: ShieldCheck,
     label: 'Product Price, Stock & Warranty',
-    text: 'প্রোডাক্টের দাম, স্টক ও অফিশিয়াল ওয়ারেন্টি পলিসি সম্পর্কে জানতে চাই।',
+    text: 'প্রোডাক্টের মূল্য, স্টক এবং অফিশিয়াল ওয়ারেন্টি পলিসি সম্পর্কে জানতে চাই।',
   },
 ];
 
@@ -142,7 +127,7 @@ export const ChatWidget: React.FC = () => {
   const buildWelcomeMessage = (): Message => ({
     id: 'welcome-1',
     sender: 'bot',
-    text: `আসসালামু আলাইকুম! 👋 **${brandName}**-এ স্বাগতম।\nপ্রোডাক্টের দাম, স্টক, **Custom PC Build**, **Credit Card EMI** বা অর্ডার সংক্রান্ত যেকোনো প্রশ্ন করতে পারেন।`,
+    text: `আসসালামু আলাইকুম! **${brandName}**-এ স্বাগতম।\nপ্রোডাক্টের মূল্য, স্টক, **Custom PC Build**, **Credit Card EMI** অথবা অর্ডার সংক্রান্ত যেকোনো তথ্যের জন্য প্রশ্ন করতে পারেন।`,
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
   });
 
@@ -227,7 +212,8 @@ export const ChatWidget: React.FC = () => {
   }
 
   const handleCopyMessage = (id: string, text: string) => {
-    navigator.clipboard?.writeText(text).then(() => {
+    const cleanText = stripMarkdownForCopy(text);
+    navigator.clipboard?.writeText(cleanText).then(() => {
       setCopiedId(id);
       setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 1500);
     }).catch(() => {});
@@ -348,7 +334,7 @@ export const ChatWidget: React.FC = () => {
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'bot',
-        text: `দুঃখিত, এই মুহূর্তে AI সার্ভারে সাময়িক সংযোগ সমস্যা হচ্ছে।\n\nতাৎক্ষণিক সহায়তার জন্য সরাসরি কল করুন **${contactPhone}**, **WhatsApp** বা নিচে থেকে কলব্যাক রিকোয়েস্ট পাঠান:`,
+        text: `দুঃখিত, এই মুহূর্তে তাৎক্ষণিক সংযোগে সাময়িক বিলম্ব হচ্ছে।\n\nদ্রুত সহায়তার জন্য সরাসরি কল করুন **${contactPhone}**, **WhatsApp** করুন অথবা নিচে থেকে কলব্যাক রিকোয়েস্ট পাঠান:`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         widget: 'callback_form',
       };
@@ -367,86 +353,6 @@ export const ChatWidget: React.FC = () => {
     } catch {
       // ignore
     }
-  };
-
-  const renderInlineTokens = (line: string) => {
-    // Match **bold**, external URLs, or internal route paths (/pc-build, /product/xyz, /emi-terms, etc.)
-    const tokenRegex =
-      /(\*\*[^*]+\*\*|https?:\/\/[^\s)]+|\/(?:product\/[a-zA-Z0-9_-]+|pc-build|emi-terms|track-order|shop|deals|online-delivery|warranty-policy|refund-policy|checkout|cart|projects|contact|brands|pre-book))/g;
-    const parts = line.split(tokenRegex);
-
-    return parts.map((part, i) => {
-      if (!part) return null;
-
-      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-        return (
-          <strong key={i} className="font-bold text-slate-900">
-            {part.slice(2, -2)}
-          </strong>
-        );
-      }
-
-      if (part.startsWith('http://') || part.startsWith('https://')) {
-        return (
-          <a
-            key={i}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline font-medium inline-flex items-center gap-0.5 break-all"
-          >
-            {part}
-            <ExternalLink size={10} className="shrink-0" />
-          </a>
-        );
-      }
-
-      if (part.startsWith('/')) {
-        const label = part.startsWith('/product/')
-          ? 'View Product'
-          : ROUTE_LABEL_MAP[part] || part;
-        return (
-          <button
-            key={i}
-            type="button"
-            onClick={() => {
-              navigate(part);
-              if (window.innerWidth < 640) setIsOpen(false);
-            }}
-            className="inline-flex items-center gap-1 mx-0.5 px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-[11px] border border-blue-200/70 transition-colors cursor-pointer align-baseline"
-          >
-            <span>{label}</span>
-            <ChevronRight size={11} />
-          </button>
-        );
-      }
-
-      return <React.Fragment key={i}>{part}</React.Fragment>;
-    });
-  };
-
-  const renderBotText = (text: string) => {
-    const lines = text.split('\n');
-    return (
-      <div className="space-y-1.5">
-        {lines.map((rawLine, idx) => {
-          const trimmed = rawLine.trim();
-          if (!trimmed) return <div key={idx} className="h-1" />;
-
-          if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
-            const content = trimmed.slice(2);
-            return (
-              <div key={idx} className="flex items-start gap-1.5 pl-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 shrink-0" />
-                <span className="flex-1">{renderInlineTokens(content)}</span>
-              </div>
-            );
-          }
-
-          return <p key={idx}>{renderInlineTokens(rawLine)}</p>;
-        })}
-      </div>
-    );
   };
 
   return (
@@ -590,13 +496,17 @@ export const ChatWidget: React.FC = () => {
 
                   <div className={`${isUser ? 'max-w-[84%]' : 'max-w-[90%] w-full'} group/msg`}>
                     <div
-                      className={`p-3 rounded-2xl leading-relaxed text-xs ${
+                      className={`px-3.5 py-2.5 rounded-2xl text-[12.5px] leading-[1.6] ${
                         isUser
                           ? 'bg-gradient-to-r from-[#0E2A47] to-[#1a4977] text-white rounded-br-xs whitespace-pre-line shadow-xs'
                           : 'bg-white text-slate-700 border border-slate-200/70 rounded-bl-xs shadow-2xs'
                       }`}
                     >
-                      {isUser ? msg.text : renderBotText(msg.text)}
+                      {isUser ? (
+                        msg.text
+                      ) : (
+                        <ChatMessageText text={msg.text} onNavigateRoute={navigateFromChat} />
+                      )}
                     </div>
 
                     {/* Interactive Rich Product Cards */}
@@ -757,7 +667,7 @@ export const ChatWidget: React.FC = () => {
                 )}
 
                 <p className="text-[11px] font-semibold text-slate-400 px-1">
-                  জনপ্রিয় বিষয়সমূহ (Quick Topics):
+                  সহায়তার বিষয়সমূহ:
                 </p>
                 <div className="grid grid-cols-1 gap-1.5">
                   {ECOMMERCE_STARTER_PROMPTS.map((prompt, idx) => {
@@ -796,7 +706,7 @@ export const ChatWidget: React.FC = () => {
               onClick={() =>
                 handleOpenQuickWidget(
                   'emi_calculator',
-                  'নিচের ক্যালকুলেটরে পরিমাণ ও ব্যাংক সিলেক্ট করে মাসিক EMI কিস্তি দেখে নিন:',
+                  'নিচের ক্যালকুলেটরে পরিমাণ ও ব্যাংক নির্বাচন করে আপনার মাসিক EMI কিস্তি হিসাব করুন:',
                   cartTotal >= 5000 ? cartTotal : 50000
                 )
               }
@@ -809,7 +719,7 @@ export const ChatWidget: React.FC = () => {
               onClick={() =>
                 handleOpenQuickWidget(
                   'order_tracker',
-                  'আপনার Order ID এবং ফোন নম্বর দিয়ে সরাসরি স্ট্যাটাস চেক করুন:'
+                  'আপনার Order ID ও ফোন নম্বর দিয়ে সরাসরি অর্ডারের সর্বশেষ স্ট্যাটাস যাচাই করুন:'
                 )
               }
               className="text-[10px] font-semibold text-slate-700 hover:text-[#0E2A47] bg-slate-100 hover:bg-slate-200/70 px-2.5 py-1 rounded-full whitespace-nowrap transition-colors shrink-0 cursor-pointer"
@@ -821,7 +731,7 @@ export const ChatWidget: React.FC = () => {
               onClick={() =>
                 handleOpenQuickWidget(
                   'coupon_checker',
-                  'আপনার Promo / Coupon কোডটি এখানে যাচাই করে কার্টে যোগ করুন:'
+                  'আপনার Promo / Coupon কোডটি যাচাই করে সরাসরি কার্টে প্রয়োগ করুন:'
                 )
               }
               className="text-[10px] font-semibold text-slate-700 hover:text-[#0E2A47] bg-slate-100 hover:bg-slate-200/70 px-2.5 py-1 rounded-full whitespace-nowrap transition-colors shrink-0 cursor-pointer"
@@ -840,7 +750,7 @@ export const ChatWidget: React.FC = () => {
               onClick={() =>
                 handleOpenQuickWidget(
                   'callback_form',
-                  'সরাসরি আমাদের টিমের কাছ থেকে কল পেতে আপনার নম্বর দিন:'
+                  'সরাসরি আমাদের সাপোর্ট টিমের কল পেতে আপনার নাম ও নম্বর দিন:'
                 )
               }
               className="text-[10px] font-semibold text-slate-700 hover:text-[#0E2A47] bg-slate-100 hover:bg-slate-200/70 px-2.5 py-1 rounded-full whitespace-nowrap transition-colors shrink-0 cursor-pointer"

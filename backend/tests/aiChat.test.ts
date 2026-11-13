@@ -193,4 +193,31 @@ describe('Storefront AI Chat API (/api/ai/chat)', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ reply: 'High-intent B2B lead.' });
   });
+
+  it('sanitizes markdown heading hashes, horizontal rules, and blockquotes and uses polite Bengali follow-ups', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      text: [
+        '### 🏦 অনুমোদিত ১৬টি ব্যাংক:',
+        '1. City Bank',
+        '---',
+        '### কীভাবে অর্ডার করবেন?',
+        '> 💡 নোট: সরাসরি /checkout পেজ থেকে Credit Card EMI নির্বাচন করুন।',
+      ].join('\n'),
+    });
+
+    const res = await request(app)
+      .post('/api/ai/chat')
+      .send({
+        message: 'EMI সুবিধা সম্পর্কে জানতে চাই',
+        mode: 'storefront_chat',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.reply).not.toContain('###');
+    expect(res.body.reply).not.toContain('---');
+    expect(res.body.reply).not.toMatch(/^>/m);
+    expect(res.body.reply).toContain('**🏦 অনুমোদিত ১৬টি ব্যাংক:**');
+    expect(res.body.reply).toContain('নোট: সরাসরি /checkout পেজ থেকে Credit Card EMI নির্বাচন করুন।');
+    expect(res.body.followUps.every((chip: string) => !/(করো|দেখো|জানো|দেখাও)/.test(chip))).toBe(true);
+  });
 });

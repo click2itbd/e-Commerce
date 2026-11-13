@@ -379,13 +379,13 @@ function buildDynamicFollowUps(params: {
   if (products.length > 0 && widget !== 'emi_calculator') {
     return isBangla
       ? [
-          'এই পণ্যের EMI কিস্তি হিসাব করো',
-          'এর চেয়ে কম দামের বিকল্প দেখাও',
-          'ডেলিভারি সময় ও চার্জ কত?',
+          'এই পণ্যের EMI কিস্তি হিসাব করুন',
+          'কম বাজেটের বিকল্প দেখুন',
+          'ডেলিভারি সময় ও চার্জ জানুন',
         ]
       : [
           'Calculate EMI for these items',
-          'Show cheaper alternatives',
+          'Show budget alternatives',
           'Delivery time & charges?',
         ];
   }
@@ -393,9 +393,9 @@ function buildDynamicFollowUps(params: {
   if (widget === 'emi_calculator') {
     return isBangla
       ? [
-          '১৬টি ব্যাংকের EMI শর্তাবলি জানো',
-          '৬০,০০০ টাকার পিসি বিল্ড দেখাও',
-          'আমার কুপন কোড যাচাই করো',
+          '১৬টি ব্যাংকের EMI শর্তাবলি জানুন',
+          '৬০,০০০ টাকা বাজেটে PC Build দেখুন',
+          'প্রোমো / কুপন কোড যাচাই করুন',
         ]
       : [
           'See all 16 EMI banks & terms',
@@ -407,9 +407,9 @@ function buildDynamicFollowUps(params: {
   if (widget === 'order_tracker') {
     return isBangla
       ? [
-          'ঢাকা ও ঢাকার বাইরে ডেলিভারি সময়',
-          'সাপোর্ট টিমের কলব্যাক চাই',
-          'চলমান হট ডিলস দেখুন',
+          'ঢাকা ও ঢাকার বাইরে ডেলিভারি সময় জানুন',
+          'সাপোর্ট টিমের কলব্যাক অনুরোধ করুন',
+          'চলমান হট ডিলগুলো দেখুন',
         ]
       : [
           'Dhaka & outside Dhaka delivery time',
@@ -421,9 +421,9 @@ function buildDynamicFollowUps(params: {
   if (widget === 'coupon_checker') {
     return isBangla
       ? [
-          'Credit Card EMI কিস্তি হিসাব',
-          'অর্ডার ট্র্যাক করো',
-          'সেরা গেমিং পিসি পার্টস',
+          'Credit Card EMI কিস্তি হিসাব করুন',
+          'আমার অর্ডার ট্র্যাক করুন',
+          'জনপ্রিয় গেমিং PC পার্টস দেখুন',
         ]
       : [
           'Check Credit Card EMI plans',
@@ -435,9 +435,9 @@ function buildDynamicFollowUps(params: {
   if (ctx?.cartCount && ctx.cartCount > 0) {
     return isBangla
       ? [
-          'কার্টের টাকার ওপর EMI কিস্তি',
-          'আমার কুপন কোড যাচাই করো',
-          'চেকআউট ও ডেলিভারি তথ্য',
+          'কার্টের অর্ডারে EMI কিস্তি হিসাব করুন',
+          'প্রোমো / কুপন কোড যাচাই করুন',
+          'চেকআউট ও ডেলিভারি তথ্য জানুন',
         ]
       : [
           'Calculate EMI on my cart',
@@ -448,15 +448,73 @@ function buildDynamicFollowUps(params: {
 
   return isBangla
     ? [
-        '৫০,০০০ টাকায় পিসি বিল্ড সাজেশন',
-        '১৬ ব্যাংকের EMI হিসাব দেখো',
-        'আমার অর্ডার ট্র্যাক করো',
+        '৫০,০০০ টাকা বাজেটে PC Build সাজেশন',
+        'Credit Card EMI কিস্তি হিসাব করুন',
+        'আমার অর্ডার ট্র্যাক করুন',
       ]
     : [
         'Suggest a ৳50,000 PC build',
         'Calculate Credit Card EMI',
         'Track my order',
       ];
+}
+
+/**
+ * Strips raw Markdown syntax (#, ---, >, code fences) from storefront chat replies
+ * so customers always receive clean, professional prose and structured formatting.
+ */
+export function sanitizeStorefrontReply(rawReply: string): string {
+  if (!rawReply) return '';
+
+  const lines = rawReply
+    .replace(/\r\n?/g, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .split('\n');
+
+  const cleaned: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Strip code fence markers like ``` or ```markdown
+    if (/^```[a-zA-Z0-9_-]*\s*$/.test(trimmed)) {
+      continue;
+    }
+
+    // Strip horizontal rules (---, ***, ___)
+    if (/^([-*_])\1{2,}$/.test(trimmed)) {
+      if (cleaned.length > 0 && cleaned[cleaned.length - 1] !== '') {
+        cleaned.push('');
+      }
+      continue;
+    }
+
+    // Strip heading hashes (### Heading -> **Heading**)
+    const headingMatch = trimmed.match(/^(?:#{2,6}\s*|#\s+)(.+?)\s*#*$/);
+    if (headingMatch) {
+      let title = headingMatch[1].trim();
+      if (title.startsWith('**') && title.endsWith('**') && title.length > 4) {
+        cleaned.push(title);
+      } else {
+        title = title.replace(/\*\*/g, '');
+        cleaned.push(`**${title}**`);
+      }
+      continue;
+    }
+
+    // Strip blockquote '>' prefix cleanly
+    if (/^>\s?/.test(trimmed)) {
+      cleaned.push(trimmed.replace(/^>\s?/, '').replace(/^(?:#{2,6}\s*|#\s+)/, '').trim());
+      continue;
+    }
+
+    cleaned.push(line);
+  }
+
+  return cleaned
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 export async function generateStorefrontChatResponse(
@@ -517,16 +575,16 @@ export async function generateStorefrontChatResponse(
 
   const widgetHint =
     widget === 'order_tracker'
-      ? '\nNOTE: An interactive Order Tracker card will automatically render directly beneath your reply, so invite the customer to enter their Order ID and Phone number right below.'
+      ? '\nNOTE: An interactive Order Tracker card will automatically render directly beneath your reply, so politely invite the customer to enter their Order ID and Phone number right below.'
       : widget === 'emi_calculator'
-        ? '\nNOTE: An interactive 16-Bank EMI Calculator card will automatically render directly beneath your reply, so mention they can adjust bank & tenure right below.'
+        ? '\nNOTE: An interactive 16-Bank EMI Calculator card will automatically render directly beneath your reply. Unless the customer explicitly asked for the full list of bank names, keep your message brief and executive (2–4 concise lines: minimum ৳5,000 eligibility, 16 leading banks, 3–36M tenure, selectable in the calculator below or at /checkout).'
         : widget === 'coupon_checker'
-          ? '\nNOTE: An interactive Coupon Validator card will automatically render directly beneath your reply, so invite them to test & apply their promo code right below.'
+          ? '\nNOTE: An interactive Coupon Validator card will automatically render directly beneath your reply, so invite them to verify & apply their promo code right below.'
           : widget === 'callback_form'
-            ? '\nNOTE: A Request Callback form will automatically render directly beneath your reply, so let them know they can leave their name & phone number right below or click WhatsApp.'
+            ? '\nNOTE: A Request Callback form will automatically render directly beneath your reply, so let them know they can submit their name & phone number right below or message us on WhatsApp.'
             : '';
 
-  const systemInstruction = `You are the friendly, knowledgeable AI Shopping & Tech Support Assistant for **${siteInfo.brandName}** — a premier Computer Hardware, Custom PC, Laptop, CCTV, Networking & Electronics E-Commerce Store in Bangladesh.
+  const systemInstruction = `You are a courteous, senior Customer Care & Tech Specialist at **${siteInfo.brandName}** — a premier Computer Hardware, Custom PC, Laptop, CCTV, Networking & Electronics E-Commerce Store in Bangladesh.
 
 STORE INFORMATION & POLICIES:
 - Brand: ${siteInfo.brandName}
@@ -534,7 +592,7 @@ STORE INFORMATION & POLICIES:
 - Email: ${siteInfo.email}
 - Store Address: ${siteInfo.address}
 - Catalog Size: ${catalog.length} active products online
-- Useful Storefront Links (write exact relative paths starting with / so our chat UI makes them clickable):
+- Useful Storefront Links (place exact relative paths starting with / naturally inside sentences so our chat UI turns them into clickable buttons):
   • Shop All Products: /shop
   • Hot Deals & Campaigns: /deals
   • Custom PC Builder (auto compatibility + PSU wattage + EMI): /pc-build
@@ -549,11 +607,14 @@ ${pageContextStr ? `CURRENT SESSION CONTEXT:\n${pageContextStr}\n` : ''}${widget
 LIVE MATCHING PRODUCTS FROM STORE DATABASE (Use ONLY these exact prices/links if quoting store inventory; NEVER invent fake prices):
 ${productSnippet}
 
-RESPONSE GUIDELINES:
-1. Language Match: Reply naturally in **Bengali (বাংলা)** if the customer wrote in Bengali or Banglish (e.g., "dam koto", "emi hobe?"). Reply in clear **English** if the customer wrote in English.
-2. Concise & Helpful: Keep answers concise, warm, and well-structured using short bullet points ("- ") and **bold** highlights where helpful.
-3. Accuracy: Never guess prices or claim a product is in stock if not listed in the Live Matching Products above. If a specific item isn't matched, invite them to search on /shop or contact our sales team at ${siteInfo.phone} / WhatsApp.
-4. Clickable Paths: Whenever recommending a tool/page/product, include its path like /pc-build, /emi-terms, /track-order, or /product/<id> directly in the text.`;
+RESPONSE & FORMATTING GUIDELINES (STRICT):
+1. Respectful, Polished Tone: Reply in clear, natural, professional **Bengali (বাংলা)** when the customer writes in Bengali or Banglish (ALWAYS address them politely using "আপনি / আপনার / করুন / দেখুন", NEVER casual "তুমি / করো / দেখাও"). Reply in crisp, polite **English** if the customer writes in English. Never refer to yourself as "AI" or "bot".
+2. Clean Presentation (NO Raw Markdown Noise):
+   - NEVER use "#" / "##" / "###" heading hashes, "---" horizontal dividers, ">" blockquote markers, or backticks.
+   - Instead of "# Heading", write section titles cleanly as bold labels on their own line (e.g., "**অর্ডার করার ধাপসমূহ:**").
+   - Use concise bullet points ("- ") or clean numbered steps ("1. ") and keep emojis minimal (at most 1–2 subtle emojis per message; never place icons on every line).
+3. Accuracy: Never guess prices or claim stock if not listed in Live Matching Products above. If an exact item is not matched, invite them to browse /shop or reach our team on ${siteInfo.phone} / WhatsApp.
+4. Natural Clickable Paths: Embed paths like /pc-build, /emi-terms, /checkout, /track-order, or /product/<id> smoothly inside sentences (e.g., "সরাসরি /checkout পেজ থেকে Credit Card EMI নির্বাচন করুন।" or "বিস্তারিত শর্তাবলি /emi-terms পেজে দেখে নিতে পারেন।"). Avoid raw Markdown links like [Label](/path).`;
 
   const contents = [
     ...(options?.history || [])
@@ -597,6 +658,8 @@ RESPONSE GUIDELINES:
       throw new Error('AI service error');
     }
   }
+
+  reply = sanitizeStorefrontReply(reply);
 
   // Pick matched product cards to render visually: prioritize products explicitly linked in AI reply, then direct query matches
   const replyProductIds = Array.from(reply.matchAll(/\/product\/([a-zA-Z0-9_-]+)/g)).map(
