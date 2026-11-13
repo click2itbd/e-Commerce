@@ -409,7 +409,7 @@ export const ChatWidget: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-4 right-3 sm:bottom-5 sm:right-5 z-50 font-sans">
+    <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-50 font-sans">
       {!isOpen ? (
         /* Floating Support Avatar & Greeting Speech Bubble */
         <div className="flex items-center gap-2.5 sm:gap-3">
@@ -448,8 +448,7 @@ export const ChatWidget: React.FC = () => {
             type="button"
             onClick={handleOpenChat}
             className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full p-0.5 bg-white shadow-[0_6px_22px_rgba(15,23,42,0.22)] hover:scale-105 active:scale-95 transition-transform duration-200 cursor-pointer shrink-0"
-            aria-label={`Open ${brandName} Live Support — ${currentSupportAgent.bnName}`}
-            title={`${currentSupportAgent.bnName} — ${brandName}`}
+            aria-label={`Open ${brandName} Live Support`}
           >
             <div className="relative w-full h-full rounded-full overflow-hidden">
               {SUPPORT_AGENTS.map((agent, idx) => (
@@ -466,9 +465,6 @@ export const ChatWidget: React.FC = () => {
             <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 sm:h-4 sm:w-4">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
               <span className="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-emerald-500 border-2 border-white shadow-xs" />
-            </span>
-            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-[1px] rounded-full bg-[#0E2A47] text-white text-[10px] font-semibold leading-tight tracking-tight border border-white shadow-xs whitespace-nowrap pointer-events-none">
-              {currentSupportAgent.shortName}
             </span>
           </button>
         </div>

@@ -49,7 +49,7 @@ describe('ChatWidget 3 named support specialists & polished greeting', () => {
     vi.useRealTimers();
   });
 
-  it('defines 3 distinct Bangladeshi support specialists and rotates their name pill every 6.5s', () => {
+  it('defines 3 distinct Bangladeshi support specialists, hides names on the collapsed button, and rotates portraits every 6.5s', () => {
     expect(SUPPORT_AGENTS).toHaveLength(3);
     expect(SUPPORT_AGENTS.map((a) => a.bnName)).toEqual([
       'নুসরাত জাহান',
@@ -63,17 +63,26 @@ describe('ChatWidget 3 named support specialists & polished greeting', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('নুসরাত')).toBeInTheDocument();
+    expect(screen.queryByText('নুসরাত')).not.toBeInTheDocument();
+    expect(screen.queryByText('নুসরাত জাহান')).not.toBeInTheDocument();
+
+    const nusratImg = screen.getByAltText(/নুসরাত জাহান/i);
+    const tanvirImg = screen.getByAltText(/তানভীর আহমেদ/i);
+    const farhanaImg = screen.getByAltText(/ফারহানা ইসলাম/i);
+
+    expect(nusratImg.className).toContain('opacity-100');
 
     act(() => {
       vi.advanceTimersByTime(6500);
     });
-    expect(screen.getByText('তানভীর')).toBeInTheDocument();
+    expect(tanvirImg.className).toContain('opacity-100');
+    expect(screen.queryByText('তানভীর')).not.toBeInTheDocument();
 
     act(() => {
       vi.advanceTimersByTime(6500);
     });
-    expect(screen.getByText('ফারহানা')).toBeInTheDocument();
+    expect(farhanaImg.className).toContain('opacity-100');
+    expect(screen.queryByText('ফারহানা')).not.toBeInTheDocument();
   });
 
   it('syncs the friendly welcome message to the active rotating specialist, keeps header strictly CLICK2IT BD, and forwards agentName to API', async () => {
