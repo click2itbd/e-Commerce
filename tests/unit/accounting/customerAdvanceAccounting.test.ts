@@ -1,14 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import type { Customer, Transaction } from '../../../src/types';
+import type { Customer, Order, Transaction, WorkOrder } from '../../../src/types';
 import {
   CASH_INFLOW_TX_TYPES,
   CASH_OUTFLOW_TX_TYPES,
+  buildOrderScopeLookup,
   calculateCustomerAccountPosition,
   calculateCustomerPositionFromTransactions,
   classifyCustomerTransaction,
   computeAllCustomerPositions,
+  computeWorkOrderFinancials,
   doesTxBelongToCustomer,
+  doesTxMatchProjectOrWorkOrder,
   isCashRegisterMovement,
+  listCustomerProjectWorkOrderScopes,
   splitSalePaymentWithAdvance,
 } from '../../../src/utils/customerAdvanceAccounting';
 
@@ -381,5 +385,267 @@ describe('customerAdvanceAccounting', () => {
 
     // Non-cash bank/bKash movements stay out of physical cash drawer
     expect(isCashRegisterMovement({ type: 'payment_received', paymentMethod: 'bkash', paymentAccountId: 'acc-bkash', amount: 50000 })).toBe(false);
+  });
+
+  it('isolates advances and dues strictly per Work Order and Project for the same customer', () => {
+    const corp: Customer = {
+      ...makeCustomer('cust-spacezero', 'SpaceZero'),
+      branchName: 'Project Alpha',
+      branches: ['Project Alpha', 'Project Beta'],
+    };
+
+    const legacyOrders: Partial<Order>[] = [
+      {
+        id: 'ord-wo2-1',
+        documentNumber: 'INV-WO2-001',
+        customerId: corp.id,
+        customerName: corp.name,
+        workOrderNumber: 'WO-2026-002',
+        projectName: 'Project Alpha',
+        branchName: 'Project Alpha',
+        total: 25000,
+        status: 'delivered',
+        type: 'invoice',
+      },
+      {
+        id: 'ord-beta-1',
+        documentNumber: 'INV-BETA-001',
+        customerId: corp.id,
+        customerName: corp.name,
+        projectName: 'Project Beta',
+        branchName: 'Project Beta',
+        total: 15000,
+        status: 'delivered',
+        type: 'invoice',
+      },
+    ];
+
+    const txs: Partial<Transaction>[] = [
+      // WO-2026-001 under Project Alpha: 50,000 unused advance
+      {
+        id: 'tx-wo1-adv',
+        type: 'payment_received',
+        entityId: corp.id,
+        entityName: corp.name,
+        entityType: 'customer',
+        amount: 50000,
+        isAdvance: true,
+        category: 'Customer Advance',
+        workOrderNumber: 'WO-2026-001',
+        projectName: 'Project Alpha',
+        branchName: 'Project Alpha',
+        paymentAccountId: 'acc-bank',
+        date: '2026-11-01',
+      },
+      // WO-2026-002 under Project Alpha: 20,000 advance - 25,000 invoice = 5,000 due
+      {
+        id: 'tx-wo2-adv',
+        type: 'payment_received',
+        entityId: corp.id,
+        entityName: corp.name,
+        entityType: 'customer',
+        amount: 20000,
+        isAdvance: true,
+        category: 'Customer Advance',
+        workOrderNumber: 'WO-2026-002',
+        projectName: 'Project Alpha',
+        branchName: 'Project Alpha',
+        paymentAccountId: 'acc-bank',
+        date: '2026-11-02',
+      },
+      // Legacy sale tx without workOrderNumber/branchName directly on tx, resolved via Order lookup
+      {
+        id: 'tx-wo2-sale',
+        type: 'sale',
+        entityId: corp.id,
+        entityName: corp.name,
+        entityType: 'customer',
+        referenceId: 'ord-wo2-1',
+        documentNumber: 'INV-WO2-001',
+        amount: 25000,
+        date: '2026-11-03',
+      },
+      // Project Beta: 15,000 due (unpaid)
+      {
+        id: 'tx-beta-sale',
+        type: 'sale',
+        entityId: corp.id,
+        entityName: corp.name,
+        entityType: 'customer',
+        referenceId: 'ord-beta-1',
+        documentNumber: 'INV-BETA-001',
+        amount: 15000,
+        date: '2026-11-04',
+      },
+    ];
+
+    // Strict WO-1 isolation (no bleed from WO-2 under the same Project Alpha, nor Project Beta)
+    const wo1Pos = calculateCustomerAccountPosition(txs, corp, {
+      scope: { workOrderNumber: 'WO-2026-001', projectName: 'Project Alpha' },
+      orders: legacyOrders,
+    });
+    expect(wo1Pos.advanceBalance).toBe(50000);
+    expect(wo1Pos.dueBalance).toBe(0);
+
+    // Strict WO-2 isolation: 20k credit - 25k sale = 5k due
+    const wo2Pos = calculateCustomerAccountPosition(txs, corp, {
+      scope: { workOrderNumber: 'WO-2026-002', projectName: 'Project Alpha' },
+      orders: legacyOrders,
+    });
+    expect(wo2Pos.dueBalance).toBe(5000);
+    expect(wo2Pos.advanceBalance).toBe(0);
+
+    // Project Alpha aggregate (50k + 20k - 25k = 45k advance), still isolated from Project Beta (-15k)
+    const projAlphaPos = calculateCustomerAccountPosition(txs, corp, {
+      scope: { projectName: 'Project Alpha' },
+      orders: legacyOrders,
+    });
+    expect(projAlphaPos.advanceBalance).toBe(45000);
+    expect(projAlphaPos.dueBalance).toBe(0);
+
+    const projBetaPos = calculateCustomerAccountPosition(txs, corp, {
+      scope: { projectName: 'Project Beta' },
+      orders: legacyOrders,
+    });
+    expect(projBetaPos.dueBalance).toBe(15000);
+    expect(projBetaPos.advanceBalance).toBe(0);
+
+    // Order scope lookup helper directly validates strict non-bleed
+    const lookup = buildOrderScopeLookup(legacyOrders);
+    expect(doesTxMatchProjectOrWorkOrder(txs[2], { workOrderNumber: 'WO-2026-002' }, lookup)).toBe(true);
+    expect(doesTxMatchProjectOrWorkOrder(txs[2], { workOrderNumber: 'WO-2026-001' }, lookup)).toBe(false);
+
+    // Scope listing helper returns all customer scopes with individual balances
+    const wos: Partial<WorkOrder>[] = [
+      { id: 'wo1', orderNumber: 'WO-2026-001', clientName: 'SpaceZero', branchName: 'Project Alpha' },
+      { id: 'wo2', orderNumber: 'WO-2026-002', clientName: 'SpaceZero', branchName: 'Project Alpha' },
+    ];
+    const scopeList = listCustomerProjectWorkOrderScopes(corp, txs, legacyOrders, wos);
+    expect(scopeList.find(s => s.workOrderNumber === 'WO-2026-001')?.advanceBalance).toBe(50000);
+    expect(scopeList.find(s => s.workOrderNumber === 'WO-2026-002')?.dueBalance).toBe(5000);
+    expect(scopeList.find(s => s.projectName === 'Project Beta' && !s.workOrderNumber)?.dueBalance).toBe(15000);
+  });
+
+  it('reconciles end-to-end Work Order financials: advance -> purchase -> sale -> profit & cash flow', () => {
+    const orders: Partial<Order>[] = [
+      {
+        id: 'ord-wo1-sale',
+        documentNumber: 'INV-101',
+        workOrderNumber: 'WO-2026-001',
+        branchName: 'Mirpur Office Setup',
+        total: 100000,
+        advanceApplied: 100000,
+        paidAmount: 100000,
+        status: 'delivered',
+        type: 'invoice',
+      } as any,
+      {
+        id: 'ord-other',
+        documentNumber: 'INV-999',
+        workOrderNumber: 'WO-OTHER',
+        total: 40000,
+        status: 'delivered',
+        type: 'invoice',
+      },
+    ];
+
+    const purchases = [
+      {
+        id: 'pur-wo1',
+        documentNumber: 'PUR-01',
+        workOrderNumber: 'WO-2026-001',
+        projectName: 'Mirpur Office Setup',
+        total: 72000,
+        paidAmount: 50000,
+      },
+      {
+        id: 'pur-other',
+        documentNumber: 'PUR-02',
+        workOrderNumber: 'WO-OTHER',
+        total: 30000,
+        paidAmount: 30000,
+      },
+    ];
+
+    const txs: Partial<Transaction>[] = [
+      // 1. 100,000 advance received into Bank for WO-2026-001
+      {
+        id: 'tx-1',
+        type: 'payment_received',
+        entityId: 'cust-1',
+        entityType: 'customer',
+        amount: 100000,
+        isAdvance: true,
+        category: 'Customer Advance',
+        workOrderNumber: 'WO-2026-001',
+        projectName: 'Mirpur Office Setup',
+        paymentAccountId: 'acc-bank',
+      },
+      // 2. Vendor purchase bill (72,000 accrual) + partial payment (50,000 cash out) for WO-2026-001
+      {
+        id: 'tx-2',
+        type: 'purchase',
+        entityId: 'ven-1',
+        entityType: 'vendor',
+        amount: 72000,
+        workOrderNumber: 'WO-2026-001',
+        projectName: 'Mirpur Office Setup',
+      },
+      {
+        id: 'tx-3',
+        type: 'payment_made',
+        entityId: 'ven-1',
+        entityType: 'vendor',
+        amount: 50000,
+        workOrderNumber: 'WO-2026-001',
+        projectName: 'Mirpur Office Setup',
+        paymentAccountId: 'acc-bank',
+      },
+      // 3. Final Sale Invoice (100,000) settled completely from Customer Advance (0 new cash)
+      {
+        id: 'tx-4',
+        type: 'sale',
+        entityId: 'cust-1',
+        entityType: 'customer',
+        referenceId: 'ord-wo1-sale',
+        documentNumber: 'INV-101',
+        workOrderNumber: 'WO-2026-001',
+        projectName: 'Mirpur Office Setup',
+        amount: 100000,
+        advanceApplied: 100000,
+      },
+      // Noise from WO-OTHER that must be completely excluded
+      {
+        id: 'tx-noise',
+        type: 'payment_received',
+        entityId: 'cust-1',
+        entityType: 'customer',
+        amount: 40000,
+        isAdvance: true,
+        workOrderNumber: 'WO-OTHER',
+        paymentAccountId: 'acc-bank',
+      },
+    ];
+
+    const summary = computeWorkOrderFinancials({
+      workOrderNumber: 'WO-2026-001',
+      transactions: txs,
+      orders,
+      purchases,
+    });
+
+    expect(summary.advancesReceived).toBe(100000);
+    expect(summary.advancesRefunded).toBe(0);
+    expect(summary.netAdvanceDeposits).toBe(100000);
+    expect(summary.advanceAppliedOnSales).toBe(100000);
+    expect(summary.remainingCustomerAdvance).toBe(0);
+    expect(summary.customerDue).toBe(0);
+    expect(summary.totalPurchasesCost).toBe(72000);
+    expect(summary.totalVendorPaid).toBe(50000);
+    expect(summary.totalVendorPayable).toBe(22000);
+    expect(summary.totalSalesInvoiced).toBe(100000);
+    expect(summary.totalCashCollectedOnSales).toBe(0);
+    expect(summary.grossProfit).toBe(28000);
+    expect(summary.netCashFlow).toBe(50000); // +100k advance in - 50k vendor paid out
   });
 });

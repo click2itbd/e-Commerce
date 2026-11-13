@@ -13,7 +13,11 @@ import { generatePDF } from '../../../../lib/pdf';
 import { logAudit } from '../../../../lib/audit';
 import { LegacyDueModal } from '../../modals/LegacyDueModal';
 import { CustomerAdvanceModal } from '../../modals/CustomerAdvanceModal';
-import { classifyCustomerTransaction } from '../../../../utils/customerAdvanceAccounting';
+import {
+  buildOrderScopeLookup,
+  classifyCustomerTransaction,
+  doesTxMatchProjectOrWorkOrder,
+} from '../../../../utils/customerAdvanceAccounting';
 
 interface LedgerTabProps {
   selectedLedgerEntity?: { id: string; name: string; type: 'customer' | 'vendor'; isCompany?: boolean; companyKey?: string } | null;
@@ -201,12 +205,19 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
         if (o.company === targetCompany || corporateCustomerIds.has(o.customerId || '')) {
           const p = o.projectName || o.branchName;
           if (p) projs.add(p);
+          if (o.workOrderNumber && o.workOrderNumber.trim()) {
+            projs.add(`WO: #${o.workOrderNumber.trim()}`);
+          }
         }
       });
       transactions.forEach(t => {
         if (corporateCustomerIds.has(t.entityId) || (t as any).company === targetCompany) {
           const p = (t as any).branchName || (t as any).projectName;
           if (p) projs.add(p);
+          const wo = (t as any).workOrderNumber;
+          if (wo && typeof wo === 'string' && wo.trim()) {
+            projs.add(`WO: #${wo.trim()}`);
+          }
         }
       });
     } else if (targetCustomer) {
@@ -216,30 +227,48 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
         if (o.customerId === targetCustomer.id || (o.customerName && o.customerName.trim().toLowerCase() === targetCustomer.name.trim().toLowerCase())) {
           const p = o.projectName || o.branchName;
           if (p) projs.add(p);
+          if (o.workOrderNumber && o.workOrderNumber.trim()) {
+            projs.add(`WO: #${o.workOrderNumber.trim()}`);
+          }
         }
       });
       transactions.forEach(t => {
         if (t.entityId === targetCustomer.id || (t.entityName && t.entityName.trim().toLowerCase() === targetCustomer.name.trim().toLowerCase())) {
           const p = (t as any).branchName || (t as any).projectName;
           if (p) projs.add(p);
+          const wo = (t as any).workOrderNumber;
+          if (wo && typeof wo === 'string' && wo.trim()) {
+            projs.add(`WO: #${wo.trim()}`);
+          }
+        }
+      });
+    } else if (selectedLedgerEntity) {
+      transactions.forEach(t => {
+        if (t.entityId === selectedLedgerEntity.id || (t.entityName && t.entityName.trim().toLowerCase() === selectedLedgerEntity.name.trim().toLowerCase())) {
+          const p = (t as any).branchName || (t as any).projectName;
+          if (p) projs.add(p);
+          const wo = (t as any).workOrderNumber;
+          if (wo && typeof wo === 'string' && wo.trim()) {
+            projs.add(`WO: #${wo.trim()}`);
+          }
         }
       });
     }
     return Array.from(projs).filter(Boolean);
-  }, [isCorporate, targetCompany, targetCustomer, customers, orders, transactions, corporateCustomerIds]);
+  }, [isCorporate, targetCompany, targetCustomer, selectedLedgerEntity, customers, orders, transactions, corporateCustomerIds]);
+
+  const orderScopeLookup = useMemo(() => buildOrderScopeLookup(orders), [orders]);
 
   // 2. Entity Party Ledger Calculations
   const getEntityTransactions = () => {
     if (!selectedLedgerEntity) return [];
 
-    const orderProjectMap = new Map<string, string>();
-    orders.forEach(o => {
-      const p = (o.projectName || o.branchName || '').trim();
-      if (p) {
-        if (o.id) orderProjectMap.set(o.id, p);
-        if (o.documentNumber) orderProjectMap.set(o.documentNumber, p);
-      }
-    });
+    const activeFilterScope =
+      selectedProjectFilter !== 'all'
+        ? selectedProjectFilter.startsWith('WO: #')
+          ? { workOrderNumber: selectedProjectFilter.slice(5).trim() }
+          : { projectName: selectedProjectFilter }
+        : undefined;
 
     return transactions.filter(t => {
       let matchesEntity = false;
@@ -256,13 +285,8 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
       const matchesDate = tDate >= generalLedgerStartDate && tDate <= generalLedgerEndDate;
       if (!matchesDate) return false;
 
-      if (selectedProjectFilter !== 'all') {
-        const directProj = (t as any).branchName || (t as any).projectName || '';
-        const mappedProj = (t.referenceId && orderProjectMap.get(t.referenceId)) || 
-                           (t.documentNumber && orderProjectMap.get(t.documentNumber)) || '';
-        const effProj = directProj || mappedProj;
-        const matchesProj = effProj === selectedProjectFilter || (t.description && t.description.includes(selectedProjectFilter));
-        if (!matchesProj) return false;
+      if (activeFilterScope) {
+        if (!doesTxMatchProjectOrWorkOrder(t, activeFilterScope, orderScopeLookup)) return false;
       }
 
       return true;
@@ -936,7 +960,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
           {selectedLedgerEntity && availableProjects.length > 0 && (
             <div className="flex items-center gap-2 bg-blue-50/90 border border-blue-200 px-3 py-1.5 rounded-lg shadow-2xs">
               <label className="text-[10px] font-black text-blue-700 uppercase whitespace-nowrap">
-                Branch / Project:
+                Project / Work Order:
               </label>
               <select
                 value={selectedProjectFilter}
@@ -1555,7 +1579,19 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
                           {row.type.replace('_', ' ')}
                         </span>
                       </td>
-                      <td className="px-6 py-3.5 font-medium text-gray-800">{row.description || '-'}</td>
+                      <td className="px-6 py-3.5 font-medium text-gray-800">
+                        <span>{row.description || '-'}</span>
+                        {(row as any).workOrderNumber && (
+                          <span className="ml-2 inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            WO #{(row as any).workOrderNumber}
+                          </span>
+                        )}
+                        {((row as any).branchName || (row as any).projectName) && (
+                          <span className="ml-1.5 inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                            📁 {(row as any).branchName || (row as any).projectName}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-6 py-3.5 text-gray-500 uppercase text-[10px]">{row.paymentMethod || 'cash'}</td>
                       <td className="px-6 py-3.5 text-right font-medium text-blue-600">
                         {row.debit > 0 ? formatCurrency(row.debit, settings) : '-'}
@@ -1768,6 +1804,16 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
           selectedLedgerEntity?.type === 'customer' && !selectedLedgerEntity.isCompany
             ? customers.find(c => c.id === selectedLedgerEntity.id) || null
             : null
+        }
+        initialWorkOrderNumber={
+          selectedProjectFilter.startsWith('WO: #')
+            ? selectedProjectFilter.slice(5).trim()
+            : ''
+        }
+        initialProjectName={
+          selectedProjectFilter !== 'all' && !selectedProjectFilter.startsWith('WO: #')
+            ? selectedProjectFilter
+            : ''
         }
         initialMode="receive"
         onSuccess={() => {

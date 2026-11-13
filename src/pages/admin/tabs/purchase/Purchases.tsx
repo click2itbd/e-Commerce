@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy, deleteDoc, setDoc, where, increment, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../../../../firebase';
-import { Product, Vendor, Transaction, SiteSettings, PaymentAccount } from '../../../../types';
+import { Product, Vendor, Transaction, SiteSettings, PaymentAccount, WorkOrder } from '../../../../types';
 import { formatCurrency, cn, warrantyToMonths, monthsToWarrantyValue, type WarrantyUnit } from '../../../../lib/utils';
 import { calculateAccountBalance, validateSufficientBalance } from '../../../../lib/accountBalance';
 
@@ -76,6 +76,7 @@ interface PurchaseRecord {
   subtotal: number;
   total: number;
   paidAmount: number;
+  dueAmount?: number;
   paymentStatus: 'paid' | 'partial' | 'unpaid';
   isChequePayment?: boolean;
   chequeNumber?: string;
@@ -84,6 +85,9 @@ interface PurchaseRecord {
   paymentAccountId?: string;
   paymentMethod?: string;
   reference?: string;
+  workOrderNumber?: string;
+  projectName?: string;
+  branchName?: string;
   attachmentUrl?: string;
   notes?: string;
   createdAt: string;
@@ -116,6 +120,7 @@ const Purchases: React.FC<PurchasesProps> = ({
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [purchaseHistory, setPurchaseHistory] = useState<PurchaseRecord[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [rawMenus, setRawMenus] = useState<any[]>([]);
   const [globalBrands, setGlobalBrands] = useState<any[]>([]);
@@ -149,7 +154,7 @@ const Purchases: React.FC<PurchasesProps> = ({
       const draft = localStorage.getItem('draft_purchase_form');
       if (draft) {
         const parsed = JSON.parse(draft);
-        if (parsed && (parsed.vendorId || parsed.items?.length > 0)) return true;
+        if (parsed && (parsed.forceOpen || parsed.vendorId || parsed.workOrderNumber || parsed.projectName || parsed.items?.length > 0)) return true;
       }
     } catch(e) {}
     return false;
@@ -167,9 +172,29 @@ const Purchases: React.FC<PurchasesProps> = ({
       const draft = localStorage.getItem('draft_purchase_form');
       if (draft) {
         const parsed = JSON.parse(draft);
-        if (parsed && (parsed.vendorId || parsed.items?.length > 0)) {
-          setTimeout(() => toast('Loaded unsaved purchase draft', { icon: '📝' }), 1000);
-          return parsed;
+        if (parsed && (parsed.forceOpen || parsed.vendorId || parsed.workOrderNumber || parsed.projectName || parsed.items?.length > 0)) {
+          setTimeout(() => toast('Loaded purchase draft', { icon: '📝' }), 1000);
+          return {
+            vendorId: '',
+            vendorName: '',
+            date: new Date().toISOString().split('T')[0],
+            reference: '',
+            workOrderNumber: '',
+            projectName: '',
+            items: [] as PurchaseItem[],
+            paymentAccountId: '',
+            paymentMethod: '',
+            paidAmount: 0,
+            isChequePayment: false,
+            chequeNumber: '',
+            chequeClearingDate: new Date().toISOString().split('T')[0],
+            discountAmount: 0,
+            shippingCost: 0,
+            attachmentUrl: '',
+            notes: '',
+            createdBy: '',
+            ...parsed,
+          };
         }
       }
     } catch(e) {}
@@ -178,6 +203,8 @@ const Purchases: React.FC<PurchasesProps> = ({
       vendorName: '',
       date: new Date().toISOString().split('T')[0],
       reference: '',
+      workOrderNumber: '',
+      projectName: '',
       items: [] as PurchaseItem[],
       paymentAccountId: '',
       paymentMethod: '',
@@ -195,7 +222,7 @@ const Purchases: React.FC<PurchasesProps> = ({
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   useEffect(() => {
-    if (purchaseForm.vendorId || purchaseForm.items.length > 0) {
+    if (purchaseForm.vendorId || purchaseForm.workOrderNumber || purchaseForm.projectName || purchaseForm.items.length > 0) {
       localStorage.setItem('draft_purchase_form', JSON.stringify(purchaseForm));
     }
   }, [purchaseForm]);
@@ -216,7 +243,7 @@ const Purchases: React.FC<PurchasesProps> = ({
   const loadData = async () => {
     try {
       setLoading(true);
-      const [venSnap, prodSnap, accSnap, purSnap, catSnap, brandSnap, txSnap] = await Promise.all([
+      const [venSnap, prodSnap, accSnap, purSnap, catSnap, brandSnap, txSnap, woSnap] = await Promise.all([
         getDocs(query(collection(db, 'vendors'), orderBy('name'))),
         getDocs(query(collection(db, 'products'), orderBy('name'))),
         getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
@@ -224,12 +251,16 @@ const Purchases: React.FC<PurchasesProps> = ({
         getDocs(query(collection(db, 'menus'))).catch(() => ({ docs: [] })),
         getDocs(query(collection(db, 'brands'))).catch(() => ({ docs: [] })),
         getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc'))).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'work_orders')).catch(() => ({ docs: [] })),
       ]);
 
       const vens = venSnap.docs.map(d => ({ id: d.id, ...d.data() } as Vendor));
       const prods = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
       const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       const purs = purSnap.docs.map(d => ({ id: d.id, ...d.data() } as PurchaseRecord));
+      const wos = woSnap.docs.map(d => ({ id: d.id, ...d.data() } as WorkOrder));
+      wos.sort((a, b) => new Date(b.issuedDate || b.createdAt || 0).getTime() - new Date(a.issuedDate || a.createdAt || 0).getTime());
+      setWorkOrders(wos);
       setTransactions(txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
       
       // Auto-recover any NEW_ products that were left out due to the bug
@@ -1182,6 +1213,11 @@ const Purchases: React.FC<PurchasesProps> = ({
         return clean;
       });
 
+      const cleanWo = (purchaseForm.workOrderNumber || '').trim();
+      const cleanProj = (purchaseForm.projectName || '').trim();
+      const scopeTagParts = [cleanWo ? `WO: #${cleanWo}` : '', cleanProj ? `Project: ${cleanProj}` : ''].filter(Boolean);
+      const scopeSuffix = scopeTagParts.length > 0 ? ` [${scopeTagParts.join(' | ')}]` : '';
+
       const purchaseRecord: Record<string, any> = {
         documentNumber: docNumber,
         vendorId: purchaseForm.vendorId || '',
@@ -1201,6 +1237,9 @@ const Purchases: React.FC<PurchasesProps> = ({
         paymentAccountId: selectedAcc?.id || '',
         paymentMethod: purchaseForm.isChequePayment ? 'Bank Cheque (PDC)' : (selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash'),
         reference: purchaseForm.reference || '',
+        workOrderNumber: cleanWo,
+        projectName: cleanProj,
+        branchName: cleanProj,
         attachmentUrl: purchaseForm.attachmentUrl || '',
         notes: purchaseForm.notes || '',
         createdAt,
@@ -1217,12 +1256,15 @@ const Purchases: React.FC<PurchasesProps> = ({
         type: 'purchase',
         amount: billTotal,
         date: new Date(purchaseForm.date).toISOString(),
-        description: `Purchase from ${purchaseForm.vendorName} (#${docNumber})`,
+        description: `Purchase from ${purchaseForm.vendorName} (#${docNumber})${scopeSuffix}`,
         entityId: purchaseForm.vendorId,
         entityName: purchaseForm.vendorName,
         entityType: 'vendor',
         referenceId: purchaseDocRef.id,
         documentNumber: docNumber,
+        workOrderNumber: cleanWo,
+        projectName: cleanProj,
+        branchName: cleanProj,
         paymentAccountId: '', // No payment for the purchase itself
         paymentMethod: '',
         createdAt,
@@ -1236,12 +1278,15 @@ const Purchases: React.FC<PurchasesProps> = ({
           type: 'payment_made',
           amount: paid,
           date: new Date(purchaseForm.date).toISOString(),
-          description: `Payment for Purchase #${docNumber}`,
+          description: `Payment for Purchase #${docNumber}${scopeSuffix}`,
           entityId: purchaseForm.vendorId,
           entityName: purchaseForm.vendorName,
           entityType: 'vendor',
           referenceId: purchaseDocRef.id,
           documentNumber: docNumber,
+          workOrderNumber: cleanWo,
+          projectName: cleanProj,
+          branchName: cleanProj,
           paymentAccountId: selectedAcc?.id || '',
           paymentMethod: selectedAcc?.type || selectedAcc?.name || purchaseForm.paymentMethod || 'cash',
           createdAt: new Date().toISOString(),
@@ -1314,6 +1359,8 @@ const Purchases: React.FC<PurchasesProps> = ({
         vendorName: '',
         date: new Date().toISOString().split('T')[0],
         reference: '',
+        workOrderNumber: '',
+        projectName: '',
         items: [],
         paymentAccountId: '',
         paymentMethod: '',
@@ -1347,7 +1394,9 @@ const Purchases: React.FC<PurchasesProps> = ({
       const matchesDoc = (pur.documentNumber || '').toLowerCase().includes(q);
       const matchesVen = (pur.vendorName || '').toLowerCase().includes(q);
       const matchesRef = (pur.reference || '').toLowerCase().includes(q);
-      if (!matchesDoc && !matchesVen && !matchesRef) return false;
+      const matchesWO = (pur.workOrderNumber || '').toLowerCase().includes(q);
+      const matchesProj = (pur.projectName || pur.branchName || '').toLowerCase().includes(q);
+      if (!matchesDoc && !matchesVen && !matchesRef && !matchesWO && !matchesProj) return false;
     }
 
     return true;
@@ -1475,6 +1524,8 @@ const Purchases: React.FC<PurchasesProps> = ({
                     vendorName: '',
                     date: new Date().toISOString().split('T')[0],
                     reference: '',
+                    workOrderNumber: '',
+                    projectName: '',
                     items: [],
                     paymentAccountId: '',
                     paymentMethod: '',
@@ -1492,6 +1543,8 @@ const Purchases: React.FC<PurchasesProps> = ({
                     vendorName: '',
                     date: new Date().toISOString().split('T')[0],
                     reference: '',
+                    workOrderNumber: '',
+                    projectName: '',
                     items: [],
                     paymentAccountId: '',
                     paymentMethod: '',
@@ -1534,7 +1587,7 @@ const Purchases: React.FC<PurchasesProps> = ({
                     onClick={() => {
                       if(window.confirm('Clear all drafted data?')) {
                         localStorage.removeItem('draft_purchase_form');
-                        setPurchaseForm({ id: undefined, documentNumber: undefined, vendorId: '', vendorName: '', date: new Date().toISOString().split('T')[0], reference: '', items: [], paymentAccountId: '', paymentMethod: 'cash', paidAmount: 0, shippingCost: 0, attachmentUrl: '', notes: '', createdBy: '' });
+                        setPurchaseForm({ id: undefined, documentNumber: undefined, vendorId: '', vendorName: '', date: new Date().toISOString().split('T')[0], reference: '', workOrderNumber: '', projectName: '', items: [], paymentAccountId: '', paymentMethod: 'cash', paidAmount: 0, shippingCost: 0, attachmentUrl: '', notes: '', createdBy: '' });
                       }
                     }}
                     className="text-xs text-red-500 hover:text-red-700 font-bold"
@@ -1613,6 +1666,51 @@ const Purchases: React.FC<PurchasesProps> = ({
                         <AlertCircle size={12} className="shrink-0" /> Challan/Memo reference already recorded for this vendor!
                       </p>
                     )}
+                  </div>
+
+                  {/* Project / Work Order Allocation */}
+                  <div>
+                    <label className="block font-bold text-indigo-800 uppercase mb-1">
+                      Work Order # / PO (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      list="purchase-work-orders-list"
+                      placeholder="e.g. WO-2026-001"
+                      value={purchaseForm.workOrderNumber || ''}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const matched = workOrders.find(
+                          w => (w.orderNumber || '').trim().toLowerCase() === val.trim().toLowerCase()
+                        );
+                        setPurchaseForm({
+                          ...purchaseForm,
+                          workOrderNumber: val,
+                          projectName: matched ? (matched.branchName || matched.title || purchaseForm.projectName) : purchaseForm.projectName,
+                        });
+                      }}
+                      className="w-full border border-indigo-200 bg-indigo-50/30 rounded-lg p-2.5 font-bold text-slate-800"
+                    />
+                    <datalist id="purchase-work-orders-list">
+                      {workOrders.map(wo => (
+                        <option key={wo.id || wo.orderNumber} value={wo.orderNumber}>
+                          {wo.title} ({wo.clientName})
+                        </option>
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-indigo-800 uppercase mb-1">
+                      Project / Branch (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. HQ Setup / Server Room"
+                      value={purchaseForm.projectName || ''}
+                      onChange={e => setPurchaseForm({ ...purchaseForm, projectName: e.target.value })}
+                      className="w-full border border-indigo-200 bg-indigo-50/30 rounded-lg p-2.5 font-bold text-slate-800"
+                    />
                   </div>
 
                   {/* Vendor Bill Attachment */}
@@ -2676,6 +2774,16 @@ const Purchases: React.FC<PurchasesProps> = ({
                           {pur.reference && (
                             <span className="text-[10px] text-slate-400 font-mono font-medium">Challan: #{pur.reference}</span>
                           )}
+                          {pur.workOrderNumber && (
+                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded font-mono">
+                              WO: #{pur.workOrderNumber}
+                            </span>
+                          )}
+                          {(pur.projectName || pur.branchName) && (
+                            <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 px-1.5 py-0.5 rounded">
+                              {pur.projectName || pur.branchName}
+                            </span>
+                          )}
                           {pur.attachmentUrl && (
                             <a
                               href={pur.attachmentUrl}
@@ -2740,6 +2848,8 @@ const Purchases: React.FC<PurchasesProps> = ({
                                  vendorName: pur.vendorName,
                                  date: pur.date.split('T')[0],
                                  reference: pur.reference || '',
+                                 workOrderNumber: pur.workOrderNumber || '',
+                                 projectName: pur.projectName || pur.branchName || '',
                                  items: pur.items || [],
                                  paymentAccountId: pur.paymentAccountId || '',
                                  paymentMethod: pur.paymentMethod || 'cash',

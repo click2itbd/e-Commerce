@@ -37,7 +37,11 @@ import { generatePDF } from '../../../../lib/pdf';
 import { LegacyDueModal } from '../../modals/LegacyDueModal';
 import { CustomerAdvanceModal } from '../../modals/CustomerAdvanceModal';
 import { Customer, Transaction, PaymentAccount, Order } from '../../../../types';
-import { classifyCustomerTransaction } from '../../../../utils/customerAdvanceAccounting';
+import {
+  buildOrderScopeLookup,
+  classifyCustomerTransaction,
+  doesTxMatchProjectOrWorkOrder,
+} from '../../../../utils/customerAdvanceAccounting';
 
 import { where } from 'firebase/firestore';
 import { useAuth } from '../../../../context/AuthContext';
@@ -80,6 +84,8 @@ export default function CustomerDueList() {
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [advanceModalCustomer, setAdvanceModalCustomer] = useState<Customer | null>(null);
   const [advanceModalMode, setAdvanceModalMode] = useState<'receive' | 'refund'>('receive');
+  const [advanceModalWorkOrder, setAdvanceModalWorkOrder] = useState('');
+  const [advanceModalProject, setAdvanceModalProject] = useState('');
   const [showOpeningBalForm, setShowOpeningBalForm] = useState(false);
   const [obAmount, setObAmount] = useState<number | ''>('');
   const [obDate, setObDate] = useState('2026-01-01');
@@ -990,6 +996,8 @@ export default function CustomerDueList() {
               onClick={() => {
                 setAdvanceModalCustomer(null);
                 setAdvanceModalMode('receive');
+                setAdvanceModalWorkOrder('');
+                setAdvanceModalProject('');
                 setShowAdvanceModal(true);
               }}
               className="bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
@@ -1427,6 +1435,8 @@ export default function CustomerDueList() {
                               const fullCust = customers.find(c => c.id === customer.id) || customer;
                               setAdvanceModalCustomer(fullCust as Customer);
                               setAdvanceModalMode('refund');
+                              setAdvanceModalWorkOrder('');
+                              setAdvanceModalProject('');
                               setShowAdvanceModal(true);
                             }}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5 cursor-pointer shrink-0"
@@ -1795,27 +1805,37 @@ export default function CustomerDueList() {
         (targetCustomer?.branches || []).forEach(b => b && availableBranches.add(b));
         ((historyCustomer as any).branches || []).forEach((b: string) => b && availableBranches.add(b));
 
-        // Scan transactions for any branchName or projectName for THIS customer
+        // Scan transactions for any branchName, projectName, or workOrderNumber for THIS customer
         transactions.forEach(t => {
           const matches = relatedCustomerIds.has(t.entityId) || 
             (isSpacezero ? (t.entityName || '').toLowerCase().replace(/[\s\-_.]/g, '').startsWith('spacezero') : (t.entityName && t.entityName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase()));
           if (matches) {
             const br = (t as any).branchName || (t as any).projectName;
             if (br && !['main', 'none', 'n/a', 'corporate'].includes(br.toLowerCase())) availableBranches.add(br);
+            const wo = (t as any).workOrderNumber;
+            if (wo && typeof wo === 'string' && wo.trim()) availableBranches.add(`WO: #${wo.trim()}`);
           }
         });
 
-        // Scan orders for any branchName or projectName for THIS customer
+        // Scan orders for any branchName, projectName, or workOrderNumber for THIS customer
         orders.forEach(o => {
           const matches = relatedCustomerIds.has(o.customerId) || 
             (isSpacezero ? (o.customerName || '').toLowerCase().replace(/[\s\-_.]/g, '').startsWith('spacezero') : (o.customerName && o.customerName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase()));
           if (matches) {
             const br = o.projectName || o.branchName;
             if (br && !['main', 'none', 'n/a', 'corporate'].includes(br.toLowerCase())) availableBranches.add(br);
+            if (o.workOrderNumber && o.workOrderNumber.trim()) availableBranches.add(`WO: #${o.workOrderNumber.trim()}`);
           }
         });
 
         const branchOptions = Array.from(availableBranches).filter(Boolean);
+        const scopeLookup = buildOrderScopeLookup(orders);
+        const activeHistoryScope =
+          ledgerBranchFilter !== 'all'
+            ? ledgerBranchFilter.startsWith('WO: #')
+              ? { workOrderNumber: ledgerBranchFilter.slice(5).trim() }
+              : { projectName: ledgerBranchFilter }
+            : undefined;
 
         // Reverse so oldest is first for running balance calculation
         let runningBalance = 0;
@@ -1828,10 +1848,8 @@ export default function CustomerDueList() {
                                   (isSpacezero ? (t.entityName || '').toLowerCase().replace(/[\s\-_.]/g, '').startsWith('spacezero') : (t.entityName && t.entityName.trim().toLowerCase() === historyCustomer.name.trim().toLowerCase()));
             if (!matchesEntity) return false;
 
-            if (ledgerBranchFilter !== 'all') {
-              const txBranch = (t as any).branchName || (t as any).projectName || '';
-              const matchesBranchName = txBranch === ledgerBranchFilter || (t.description && t.description.includes(ledgerBranchFilter));
-              if (!matchesBranchName) return false;
+            if (activeHistoryScope) {
+              if (!doesTxMatchProjectOrWorkOrder(t, activeHistoryScope, scopeLookup)) return false;
             }
 
             return true;
@@ -1891,7 +1909,7 @@ export default function CustomerDueList() {
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[11px] font-semibold bg-white/10 text-slate-300 px-2.5 py-0.5 rounded-full tracking-wide">
-                      {ledgerBranchFilter !== 'all' ? `Branch / Project: ${ledgerBranchFilter}` : (branchOptions.length > 0 ? 'All Branches / Projects (Combined)' : 'Customer Account')}
+                      {ledgerBranchFilter !== 'all' ? (ledgerBranchFilter.startsWith('WO: #') ? `Work Order #${ledgerBranchFilter.slice(5)}` : `Project / Branch: ${ledgerBranchFilter}`) : (branchOptions.length > 0 ? 'All Projects & Work Orders (Combined)' : 'Customer Account')}
                     </span>
                   </div>
                 </div>
@@ -1917,13 +1935,13 @@ export default function CustomerDueList() {
                   </div>
                   {branchOptions.length > 0 && (
                     <div className="flex flex-col ml-0 sm:ml-2">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Filter Branch / Project</label>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Filter Project / Work Order</label>
                       <select
                         value={ledgerBranchFilter}
                         onChange={e => setLedgerBranchFilter(e.target.value)}
                         className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
                       >
-                        <option value="all">All Branches / Projects (Combined)</option>
+                        <option value="all">All Projects & Work Orders (Combined)</option>
                         {branchOptions.map((br, bi) => (
                           <option key={bi} value={br}>{br}</option>
                         ))}
@@ -1947,6 +1965,14 @@ export default function CustomerDueList() {
                       const cust = customers.find(c => c.id === historyCustomer.id) || null;
                       setAdvanceModalCustomer(cust);
                       setAdvanceModalMode('receive');
+                      setAdvanceModalWorkOrder(
+                        ledgerBranchFilter.startsWith('WO: #') ? ledgerBranchFilter.slice(5).trim() : '',
+                      );
+                      setAdvanceModalProject(
+                        ledgerBranchFilter !== 'all' && !ledgerBranchFilter.startsWith('WO: #')
+                          ? ledgerBranchFilter
+                          : '',
+                      );
                       setShowAdvanceModal(true);
                     }}
                     className="flex-shrink-0 mt-0 inline-flex items-center gap-1.5 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg transition-colors shadow-sm cursor-pointer"
@@ -2103,14 +2129,21 @@ export default function CustomerDueList() {
                             )}
                             {(() => {
                               const br = (t as any).branchName || (t as any).projectName;
-                              if (br) {
-                                return (
-                                  <span className="ml-2 text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200 font-semibold">
-                                    📁 {br}
-                                  </span>
-                                );
-                              }
-                              return null;
+                              const wo = (t as any).workOrderNumber;
+                              return (
+                                <>
+                                  {wo && (
+                                    <span className="ml-2 text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200 font-bold">
+                                      WO #{wo}
+                                    </span>
+                                  )}
+                                  {br && (
+                                    <span className="ml-1.5 text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200 font-semibold">
+                                      📁 {br}
+                                    </span>
+                                  )}
+                                </>
+                              );
                             })()}
                           </td>
                           <td className="px-5 py-3 text-right font-mono font-semibold text-red-600 text-sm">
@@ -2260,6 +2293,8 @@ export default function CustomerDueList() {
         paymentAccounts={paymentAccounts}
         transactions={transactions}
         initialCustomer={advanceModalCustomer}
+        initialWorkOrderNumber={advanceModalWorkOrder}
+        initialProjectName={advanceModalProject}
         initialMode={advanceModalMode}
         onSuccess={fetchData}
       />

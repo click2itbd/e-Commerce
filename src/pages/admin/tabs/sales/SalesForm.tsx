@@ -52,8 +52,10 @@ import { recordSensitiveAlert } from '../../../../lib/alerts';
 import { AIPolishButton } from '../../../../components/common/AIPolishButton';
 import {
   calculateCustomerAccountPosition,
+  hasActiveProjectOrWorkOrderScope,
   splitSalePaymentWithAdvance,
 } from '../../../../utils/customerAdvanceAccounting';
+import type { Order, WorkOrder } from '../../../../types';
 
 interface SalesFormProps {
   users?: any[];
@@ -216,6 +218,9 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [applyCustomerAdvance, setApplyCustomerAdvance] = useState(true);
   const [advanceUseAmount, setAdvanceUseAmount] = useState<number | ''>('');
+  const [useAllProjectsAdvance, setUseAllProjectsAdvance] = useState(false);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [ordersList, setOrdersList] = useState<Partial<Order>[]>([]);
 
   useEffect(() => {
     if (editingOrder) {
@@ -301,10 +306,29 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     return false;
   };
 
-  // Calculate live customer ledger position (due vs advance credit) excluding the order currently being edited
+  // Active Work Order / Project scope for strict isolated accounting
+  const activeScope = React.useMemo(
+    () => ({
+      workOrderNumber: (saleData.workOrderNumber || '').trim() || undefined,
+      projectName: (saleData.branchName || '').trim() || undefined,
+    }),
+    [saleData.workOrderNumber, saleData.branchName],
+  );
+  const hasScopedContext = hasActiveProjectOrWorkOrderScope(activeScope);
+
+  // Calculate live customer ledger position (due vs advance credit) scoped by Work Order / Project when active
   const getCustomerPosition = (customerId: string) =>
     calculateCustomerAccountPosition(transactions, customerId, {
       excludeFn: isTransactionLinkedToEditingOrder,
+      scope: !useAllProjectsAdvance && hasScopedContext ? activeScope : undefined,
+      orders: ordersList,
+    });
+
+  // Overall customer ledger position across all projects & work orders (shown as context hint)
+  const getCustomerOverallPosition = (customerId: string) =>
+    calculateCustomerAccountPosition(transactions, customerId, {
+      excludeFn: isTransactionLinkedToEditingOrder,
+      orders: ordersList,
     });
 
   const getCustomerPreviousDue = (customerId: string) =>
@@ -409,15 +433,21 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     }
   };
 
-  // Sync customers and fetch accounts
+  // Sync customers, accounts, work orders, and orders lookup
   const loadData = async () => {
     try {
-      const [custSnap, accSnap] = await Promise.all([
+      const [custSnap, accSnap, woSnap, ordSnap] = await Promise.all([
         getDocs(query(collection(db, 'customers'), orderBy('name'))),
         getDocs(query(collection(db, 'payment_accounts'), orderBy('name'))),
+        getDocs(collection(db, 'work_orders')).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'orders')).catch(() => ({ docs: [] })),
       ]);
       const fetchedCusts = custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer));
       setCustomers(fetchedCusts);
+      const wos = woSnap.docs.map(d => ({ id: d.id, ...d.data() } as WorkOrder));
+      wos.sort((a, b) => new Date(b.issuedDate || b.createdAt || 0).getTime() - new Date(a.issuedDate || a.createdAt || 0).getTime());
+      setWorkOrders(wos);
+      setOrdersList(ordSnap.docs.map(d => ({ id: d.id, ...d.data() } as Partial<Order>)));
 
       const accs = accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount));
       setPaymentAccounts(accs);
@@ -1267,21 +1297,27 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
         // Record Customer Receivable & New Cash/Bank Inflow Transactions in Firestore
         // Always record the full sale amount to update the customer ledger (Receivable / Offset Advance)
+        const cleanWoNum = (saleData.workOrderNumber || '').trim();
+        const cleanProjName = (saleData.branchName || '').trim();
+        const scopeLabelParts = [cleanWoNum ? `WO: #${cleanWoNum}` : '', cleanProjName ? `Project: ${cleanProjName}` : ''].filter(Boolean);
+        const scopeSuffix = scopeLabelParts.length > 0 ? ` [${scopeLabelParts.join(' | ')}]` : '';
+
         await addDoc(collection(db, 'transactions'), {
           type: 'sale',
           amount: netTotal,
           date: createdAt,
           description:
             advanceApplied > 0
-              ? `Sale to ${saleData.customerName} (#${docNumber}) [Advance Adjusted: ${formatCurrency(advanceApplied, settings)}]`
-              : `Sale to ${saleData.customerName} (#${docNumber})`,
+              ? `Sale to ${saleData.customerName} (#${docNumber}) [Advance Adjusted: ${formatCurrency(advanceApplied, settings)}]${scopeSuffix}`
+              : `Sale to ${saleData.customerName} (#${docNumber})${scopeSuffix}`,
           entityId: saleData.customerId,
           entityName: saleData.customerName,
           entityType: 'customer',
           referenceId: orderRefId,
           documentNumber: docNumber,
-          branchName: saleData.branchName || '',
-          projectName: saleData.branchName || '',
+          workOrderNumber: cleanWoNum,
+          branchName: cleanProjName,
+          projectName: cleanProjName,
           company: saleData.company || 'main',
           paymentAccountId: '', // No payment account for the sale itself
           paymentMethod: advanceApplied > 0 && cashPaidNow === 0 ? 'advance' : '',
@@ -1300,15 +1336,16 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             date: createdAt,
             description:
               advanceApplied > 0
-                ? `Balance Payment for Invoice #${docNumber} (Advance Adjusted: ${formatCurrency(advanceApplied, settings)})`
-                : `Payment for Invoice #${docNumber}`,
+                ? `Balance Payment for Invoice #${docNumber} (Advance Adjusted: ${formatCurrency(advanceApplied, settings)})${scopeSuffix}`
+                : `Payment for Invoice #${docNumber}${scopeSuffix}`,
             entityId: saleData.customerId,
             entityName: saleData.customerName,
             entityType: 'customer',
             referenceId: orderRefId,
             documentNumber: docNumber,
-            branchName: saleData.branchName || '',
-            projectName: saleData.branchName || '',
+            workOrderNumber: cleanWoNum,
+            branchName: cleanProjName,
+            projectName: cleanProjName,
             company: saleData.company || 'main',
             paymentAccountId: selectedAcc?.id || '',
             paymentAccountName: selectedAcc?.name || '',
@@ -1478,6 +1515,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       setSaleDiscountCodeInput('');
       setApplyCustomerAdvance(true);
       setAdvanceUseAmount('');
+      setUseAllProjectsAdvance(false);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('sales_form_draft');
         sessionStorage.removeItem('adminEditingOrder');
@@ -1668,11 +1706,55 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="Optional ref #"
+                  list="sales-work-orders-list"
+                  placeholder="Optional WO # or ref"
                   value={saleData.workOrderNumber || ''}
-                  onChange={e => setSaleData({ ...saleData, workOrderNumber: e.target.value })}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const normalized = val.trim().toLowerCase();
+                    const matchedWo = workOrders.find(
+                      w => (w.orderNumber || '').trim().toLowerCase() === normalized,
+                    );
+                    if (matchedWo) {
+                      const matchedCust = !saleData.customerId
+                        ? customers.find(
+                            c =>
+                              (matchedWo.customerId && c.id === matchedWo.customerId) ||
+                              (matchedWo.clientName &&
+                                c.name.trim().toLowerCase() === matchedWo.clientName.trim().toLowerCase()),
+                          )
+                        : undefined;
+                      setSaleData(prev => ({
+                        ...prev,
+                        workOrderNumber: val,
+                        branchName: matchedWo.branchName || matchedWo.title || prev.branchName,
+                        projectName: matchedWo.branchName || matchedWo.title || prev.projectName,
+                        company: matchedWo.company || prev.company,
+                        ...(matchedCust
+                          ? {
+                              customerId: matchedCust.id,
+                              customerName: matchedCust.name,
+                              customerPhone: matchedCust.phone || '',
+                              customerEmail: matchedCust.email || '',
+                              shippingAddress: matchedCust.address || '',
+                            }
+                          : {}),
+                      }));
+                    } else {
+                      setSaleData(prev => ({ ...prev, workOrderNumber: val }));
+                    }
+                  }}
                   className="w-full h-10 border border-slate-200 bg-white rounded-xl px-3 font-semibold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all shadow-2xs"
                 />
+                <datalist id="sales-work-orders-list">
+                  {workOrders.map(wo => (
+                    <option
+                      key={wo.id}
+                      value={wo.orderNumber}
+                      label={`${wo.title}${wo.clientName ? ` — ${wo.clientName}` : ''}`}
+                    />
+                  ))}
+                </datalist>
               </div>
 
               {/* Document Type */}
@@ -1834,17 +1916,22 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                         {saleData.customerPhone && <span className="text-slate-500 font-mono text-xs">({saleData.customerPhone})</span>}
                         {(() => {
                           const pos = getCustomerPosition(saleData.customerId);
+                          const scopeLabel = !useAllProjectsAdvance && hasScopedContext
+                            ? activeScope.workOrderNumber
+                              ? `WO #${activeScope.workOrderNumber}`
+                              : activeScope.projectName
+                            : '';
                           if (pos.advanceBalance > 0) {
                             return (
                               <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-extrabold">
-                                Advance Credit: {formatCurrency(pos.advanceBalance, settings)}
+                                {scopeLabel ? `${scopeLabel} Advance` : 'Advance Credit'}: {formatCurrency(pos.advanceBalance, settings)}
                               </span>
                             );
                           }
                           if (pos.dueBalance > 0) {
                             return (
                               <span className="bg-rose-100 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full text-[10px] font-extrabold">
-                                Prev Due: {formatCurrency(pos.dueBalance, settings)}
+                                {scopeLabel ? `${scopeLabel} Due` : 'Prev Due'}: {formatCurrency(pos.dueBalance, settings)}
                               </span>
                             );
                           }
@@ -2359,6 +2446,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               {/* Right: Payment Method & Paid Amount */}
               {saleData.type !== 'quotation' && (() => {
                 const custPos = getCustomerPosition(saleData.customerId);
+                const overallPos = hasScopedContext ? getCustomerOverallPosition(saleData.customerId) : custPos;
                 const availAdv = custPos.advanceBalance;
                 const prevDue = custPos.dueBalance;
                 const reqAdv =
@@ -2375,10 +2463,35 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
                 return (
                 <div className="space-y-3 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80">
-                  <span className="font-extrabold text-slate-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                    <CreditCard size={13} className="text-slate-400" />
-                    Payment Collection
-                  </span>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-extrabold text-slate-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <CreditCard size={13} className="text-slate-400" />
+                      Payment Collection
+                    </span>
+                    {hasScopedContext && (availAdv > 0 || overallPos.advanceBalance > 0) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUseAllProjectsAdvance(v => !v);
+                          setAdvanceUseAmount('');
+                        }}
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border transition-colors ${
+                          useAllProjectsAdvance
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                        }`}
+                        title="Toggle between Project/Work Order isolated advance vs overall customer advance"
+                      >
+                        {useAllProjectsAdvance
+                          ? 'Using Overall Advance (Switch to Scoped)'
+                          : `Scoped: ${activeScope.workOrderNumber ? `WO #${activeScope.workOrderNumber}` : activeScope.projectName}${
+                              overallPos.advanceBalance > availAdv
+                                ? ` · Overall: ${formatCurrency(overallPos.advanceBalance, settings)}`
+                                : ''
+                            }`}
+                      </button>
+                    )}
+                  </div>
 
                   {/* Customer Advance Credit Adjustment */}
                   {availAdv > 0 && (

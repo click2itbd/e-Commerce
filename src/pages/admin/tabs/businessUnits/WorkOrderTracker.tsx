@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs } from 'firebase/firestore';
 import { db } from '../../../../firebase';
-import { Order, Customer, BusinessCompany, WorkOrder } from '../../../../types';
+import { Order, Customer, BusinessCompany, WorkOrder, Transaction, PaymentAccount } from '../../../../types';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { toast } from 'react-hot-toast';
 import { 
@@ -24,9 +24,17 @@ import {
   Phone, 
   Calendar,
   X,
-  FileText
+  FileText,
+  Wallet,
+  ShoppingBag
 } from 'lucide-react';
 import { getCompanyTheme, getHierarchicalCompanyGroups } from '../../../../hooks/useBusinessUnits';
+import {
+  buildOrderScopeLookup,
+  computeWorkOrderFinancials,
+  doesTxMatchProjectOrWorkOrder,
+} from '../../../../utils/customerAdvanceAccounting';
+import { CustomerAdvanceModal } from '../../modals/CustomerAdvanceModal';
 
 interface WorkOrderTrackerProps {
   orders: Order[];
@@ -52,6 +60,75 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWO, setEditingWO] = useState<WorkOrder | null>(null);
   const [expandedWOId, setExpandedWOId] = useState<string | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [purchases, setPurchases] = useState<any[]>([]);
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [advanceModalTarget, setAdvanceModalTarget] = useState<WorkOrder | null>(null);
+
+  const loadFinancialData = useCallback(async () => {
+    try {
+      const [txSnap, purSnap, accSnap] = await Promise.all([
+        getDocs(collection(db, 'transactions')).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'purchases')).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'payment_accounts')).catch(() => ({ docs: [] })),
+      ]);
+      const txs = txSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+      txs.sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime());
+      setTransactions(txs);
+      const purs = purSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      purs.sort((a: any, b: any) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime());
+      setPurchases(purs);
+      setPaymentAccounts(accSnap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentAccount)));
+    } catch (err) {
+      console.warn('WorkOrderTracker financial load warning:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFinancialData();
+  }, [loadFinancialData]);
+
+  const orderScopeLookup = useMemo(() => buildOrderScopeLookup(orders), [orders]);
+
+  const findCustomerForWO = (wo: WorkOrder) =>
+    customers.find(
+      c =>
+        (wo.customerId && c.id === wo.customerId) ||
+        (wo.clientName && c.name.trim().toLowerCase() === wo.clientName.trim().toLowerCase()),
+    );
+
+  const openSalesDraftForWO = (wo: WorkOrder) => {
+    if (!setActiveTab) return;
+    const matchedCust = findCustomerForWO(wo);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sales_form_draft', JSON.stringify({
+        customerId: matchedCust?.id || '',
+        customerName: matchedCust?.name || wo.clientName,
+        customerPhone: matchedCust?.phone || wo.contactPhone || '',
+        customerEmail: matchedCust?.email || '',
+        shippingAddress: matchedCust?.address || '',
+        company: wo.company,
+        branchName: wo.branchName || '',
+        workOrderNumber: wo.orderNumber,
+        notes: `Ref Work Order #${wo.orderNumber}`,
+        items: [],
+      }));
+    }
+    setActiveTab('sales');
+  };
+
+  const openPurchaseDraftForWO = (wo: WorkOrder) => {
+    if (!setActiveTab) return;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('draft_purchase_form', JSON.stringify({
+        forceOpen: true,
+        workOrderNumber: wo.orderNumber,
+        projectName: wo.branchName || wo.title || '',
+        notes: `Purchase for WO #${wo.orderNumber} (${wo.clientName})`,
+      }));
+    }
+    setActiveTab('purchases');
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -363,6 +440,23 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
             const isExpanded = expandedWOId === wo.id;
             const companyObj = companies.find(c => c.id === wo.company);
             const theme = getCompanyTheme(companyObj?.color || 'indigo');
+            const woNumNorm = (wo.orderNumber || '').trim().toLowerCase();
+            const fin = computeWorkOrderFinancials({
+              workOrderNumber: wo.orderNumber,
+              transactions,
+              orders,
+              purchases,
+            });
+            const linkedPurchases = purchases.filter(
+              (p: any) => (p.workOrderNumber || '').trim().toLowerCase() === woNumNorm,
+            );
+            const linkedAdvances = transactions.filter(
+              t =>
+                (t.type === 'advance_refund' ||
+                  Boolean((t as any).isAdvance) ||
+                  t.category === 'Customer Advance') &&
+                doesTxMatchProjectOrWorkOrder(t, { workOrderNumber: wo.orderNumber }, orderScopeLookup),
+            );
 
             return (
               <div 
@@ -416,16 +510,43 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                         {wo.deadlineDate && `  |  Deadline: ${wo.deadlineDate}`}
                       </span>
                     </div>
+
+                    {/* Per-WorkOrder Advance -> Purchase -> Sale Financial Pills */}
+                    <div className="flex items-center gap-2 flex-wrap pt-1">
+                      <span className={cn(
+                        "px-2 py-0.5 rounded-md text-[10px] font-bold border",
+                        fin.remainingCustomerAdvance > 0
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          : "bg-slate-50 text-slate-600 border-slate-200"
+                      )}>
+                        Adv Received: {formatCurrency(fin.advancesReceived, settings)}
+                        {fin.remainingCustomerAdvance > 0 && ` (Credit Left: ${formatCurrency(fin.remainingCustomerAdvance, settings)})`}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                        Purchase Cost: {formatCurrency(fin.totalPurchasesCost, settings)}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                        Sales: {formatCurrency(invoiced, settings)}
+                      </span>
+                      <span className={cn(
+                        "px-2 py-0.5 rounded-md text-[10px] font-black border",
+                        fin.grossProfit >= 0
+                          ? "bg-teal-50 text-teal-800 border-teal-200"
+                          : "bg-rose-50 text-rose-700 border-rose-200"
+                      )}>
+                        Gross Profit: {formatCurrency(fin.grossProfit, settings)}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Right: Budget Utilization & Controls */}
-                  <div className="flex items-center gap-5 shrink-0 self-end lg:self-auto">
+                  <div className="flex items-center gap-4 shrink-0 self-end lg:self-auto flex-wrap justify-end">
                     <div className="text-right">
                       <div className="text-[10px] uppercase font-bold text-slate-400">Approved Budget</div>
                       <div className="text-base font-black text-slate-900">{formatCurrency(wo.budget, settings)}</div>
                     </div>
 
-                    <div className="w-36">
+                    <div className="w-32">
                       <div className="flex items-center justify-between text-[10px] font-bold mb-1">
                         <span className="text-slate-500">{pct}% Invoiced</span>
                         <span className={isOverBudget ? "text-rose-600" : "text-slate-700"}>
@@ -441,23 +562,31 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setAdvanceModalTarget(wo)}
+                        title="Receive or Refund Customer Advance for this Work Order"
+                        className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold rounded-xl border border-teal-200 transition-all flex items-center gap-1 shadow-2xs"
+                      >
+                        <Wallet size={12} /> + Advance
+                      </button>
+
                       {setActiveTab && (
                         <button
                           type="button"
-                          onClick={() => {
-                            if (typeof window !== 'undefined') {
-                              localStorage.setItem('sales_form_draft', JSON.stringify({
-                                customerName: wo.clientName,
-                                company: wo.company,
-                                branchName: wo.branchName || '',
-                                workOrderNumber: wo.orderNumber,
-                                notes: `Ref Work Order #${wo.orderNumber}`,
-                                items: []
-                              }));
-                            }
-                            setActiveTab('sales');
-                          }}
+                          onClick={() => openPurchaseDraftForWO(wo)}
+                          title="Record Product Purchase for this Work Order"
+                          className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-xl border border-amber-200 transition-all flex items-center gap-1 shadow-2xs"
+                        >
+                          <ShoppingBag size={12} /> + Purchase
+                        </button>
+                      )}
+
+                      {setActiveTab && (
+                        <button
+                          type="button"
+                          onClick={() => openSalesDraftForWO(wo)}
                           title="Create Invoice for this WO"
                           className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-200 transition-all flex items-center gap-1 shadow-2xs"
                         >
@@ -494,9 +623,158 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                   </div>
                 </div>
 
-                {/* Expanded Invoices Accordion */}
+                {/* Expanded Work Order Ledger, Purchases & Invoices Accordion */}
                 {isExpanded && (
-                  <div className="mt-4 pt-4 border-t border-slate-100 space-y-3 animate-in fade-in duration-200">
+                  <div className="mt-4 pt-4 border-t border-slate-100 space-y-4 animate-in fade-in duration-200">
+                    {/* Reconciliation Strip */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200">
+                        <div className="text-[10px] font-bold uppercase text-teal-700">Customer Advance</div>
+                        <div className="text-sm font-black text-teal-900 mt-0.5">{formatCurrency(fin.advancesReceived, settings)}</div>
+                        <div className="text-[10px] text-teal-700 mt-0.5">
+                          Adjusted: {formatCurrency(fin.advanceAppliedOnSales, settings)} · Unused: {formatCurrency(fin.remainingCustomerAdvance, settings)}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200">
+                        <div className="text-[10px] font-bold uppercase text-amber-700">Purchases Cost</div>
+                        <div className="text-sm font-black text-amber-900 mt-0.5">{formatCurrency(fin.totalPurchasesCost, settings)}</div>
+                        <div className="text-[10px] text-amber-700 mt-0.5">
+                          Paid: {formatCurrency(fin.totalVendorPaid, settings)} · Payable: {formatCurrency(fin.totalVendorPayable, settings)}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200">
+                        <div className="text-[10px] font-bold uppercase text-blue-700">Sales & Collection</div>
+                        <div className="text-sm font-black text-blue-900 mt-0.5">{formatCurrency(invoiced, settings)}</div>
+                        <div className="text-[10px] text-blue-700 mt-0.5">
+                          Collected: {formatCurrency(paid, settings)} · Due: {formatCurrency(due, settings)}
+                        </div>
+                      </div>
+                      <div className={cn(
+                        "p-3 rounded-xl border",
+                        fin.grossProfit >= 0 ? "bg-emerald-50/70 border-emerald-200" : "bg-rose-50/70 border-rose-200"
+                      )}>
+                        <div className="text-[10px] font-bold uppercase text-slate-600">Net Margin & Cash</div>
+                        <div className={cn("text-sm font-black mt-0.5", fin.grossProfit >= 0 ? "text-emerald-900" : "text-rose-800")}>
+                          Profit: {formatCurrency(fin.grossProfit, settings)}
+                        </div>
+                        <div className="text-[10px] text-slate-600 mt-0.5">
+                          Cash Position: {formatCurrency(fin.netCashFlow, settings)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Linked Advances & Refunds */}
+                    {linkedAdvances.length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
+                            <Wallet size={14} className="text-teal-600" />
+                            Advance Deposits & Refunds ({linkedAdvances.length})
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => setAdvanceModalTarget(wo)}
+                            className="text-teal-700 font-bold hover:underline text-[11px]"
+                          >
+                            + Add Advance / Refund
+                          </button>
+                        </div>
+                        <div className="overflow-x-auto rounded-xl border border-slate-100">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px]">
+                              <tr>
+                                <th className="py-2 px-3">Date</th>
+                                <th className="py-2 px-3">Type</th>
+                                <th className="py-2 px-3">Account / Method</th>
+                                <th className="py-2 px-3">Notes</th>
+                                <th className="py-2 px-3 text-right">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                              {linkedAdvances.map(tx => {
+                                const isRefund = tx.type === 'advance_refund';
+                                return (
+                                <tr key={tx.id} className="hover:bg-slate-50/60">
+                                  <td className="py-2 px-3 text-slate-500">{tx.date ? new Date(tx.date).toLocaleDateString('en-GB') : '-'}</td>
+                                  <td className="py-2 px-3 font-bold">
+                                    <span className={cn(
+                                      "px-2 py-0.5 rounded-full text-[10px] uppercase",
+                                      !isRefund ? "bg-teal-100 text-teal-800" : "bg-rose-100 text-rose-800"
+                                    )}>
+                                      {!isRefund ? 'Advance In' : 'Advance Refund'}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-3 text-slate-700">{tx.paymentMethod || tx.paymentAccountName || '-'}</td>
+                                  <td className="py-2 px-3 text-slate-600">{tx.description}</td>
+                                  <td className={cn("py-2 px-3 text-right font-black", !isRefund ? "text-teal-700" : "text-rose-700")}>
+                                    {!isRefund ? '+' : '-'}{formatCurrency(tx.amount, settings)}
+                                  </td>
+                                </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Linked Purchases */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <ShoppingBag size={14} className="text-amber-600" />
+                          Purchases Tagged to #{wo.orderNumber} ({linkedPurchases.length})
+                        </h4>
+                        {setActiveTab && (
+                          <button
+                            type="button"
+                            onClick={() => openPurchaseDraftForWO(wo)}
+                            className="text-amber-700 font-bold hover:underline text-[11px]"
+                          >
+                            + Record Purchase for #{wo.orderNumber}
+                          </button>
+                        )}
+                      </div>
+                      {linkedPurchases.length === 0 ? (
+                        <div className="p-3 bg-slate-50 rounded-xl text-center text-xs text-slate-400">
+                          No purchases tagged to this Work Order yet.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border border-slate-100">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px]">
+                              <tr>
+                                <th className="py-2 px-3">Date</th>
+                                <th className="py-2 px-3">Bill #</th>
+                                <th className="py-2 px-3">Vendor</th>
+                                <th className="py-2 px-3 text-right">Bill Total</th>
+                                <th className="py-2 px-3 text-right">Paid</th>
+                                <th className="py-2 px-3 text-right">Payable</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                              {linkedPurchases.map((p: any) => {
+                                const pTotal = Number(p.total || 0);
+                                const pPaid = Number(p.paidAmount || 0);
+                                const pDue = Math.max(0, pTotal - pPaid);
+                                return (
+                                  <tr key={p.id} className="hover:bg-slate-50/60">
+                                    <td className="py-2 px-3 text-slate-500">{p.date ? new Date(p.date).toLocaleDateString('en-GB') : '-'}</td>
+                                    <td className="py-2 px-3 font-mono font-bold text-slate-900">{p.documentNumber || p.id?.slice(0, 8)}</td>
+                                    <td className="py-2 px-3 font-medium text-slate-800">{p.vendorName || '-'}</td>
+                                    <td className="py-2 px-3 text-right font-bold text-slate-900">{formatCurrency(pTotal, settings)}</td>
+                                    <td className="py-2 px-3 text-right text-emerald-600 font-bold">{formatCurrency(pPaid, settings)}</td>
+                                    <td className="py-2 px-3 text-right text-rose-600 font-bold">{pDue > 0 ? formatCurrency(pDue, settings) : '৳0'}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Linked Invoices */}
                     <div className="flex items-center justify-between text-xs">
                       <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
                         <Receipt size={14} className="text-indigo-600" />
@@ -514,19 +792,7 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
                         No invoices have been billed against this Work Order yet.
                         {setActiveTab && (
                           <button
-                            onClick={() => {
-                              if (typeof window !== 'undefined') {
-                                localStorage.setItem('sales_form_draft', JSON.stringify({
-                                  customerName: wo.clientName,
-                                  company: wo.company,
-                                  branchName: wo.branchName || '',
-                                  workOrderNumber: wo.orderNumber,
-                                  notes: `Ref Work Order #${wo.orderNumber}`,
-                                  items: []
-                                }));
-                              }
-                              setActiveTab('sales');
-                            }}
+                            onClick={() => openSalesDraftForWO(wo)}
                             className="text-indigo-600 font-bold ml-2 underline hover:text-indigo-800"
                           >
                             Create first invoice now →
@@ -780,6 +1046,24 @@ export const WorkOrderTracker: React.FC<WorkOrderTrackerProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {advanceModalTarget && (
+        <CustomerAdvanceModal
+          isOpen={!!advanceModalTarget}
+          onClose={() => setAdvanceModalTarget(null)}
+          customers={customers}
+          paymentAccounts={paymentAccounts}
+          transactions={transactions}
+          workOrders={workOrders}
+          initialCustomer={findCustomerForWO(advanceModalTarget) || null}
+          initialCustomerName={advanceModalTarget.clientName}
+          initialWorkOrderNumber={advanceModalTarget.orderNumber}
+          initialProjectName={advanceModalTarget.branchName || advanceModalTarget.title || ''}
+          onSuccess={() => {
+            loadFinancialData();
+          }}
+        />
       )}
     </div>
   );

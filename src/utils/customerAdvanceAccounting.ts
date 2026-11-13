@@ -1,4 +1,4 @@
-import { Customer, Transaction, TransactionType } from '../types';
+import { Customer, Order, Transaction, TransactionType, WorkOrder } from '../types';
 
 export const CASH_INFLOW_TX_TYPES: readonly TransactionType[] = [
   'sale',
@@ -31,6 +31,11 @@ export const ACCRUAL_ONLY_TX_TYPES: readonly TransactionType[] = [
   'purchase_return',
 ];
 
+export interface ProjectWorkOrderScope {
+  workOrderNumber?: string;
+  projectName?: string;
+}
+
 export interface CustomerAccountPosition {
   totalDebits: number;
   totalCredits: number;
@@ -44,6 +49,78 @@ export interface CustomerAccountPosition {
 
 export interface CalculateCustomerPositionOptions {
   excludeFn?: (tx: Partial<Transaction> | any) => boolean;
+  scope?: ProjectWorkOrderScope;
+  orders?: Partial<Order>[];
+}
+
+const normalizeTag = (val: unknown): string => String(val || '').trim().toLowerCase();
+
+export const hasActiveProjectOrWorkOrderScope = (
+  scope?: ProjectWorkOrderScope | null
+): boolean => {
+  return Boolean(normalizeTag(scope?.workOrderNumber) || normalizeTag(scope?.projectName));
+};
+
+/**
+ * Matches a transaction strictly against a Work Order # and/or Project / Branch name.
+ * When `workOrderNumber` is provided, transactions carrying a DIFFERENT `workOrderNumber`
+ * never bleed in even if they share the same `projectName`.
+ */
+export function doesTxMatchProjectOrWorkOrder(
+  tx: Partial<Transaction> | any,
+  scope?: ProjectWorkOrderScope | null,
+  orderScopeLookup?: Map<string, { workOrderNumber: string; projectName: string }>
+): boolean {
+  const targetWO = normalizeTag(scope?.workOrderNumber);
+  const targetProj = normalizeTag(scope?.projectName);
+
+  if (!targetWO && !targetProj) return true;
+  if (!tx) return false;
+
+  const refOrder =
+    (tx.referenceId && orderScopeLookup?.get(String(tx.referenceId))) ||
+    (tx.documentNumber && orderScopeLookup?.get(String(tx.documentNumber)));
+
+  const txWO = normalizeTag(tx.workOrderNumber || refOrder?.workOrderNumber);
+  const txProj = normalizeTag(tx.projectName || tx.branchName || refOrder?.projectName);
+
+  if (targetWO && targetProj) {
+    if (txWO) return txWO === targetWO;
+    if (txProj) return txProj === targetProj;
+    const desc = normalizeTag(tx.description);
+    return desc.includes(targetWO);
+  }
+
+  if (targetWO) {
+    if (txWO) return txWO === targetWO;
+    const desc = normalizeTag(tx.description);
+    return desc.includes(targetWO);
+  }
+
+  if (targetProj) {
+    if (txProj) return txProj === targetProj;
+    const desc = normalizeTag(tx.description);
+    return desc.includes(targetProj);
+  }
+
+  return false;
+}
+
+export function buildOrderScopeLookup(
+  orders?: Partial<Order>[] | null
+): Map<string, { workOrderNumber: string; projectName: string }> {
+  const map = new Map<string, { workOrderNumber: string; projectName: string }>();
+  for (const o of orders || []) {
+    if (!o) continue;
+    const wo = String(o.workOrderNumber || '').trim();
+    const proj = String(o.projectName || o.branchName || '').trim();
+    if (!wo && !proj) continue;
+    const entry = { workOrderNumber: wo, projectName: proj };
+    if (o.id) map.set(String(o.id), entry);
+    if (o.documentNumber) map.set(String(o.documentNumber), entry);
+    if (o.invoiceNumber) map.set(String(o.invoiceNumber), entry);
+  }
+  return map;
 }
 
 /**
@@ -58,8 +135,8 @@ export function doesTxBelongToCustomer(
   if (tx.entityId) {
     return tx.entityId === customer.id;
   }
-  const txName = String(tx.entityName || '').trim().toLowerCase();
-  const custName = String(customer.name || '').trim().toLowerCase();
+  const txName = normalizeTag(tx.entityName);
+  const custName = normalizeTag(customer.name);
   return Boolean(txName && custName && txName === custName);
 }
 
@@ -87,7 +164,7 @@ export function classifyCustomerTransaction(tx: Partial<Transaction> | any): {
   }
 
   if (type === 'sale_return' || type === 'return') {
-    const pm = String(tx.paymentMethod || '').toLowerCase();
+    const pm = normalizeTag(tx.paymentMethod);
     // Cash/bank/mfs immediate refund does not add store credit; store_credit/credit/blank adds credit.
     const addsCredit = !pm || pm === 'store_credit' || pm === 'credit' || pm === 'advance';
     return { isDebit: false, isCredit: addsCredit };
@@ -106,9 +183,13 @@ export function calculateCustomerPositionFromTransactions(
   let totalDebits = 0;
   let totalCredits = 0;
 
+  const hasScope = hasActiveProjectOrWorkOrderScope(options?.scope);
+  const lookup = hasScope ? buildOrderScopeLookup(options?.orders) : undefined;
+
   for (const tx of customerTransactions || []) {
     if (!tx) continue;
     if (options?.excludeFn && options.excludeFn(tx)) continue;
+    if (hasScope && !doesTxMatchProjectOrWorkOrder(tx, options?.scope, lookup)) continue;
 
     const amount = Number(tx.amount) || 0;
     if (amount <= 0) continue;
@@ -129,7 +210,8 @@ export function calculateCustomerPositionFromTransactions(
 }
 
 /**
- * Computes a specific customer's live ledger position (due vs advance) across all transactions.
+ * Computes a specific customer's live ledger position (due vs advance) across all transactions
+ * or scoped strictly to a specific Work Order # and/or Project / Branch name.
  */
 export function calculateCustomerAccountPosition(
   transactions: (Partial<Transaction> | any)[] | undefined | null,
@@ -187,6 +269,209 @@ export function computeAllCustomerPositions(
     withAdvance,
     totalReceivables: withDue.reduce((sum, p) => sum + p.dueBalance, 0),
     totalCustomerAdvances: withAdvance.reduce((sum, p) => sum + p.advanceBalance, 0),
+  };
+}
+
+export interface CustomerScopeSummary extends CustomerAccountPosition {
+  key: string;
+  workOrderNumber?: string;
+  projectName?: string;
+  label: string;
+}
+
+/**
+ * Lists every Project / Work Order scope associated with a customer and its individual live Due / Advance balance.
+ */
+export function listCustomerProjectWorkOrderScopes(
+  customer: Pick<Customer, 'id' | 'name' | 'branchName' | 'branches'> | null | undefined,
+  transactions: (Partial<Transaction> | any)[],
+  orders: Partial<Order>[] = [],
+  workOrders: Partial<WorkOrder>[] = []
+): CustomerScopeSummary[] {
+  if (!customer) return [];
+
+  const scopeMap = new Map<string, { workOrderNumber?: string; projectName?: string }>();
+  const addScope = (wo?: string, proj?: string) => {
+    const cleanWO = String(wo || '').trim();
+    const cleanProj = String(proj || '').trim();
+    if (!cleanWO && !cleanProj) return;
+    const key = cleanWO ? `wo:${cleanWO.toLowerCase()}` : `proj:${cleanProj.toLowerCase()}`;
+    const prev = scopeMap.get(key);
+    scopeMap.set(key, {
+      workOrderNumber: cleanWO || prev?.workOrderNumber,
+      projectName: cleanProj || prev?.projectName,
+    });
+  };
+
+  if (customer.branchName) addScope(undefined, customer.branchName);
+  (customer.branches || []).forEach(b => addScope(undefined, b));
+
+  const custNameLow = normalizeTag(customer.name);
+  orders.forEach(o => {
+    if (
+      o.customerId === customer.id ||
+      (custNameLow && normalizeTag(o.customerName) === custNameLow)
+    ) {
+      addScope(o.workOrderNumber, o.projectName || o.branchName);
+    }
+  });
+
+  transactions.forEach(tx => {
+    if (doesTxBelongToCustomer(tx, customer)) {
+      addScope(tx.workOrderNumber, tx.projectName || tx.branchName);
+    }
+  });
+
+  workOrders.forEach(wo => {
+    if (custNameLow && normalizeTag(wo.clientName) === custNameLow) {
+      addScope(wo.orderNumber, wo.branchName);
+    }
+  });
+
+  const results: CustomerScopeSummary[] = [];
+  for (const [key, sc] of scopeMap.entries()) {
+    const pos = calculateCustomerAccountPosition(transactions, customer, { scope: sc, orders });
+    const label = sc.workOrderNumber && sc.projectName
+      ? `${sc.workOrderNumber} (${sc.projectName})`
+      : sc.workOrderNumber || sc.projectName || key;
+    results.push({
+      key,
+      workOrderNumber: sc.workOrderNumber,
+      projectName: sc.projectName,
+      label,
+      ...pos,
+    });
+  }
+
+  return results.sort((a, b) => (b.advanceBalance + b.dueBalance) - (a.advanceBalance + a.dueBalance));
+}
+
+export interface WorkOrderFinancialSummary {
+  advancesReceived: number;
+  advancesRefunded: number;
+  netAdvanceDeposits: number;
+  advanceAppliedOnSales: number;
+  remainingCustomerAdvance: number;
+  customerDue: number;
+  totalPurchasesCost: number;
+  totalVendorPaid: number;
+  totalVendorPayable: number;
+  totalSalesInvoiced: number;
+  totalCashCollectedOnSales: number;
+  grossProfit: number;
+  netCashFlow: number;
+}
+
+/**
+ * Computes end-to-end financial reconciliation for a single Work Order and/or Project:
+ * Customer Advances Received -> Vendor Purchases Cost -> Final Invoiced Sales -> Net Profit & Cash Flow.
+ */
+export function computeWorkOrderFinancials(input: {
+  workOrderNumber?: string;
+  projectName?: string;
+  transactions: (Partial<Transaction> | any)[];
+  orders?: Partial<Order>[];
+  purchases?: any[];
+}): WorkOrderFinancialSummary {
+  const scope: ProjectWorkOrderScope = {
+    workOrderNumber: input.workOrderNumber,
+    projectName: input.projectName,
+  };
+  const lookup = buildOrderScopeLookup(input.orders);
+
+  const scopedTxs = (input.transactions || []).filter(tx =>
+    doesTxMatchProjectOrWorkOrder(tx, scope, lookup)
+  );
+
+  let advancesReceived = 0;
+  let advancesRefunded = 0;
+  let totalSalesFromTx = 0;
+  let totalCashCollectedOnSales = 0;
+  let totalPurchasesFromTx = 0;
+  let totalVendorPaid = 0;
+  let netCashFlow = 0;
+
+  let customerDebits = 0;
+  let customerCredits = 0;
+
+  for (const tx of scopedTxs) {
+    const amt = Number(tx.amount) || 0;
+    if (amt <= 0) continue;
+
+    if (tx.entityType === 'customer' || tx.type === 'sale' || tx.type === 'payment_received' || tx.type === 'money_receipt' || tx.type === 'advance_refund') {
+      const { isDebit, isCredit } = classifyCustomerTransaction(tx);
+      if (isDebit) customerDebits += amt;
+      if (isCredit) customerCredits += amt;
+    }
+
+    const isAdvTx = Boolean(tx.isAdvance) || tx.category === 'Customer Advance';
+
+    if ((tx.type === 'payment_received' || tx.type === 'money_receipt') && isAdvTx) {
+      advancesReceived += amt;
+    } else if (tx.type === 'payment_received' || tx.type === 'money_receipt') {
+      totalCashCollectedOnSales += amt;
+    } else if (tx.type === 'advance_refund') {
+      advancesRefunded += amt;
+    } else if (tx.type === 'sale') {
+      totalSalesFromTx += amt;
+    } else if (tx.type === 'purchase') {
+      totalPurchasesFromTx += amt;
+    } else if (tx.type === 'payment_made') {
+      totalVendorPaid += amt;
+    }
+
+    if (tx.paymentAccountId) {
+      if ((CASH_INFLOW_TX_TYPES as readonly string[]).includes(String(tx.type))) {
+        netCashFlow += amt;
+      } else if ((CASH_OUTFLOW_TX_TYPES as readonly string[]).includes(String(tx.type))) {
+        netCashFlow -= amt;
+      }
+    }
+  }
+
+  const scopedOrders = (input.orders || []).filter(o => {
+    if (!o || o.status === 'cancelled' || o.type === 'quotation') return false;
+    return doesTxMatchProjectOrWorkOrder(o, scope);
+  });
+
+  const scopedPurchases = (input.purchases || []).filter(p =>
+    doesTxMatchProjectOrWorkOrder(p, scope)
+  );
+
+  const totalSalesInvoiced =
+    scopedOrders.length > 0
+      ? scopedOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+      : totalSalesFromTx;
+
+  const advanceAppliedOnSales =
+    scopedOrders.length > 0
+      ? scopedOrders.reduce((sum, o) => sum + (Number((o as any).advanceApplied) || 0), 0)
+      : scopedTxs
+          .filter(tx => tx.type === 'sale')
+          .reduce((sum, tx) => sum + (Number(tx.advanceApplied) || 0), 0);
+
+  const totalPurchasesCost =
+    scopedPurchases.length > 0
+      ? scopedPurchases.reduce((sum, p) => sum + (Number(p.total) || 0), 0)
+      : totalPurchasesFromTx;
+
+  const netAdvanceDeposits = Math.max(0, advancesReceived - advancesRefunded);
+  const netCustomerBal = customerDebits - customerCredits;
+
+  return {
+    advancesReceived,
+    advancesRefunded,
+    netAdvanceDeposits,
+    advanceAppliedOnSales,
+    remainingCustomerAdvance: netCustomerBal < -0.005 ? Math.abs(netCustomerBal) : 0,
+    customerDue: netCustomerBal > 0.005 ? netCustomerBal : 0,
+    totalPurchasesCost,
+    totalVendorPaid,
+    totalVendorPayable: Math.max(0, totalPurchasesCost - totalVendorPaid),
+    totalSalesInvoiced,
+    totalCashCollectedOnSales,
+    grossProfit: totalSalesInvoiced - totalPurchasesCost,
+    netCashFlow,
   };
 }
 

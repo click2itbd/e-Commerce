@@ -523,8 +523,11 @@ export const RetailPOS = () => {
   const total = subtotalAfterDiscount + calculatedTax;
 
   const customerPosition = React.useMemo(
-    () => calculateCustomerAccountPosition(transactions, selectedCustomer),
-    [transactions, selectedCustomer],
+    () =>
+      calculateCustomerAccountPosition(transactions, selectedCustomer, {
+        scope: selectedBranch ? { projectName: selectedBranch } : undefined,
+      }),
+    [transactions, selectedCustomer, selectedBranch],
   );
 
   const cashPaymentsSum = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);

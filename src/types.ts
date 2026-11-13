@@ -187,6 +187,10 @@ export interface Transaction {
   advanceApplied?: number;
   cashPaidAmount?: number;
   advanceItemNote?: string;
+  workOrderNumber?: string;
+  projectName?: string;
+  branchName?: string;
+  company?: BusinessUnitCompany | string;
 }
 
 export interface TransactionCategory {
@@ -243,6 +247,7 @@ export interface WorkOrder {
   orderNumber: string; // e.g. WO-2026-001 or PO-4921
   company: string; // e.g. 'simpletree', 'volumezero', 'spacezero', 'main'
   branchName?: string; // Project / Branch name e.g. 'Saleh\'s Popy', 'GSR'
+  customerId?: string;
   clientName: string; // Name of client / company
   title: string; // Work description or subject
   budget: number; // Total approved budget in BDT

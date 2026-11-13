@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, getDocs } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import {
   X,
@@ -12,17 +12,22 @@ import {
   AlertCircle,
   Package,
   Calendar,
+  FileText,
+  FolderKanban,
 } from 'lucide-react';
 import { db } from '../../../firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { useSettings } from '../../../context/SettingsContext';
-import { Customer, PaymentAccount, Transaction } from '../../../types';
+import { Customer, PaymentAccount, Transaction, WorkOrder } from '../../../types';
 import { cn, formatCurrency } from '../../../lib/utils';
 import { generateDocumentNumber } from '../../../lib/numbering';
 import { generatePDF } from '../../../lib/pdf';
 import { logAudit } from '../../../lib/audit';
 import { calculateAccountBalance, validateSufficientBalance } from '../../../lib/accountBalance';
-import { calculateCustomerAccountPosition } from '../../../utils/customerAdvanceAccounting';
+import {
+  calculateCustomerAccountPosition,
+  hasActiveProjectOrWorkOrderScope,
+} from '../../../utils/customerAdvanceAccounting';
 
 interface CustomerAdvanceModalProps {
   isOpen: boolean;
@@ -30,10 +35,14 @@ interface CustomerAdvanceModalProps {
   customers: Customer[];
   paymentAccounts: PaymentAccount[];
   transactions: Transaction[];
+  workOrders?: WorkOrder[];
   initialCustomer?: Customer | null;
+  initialCustomerName?: string;
   initialMode?: 'receive' | 'refund';
   initialAmount?: number;
   initialItemNote?: string;
+  initialWorkOrderNumber?: string;
+  initialProjectName?: string;
   onSuccess?: () => void;
 }
 
@@ -43,10 +52,14 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
   customers,
   paymentAccounts,
   transactions,
+  workOrders: propWorkOrders,
   initialCustomer = null,
+  initialCustomerName = '',
   initialMode = 'receive',
   initialAmount,
   initialItemNote = '',
+  initialWorkOrderNumber = '',
+  initialProjectName = '',
   onSuccess,
 }) => {
   const { profile, user } = useAuth();
@@ -55,6 +68,9 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
   const [mode, setMode] = useState<'receive' | 'refund'>(initialMode);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [customerSearch, setCustomerSearch] = useState('');
+  const [workOrderNumber, setWorkOrderNumber] = useState<string>('');
+  const [projectName, setProjectName] = useState<string>('');
+  const [loadedWorkOrders, setLoadedWorkOrders] = useState<WorkOrder[]>([]);
   const [amount, setAmount] = useState<string>('');
   const [paymentAccountId, setPaymentAccountId] = useState<string>('');
   const [receiptDate, setReceiptDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -63,11 +79,39 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
   const [printReceipt, setPrintReceipt] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  const availableWorkOrders = propWorkOrders && propWorkOrders.length > 0 ? propWorkOrders : loadedWorkOrders;
+
+  useEffect(() => {
+    if (!isOpen || (propWorkOrders && propWorkOrders.length > 0)) return;
+    let active = true;
+    getDocs(collection(db, 'work_orders'))
+      .then(snap => {
+        if (!active) return;
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as WorkOrder));
+        list.sort((a, b) => new Date(b.issuedDate || b.createdAt || 0).getTime() - new Date(a.issuedDate || a.createdAt || 0).getTime());
+        setLoadedWorkOrders(list);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [isOpen, propWorkOrders]);
+
   useEffect(() => {
     if (!isOpen) return;
     setMode(initialMode);
-    setSelectedCustomerId(initialCustomer?.id || '');
-    setCustomerSearch('');
+
+    let resolvedCustomerId = initialCustomer?.id || '';
+    if (!resolvedCustomerId && initialCustomerName.trim()) {
+      const targetLow = initialCustomerName.trim().toLowerCase();
+      const matched = customers.find(c => (c.name || '').trim().toLowerCase() === targetLow);
+      if (matched) resolvedCustomerId = matched.id;
+    }
+
+    setSelectedCustomerId(resolvedCustomerId);
+    setCustomerSearch(resolvedCustomerId ? '' : initialCustomerName || '');
+    setWorkOrderNumber(initialWorkOrderNumber || '');
+    setProjectName(initialProjectName || initialCustomer?.branchName || '');
     setAmount(initialAmount && initialAmount > 0 ? String(initialAmount) : '');
     setItemNote(initialItemNote || '');
     setNotes('');
@@ -79,7 +123,18 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
     } else {
       setPaymentAccountId('');
     }
-  }, [isOpen, initialCustomer, initialMode, initialAmount, initialItemNote, paymentAccounts]);
+  }, [
+    isOpen,
+    initialCustomer,
+    initialCustomerName,
+    initialMode,
+    initialAmount,
+    initialItemNote,
+    initialWorkOrderNumber,
+    initialProjectName,
+    paymentAccounts,
+    customers,
+  ]);
 
   const activeCustomer = useMemo(
     () => customers.find(c => c.id === selectedCustomerId) || null,
@@ -99,9 +154,46 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
       .slice(0, 60);
   }, [customers, customerSearch]);
 
-  const customerPosition = useMemo(
+  const customerProjectSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    if (activeCustomer?.branchName) set.add(activeCustomer.branchName.trim());
+    (activeCustomer?.branches || []).forEach(b => b && set.add(b.trim()));
+    availableWorkOrders.forEach(wo => {
+      if (wo.branchName) set.add(wo.branchName.trim());
+    });
+    if (activeCustomer) {
+      transactions.forEach(t => {
+        if (t.entityId === activeCustomer.id && (t.projectName || t.branchName)) {
+          set.add(String(t.projectName || t.branchName).trim());
+        }
+      });
+    }
+    return Array.from(set).filter(Boolean);
+  }, [activeCustomer, availableWorkOrders, transactions]);
+
+  const currentScope = useMemo(
+    () => ({
+      workOrderNumber: workOrderNumber.trim(),
+      projectName: projectName.trim(),
+    }),
+    [workOrderNumber, projectName]
+  );
+
+  const hasScope = hasActiveProjectOrWorkOrderScope(currentScope);
+
+  const overallPosition = useMemo(
     () => calculateCustomerAccountPosition(transactions, activeCustomer),
     [transactions, activeCustomer]
+  );
+
+  const customerPosition = useMemo(
+    () =>
+      calculateCustomerAccountPosition(
+        transactions,
+        activeCustomer,
+        hasScope ? { scope: currentScope } : undefined
+      ),
+    [transactions, activeCustomer, hasScope, currentScope]
   );
 
   if (!isOpen) return null;
@@ -113,6 +205,27 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
     mode === 'receive'
       ? Math.max(0, customerPosition.advanceBalance + numAmount - customerPosition.dueBalance)
       : Math.max(0, customerPosition.advanceBalance - numAmount);
+
+  const handleWorkOrderSelect = (woVal: string) => {
+    setWorkOrderNumber(woVal);
+    const clean = woVal.trim().toLowerCase();
+    const matchedWO = availableWorkOrders.find(
+      w => (w.orderNumber || '').trim().toLowerCase() === clean
+    );
+    if (matchedWO) {
+      if (matchedWO.branchName || matchedWO.title) {
+        setProjectName(matchedWO.branchName || matchedWO.title);
+      }
+      if (!selectedCustomerId && matchedWO.clientName) {
+        const custMatch = customers.find(
+          c =>
+            (c.name || '').trim().toLowerCase() ===
+            matchedWO.clientName.trim().toLowerCase()
+        );
+        if (custMatch) setSelectedCustomerId(custMatch.id);
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,8 +244,9 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
 
     if (mode === 'refund') {
       if (numAmount > customerPosition.advanceBalance + 0.01) {
+        const scopeText = hasScope ? ' for this Project / Work Order' : '';
         toast.error(
-          `Refund cannot exceed customer's available advance (${formatCurrency(customerPosition.advanceBalance, settings)})`
+          `Refund cannot exceed available advance${scopeText} (${formatCurrency(customerPosition.advanceBalance, settings)})`
         );
         return;
       }
@@ -147,13 +261,24 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
       setSubmitting(true);
       const createdAt = new Date().toISOString();
       const docNum = await generateDocumentNumber(mode === 'receive' ? 'ADV' : 'ADVR');
+      const cleanWO = workOrderNumber.trim();
+      const cleanProj = projectName.trim();
+      const matchedWO = cleanWO
+        ? availableWorkOrders.find(w => (w.orderNumber || '').trim().toLowerCase() === cleanWO.toLowerCase())
+        : undefined;
+
+      const scopeParts = [
+        cleanWO ? `WO: ${cleanWO}` : '',
+        cleanProj ? `Project: ${cleanProj}` : '',
+      ].filter(Boolean);
+      const scopeTag = scopeParts.length > 0 ? ` (${scopeParts.join(' | ')})` : '';
       const itemTag = itemNote.trim() ? ` [${itemNote.trim()}]` : '';
       const extraNote = notes.trim() ? ` - ${notes.trim()}` : '';
 
       const baseDescription =
         mode === 'receive'
-          ? `Customer Advance Deposit${itemTag}${extraNote}`
-          : `Customer Advance Refund${itemTag}${extraNote}`;
+          ? `Customer Advance Deposit${scopeTag}${itemTag}${extraNote}`
+          : `Customer Advance Refund${scopeTag}${itemTag}${extraNote}`;
 
       const nextNetBalance =
         mode === 'receive'
@@ -176,9 +301,10 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
         paymentAccountId: selectedAccount.id,
         paymentAccountName: selectedAccount.name,
         paymentMethod: selectedAccount.type || selectedAccount.name || 'cash',
-        branchName: activeCustomer.branchName || '',
-        projectName: activeCustomer.branchName || '',
-        company: activeCustomer.company || 'main',
+        workOrderNumber: cleanWO,
+        branchName: cleanProj || activeCustomer.branchName || '',
+        projectName: cleanProj || activeCustomer.branchName || '',
+        company: matchedWO?.company || activeCustomer.company || 'main',
         previousDue: customerPosition.netBalance,
         currentBalance: nextNetBalance,
         createdAt,
@@ -193,7 +319,7 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
       await logAudit(
         'CREATE',
         mode === 'receive' ? 'Customer Advance' : 'Advance Refund',
-        `${mode === 'receive' ? 'Received' : 'Refunded'} ৳${numAmount} ${mode === 'receive' ? 'advance from' : 'advance to'} ${activeCustomer.name} (${selectedAccount.name})${itemTag}`,
+        `${mode === 'receive' ? 'Received' : 'Refunded'} ৳${numAmount} ${mode === 'receive' ? 'advance from' : 'advance to'} ${activeCustomer.name} (${selectedAccount.name})${scopeTag}${itemTag}`,
         profile?.displayName || user?.email || 'Admin',
         {
           entityId: activeCustomer.id,
@@ -202,6 +328,8 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
             documentNumber: docNum,
             amount: numAmount,
             mode,
+            workOrderNumber: cleanWO || null,
+            projectName: cleanProj || null,
             paymentAccount: selectedAccount.name,
             advanceBalanceAfter: projectedAdvanceAfter,
           },
@@ -214,8 +342,8 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
 
       toast.success(
         mode === 'receive'
-          ? `Advance ${formatCurrency(numAmount, settings)} recorded for ${activeCustomer.name}!`
-          : `Advance refund ${formatCurrency(numAmount, settings)} recorded for ${activeCustomer.name}!`
+          ? `Advance ${formatCurrency(numAmount, settings)} recorded for ${activeCustomer.name}${scopeTag}!`
+          : `Advance refund ${formatCurrency(numAmount, settings)} recorded for ${activeCustomer.name}${scopeTag}!`
       );
       onSuccess?.();
       onClose();
@@ -239,7 +367,7 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
             <div>
               <h3 className="font-bold text-base leading-tight">Customer Advance & Deposit</h3>
               <p className="text-[11px] text-slate-300">
-                Pre-order booking deposit (Asset/Liability balanced)
+                Project & Work Order advance deposit / refund
               </p>
             </div>
           </div>
@@ -341,33 +469,89 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
             </div>
           )}
 
+          {/* Work Order # & Project / Branch Tagging */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-indigo-50/50 border border-indigo-200/70 rounded-xl">
+            <div>
+              <label className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider block mb-1 flex items-center gap-1">
+                <FileText size={12} className="text-indigo-600" /> Work Order # / PO
+              </label>
+              <input
+                type="text"
+                list="modal-work-orders-list"
+                value={workOrderNumber}
+                onChange={e => handleWorkOrderSelect(e.target.value)}
+                placeholder="e.g. WO-2026-001"
+                className="w-full px-3 py-2 border border-indigo-200 rounded-lg text-xs font-bold text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+              />
+              <datalist id="modal-work-orders-list">
+                {availableWorkOrders.map(wo => (
+                  <option key={wo.id || wo.orderNumber} value={wo.orderNumber}>
+                    {wo.title} {wo.branchName ? `(${wo.branchName})` : ''}
+                  </option>
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider block mb-1 flex items-center gap-1">
+                <FolderKanban size={12} className="text-indigo-600" /> Project / Branch
+              </label>
+              <input
+                type="text"
+                list="modal-project-suggestions"
+                value={projectName}
+                onChange={e => setProjectName(e.target.value)}
+                placeholder="e.g. HQ Setup / Server Room"
+                className="w-full px-3 py-2 border border-indigo-200 rounded-lg text-xs font-bold text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+              />
+              <datalist id="modal-project-suggestions">
+                {customerProjectSuggestions.map((p, idx) => (
+                  <option key={idx} value={p} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
           {/* Customer Live Position */}
           {activeCustomer && (
-            <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-              <div>
-                <span className="text-[10px] font-bold uppercase text-slate-400 block">
-                  Current Status
-                </span>
-                {customerPosition.advanceBalance > 0 ? (
-                  <span className="font-black text-emerald-700 text-sm">
-                    Advance Credit: {formatCurrency(customerPosition.advanceBalance, settings)}
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                    {hasScope ? 'This Project / WO Status' : 'Current Status'}
                   </span>
-                ) : customerPosition.dueBalance > 0 ? (
-                  <span className="font-black text-rose-600 text-sm">
-                    Outstanding Due: {formatCurrency(customerPosition.dueBalance, settings)}
+                  {customerPosition.advanceBalance > 0 ? (
+                    <span className="font-black text-emerald-700 text-sm">
+                      Advance Credit: {formatCurrency(customerPosition.advanceBalance, settings)}
+                    </span>
+                  ) : customerPosition.dueBalance > 0 ? (
+                    <span className="font-black text-rose-600 text-sm">
+                      Outstanding Due: {formatCurrency(customerPosition.dueBalance, settings)}
+                    </span>
+                  ) : (
+                    <span className="font-bold text-slate-700 text-sm">Settled (৳0)</span>
+                  )}
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                    {hasScope ? 'Project / WO Adv After' : 'Advance After This'}
                   </span>
-                ) : (
-                  <span className="font-bold text-slate-700 text-sm">Settled (৳0)</span>
-                )}
+                  <span className="font-black text-indigo-700 text-sm">
+                    {formatCurrency(projectedAdvanceAfter, settings)}
+                  </span>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-[10px] font-bold uppercase text-slate-400 block">
-                  Advance After This
-                </span>
-                <span className="font-black text-indigo-700 text-sm">
-                  {formatCurrency(projectedAdvanceAfter, settings)}
-                </span>
-              </div>
+              {hasScope && (overallPosition.advanceBalance !== customerPosition.advanceBalance || overallPosition.dueBalance !== customerPosition.dueBalance) && (
+                <div className="flex justify-between text-[11px] px-1 text-slate-500 font-medium">
+                  <span>Customer Total (All Projects):</span>
+                  <span>
+                    {overallPosition.advanceBalance > 0
+                      ? `Advance ${formatCurrency(overallPosition.advanceBalance, settings)}`
+                      : overallPosition.dueBalance > 0
+                      ? `Due ${formatCurrency(overallPosition.dueBalance, settings)}`
+                      : 'Settled (৳0)'}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -375,7 +559,7 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
             <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 flex items-start gap-2">
               <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600" />
               <span>
-                This customer has {formatCurrency(customerPosition.dueBalance, settings)} existing due. The deposit will first offset their net balance; any remainder stays as Advance Credit.
+                This {hasScope ? 'Project / Work Order' : 'customer'} has {formatCurrency(customerPosition.dueBalance, settings)} existing due. The deposit will first offset that due; any remainder stays as Advance Credit.
               </span>
             </div>
           )}
@@ -457,7 +641,7 @@ export const CustomerAdvanceModal: React.FC<CustomerAdvanceModalProps> = ({
               type="text"
               value={itemNote}
               onChange={e => setItemNote(e.target.value)}
-              placeholder="e.g. RTX 4070 Super / ASUS ZenBook Pre-Order"
+              placeholder="e.g. RTX 4070 Super / Server BOM Phase-1"
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
             />
           </div>
