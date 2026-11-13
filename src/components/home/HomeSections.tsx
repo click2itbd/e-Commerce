@@ -6,6 +6,8 @@ import { ProductCard } from '../ProductCard';
 import { formatCurrency } from '../../lib/utils';
 import { collection, onSnapshot, query, orderBy, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
+import promoLaptopsImg from '../../../public/banners/promo-laptops.jpg';
+import promoAccessoriesImg from '../../../public/banners/promo-accessories.jpg';
 
 // --- Top Brands ---
 export const TopBrands = () => {
@@ -339,6 +341,21 @@ export const ProductCarousel = ({ title, products }: { title: string, products: 
 };
 
 // --- Promo Bento Grid ---
+const resolvePromoBannerUrl = (url: string | undefined, fallback: string): string => {
+  if (!url) return fallback;
+  if (url === '/banners/promo-laptops.jpg' || url.includes('photo-1603302576837')) {
+    return promoLaptopsImg;
+  }
+  if (
+    url === '/banners/promo-accessories.jpg' ||
+    url.includes('photo-1598550476439') ||
+    url.includes('photo-1615663245857')
+  ) {
+    return promoAccessoriesImg;
+  }
+  return url;
+};
+
 export const PromoBentoGrid = () => {
   const [promoBanners, setPromoBanners] = useState<any[]>([]);
 
@@ -360,16 +377,18 @@ export const PromoBentoGrid = () => {
 
   const banner1 = promoBanners[0];
   const banner2 = promoBanners[1];
+  const banner1Img = resolvePromoBannerUrl(banner1?.imageUrl, promoLaptopsImg);
+  const banner2Img = resolvePromoBannerUrl(banner2?.imageUrl, promoAccessoriesImg);
 
   return (
-    <section className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-4">
-      <Link to={banner1?.targetUrl || "/category/laptop"} className="md:col-span-2 relative rounded-2xl overflow-hidden group h-[250px] bg-gradient-to-r from-gray-900 to-gray-800">
-        <img src={banner1?.imageUrl || "https://images.unsplash.com/photo-1603302576837-37561b2e2302?q=80&w=1000&auto=format&fit=crop"} alt={banner1?.title || "Laptops"} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" />
+    <section className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-4">
+      <Link to={banner1?.targetUrl || "/category/laptop"} className="md:col-span-2 relative rounded-2xl overflow-hidden group h-[190px] sm:h-[230px] md:h-[250px] bg-gradient-to-r from-gray-900 to-gray-800">
+        <img src={banner1Img} alt={banner1?.title || "Laptops"} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" loading="lazy" />
         
       </Link>
       
-      <Link to={banner2?.targetUrl || "/category/accessories"} className="md:col-span-1 relative rounded-2xl overflow-hidden group h-[250px] bg-gradient-to-br from-blue-900 to-indigo-900">
-        <img src={banner2?.imageUrl || "https://images.unsplash.com/photo-1598550476439-6847785fcea6?q=80&w=1000&auto=format&fit=crop"} alt={banner2?.title || "Accessories"} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" />
+      <Link to={banner2?.targetUrl || "/category/accessories"} className="md:col-span-1 relative rounded-2xl overflow-hidden group h-[190px] sm:h-[230px] md:h-[250px] bg-gradient-to-br from-blue-900 to-indigo-900">
+        <img src={banner2Img} alt={banner2?.title || "Accessories"} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" loading="lazy" />
         
       </Link>
     </section>

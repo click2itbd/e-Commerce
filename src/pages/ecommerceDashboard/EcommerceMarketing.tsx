@@ -77,8 +77,10 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
   // Auto-fix broken unsplash image
   useEffect(() => {
     banners.forEach(b => {
-      if (b.imageUrl === 'https://images.unsplash.com/photo-1615663245857-ac1eeb536674?q=80&w=1000&auto=format&fit=crop') {
-        updateDoc(doc(db, 'store_banners', b.id), { imageUrl: 'https://images.unsplash.com/photo-1598550476439-6847785fcea6?q=80&w=1000&auto=format&fit=crop' }).catch(console.error);
+      if (typeof b.imageUrl === 'string' && b.imageUrl.includes('photo-1603302576837')) {
+        updateDoc(doc(db, 'store_banners', b.id), { imageUrl: '/banners/promo-laptops.jpg' }).catch(console.error);
+      } else if (typeof b.imageUrl === 'string' && (b.imageUrl.includes('photo-1615663245857') || b.imageUrl.includes('photo-1598550476439'))) {
+        updateDoc(doc(db, 'store_banners', b.id), { imageUrl: '/banners/promo-accessories.jpg' }).catch(console.error);
       }
     });
   }, [banners]);
@@ -92,8 +94,8 @@ export const EcommerceMarketing: React.FC<{initialTab?: 'coupons'|'banners', men
       { title: 'MONITORS & DISPLAYS', imageUrl: '/banners/hero-main.jpg', targetUrl: '/category/components/monitor', position: 'hero_slider', isActive: true, order: 1 },
       { title: 'ACCESSORIES', imageUrl: '/banners/side-acc.jpg', targetUrl: '/category/components', position: 'sidebar_ad_top', isActive: true, order: 0 },
       { title: 'GADGETS', imageUrl: '/banners/side-gadget.jpg', targetUrl: '/category/components', position: 'sidebar_ad_bottom', isActive: true, order: 0 },
-      { title: 'Premium Gaming Laptops', imageUrl: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?q=80&w=1000&auto=format&fit=crop', targetUrl: '/category/laptop', position: 'promo_banner_left', isActive: true, order: 0 },
-      { title: 'Gaming Accessories', imageUrl: 'https://images.unsplash.com/photo-1598550476439-6847785fcea6?q=80&w=1000&auto=format&fit=crop', targetUrl: '/category/accessories', position: 'promo_banner_right', isActive: true, order: 0 }
+      { title: 'Premium Gaming Laptops', imageUrl: '/banners/promo-laptops.jpg', targetUrl: '/category/laptop', position: 'promo_banner_left', isActive: true, order: 0 },
+      { title: 'Gaming Accessories', imageUrl: '/banners/promo-accessories.jpg', targetUrl: '/category/accessories', position: 'promo_banner_right', isActive: true, order: 0 }
     ];
     
     const loadingToast = toast.loading('Restoring default banners...');
