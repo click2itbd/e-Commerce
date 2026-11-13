@@ -1,6 +1,42 @@
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
+import { getAdminDb, getAdminDocument } from '../firebase/admin.js';
+
+export interface ChatHistoryTurn {
+  sender: 'user' | 'bot';
+  text: string;
+}
+
+export interface ChatContextPayload {
+  currentPath?: string;
+  pageTitle?: string;
+  cartCount?: number;
+  cartTotal?: number;
+}
+
+interface CachedProductSummary {
+  id: string;
+  name: string;
+  category: string;
+  brand: string;
+  price: number;
+  discountPrice: number;
+  inStock: boolean;
+  stock: number;
+  warranty: string;
+}
+
+interface SiteInfoSummary {
+  brandName: string;
+  phone: string;
+  email: string;
+  address: string;
+}
+
+const CACHE_TTL_MS = 5 * 60 * 1000;
+let cachedCatalog: { fetchedAt: number; products: CachedProductSummary[] } | null = null;
+let cachedSiteInfo: { fetchedAt: number; info: SiteInfoSummary } | null = null;
 
 function getAiClient(): GoogleGenAI {
   let key = process.env.GEMINI_API_KEY;
@@ -15,17 +51,238 @@ function getAiClient(): GoogleGenAI {
   return new GoogleGenAI({ apiKey: key });
 }
 
-export async function generateChatResponse(message: string): Promise<string> {
+async function getCachedSiteInfo(): Promise<SiteInfoSummary> {
+  const now = Date.now();
+  if (cachedSiteInfo && now - cachedSiteInfo.fetchedAt < CACHE_TTL_MS) {
+    return cachedSiteInfo.info;
+  }
+
+  const fallback: SiteInfoSummary = {
+    brandName: 'CLICK2IT BD',
+    phone: '+8809640887777',
+    email: 'info@click2itbd.com',
+    address: 'Dhaka, Bangladesh',
+  };
+
+  try {
+    const docSnap = await getAdminDocument('settings', 'site');
+    const d = docSnap?.data || {};
+    const info: SiteInfoSummary = {
+      brandName: d.brandName || fallback.brandName,
+      phone: d.contactPhone || fallback.phone,
+      email: d.contactEmail || fallback.email,
+      address: d.address || fallback.address,
+    };
+    cachedSiteInfo = { fetchedAt: now, info };
+    return info;
+  } catch {
+    return fallback;
+  }
+}
+
+async function loadCatalogProducts(): Promise<CachedProductSummary[]> {
+  const now = Date.now();
+  if (cachedCatalog && now - cachedCatalog.fetchedAt < CACHE_TTL_MS) {
+    return cachedCatalog.products;
+  }
+
+  try {
+    const db = getAdminDb();
+    const snap = await db.collection('products').get();
+    const products: CachedProductSummary[] = [];
+
+    snap.forEach((docSnap: any) => {
+      const p = docSnap.data() || {};
+      if (p.isDraft || p.deletedAt || p.showInStore === false) return;
+
+      const stock = typeof p.stock === 'number' ? p.stock : 0;
+      const inStock = !p.isOutOfStock && stock > 0;
+      const warranty =
+        p.warrantyMonths && Number(p.warrantyMonths) > 0
+          ? `${p.warrantyMonths} ${p.warrantyUnit || 'months'}`
+          : '';
+
+      products.push({
+        id: docSnap.id,
+        name: String(p.name || '').trim(),
+        category: String(p.category || p.subCategory || '').trim(),
+        brand: String(p.brand || '').trim(),
+        price: Number(p.price || 0),
+        discountPrice: Number(p.discountPrice || 0),
+        inStock,
+        stock,
+        warranty,
+      });
+    });
+
+    cachedCatalog = { fetchedAt: now, products };
+    return products;
+  } catch {
+    return cachedCatalog?.products || [];
+  }
+}
+
+const QUERY_SYNONYMS: Record<string, string[]> = {
+  gpu: ['graphics', 'rtx', 'gtx', 'rx', 'vga'],
+  graphics: ['gpu', 'rtx', 'gtx', 'rx'],
+  cpu: ['processor', 'ryzen', 'intel', 'core'],
+  processor: ['cpu', 'ryzen', 'intel', 'core'],
+  ram: ['memory', 'ddr4', 'ddr5'],
+  ssd: ['nvme', 'storage', 'm.2'],
+  hdd: ['hard', 'storage'],
+  psu: ['power supply', 'watt'],
+  cctv: ['camera', 'dvr', 'nvr', 'hikvision', 'dahua'],
+  camera: ['cctv', 'webcam', 'imou', 'ezviz'],
+  pc: ['desktop', 'computer', 'processor', 'monitor'],
+};
+
+function findRelevantProducts(message: string, products: CachedProductSummary[]): CachedProductSummary[] {
+  if (!products.length) return [];
+
+  const normalized = message.toLowerCase().replace(/[^\w\s.\-/]/g, ' ');
+  const rawTokens = normalized.split(/\s+/).filter((t) => t.length >= 2);
+  if (!rawTokens.length) return [];
+
+  const expandedTokens = new Set<string>(rawTokens);
+  for (const token of rawTokens) {
+    const syns = QUERY_SYNONYMS[token];
+    if (syns) syns.forEach((s) => expandedTokens.add(s));
+  }
+
+  const scored = products
+    .map((p) => {
+      const hay = `${p.name} ${p.category} ${p.brand}`.toLowerCase();
+      let score = 0;
+      for (const tok of expandedTokens) {
+        if (hay.includes(tok)) {
+          score += rawTokens.includes(tok) ? 3 : 1;
+        }
+      }
+      if (score > 0 && p.inStock) score += 2;
+      return { p, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10)
+    .map((item) => item.p);
+
+  return scored;
+}
+
+export async function generateChatResponse(
+  message: string,
+  options?: { history?: ChatHistoryTurn[]; context?: ChatContextPayload; mode?: 'storefront_chat' | 'general' }
+): Promise<string> {
   const client = getAiClient();
 
-  if (!message || typeof message !== 'string' || message.length > 100000) {
+  if (!message || typeof message !== 'string' || message.trim().length === 0 || message.length > 2000) {
     throw new Error('Message is required and must be under 2000 characters');
   }
+
+  const isStorefrontChat = options?.mode === 'storefront_chat';
+
+  if (!isStorefrontChat) {
+    try {
+      const response = await client.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: message.trim(),
+      });
+      return response.text || '';
+    } catch (error: any) {
+      console.error('AI chat error with primary model, trying fallback:', error.message);
+      try {
+        const fallbackResponse = await client.models.generateContent({
+          model: 'gemini-flash-latest',
+          contents: message.trim(),
+        });
+        return fallbackResponse.text || '';
+      } catch (fallbackError: any) {
+        console.error('AI chat fallback error:', fallbackError.message);
+        throw new Error('AI service error');
+      }
+    }
+  }
+
+  const [siteInfo, catalog] = await Promise.all([
+    getCachedSiteInfo(),
+    loadCatalogProducts(),
+  ]);
+
+  const historyText = (options?.history || [])
+    .slice(-8)
+    .map((h) => `${h.sender === 'user' ? 'Customer' : 'Assistant'}: ${h.text}`)
+    .join('\n');
+
+  const recentQueryContext = `${historyText} ${message}`;
+  const matchedProducts = findRelevantProducts(recentQueryContext, catalog);
+
+  const productSnippet = matchedProducts.length
+    ? matchedProducts
+        .map((p) => {
+          const finalPrice = p.discountPrice > 0 && p.discountPrice < p.price ? p.discountPrice : p.price;
+          const stockLabel = p.inStock ? `In Stock (${p.stock})` : 'Out of Stock';
+          const warrantyInfo = p.warranty ? `, Warranty: ${p.warranty}` : '';
+          return `- ${p.name} | Brand: ${p.brand || 'N/A'} | Price: ৳${finalPrice.toLocaleString('en-IN')} | ${stockLabel}${warrantyInfo} | Link: /product/${p.id}`;
+        })
+        .join('\n')
+    : 'No exact catalog keyword matches found for this message (direct user to /shop, /deals, or /pc-build if looking for products).';
+
+  const ctx = options?.context || {};
+  const pageContextStr = ctx.currentPath
+    ? `Customer is currently viewing page: ${ctx.currentPath}${ctx.pageTitle ? ` (${ctx.pageTitle})` : ''}${typeof ctx.cartCount === 'number' && ctx.cartCount > 0 ? `, Cart items: ${ctx.cartCount} (৳${Number(ctx.cartTotal || 0).toLocaleString('en-IN')})` : ''}.`
+    : '';
+
+  const systemInstruction = `You are the friendly, knowledgeable AI Shopping & Tech Support Assistant for **${siteInfo.brandName}** — a premier Computer Hardware, Custom PC, Laptop, CCTV, Networking & Electronics E-Commerce Store in Bangladesh.
+
+STORE INFORMATION & POLICIES:
+- Brand: ${siteInfo.brandName}
+- Hotline / WhatsApp: ${siteInfo.phone}
+- Email: ${siteInfo.email}
+- Store Address: ${siteInfo.address}
+- Catalog Size: ${catalog.length} active products online
+- Useful Storefront Links (write exact relative paths starting with / so our chat UI makes them clickable):
+  • Shop All Products: /shop
+  • Hot Deals & Campaigns: /deals
+  • Custom PC Builder (auto compatibility + PSU wattage + EMI): /pc-build
+  • Credit Card EMI Plans: /emi-terms (Available on orders ≥ ৳5,000 across 16 Bangladeshi banks for 3–36 months; selectable directly at /checkout)
+  • Track Order: /track-order
+  • Delivery Policy: /online-delivery (Inside Dhaka fast delivery ৳80–৳150 in 1–2 days; Outside Dhaka via courier in 2–4 days)
+  • Payment Methods: Cash on Delivery (COD), Online Payment via EPS Gateway (Card / bKash / Nagad / Net Banking), and Credit Card EMI
+  • Warranty & Refund Policy: /warranty-policy and /refund-policy
+  • Corporate IT / CCTV Projects & Contact: /projects and /contact
+
+${pageContextStr ? `CURRENT SESSION CONTEXT:\n${pageContextStr}\n` : ''}
+LIVE MATCHING PRODUCTS FROM STORE DATABASE (Use ONLY these exact prices/links if quoting store inventory; NEVER invent fake prices):
+${productSnippet}
+
+RESPONSE GUIDELINES:
+1. Language Match: Reply naturally in **Bengali (বাংলা)** if the customer wrote in Bengali or Banglish (e.g., "dam koto", "emi hobe?"). Reply in clear **English** if the customer wrote in English.
+2. Concise & Helpful: Keep answers concise, warm, and well-structured using short bullet points ("- ") and **bold** highlights where helpful.
+3. Accuracy: Never guess prices or claim a product is in stock if not listed in the Live Matching Products above. If a specific item isn't matched, invite them to search on /shop or contact our sales team at ${siteInfo.phone} / WhatsApp.
+4. Clickable Paths: Whenever recommending a tool/page/product, include its path like /pc-build, /emi-terms, /track-order, or /product/<id> directly in the text.`;
+
+  const contents = [
+    ...(options?.history || [])
+      .slice(-8)
+      .filter((h) => h && typeof h.text === 'string' && h.text.trim())
+      .map((h) => ({
+        role: h.sender === 'user' ? 'user' : 'model',
+        parts: [{ text: h.text.slice(0, 1000) }],
+      })),
+    {
+      role: 'user',
+      parts: [{ text: message.trim() }],
+    },
+  ];
 
   try {
     const response = await client.models.generateContent({
       model: 'gemini-3.8-flash',
-      contents: message
+      contents,
+      config: {
+        systemInstruction,
+        temperature: 0.4,
+      },
     });
     return response.text || '';
   } catch (error: any) {
@@ -33,7 +290,11 @@ export async function generateChatResponse(message: string): Promise<string> {
     try {
       const fallbackResponse = await client.models.generateContent({
         model: 'gemini-flash-latest',
-        contents: message
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.4,
+        },
       });
       return fallbackResponse.text || '';
     } catch (fallbackError: any) {

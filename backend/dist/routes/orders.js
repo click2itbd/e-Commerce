@@ -48,7 +48,10 @@ ordersRouter.post('/create', requireFirebaseAuth, async (req, res) => {
                         epsMerchantTransactionId: epsResult.merchantTransactionId,
                         epsTransactionId: epsResult.transactionId,
                         epsPayableAmount: payableAmount,
-                        paymentMethod: isAdvanceCOD ? 'cod_advance_paid' : 'eps',
+                        paymentMethod: req.body.emiDetails?.isEmi
+                            ? (req.body.paymentMethod || `Credit Card EMI (${req.body.emiDetails.months} Months - ${req.body.emiDetails.bankName || req.body.emiDetails.shortName})`)
+                            : isAdvanceCOD ? 'cod_advance_paid' : 'eps',
+                        ...(req.body.emiDetails?.isEmi ? { emiDetails: req.body.emiDetails } : {}),
                         epsInitiatedAt: now,
                         updatedAt: now,
                     });

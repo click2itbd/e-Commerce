@@ -5,12 +5,33 @@ const aiRouter = Router();
 
 aiRouter.post('/chat', async (req: any, res: Response) => {
   try {
-    const { message } = req.body;
-    if (!message || typeof message !== 'string' || message.trim().length === 0 || message.length > 1000) {
-      return res.status(400).json({ error: 'Message is required and must be under 1000 characters' });
+    const { message, history, context, mode } = req.body;
+    if (!message || typeof message !== 'string' || message.trim().length === 0 || message.length > 1500) {
+      return res.status(400).json({ error: 'Message is required and must be under 1500 characters' });
     }
 
-    const reply = await generateChatResponse(message.trim());
+    const sanitizedHistory = Array.isArray(history)
+      ? history
+          .filter((h: any) => h && (h.sender === 'user' || h.sender === 'bot') && typeof h.text === 'string')
+          .slice(-8)
+          .map((h: any) => ({ sender: h.sender, text: h.text.slice(0, 1000) }))
+      : undefined;
+
+    const sanitizedContext =
+      context && typeof context === 'object'
+        ? {
+            currentPath: typeof context.currentPath === 'string' ? context.currentPath.slice(0, 200) : undefined,
+            pageTitle: typeof context.pageTitle === 'string' ? context.pageTitle.slice(0, 120) : undefined,
+            cartCount: typeof context.cartCount === 'number' ? context.cartCount : undefined,
+            cartTotal: typeof context.cartTotal === 'number' ? context.cartTotal : undefined,
+          }
+        : undefined;
+
+    const reply = await generateChatResponse(message.trim(), {
+      history: sanitizedHistory,
+      context: sanitizedContext,
+      mode: mode === 'storefront_chat' ? 'storefront_chat' : 'general',
+    });
     return res.json({ reply });
   } catch (error: any) {
     console.error('AI chat error:', error);

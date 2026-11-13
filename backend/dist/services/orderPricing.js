@@ -543,11 +543,14 @@ export async function calculateAndCreateServerOrder(userId, payload) {
         discountCode: verifiedCouponCode,
         appliedDiscountCode: verifiedCouponCode,
         discountAmount: promoDiscount,
-        paymentMethod: payload.paymentType === 'cod'
-            ? isAdvanceCOD
-                ? 'cod_advance_paid'
-                : 'cod'
-            : 'eps',
+        paymentMethod: payload.emiDetails?.isEmi
+            ? payload.paymentMethod || `Credit Card EMI (${payload.emiDetails.months} Months - ${payload.emiDetails.bankName || payload.emiDetails.shortName})`
+            : payload.paymentType === 'cod'
+                ? isAdvanceCOD
+                    ? 'cod_advance_paid'
+                    : 'cod'
+                : 'eps',
+        emiDetails: payload.emiDetails || null,
         transactionId: null,
         advancePaidAmount: isAdvanceCOD ? shippingCost : 0,
         stockDeducted: false,
