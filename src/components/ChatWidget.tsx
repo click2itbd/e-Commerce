@@ -24,7 +24,9 @@ import { apiPost } from '../services/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { useCart } from '../context/CartContext';
-import supportAvatar from '../assets/support-avatar.jpg';
+import supportAvatar1 from '../assets/support-avatar.jpg';
+import supportAvatar2 from '../assets/support-avatar-2.jpg';
+import supportAvatar3 from '../assets/support-avatar-3.jpg';
 import {
   MatchedChatProduct,
   ChatWidgetType,
@@ -57,6 +59,7 @@ interface ChatApiResponse {
 
 const STORAGE_KEY = 'click2it_chat_history_v1';
 const GREETING_DISMISSED_KEY = 'click2it_chat_greeting_dismissed_v1';
+const SUPPORT_AVATARS = [supportAvatar1, supportAvatar2, supportAvatar3];
 
 const ROUTE_LABEL_MAP: Record<string, string> = {
   '/pc-build': 'Open PC Builder',
@@ -172,6 +175,8 @@ export const ChatWidget: React.FC = () => {
       return true;
     }
   });
+  const [avatarIndex, setAvatarIndex] = useState(0);
+  const currentSupportAvatar = SUPPORT_AVATARS[avatarIndex % SUPPORT_AVATARS.length];
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -181,6 +186,14 @@ export const ChatWidget: React.FC = () => {
     () => getContextPrompt(location.pathname),
     [location.pathname]
   );
+
+  useEffect(() => {
+    if (isOpen) return;
+    const timer = setInterval(() => {
+      setAvatarIndex((prev) => (prev + 1) % SUPPORT_AVATARS.length);
+    }, 6500);
+    return () => clearInterval(timer);
+  }, [isOpen]);
 
   useEffect(() => {
     try {
@@ -478,11 +491,18 @@ export const ChatWidget: React.FC = () => {
             className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full p-0.5 bg-white shadow-[0_6px_22px_rgba(15,23,42,0.22)] hover:scale-105 active:scale-95 transition-transform duration-200 cursor-pointer shrink-0"
             aria-label={`Open ${brandName} Live Support`}
           >
-            <img
-              src={supportAvatar}
-              alt={`${brandName} Support`}
-              className="w-full h-full rounded-full object-cover object-top"
-            />
+            <div className="relative w-full h-full rounded-full overflow-hidden">
+              {SUPPORT_AVATARS.map((avatarSrc, idx) => (
+                <img
+                  key={idx}
+                  src={avatarSrc}
+                  alt={`${brandName} Support`}
+                  className={`absolute inset-0 w-full h-full rounded-full object-cover object-top transition-all duration-700 ease-in-out ${
+                    idx === avatarIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
+                  }`}
+                />
+              ))}
+            </div>
             <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 sm:h-4 sm:w-4">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
               <span className="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-emerald-500 border-2 border-white shadow-xs" />
@@ -497,7 +517,7 @@ export const ChatWidget: React.FC = () => {
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="relative shrink-0">
                 <img
-                  src={supportAvatar}
+                  src={currentSupportAvatar}
                   alt={brandName}
                   className="w-9 h-9 rounded-full object-cover object-top border border-white/25 bg-white"
                 />
@@ -562,7 +582,7 @@ export const ChatWidget: React.FC = () => {
                 >
                   {!isUser && (
                     <img
-                      src={supportAvatar}
+                      src={currentSupportAvatar}
                       alt={brandName}
                       className="w-6 h-6 rounded-full object-cover object-top border border-slate-200 shrink-0 mt-0.5 bg-white"
                     />
@@ -704,7 +724,7 @@ export const ChatWidget: React.FC = () => {
             {loading && (
               <div className="flex gap-2 justify-start items-center">
                 <img
-                  src={supportAvatar}
+                  src={currentSupportAvatar}
                   alt={brandName}
                   className="w-6 h-6 rounded-full object-cover object-top border border-slate-200 shrink-0 bg-white"
                 />
