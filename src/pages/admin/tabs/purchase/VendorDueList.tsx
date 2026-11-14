@@ -9,6 +9,7 @@ import { LegacyDueModal } from '../../modals/LegacyDueModal';
 import { generatePDF } from '../../../../lib/pdf';
 import { Vendor, Transaction, PaymentAccount } from '../../../../types';
 import { calculateAccountBalance, validateSufficientBalance } from '../../../../lib/accountBalance';
+import { extractDocumentScopeFields, planFifoDocSettlement } from '../../../../utils/customerAdvanceAccounting';
 
 import { where } from 'firebase/firestore';
 import { useAuth } from '../../../../context/AuthContext';
@@ -429,6 +430,7 @@ export default function VendorDueList() {
             paidAmount: newPaid,
             paid: newPaid,
             due: Math.max(0, purTotal - newPaid),
+            dueAmount: Math.max(0, purTotal - newPaid),
             paymentStatus: newStatus
           });
 
@@ -452,6 +454,7 @@ export default function VendorDueList() {
 
           const docNum = pur.billNumber || pur.documentNumber || pur.id;
           settledDocNumbers.push(docNum);
+          const docScope = extractDocumentScopeFields(pur);
 
           // 2. Add Transaction in Firestore
           await addDoc(collection(db, 'transactions'), {
@@ -466,6 +469,7 @@ export default function VendorDueList() {
             entityType: 'vendor',
             documentNumber: docNum,
             referenceId: pur.id,
+            ...docScope,
             paymentAccountId: paymentAccountId,
             paymentMethod: acc?.type || 'cash',
             createdAt: finalPaymentDate,
@@ -512,6 +516,19 @@ export default function VendorDueList() {
         toast.success(`Payment of ৳${Number(paymentAmount).toLocaleString()} recorded for ${allocatedEntries.length} purchase bill(s)!`);
       } else {
         // Lump Sum Payment (General / FIFO fallback)
+        const unpaidPurchases = purchases
+          .filter(p => {
+            const matchesId = p.vendorId === selectedVendor.id;
+            const matchesName = p.vendorName && selectedVendor.name && p.vendorName.toLowerCase().trim() === selectedVendor.name.toLowerCase().trim();
+            if (!matchesId && !matchesName) return false;
+            const tot = Number(p.total || p.grandTotal || 0);
+            const pd = Number(p.paidAmount || p.paid || 0);
+            return (tot - pd) > 0.01;
+          })
+          .sort((a, b) => new Date(a.createdAt || a.date || 0).getTime() - new Date(b.createdAt || b.date || 0).getTime());
+
+        const fifoPlan = planFifoDocSettlement(unpaidPurchases, Number(paymentAmount), 'purchase');
+
         const txData = {
           type: 'payment_made',
           amount: Number(paymentAmount),
@@ -520,6 +537,8 @@ export default function VendorDueList() {
           entityId: selectedVendor.id,
           entityName: selectedVendor.name,
           entityType: 'vendor',
+          ...(fifoPlan.singleDocRef || {}),
+          ...fifoPlan.sharedScope,
           paymentAccountId: paymentAccountId,
           paymentMethod: acc?.type || 'cash',
           createdAt: finalPaymentDate,
@@ -531,36 +550,20 @@ export default function VendorDueList() {
 
         // Auto FIFO sync
         try {
-          let remPay = Number(paymentAmount);
-          const unpaidPurchases = purchases
-            .filter(p => {
-              const matchesId = p.vendorId === selectedVendor.id;
-              const matchesName = p.vendorName && selectedVendor.name && p.vendorName.toLowerCase().trim() === selectedVendor.name.toLowerCase().trim();
-              if (!matchesId && !matchesName) return false;
-              const tot = Number(p.total || p.grandTotal || 0);
-              const pd = Number(p.paidAmount || p.paid || 0);
-              return (tot - pd) > 0.01;
-            })
-            .sort((a, b) => new Date(a.createdAt || a.date || 0).getTime() - new Date(b.createdAt || b.date || 0).getTime());
-
-          for (const pur of unpaidPurchases) {
-            if (remPay <= 0) break;
-            const dueOnPur = (Number(pur.total || pur.grandTotal) || 0) - (Number(pur.paidAmount || pur.paid) || 0);
-            const payAmt = Math.min(remPay, dueOnPur);
-            const updatedPaid = (Number(pur.paidAmount || pur.paid) || 0) + payAmt;
-            const updatedStatus = updatedPaid >= (Number(pur.total || pur.grandTotal) || 0) ? 'paid' : 'partial';
-            await updateDoc(doc(db, 'purchases', pur.id), {
-              paidAmount: updatedPaid,
-              paid: updatedPaid,
-              paymentStatus: updatedStatus
+          for (const alloc of fifoPlan.allocations) {
+            await updateDoc(doc(db, 'purchases', alloc.docId), {
+              paidAmount: alloc.updatedPaid,
+              paid: alloc.updatedPaid,
+              due: alloc.updatedDue,
+              dueAmount: alloc.updatedDue,
+              paymentStatus: alloc.updatedStatus
             });
-            remPay -= payAmt;
           }
         } catch (err) {
           console.warn('FIFO sync error:', err);
         }
 
-        const savedTx = { id: txRef.id, referenceId: `VOU-${Date.now().toString().slice(-6)}`, ...txData, _autoPrint: true };
+        const savedTx = { ...txData, id: txRef.id, referenceId: `VOU-${Date.now().toString().slice(-6)}`, _autoPrint: true };
         try {
           generatePDF(savedTx as any, 'receipt', settings);
         } catch (err) {

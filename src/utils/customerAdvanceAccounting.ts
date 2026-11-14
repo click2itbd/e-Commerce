@@ -628,6 +628,20 @@ export function computeWorkOrderFinancials(input: {
       ? scopedPurchases.reduce((sum, p) => sum + (Number(p.total) || 0), 0)
       : totalPurchasesFromTx;
 
+  const totalOrdersCost = scopedOrders.reduce((sum, o) => {
+    const explicitCost = Number((o as any).totalCost);
+    if (Number.isFinite(explicitCost) && explicitCost > 0) return sum + explicitCost;
+    const items = Array.isArray((o as any).items) ? (o as any).items : [];
+    const itemsCost = items.reduce(
+      (s: number, it: any) => s + (Number(it.costPrice) || 0) * (Number(it.quantity) || 1),
+      0
+    );
+    return sum + itemsCost;
+  }, 0);
+
+  const effectiveCogs =
+    totalSalesInvoiced > 0 ? Math.max(totalPurchasesCost, totalOrdersCost) : totalPurchasesCost;
+
   const netAdvanceDeposits = Math.max(0, advancesReceived - advancesRefunded);
   const netCustomerBal = customerDebits - customerCredits;
   const remainingCustomerAdvance = netCustomerBal < -0.005 ? Math.abs(netCustomerBal) : 0;
@@ -647,7 +661,7 @@ export function computeWorkOrderFinancials(input: {
     totalVendorPayable: Math.max(0, totalPurchasesCost - totalVendorPaid),
     totalSalesInvoiced,
     totalCashCollectedOnSales,
-    grossProfit: totalSalesInvoiced - totalPurchasesCost,
+    grossProfit: totalSalesInvoiced - effectiveCogs,
     netCashFlow,
   };
 }
@@ -959,4 +973,126 @@ export function discoverProjectWorkOrders(input: {
     if (!isNaN(dateDiff) && dateDiff !== 0) return dateDiff;
     return a.workOrderNumber.localeCompare(b.workOrderNumber);
   });
+}
+
+export interface DocumentScopeFields {
+  workOrderNumber: string;
+  projectName: string;
+  branchName: string;
+}
+
+/** Extracts normalized Work Order & non-generic Project/Branch tags from an order or purchase bill. */
+export function extractDocumentScopeFields(docLike: any): DocumentScopeFields {
+  const workOrderNumber = String(docLike?.workOrderNumber || '').trim();
+  const rawProject = String(docLike?.projectName || docLike?.branchName || '').trim();
+  const projectName =
+    rawProject && !isGenericBranchOrProjectTag(rawProject) ? rawProject : '';
+  return {
+    workOrderNumber,
+    projectName,
+    branchName: projectName,
+  };
+}
+
+export interface FifoDocAllocation {
+  docId: string;
+  docNumber: string;
+  payAmt: number;
+  updatedPaid: number;
+  updatedDue: number;
+  updatedStatus: 'paid' | 'partial';
+  scope: DocumentScopeFields;
+}
+
+export interface FifoSettlementPlan {
+  allocations: FifoDocAllocation[];
+  singleDocRef: { referenceId: string; documentNumber: string } | null;
+  sharedScope: DocumentScopeFields;
+}
+
+/**
+ * Plans FIFO allocations across unpaid orders or purchase bills and derives
+ * shared Work Order / Project scope metadata for the settlement transaction.
+ */
+export function planFifoDocSettlement(
+  docs: any[],
+  paymentAmount: number,
+  docKind: 'order' | 'purchase'
+): FifoSettlementPlan {
+  let remPay = Number(paymentAmount) || 0;
+  const allocations: FifoDocAllocation[] = [];
+
+  for (const d of docs) {
+    if (remPay <= 0) break;
+    const total =
+      docKind === 'purchase'
+        ? Number(d?.total || d?.grandTotal || 0)
+        : Number(d?.total || 0);
+    const currentPaid =
+      docKind === 'purchase'
+        ? Number(d?.paidAmount || d?.paid || 0)
+        : Number(d?.paidAmount || d?.amountPaid || 0);
+    const dueOnDoc = Math.max(0, total - currentPaid);
+    if (dueOnDoc <= 0) continue;
+
+    const payAmt = Math.min(remPay, dueOnDoc);
+    const updatedPaid = currentPaid + payAmt;
+    const updatedDue = Math.max(0, total - updatedPaid);
+    const updatedStatus: 'paid' | 'partial' = updatedPaid >= total ? 'paid' : 'partial';
+    const docNumber = String(
+      docKind === 'purchase'
+        ? d?.billNumber || d?.documentNumber || d?.id || ''
+        : d?.documentNumber || d?.invoiceNumber || d?.id || ''
+    );
+
+    allocations.push({
+      docId: String(d.id),
+      docNumber,
+      payAmt,
+      updatedPaid,
+      updatedDue,
+      updatedStatus,
+      scope: extractDocumentScopeFields(d),
+    });
+    remPay -= payAmt;
+  }
+
+  const singleDocRef =
+    allocations.length === 1 && remPay <= 0.01
+      ? { referenceId: allocations[0].docId, documentNumber: allocations[0].docNumber }
+      : null;
+
+  let sharedWorkOrder = '';
+  let sharedProject = '';
+  if (allocations.length > 0 && remPay <= 0.01) {
+    const firstWo = allocations[0].scope.workOrderNumber;
+    const normFirstWo = firstWo.replace(/^#+/, '').toLowerCase();
+    if (
+      normFirstWo &&
+      allocations.every(
+        a => a.scope.workOrderNumber.replace(/^#+/, '').toLowerCase() === normFirstWo
+      )
+    ) {
+      sharedWorkOrder = firstWo;
+    }
+
+    const firstProj = allocations[0].scope.projectName;
+    const normFirstProj = firstProj.toLowerCase();
+    if (
+      normFirstProj &&
+      allocations.every(a => a.scope.projectName.toLowerCase() === normFirstProj)
+    ) {
+      sharedProject = firstProj;
+    }
+  }
+
+  return {
+    allocations,
+    singleDocRef,
+    sharedScope: {
+      workOrderNumber: sharedWorkOrder,
+      projectName: sharedProject,
+      branchName: sharedProject,
+    },
+  };
 }

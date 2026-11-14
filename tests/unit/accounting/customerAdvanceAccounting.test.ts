@@ -16,6 +16,7 @@ import {
   isExplicitCustomerAdvanceTx,
   isGenericBranchOrProjectTag,
   listCustomerProjectWorkOrderScopes,
+  planFifoDocSettlement,
   splitSalePaymentWithAdvance,
 } from '../../../src/utils/customerAdvanceAccounting';
 
@@ -1015,5 +1016,184 @@ describe('customerAdvanceAccounting', () => {
     expect(discovered.some(d => d.projectName === 'Simpletree The September')).toBe(true);
     expect(discovered[0].workOrderNumber).toBe('5520');
     expect(discovered[0].financials.explicitRemainingAdvance).toBe(5);
+  });
+
+  it('handles mixed stock (new purchase + own warehouse stock) and excess sale > advance -> due -> later due payment', () => {
+    const cust = makeCustomer('cust-mixed', 'Karim Builders');
+
+    // Stage 1: Customer deposits 50,000 advance for WO-7788 / Project Sunrise
+    const advTx: Partial<Transaction> = {
+      id: 'tx-mix-adv',
+      type: 'payment_received',
+      entityId: cust.id,
+      entityName: cust.name,
+      entityType: 'customer',
+      amount: 50000,
+      isAdvance: true,
+      category: 'Customer Advance',
+      workOrderNumber: 'WO-7788',
+      projectName: 'Project Sunrise',
+      branchName: 'Project Sunrise',
+      paymentAccountId: 'acc-bank',
+      paymentMethod: 'bank',
+      date: '2026-11-10',
+    };
+
+    // Stage 2: Partial purchase from vendor for 20,000 (cash paid to vendor)
+    const purchaseDoc = {
+      id: 'pur-7788',
+      documentNumber: 'PUR-7788',
+      vendorId: 'vend-1',
+      vendorName: 'Mega Supply',
+      workOrderNumber: 'WO-7788',
+      projectName: 'Project Sunrise',
+      branchName: 'Project Sunrise',
+      total: 20000,
+      paidAmount: 20000,
+      dueAmount: 0,
+    };
+    const purTx: Partial<Transaction> = {
+      id: 'tx-mix-pur',
+      type: 'purchase',
+      entityId: 'vend-1',
+      entityName: 'Mega Supply',
+      entityType: 'vendor',
+      amount: 20000,
+      workOrderNumber: 'WO-7788',
+      projectName: 'Project Sunrise',
+      branchName: 'Project Sunrise',
+      referenceId: 'pur-7788',
+      date: '2026-11-11',
+    };
+    const purPayTx: Partial<Transaction> = {
+      id: 'tx-mix-pur-pay',
+      type: 'payment_made',
+      entityId: 'vend-1',
+      entityName: 'Mega Supply',
+      entityType: 'vendor',
+      amount: 20000,
+      workOrderNumber: 'WO-7788',
+      projectName: 'Project Sunrise',
+      branchName: 'Project Sunrise',
+      referenceId: 'pur-7788',
+      paymentAccountId: 'acc-bank',
+      paymentMethod: 'bank',
+      date: '2026-11-11',
+    };
+
+    // Stage 3: Customer buys 60,000 total (20,000 newly purchased + 15,000 COGS from own existing stock = 35,000 total COGS)
+    // Advance covers 50,000; 10,000 becomes customer due.
+    const split = splitSalePaymentWithAdvance({
+      netTotal: 60000,
+      previousDue: 0,
+      availableAdvance: 50000,
+      applyAdvance: true,
+      cashPaidNow: 0,
+    });
+    expect(split.advanceApplied).toBe(50000);
+    expect(split.invoiceDueAfterSettlement).toBe(10000);
+    expect(split.remainingAdvanceAfterSale).toBe(0);
+    expect(split.paymentStatus).toBe('partial');
+
+    const mixedOrder: Partial<Order> = {
+      id: 'ord-mix-1',
+      documentNumber: 'INV-7788',
+      customerId: cust.id,
+      customerName: cust.name,
+      workOrderNumber: 'WO-7788',
+      projectName: 'Project Sunrise',
+      branchName: 'Project Sunrise',
+      total: 60000,
+      totalCost: 35000, // 20,000 vendor purchase + 15,000 existing warehouse stock COGS
+      advanceApplied: 50000,
+      paidAmount: 50000,
+      dueAmount: 10000,
+      paymentStatus: 'partial',
+      status: 'delivered',
+      type: 'invoice',
+    };
+    const saleTx: Partial<Transaction> = {
+      id: 'tx-mix-sale',
+      type: 'sale',
+      entityId: cust.id,
+      entityName: cust.name,
+      entityType: 'customer',
+      referenceId: 'ord-mix-1',
+      documentNumber: 'INV-7788',
+      workOrderNumber: 'WO-7788',
+      projectName: 'Project Sunrise',
+      branchName: 'Project Sunrise',
+      amount: 60000,
+      advanceApplied: 50000,
+      date: '2026-11-12',
+    };
+
+    const beforePayTxs = [advTx, purTx, purPayTx, saleTx];
+    const woSummaryBeforePay = computeWorkOrderFinancials({
+      workOrderNumber: 'WO-7788',
+      projectName: 'Project Sunrise',
+      transactions: beforePayTxs,
+      orders: [mixedOrder],
+      purchases: [purchaseDoc],
+    });
+    expect(woSummaryBeforePay.advanceAppliedOnSales).toBe(50000);
+    expect(woSummaryBeforePay.remainingCustomerAdvance).toBe(0);
+    expect(woSummaryBeforePay.customerDue).toBe(10000);
+    expect(woSummaryBeforePay.grossProfit).toBe(25000); // 60,000 - (20,000 + 15,000 own stock)
+
+    // Stage 4: Later due payment of 10,000 via FIFO/Lump-Sum carries WO & Project scope cleanly
+    const fifoPlan = planFifoDocSettlement([mixedOrder], 10000, 'order');
+    expect(fifoPlan.allocations).toHaveLength(1);
+    expect(fifoPlan.allocations[0].updatedPaid).toBe(60000);
+    expect(fifoPlan.allocations[0].updatedDue).toBe(0);
+    expect(fifoPlan.allocations[0].updatedStatus).toBe('paid');
+    expect(fifoPlan.singleDocRef).toEqual({ referenceId: 'ord-mix-1', documentNumber: 'INV-7788' });
+    expect(fifoPlan.sharedScope).toEqual({
+      workOrderNumber: 'WO-7788',
+      projectName: 'Project Sunrise',
+      branchName: 'Project Sunrise',
+    });
+
+    const duePayTx: Partial<Transaction> = {
+      id: 'tx-mix-due-pay',
+      type: 'payment_received',
+      entityId: cust.id,
+      entityName: cust.name,
+      entityType: 'customer',
+      amount: 10000,
+      ...(fifoPlan.singleDocRef || {}),
+      ...fifoPlan.sharedScope,
+      paymentAccountId: 'acc-cash',
+      paymentMethod: 'cash',
+      date: '2026-11-14',
+    };
+
+    const settledOrder: Partial<Order> = {
+      ...mixedOrder,
+      paidAmount: fifoPlan.allocations[0].updatedPaid,
+      dueAmount: fifoPlan.allocations[0].updatedDue,
+      paymentStatus: fifoPlan.allocations[0].updatedStatus,
+    };
+
+    const afterPayTxs = [...beforePayTxs, duePayTx];
+    const woSummaryAfterPay = computeWorkOrderFinancials({
+      workOrderNumber: 'WO-7788',
+      projectName: 'Project Sunrise',
+      transactions: afterPayTxs,
+      orders: [settledOrder],
+      purchases: [purchaseDoc],
+    });
+    expect(woSummaryAfterPay.customerDue).toBe(0);
+    expect(woSummaryAfterPay.remainingCustomerAdvance).toBe(0);
+    expect(woSummaryAfterPay.totalCashCollectedOnSales).toBe(10000);
+    expect(woSummaryAfterPay.netCashFlow).toBe(40000); // 50,000 advance + 10,000 due payment - 20,000 vendor purchase
+    expect(woSummaryAfterPay.grossProfit).toBe(25000);
+
+    const custPosAfterPay = calculateCustomerAccountPosition(afterPayTxs, cust, {
+      scope: { workOrderNumber: 'WO-7788', projectName: 'Project Sunrise' },
+      orders: [settledOrder],
+    });
+    expect(custPosAfterPay.dueBalance).toBe(0);
+    expect(custPosAfterPay.advanceBalance).toBe(0);
   });
 });

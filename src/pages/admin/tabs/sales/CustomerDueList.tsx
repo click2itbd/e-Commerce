@@ -41,8 +41,10 @@ import {
   buildOrderScopeLookup,
   classifyCustomerTransaction,
   doesTxMatchProjectOrWorkOrder,
+  extractDocumentScopeFields,
   isExplicitCustomerAdvanceTx,
   listCustomerProjectWorkOrderScopes,
+  planFifoDocSettlement,
 } from '../../../../utils/customerAdvanceAccounting';
 
 import { where } from 'firebase/firestore';
@@ -803,6 +805,7 @@ export default function CustomerDueList() {
           await updateDoc(doc(db, 'orders', ordId), {
             paidAmount: newPaid,
             amountPaid: newPaid,
+            dueAmount: Math.max(0, ordTotal - newPaid),
             paymentStatus: newStatus
           });
 
@@ -810,6 +813,7 @@ export default function CustomerDueList() {
           const rawP = (ord.branchName || ord.projectName || '').trim();
           const isRealP = rawP && !['main', 'main office', 'none', 'n/a', '-- main office / none --', '-- none / no project --', '-- main / default --', 'corporate', 'default'].includes(rawP.toLowerCase());
           const projInfo = isRealP ? ` (Project: ${rawP})` : '';
+          const docScope = extractDocumentScopeFields(ord);
 
           // 2. Add Transaction in Firestore
           await addDoc(collection(db, 'transactions'), {
@@ -824,6 +828,7 @@ export default function CustomerDueList() {
             entityType: 'customer',
             documentNumber: docNum,
             referenceId: ord.id,
+            ...docScope,
             paymentAccountId: paymentAccountId,
             paymentMethod: acc?.type || 'cash',
             createdAt: paymentDate,
@@ -870,6 +875,20 @@ export default function CustomerDueList() {
         toast.success(`Payment of ৳${Number(paymentAmount).toLocaleString()} received for ${allocatedEntries.length} invoice(s)!`);
       } else {
         // Lump Sum Payment (General / FIFO fallback)
+        const unpaidOrders = orders
+          .filter(o => {
+            if (o.status === 'cancelled' || o.type === 'quotation') return false;
+            const matchesId = o.customerId === selectedCustomer.id;
+            const matchesName = o.customerName && selectedCustomer.name && o.customerName.toLowerCase().trim() === selectedCustomer.name.toLowerCase().trim();
+            if (!matchesId && !matchesName) return false;
+            const tot = Number(o.total || 0);
+            const pd = Number(o.paidAmount || (o as any).amountPaid || 0);
+            return (tot - pd) > 0.01;
+          })
+          .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+
+        const fifoPlan = planFifoDocSettlement(unpaidOrders, Number(paymentAmount), 'order');
+
         const txData = {
           type: 'payment_received',
           amount: Number(paymentAmount),
@@ -878,6 +897,8 @@ export default function CustomerDueList() {
           entityId: selectedCustomer.id,
           entityName: selectedCustomer.name,
           entityType: 'customer',
+          ...(fifoPlan.singleDocRef || {}),
+          ...fifoPlan.sharedScope,
           paymentAccountId: paymentAccountId,
           paymentMethod: acc?.type || 'cash',
           createdAt: paymentDate,
@@ -889,37 +910,19 @@ export default function CustomerDueList() {
 
         // Auto FIFO sync
         try {
-          let remPay = Number(paymentAmount);
-          const unpaidOrders = orders
-            .filter(o => {
-              if (o.status === 'cancelled' || o.type === 'quotation') return false;
-              const matchesId = o.customerId === selectedCustomer.id;
-              const matchesName = o.customerName && selectedCustomer.name && o.customerName.toLowerCase().trim() === selectedCustomer.name.toLowerCase().trim();
-              if (!matchesId && !matchesName) return false;
-              const tot = Number(o.total || 0);
-              const pd = Number(o.paidAmount || (o as any).amountPaid || 0);
-              return (tot - pd) > 0.01;
-            })
-            .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
-
-          for (const ord of unpaidOrders) {
-            if (remPay <= 0) break;
-            const dueOnOrder = (Number(ord.total) || 0) - (Number(ord.paidAmount || (ord as any).amountPaid) || 0);
-            const payAmt = Math.min(remPay, dueOnOrder);
-            const updatedPaid = (Number(ord.paidAmount || (ord as any).amountPaid) || 0) + payAmt;
-            const updatedStatus = updatedPaid >= (Number(ord.total) || 0) ? 'paid' : 'partial';
-            await updateDoc(doc(db, 'orders', ord.id), {
-              paidAmount: updatedPaid,
-              amountPaid: updatedPaid,
-              paymentStatus: updatedStatus
+          for (const alloc of fifoPlan.allocations) {
+            await updateDoc(doc(db, 'orders', alloc.docId), {
+              paidAmount: alloc.updatedPaid,
+              amountPaid: alloc.updatedPaid,
+              dueAmount: alloc.updatedDue,
+              paymentStatus: alloc.updatedStatus
             });
-            remPay -= payAmt;
           }
         } catch (err) {
           console.warn('Failed to sync order payment status:', err);
         }
 
-        const savedTx = { id: txRef.id, referenceId: `REC-${Date.now().toString().slice(-6)}`, ...txData, _autoPrint: true };
+        const savedTx = { ...txData, id: txRef.id, referenceId: `REC-${Date.now().toString().slice(-6)}`, _autoPrint: true };
         try {
           generatePDF(savedTx as any, 'receipt', settings);
         } catch (err) {

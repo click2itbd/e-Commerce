@@ -481,18 +481,23 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       };
     });
 
-    setSaleData(prev => ({
-      ...prev,
-      items: mappedItems,
-      customerId: matchedCust?.id || pur.customerId || prev.customerId,
-      customerName: matchedCust?.name || pur.customerName || prev.customerName,
-      customerPhone: matchedCust?.phone || prev.customerPhone,
-      customerEmail: matchedCust?.email || prev.customerEmail,
-      shippingAddress: matchedCust?.address || prev.shippingAddress,
-      workOrderNumber: pur.workOrderNumber || prev.workOrderNumber,
-      branchName: pur.projectName || pur.branchName || prev.branchName,
-      projectName: pur.projectName || pur.branchName || prev.projectName,
-    }));
+    setSaleData(prev => {
+      const existingNonOverlapping = prev.items.filter(
+        existing => !mappedItems.some(m => m.id === existing.id)
+      );
+      return {
+        ...prev,
+        items: [...existingNonOverlapping, ...mappedItems],
+        customerId: matchedCust?.id || pur.customerId || prev.customerId,
+        customerName: matchedCust?.name || pur.customerName || prev.customerName,
+        customerPhone: matchedCust?.phone || prev.customerPhone,
+        customerEmail: matchedCust?.email || prev.customerEmail,
+        shippingAddress: matchedCust?.address || prev.shippingAddress,
+        workOrderNumber: pur.workOrderNumber || prev.workOrderNumber,
+        branchName: pur.projectName || pur.branchName || prev.branchName,
+        projectName: pur.projectName || pur.branchName || prev.projectName,
+      };
+    });
     setApplyCustomerAdvance(true);
     playBeep('success');
     toast.success(
@@ -2253,8 +2258,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             </div>
 
             {/* 1-Click Load Purchased Items Banner */}
-            {saleData.items.length === 0 &&
-              Boolean(saleData.workOrderNumber || saleData.branchName || saleData.customerId) &&
+            {Boolean(saleData.workOrderNumber || saleData.branchName || saleData.customerId) &&
               (() => {
                 const woClean = String(saleData.workOrderNumber || '').trim().replace(/^#+/, '').toLowerCase();
                 const projClean = String(saleData.branchName || '').trim().toLowerCase();
@@ -2263,6 +2267,11 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   if (!pur || pur.linkedSaleInvoiceNumber || !Array.isArray(pur.items) || pur.items.length === 0) {
                     return false;
                   }
+                  const hasUnloadedItem = pur.items.some((pi: any) => {
+                    const pid = String(pi?.id || pi?.productId || '');
+                    return !saleData.items.some(si => String(si.id || (si as any).productId || '') === pid);
+                  });
+                  if (!hasUnloadedItem) return false;
                   const pWo = String(pur.workOrderNumber || '').trim().replace(/^#+/, '').toLowerCase();
                   const pProj = String(pur.projectName || pur.branchName || '').trim().toLowerCase();
                   const pCustId = String(pur.customerId || '').trim();

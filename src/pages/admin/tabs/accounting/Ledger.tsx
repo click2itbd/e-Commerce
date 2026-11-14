@@ -17,6 +17,8 @@ import {
   buildOrderScopeLookup,
   classifyCustomerTransaction,
   doesTxMatchProjectOrWorkOrder,
+  extractDocumentScopeFields,
+  planFifoDocSettlement,
 } from '../../../../utils/customerAdvanceAccounting';
 
 interface LedgerTabProps {
@@ -505,6 +507,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
             await updateDoc(doc(db, 'orders', ordId), {
               paidAmount: newPaid,
               amountPaid: newPaid,
+              dueAmount: Math.max(0, ordTotal - newPaid),
               paymentStatus: newStatus
             });
 
@@ -512,6 +515,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
             settledDocNumbers.push(docNum);
             const proj = ord.projectName || ord.branchName;
             const projInfo = proj ? ` [Branch / Project: ${proj}]` : '';
+            const docScope = extractDocumentScopeFields(ord);
 
             await addDoc(collection(db, 'transactions'), {
               type: 'payment_received',
@@ -525,6 +529,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
               entityType: 'customer',
               documentNumber: docNum,
               referenceId: ord.id,
+              ...docScope,
               paymentAccountId: paymentAccountId || '',
               paymentMethod: chosenMethod,
               createdAt: dateIso,
@@ -546,11 +551,14 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
             await updateDoc(doc(db, 'purchases', purId), {
               paidAmount: newPaid,
               paid: newPaid,
+              due: Math.max(0, purTotal - newPaid),
+              dueAmount: Math.max(0, purTotal - newPaid),
               paymentStatus: newStatus
             });
 
             const docNum = pur.billNumber || pur.documentNumber || pur.id;
             settledDocNumbers.push(docNum);
+            const docScope = extractDocumentScopeFields(pur);
 
             await addDoc(collection(db, 'transactions'), {
               type: 'payment_made',
@@ -564,6 +572,7 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
               entityType: 'vendor',
               documentNumber: docNum,
               referenceId: pur.id,
+              ...docScope,
               paymentAccountId: paymentAccountId || '',
               paymentMethod: chosenMethod,
               createdAt: dateIso,
@@ -611,6 +620,10 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
       } else {
         // Lump Sum Payment (General / FIFO fallback)
         const type = isCust ? 'payment_received' : 'payment_made';
+        const fifoPlan = isCust
+          ? planFifoDocSettlement(entityUnpaidOrders, Number(paymentAmount), 'order')
+          : planFifoDocSettlement(entityUnpaidPurchases, Number(paymentAmount), 'purchase');
+
         const newTx = {
           date: dateIso,
           amount: Number(paymentAmount),
@@ -621,6 +634,8 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
           entityId: selectedLedgerEntity.id,
           entityName: selectedLedgerEntity.name,
           entityType: selectedLedgerEntity.type,
+          ...(fifoPlan.singleDocRef || {}),
+          ...fifoPlan.sharedScope,
           createdAt: dateIso,
         };
 
@@ -628,41 +643,31 @@ const LedgerTab: React.FC<LedgerTabProps> = ({
 
         // Auto FIFO sync
         try {
-          let remPay = Number(paymentAmount);
           if (isCust) {
-            for (const ord of entityUnpaidOrders) {
-              if (remPay <= 0) break;
-              const dueOnOrder = (Number(ord.total) || 0) - (Number(ord.paidAmount || (ord as any).amountPaid) || 0);
-              const payAmt = Math.min(remPay, dueOnOrder);
-              const updatedPaid = (Number(ord.paidAmount || (ord as any).amountPaid) || 0) + payAmt;
-              const updatedStatus = updatedPaid >= (Number(ord.total) || 0) ? 'paid' : 'partial';
-              await updateDoc(doc(db, 'orders', ord.id), {
-                paidAmount: updatedPaid,
-                amountPaid: updatedPaid,
-                paymentStatus: updatedStatus
+            for (const alloc of fifoPlan.allocations) {
+              await updateDoc(doc(db, 'orders', alloc.docId), {
+                paidAmount: alloc.updatedPaid,
+                amountPaid: alloc.updatedPaid,
+                dueAmount: alloc.updatedDue,
+                paymentStatus: alloc.updatedStatus
               });
-              remPay -= payAmt;
             }
           } else {
-            for (const pur of entityUnpaidPurchases) {
-              if (remPay <= 0) break;
-              const dueOnPur = (Number(pur.total || pur.grandTotal) || 0) - (Number(pur.paidAmount || pur.paid) || 0);
-              const payAmt = Math.min(remPay, dueOnPur);
-              const updatedPaid = (Number(pur.paidAmount || pur.paid) || 0) + payAmt;
-              const updatedStatus = updatedPaid >= (Number(pur.total || pur.grandTotal) || 0) ? 'paid' : 'partial';
-              await updateDoc(doc(db, 'purchases', pur.id), {
-                paidAmount: updatedPaid,
-                paid: updatedPaid,
-                paymentStatus: updatedStatus
+            for (const alloc of fifoPlan.allocations) {
+              await updateDoc(doc(db, 'purchases', alloc.docId), {
+                paidAmount: alloc.updatedPaid,
+                paid: alloc.updatedPaid,
+                due: alloc.updatedDue,
+                dueAmount: alloc.updatedDue,
+                paymentStatus: alloc.updatedStatus
               });
-              remPay -= payAmt;
             }
           }
         } catch (err) {
           console.warn('FIFO sync error:', err);
         }
 
-        const savedTx = { id: txRef.id, referenceId: `${isCust ? 'REC' : 'VOU'}-${Date.now().toString().slice(-6)}`, ...newTx, _autoPrint: true };
+        const savedTx = { ...newTx, id: txRef.id, referenceId: `${isCust ? 'REC' : 'VOU'}-${Date.now().toString().slice(-6)}`, _autoPrint: true };
         try {
           generatePDF(savedTx as any, 'receipt', settings);
         } catch (err) {
