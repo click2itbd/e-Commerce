@@ -94,9 +94,9 @@ const UsersTab: React.FC = () => {
         if (userFormData.role === 'admin') {
           defaultPermissions = ['access_ecommerce', ...Array.from(ALL_APP_PERMISSION_KEYS)];
         } else if (userFormData.role === 'manager') {
-          defaultPermissions = ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.store_manager];
+          defaultPermissions = ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.store_manager.keys];
         } else if (userFormData.role === 'staff') {
-          defaultPermissions = ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.sales_staff];
+          defaultPermissions = ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.sales_staff.keys];
         } else {
           defaultPermissions = [];
         }
@@ -423,7 +423,7 @@ const UsersTab: React.FC = () => {
         };
 
         const applyPreset = (presetKey: keyof typeof ROLE_PERMISSION_PRESETS) => {
-          const presetKeys = ROLE_PERMISSION_PRESETS[presetKey] || [];
+          const presetKeys = ROLE_PERMISSION_PRESETS[presetKey]?.keys || [];
           const updated = Array.from(new Set(['access_ecommerce', ...presetKeys]));
           setEditingUserPermissions({ ...editingUserPermissions, permissions: updated });
           toast.success(`Preset applied: ${presetKey.replace('_', ' ')}`);
@@ -587,7 +587,7 @@ const UsersTab: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => applyPreset('technician')}
+                      onClick={() => applyPreset('service_tech')}
                       className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-700/80 hover:bg-slate-700 text-slate-100 border border-slate-600 transition-all flex items-center gap-1.5"
                     >
                       🔧 Technician <span className="text-[10px] text-slate-400">(সার্ভিসিং)</span>
@@ -849,28 +849,28 @@ const UsersTab: React.FC = () => {
                   <div className="flex flex-wrap gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.sales_staff] as any })}
+                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.sales_staff.keys] as any })}
                       className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
                     >
                       🛒 Sales
                     </button>
                     <button
                       type="button"
-                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.technician] as any })}
+                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.service_tech.keys] as any })}
                       className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
                     >
                       🔧 Technician
                     </button>
                     <button
                       type="button"
-                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.accountant] as any })}
+                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.accountant.keys] as any })}
                       className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
                     >
                       💰 Accountant
                     </button>
                     <button
                       type="button"
-                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.store_manager] as any })}
+                      onClick={() => setUserFormData({ ...userFormData, permissions: ['access_ecommerce', ...ROLE_PERMISSION_PRESETS.store_manager.keys] as any })}
                       className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
                     >
                       👑 Manager

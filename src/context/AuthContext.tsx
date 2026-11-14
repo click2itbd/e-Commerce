@@ -82,6 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasPermission = (permission: UserPermission) => {
     if (isAdmin) return true;
+    if ((permission === 'cheques' || permission === 'daily_collection_payout') && (isStaff || isManager)) return true;
     if (!profile?.permissions) return false;
 
     // Direct alias mappings (e.g. dashboard vs view_dashboard)

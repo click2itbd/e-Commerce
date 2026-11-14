@@ -158,7 +158,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           <button onClick={() => setActiveTab('vendors')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'vendors' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
             <Briefcase size={16} className={activeTab === 'vendors' ? "text-blue-600" : "text-gray-400"} /> Supplier
           </button>
-          {(hasPermission('manage_inventory') || hasPermission('manage_finances') || hasPermission('cheques')) && (
+          {(isStaff || isManager || hasPermission('manage_inventory') || hasPermission('manage_finances') || hasPermission('cheques')) && (
             <button onClick={() => setActiveTab('cheques')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'cheques' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
               <CreditCard size={16} className={activeTab === 'cheques' ? "text-blue-600" : "text-gray-400"} />
               <span className="flex items-center justify-between flex-1">
@@ -247,7 +247,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               <FileText size={16} className={activeTab === 'all_reports' ? "text-blue-600" : "text-gray-400"} /> All Reports
             </button>
           )}
-          {(hasPermission('manage_finances') || hasPermission('manage_reports') || hasPermission('daily_collection_payout')) && (
+          {(isStaff || isManager || hasPermission('manage_finances') || hasPermission('manage_reports') || hasPermission('daily_collection_payout')) && (
             <button onClick={() => setActiveTab('daily_collection_payout')} className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors", activeTab === 'daily_collection_payout' ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:bg-gray-50")}>
               <Receipt size={16} className={activeTab === 'daily_collection_payout' ? "text-blue-600" : "text-gray-400"} />
               <span className="flex items-center justify-between flex-1">

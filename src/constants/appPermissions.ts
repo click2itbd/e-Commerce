@@ -74,7 +74,7 @@ export const APP_PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'menus', label: 'Products Category', description: 'পণ্যের ক্যাটাগরি ও মেনু কনফিগারেশন' },
       { key: 'payment_accounts', label: 'Payment Account (Cash & Bank)', description: 'দোকানের ক্যাশ ড্রয়ার ও ব্যাংক অ্যাকাউন্টস', isSensitive: true },
       { key: 'ledger', label: 'Ledger', description: 'পূর্ণাঙ্গ অ্যাকাউন্টিং খতিয়ান বা লেজার', isSensitive: true },
-      { key: 'daily_collection_payout', label: 'Daily Collection Payout', description: 'দৈনিক কালেকশন ও পেআউট বিবরণী', isSensitive: true },
+      { key: 'daily_collection_payout', label: 'Daily Collection Payout', description: 'দৈনিক কালেকশন ও পেআউট বিবরণী' },
       { key: 'manual_income', label: 'Income', description: 'অন্যান্য খাত থেকে বিবিধ আয় এন্ট্রি' },
       { key: 'manual_expense', label: 'Expense', description: 'দোকানের যাবতীয় দৈনন্দিন খরচ এন্ট্রি' },
       { key: 'tx_categories', label: 'Categories (Transactions)', description: 'আয় ও ব্যয়ের ক্যাটাগরি তৈরি' },
@@ -139,7 +139,7 @@ export const ROLE_PERMISSION_PRESETS: Record<string, { label: string; descriptio
   sales_staff: {
     label: 'Sales Staff (বিক্রয়কর্মী)',
     description: 'শুধু সেলস, অর্ডার ও কাস্টমার ডিউ দেখতে পারবে',
-    keys: ['dashboard', 'inventory', 'pos', 'sales', 'sale_return', 'orders', 'customers', 'customer_due_list', 'quotations', 'internal_notes', 'tasks'],
+    keys: ['dashboard', 'inventory', 'pos', 'sales', 'sale_return', 'orders', 'customers', 'customer_due_list', 'quotations', 'cheques', 'daily_collection_payout', 'internal_notes', 'tasks'],
   },
   service_tech: {
     label: 'Service & Repair Tech (সার্ভিস টেকনিশিয়ান)',
@@ -163,7 +163,7 @@ export const ROLE_PERMISSION_PRESETS: Record<string, { label: string; descriptio
     keys: [
       'dashboard', 'inventory', 'pos', 'sales', 'sale_return', 'orders', 'customers', 'deliveries',
       'customer_due_list', 'quotations', 'build_requests', 'purchases', 'purchase_return', 'vendors',
-      'vendor_due_list', 'cheques', 'services', 'internal_notes', 'manual_expense', 'reports',
+      'vendor_due_list', 'cheques', 'services', 'internal_notes', 'daily_collection_payout', 'manual_expense', 'reports',
       'stock_accounting', 'customer_receive_report', 'day_book', 'campaigns', 'discountCodes',
       'employees', 'leave', 'crm', 'tasks'
     ],

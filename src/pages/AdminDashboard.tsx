@@ -719,6 +719,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     "tx_categories",
     "reports",
     "customer_receive_report",
+    "daily_collection_payout",
     "deposits_withdrawals",
     "account_balance",
     "account_statement",
@@ -4848,7 +4849,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </button>
             )}
-            {(hasPermission("manage_inventory") || hasPermission("manage_finances") || hasPermission("cheques")) && (
+            {(isStaff || isManager || hasPermission("manage_inventory") || hasPermission("manage_finances") || hasPermission("cheques")) && (
               <button
                 onClick={() => {
                   setActiveTab("cheques");
@@ -5028,7 +5029,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     )}
                   </button>
                 )}
-                {(hasPermission("manage_finances") || hasPermission("manage_reports") || hasPermission("daily_collection_payout")) && (
+                {(isStaff || isManager || hasPermission("manage_finances") || hasPermission("manage_reports") || hasPermission("daily_collection_payout")) && (
                   <button
                     onClick={() => {
                       setActiveTab("daily_collection_payout");
@@ -6434,6 +6435,11 @@ handleReturnOrder={handleReturnOrder}
                         label: "Suppliers / Vendors",
                         tab: "vendors",
                         icon: Briefcase,
+                      },
+                      {
+                        label: "Cheque Tracker (PDC)",
+                        tab: "cheques",
+                        icon: CreditCard,
                       },
                       {
                         label: "Warranty & Service",
