@@ -12,6 +12,7 @@ import { signOut } from 'firebase/auth';
 import { collection, getDocs, query, orderBy, limit, doc, setDoc, increment, onSnapshot } from 'firebase/firestore';
 import { NavigationMenu, Product, SubCategory } from '../../types';
 import { setSiteContext } from '../../hooks/useSiteContext';
+import { rankProductsBySearchQuery } from '../../utils/seoSearchRegex';
 
 const SearchProductThumb: React.FC<{ src?: string; alt?: string }> = ({ src, alt = '' }) => {
   const [error, setError] = useState(false);
@@ -114,7 +115,9 @@ export const EcommerceNavbar: React.FC = () => {
       try {
         const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
         const snap = await getDocs(q);
-        const active = snap.docs.map(d => ({id: d.id, ...d.data()})) as Product[];
+        const active = (snap.docs.map(d => ({id: d.id, ...d.data()})) as Product[]).filter(
+          p => p.showInStore !== false && !(p as any).isDraft && !(p as any).deletedAt
+        );
         setProducts(active);
         setTrendingProducts(active.slice(0, 5));
       } catch(err) {
@@ -371,8 +374,7 @@ export const EcommerceNavbar: React.FC = () => {
                     <>
                        <h3 className="font-bold text-gray-800 mb-5 text-[15px]">Search Results for "{searchQuery}"</h3>
                        <div className="grid grid-cols-3 gap-4">
-                          {products
-                            ?.filter(p => p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.brand?.toLowerCase().includes(searchQuery.toLowerCase()))
+                          {rankProductsBySearchQuery(products, searchQuery)
                             .slice(0, 6)
                             .map(p => {
                               const price = p.discountPrice || p.price;

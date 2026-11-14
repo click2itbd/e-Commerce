@@ -2,6 +2,8 @@ import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useSettings } from '../context/SettingsContext';
 
+import type { ProductMetaProps } from '../utils/seoSearchRegex';
+
 export interface SEOProps {
   title?: string;
   description?: string;
@@ -12,6 +14,7 @@ export interface SEOProps {
   type?: 'website' | 'article' | 'product';
   schema?: Record<string, any> | Array<Record<string, any>>;
   noindex?: boolean;
+  productMeta?: ProductMetaProps;
 }
 
 export const SEO: React.FC<SEOProps> = ({ 
@@ -23,7 +26,8 @@ export const SEO: React.FC<SEOProps> = ({
   canonical,
   type = 'website',
   schema,
-  noindex = false
+  noindex = false,
+  productMeta
 }) => {
   const { settings } = useSettings();
   
@@ -121,7 +125,7 @@ export const SEO: React.FC<SEOProps> = ({
   };
 
   const finalSchema = schema 
-    ? (Array.isArray(schema) ? schema : [schema])
+    ? [defaultStoreSchema, defaultWebSiteSchema, ...(Array.isArray(schema) ? schema : [schema])]
     : [defaultStoreSchema, defaultWebSiteSchema];
 
   return (
@@ -130,7 +134,14 @@ export const SEO: React.FC<SEOProps> = ({
       <title>{seoTitle}</title>
       <meta name="description" content={seoDescription} />
       <meta name="keywords" content={seoKeywords} />
-      {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+      {canonicalUrl && (
+        <>
+          <link rel="canonical" href={canonicalUrl} />
+          <link rel="alternate" hrefLang="en-bd" href={canonicalUrl} />
+          <link rel="alternate" hrefLang="bn-bd" href={canonicalUrl} />
+          <link rel="alternate" hrefLang="x-default" href={canonicalUrl} />
+        </>
+      )}
       
       {/* Search Engine Robots Directives */}
       {noindex ? (
@@ -160,6 +171,26 @@ export const SEO: React.FC<SEOProps> = ({
       <meta property="og:site_name" content={siteName} />
       <meta property="og:locale" content="en_US" />
       <meta property="og:locale:alternate" content="bn_BD" />
+
+      {/* Product OpenGraph & Merchant tags */}
+      {type === 'product' && productMeta && (
+        <>
+          {productMeta.priceAmount !== undefined && (
+            <meta property="product:price:amount" content={String(productMeta.priceAmount)} />
+          )}
+          <meta property="product:price:currency" content={productMeta.priceCurrency || 'BDT'} />
+          {productMeta.availability && (
+            <meta property="product:availability" content={productMeta.availability} />
+          )}
+          {productMeta.brand && <meta property="product:brand" content={productMeta.brand} />}
+          {productMeta.condition && (
+            <meta property="product:condition" content={productMeta.condition} />
+          )}
+          {productMeta.retailerItemId && (
+            <meta property="product:retailer_item_id" content={productMeta.retailerItemId} />
+          )}
+        </>
+      )}
 
       {/* Twitter Cards */}
       <meta name="twitter:card" content="summary_large_image" />

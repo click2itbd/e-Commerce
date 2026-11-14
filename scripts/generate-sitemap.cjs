@@ -54,11 +54,9 @@ async function generate() {
     { loc: '/emi-terms', priority: '0.6', changefreq: 'monthly' },
     { loc: '/terms', priority: '0.4', changefreq: 'monthly' },
     { loc: '/privacy', priority: '0.4', changefreq: 'monthly' },
-    // Hosting Pages
-    { loc: '/hosting', priority: '0.9', changefreq: 'weekly' },
-    { loc: '/services', priority: '0.8', changefreq: 'weekly' },
-    { loc: '/pricing', priority: '0.8', changefreq: 'weekly' },
-    { loc: '/vps', priority: '0.8', changefreq: 'weekly' },
+    { loc: '/pre-book', priority: '0.8', changefreq: 'weekly' },
+    { loc: '/star-points', priority: '0.6', changefreq: 'monthly' },
+    { loc: '/track-order', priority: '0.5', changefreq: 'monthly' },
   ];
 
   staticPages.forEach(p => {
@@ -91,14 +89,24 @@ async function generate() {
       const condition = p.condition === 'used' ? 'used' : 'new';
       const brand = escapeXml(p.brand || 'Click2IT');
 
-      // Sitemap URL with Image extension
-      let imgXml = '';
-      if (img && img.startsWith('http')) {
-        imgXml = `\n    <image:image>
-      <image:loc>${escapeXml(img)}</image:loc>
-      <image:title>${title}</image:title>
-    </image:image>`;
-      }
+      // Sitemap URL with multi-image extension (up to 5 images per product)
+      const uniqueImgs = Array.from(
+        new Set(
+          [img, ...(Array.isArray(p.images) ? p.images : [])].filter(
+            u => typeof u === 'string' && u.startsWith('http')
+          )
+        )
+      ).slice(0, 5);
+
+      const imgXml = uniqueImgs
+        .map(
+          (imgUrl, idx) => `\n    <image:image>
+      <image:loc>${escapeXml(imgUrl)}</image:loc>
+      <image:title>${title}${idx > 0 ? ` - View ${idx + 1}` : ''}</image:title>
+      <image:caption>${escapeXml(`${p.name || 'Product'} price in Bangladesh at CLICK2IT`)}</image:caption>
+    </image:image>`
+        )
+        .join('');
 
       urls.push(`  <url>
     <loc>${pUrl}</loc>

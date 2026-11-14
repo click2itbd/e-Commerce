@@ -359,6 +359,13 @@ export const CategoryPage: React.FC = () => {
     ]
   };
 
+  const activePrices = filteredProducts
+    .map(p => Number(p.discountPrice || p.price || 0))
+    .filter(v => v > 0);
+  const minCategoryPrice = activePrices.length > 0 ? Math.min(...activePrices) : 0;
+  const maxCategoryPrice = activePrices.length > 0 ? Math.max(...activePrices) : 0;
+  const currentYear = new Date().getFullYear();
+
   const categoryItemListSchema = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
@@ -373,18 +380,43 @@ export const CategoryPage: React.FC = () => {
     }))
   };
 
+  const categoryFaqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    'mainEntity': [
+      {
+        '@type': 'Question',
+        'name': `What is the ${formattedCategoryName} price range in Bangladesh (${currentYear})?`,
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': minCategoryPrice > 0
+            ? `${formattedCategoryName} price in Bangladesh starts from ৳${minCategoryPrice.toLocaleString()} up to ৳${maxCategoryPrice.toLocaleString()} at CLICK2IT with official brand warranty.`
+            : `Browse genuine ${formattedCategoryName} at competitive prices in Bangladesh at CLICK2IT.`
+        }
+      },
+      {
+        '@type': 'Question',
+        'name': `Where to buy original ${formattedCategoryName} in Dhaka, Bangladesh?`,
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': `You can buy 100% authentic ${formattedCategoryName} online at click2itbd.com or visit CLICK2IT at Multiplan Center, New Elephant Road, Dhaka with nationwide home delivery.`
+        }
+      }
+    ]
+  };
+
   return (
     <Layout>
       <SEO
-        title={categorySlug ? `${formattedCategoryName} Price in Bangladesh 2026 | CLICK2IT` : `All Products - Shop Online in Bangladesh | CLICK2IT`}
+        title={categorySlug ? `${formattedCategoryName} Price in Bangladesh ${currentYear} | CLICK2IT` : `All Products - Shop Online in Bangladesh ${currentYear} | CLICK2IT`}
         description={categorySlug
-          ? `Explore genuine ${formattedCategoryName} at best price in Bangladesh from CLICK2IT. Check official warranty, authentic specs, user reviews, and fast delivery.`
-          : `Browse our full catalog of computers, laptops, PC components, and accessories at the best prices in Bangladesh from CLICK2IT with official warranty and fast delivery.`}
+          ? `Explore ${filteredProducts.length} genuine ${formattedCategoryName} at best price in Bangladesh${minCategoryPrice > 0 ? ` starting from ৳${minCategoryPrice.toLocaleString()}` : ''} at CLICK2IT. Official warranty & fast delivery.`
+          : `Browse ${filteredProducts.length} genuine computers, laptops, PC components & accessories at best price in Bangladesh${minCategoryPrice > 0 ? ` starting from ৳${minCategoryPrice.toLocaleString()}` : ''} at CLICK2IT.`}
         keywords={categorySlug
-          ? `${activeName}, ${activeName} price in bd, buy ${activeName} bangladesh, click2it shop`
-          : `all products, computers, laptops, accessories, buy online bangladesh, click2it shop`}
+          ? `${activeName}, ${activeName} price in bd, ${activeName} price in bangladesh ${currentYear}, buy ${activeName} dhaka, click2it shop`
+          : `all products, computers, laptops, pc components price in bd, buy online bangladesh ${currentYear}, click2it shop`}
         canonical={canonicalCategoryUrl}
-        schema={[categoryBreadcrumbsSchema, categoryItemListSchema]}
+        schema={[categoryBreadcrumbsSchema, categoryItemListSchema, categoryFaqSchema]}
       />
       <div className="bg-[#f8f9fa] min-h-screen pt-4 sm:pt-6 pb-20">
         <div className="w-full mx-auto">

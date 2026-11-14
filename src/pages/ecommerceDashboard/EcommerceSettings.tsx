@@ -5,6 +5,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { SiteSettings } from '../../types';
+import { GSC_QUERY_REGEX_PATTERNS, GSC_PAGE_URL_REGEX_PATTERNS } from '../../utils/seoSearchRegex';
 
 export const EcommerceSettings: React.FC = () => {
   const { user } = useAuth();
@@ -303,6 +304,79 @@ export const EcommerceSettings: React.FC = () => {
                 >
                   <ExternalLink size={14} /> Open Google Merchant Center &rarr;
                 </a>
+              </div>
+
+              {/* Google Search Console Search Queries & Custom Regex Command Center */}
+              <div className="pt-4 border-t border-slate-200 space-y-4">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">
+                    Google Search Console (GSC) Search Queries &amp; Custom Regex Filters
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Search Console &rarr; Performance &rarr; + New &rarr; Query / Page &rarr; Custom (regex)-এ নিচের প্যাটার্নগুলো কপি করে বসান।
+                  </p>
+                </div>
+
+                <div className="space-y-2.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Query Regex Filters ({GSC_QUERY_REGEX_PATTERNS.length})
+                  </div>
+                  {GSC_QUERY_REGEX_PATTERNS.map((item) => (
+                    <div key={item.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">{item.title}</div>
+                          <div className="text-[11px] text-slate-500">{item.purpose}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(item.gscRe2Alternative || item.regex);
+                            toast.success(`Copied regex: ${item.title}`);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 shrink-0"
+                        >
+                          <Copy size={12} /> Copy Regex
+                        </button>
+                      </div>
+                      <code className="block text-[11px] font-mono text-slate-700 bg-white px-2.5 py-1.5 rounded border border-slate-200 break-all">
+                        {item.gscRe2Alternative || item.regex}
+                      </code>
+                      <div className="text-[11px] text-slate-500">
+                        <span className="font-semibold text-slate-600">Mode:</span>{' '}
+                        {item.gscFilterMode === 'not_matches' ? "Doesn't match regex" : 'Matches regex'}
+                        {' · '}
+                        <span className="font-semibold text-slate-600">Examples:</span> {item.exampleMatches.join(', ')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-2.5 pt-2">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Page URL Regex Filters ({GSC_PAGE_URL_REGEX_PATTERNS.length})
+                  </div>
+                  {GSC_PAGE_URL_REGEX_PATTERNS.map((item) => (
+                    <div key={item.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-slate-800">{item.title}</div>
+                        <code className="block text-[11px] font-mono text-slate-700 bg-white px-2 py-1 rounded border border-slate-200 mt-1 break-all">
+                          {item.regex}
+                        </code>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(item.regex);
+                          toast.success(`Copied URL regex: ${item.title}`);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 shrink-0"
+                      >
+                        <Copy size={12} /> Copy
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PageLoader } from '../../components/Loading';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 import { SEO } from '../../components/SEO';
+import { rankProductsBySearchQuery } from '../../utils/seoSearchRegex';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -50,19 +51,10 @@ export const SearchPage: React.FC = () => {
       try {
         const productQuery = query(collection(db, 'products'));
         const snap = await getDocs(productQuery);
-        let productsData = (snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[]).filter(p => p.showInStore !== false);
-        
-        const searchTerm = q.toLowerCase();
-        productsData = productsData.filter(p => {
-          const matchName = p.name?.toLowerCase().includes(searchTerm);
-          const matchBrand = p.brand?.toLowerCase().includes(searchTerm);
-          const matchCategory = p.category?.toLowerCase().includes(searchTerm);
-          const matchSubCategory = p.subCategory?.toLowerCase().includes(searchTerm);
-          
-          return matchName || matchBrand || matchCategory || matchSubCategory;
-        });
-        
-        setProducts(productsData.filter(p => p.isActive !== false));
+        const rawProducts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[];
+        const rankedProducts = rankProductsBySearchQuery(rawProducts, q);
+
+        setProducts(rankedProducts);
 
         // Record search in trending_searches
         if (q.trim().length >= 2) {

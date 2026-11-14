@@ -164,13 +164,13 @@ export const Home: React.FC = () => {
         
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           {[
-            { title: "IT Service", icon: <ServerCog size={28} className="text-indigo-500" />, link: "/services", bg: "bg-indigo-50" },
-            { title: "Domain/Hosting", icon: <Globe size={28} className="text-blue-500" />, link: "/hosting", bg: "bg-blue-50" },
-            { title: "CCTV Service", icon: <Cctv size={28} className="text-red-500" />, link: "/services", bg: "bg-red-50" },
+            { title: "IT Projects", icon: <ServerCog size={28} className="text-indigo-500" />, link: "/projects", bg: "bg-indigo-50" },
+            { title: "PC Build", icon: <Monitor size={28} className="text-orange-500" />, link: "/pc-build", bg: "bg-orange-50" },
+            { title: "CCTV Camera", icon: <Cctv size={28} className="text-red-500" />, link: "/category/cctv-camera", bg: "bg-red-50" },
             { title: "Electronics", icon: <Smartphone size={28} className="text-cyan-500" />, link: "/shop", bg: "bg-cyan-50" },
-            { title: "PC Build", icon: <Monitor size={28} className="text-orange-500" />, link: "/pc-builder", bg: "bg-orange-50" },
-            { title: "Web Dev", icon: <Code size={28} className="text-emerald-500" />, link: "/services", bg: "bg-emerald-50" },
-            { title: "Office Setup", icon: <Briefcase size={28} className="text-purple-500" />, link: "/services", bg: "bg-purple-50" },
+            { title: "Top Brands", icon: <Globe size={28} className="text-blue-500" />, link: "/brands", bg: "bg-blue-50" },
+            { title: "Pre-Owned", icon: <Code size={28} className="text-emerald-500" />, link: "/used-items", bg: "bg-emerald-50" },
+            { title: "Office Setup", icon: <Briefcase size={28} className="text-purple-500" />, link: "/contact", bg: "bg-purple-50" },
           ].map((service, index) => (
             <Link key={index} to={service.link} className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm border border-slate-100 hover:shadow-md hover:border-slate-200 transition-all group">
               <div className={`w-14 h-14 ${service.bg} rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>

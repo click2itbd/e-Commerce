@@ -11,7 +11,7 @@ import {
   Award,
 } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 
@@ -65,11 +65,17 @@ const curatedBrands: BrandItem[] = [
 
 export const Brands = () => {
   const { settings } = useSettings();
+  const [searchParams] = useSearchParams();
+  const brandParam = (searchParams.get('brand') || '').trim();
   const brandName = settings?.brandName || 'Click2IT BD';
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>(brandParam);
   const [dbBrands, setDbBrands] = useState<Array<{ name: string; logo?: string }>>([]);
   const [productCounts, setProductCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    setSearchQuery(brandParam);
+  }, [brandParam]);
 
   useEffect(() => {
     let mounted = true;
@@ -168,11 +174,31 @@ export const Brands = () => {
     return matchesCategory && matchesSearch;
   });
 
+  const currentYear = new Date().getFullYear();
+
   return (
     <Layout fullWidth>
       <SEO
-        title={`Authorized Tech Brands & Partners - ${brandName}`}
-        description={`Shop 100% genuine computer components, laptops, monitors, CCTV, and gaming accessories from top global brands at ${brandName}.`}
+        title={
+          brandParam
+            ? `${brandParam} Price in Bangladesh (${currentYear}) | Authorized Partner - ${brandName}`
+            : `Authorized Tech Brands & Partners - ${brandName}`
+        }
+        description={
+          brandParam
+            ? `Buy 100% authentic ${brandParam} processors, laptops, components, monitors, and hardware at best price in Bangladesh from ${brandName} with official warranty.`
+            : `Shop 100% genuine computer components, laptops, monitors, CCTV, and gaming accessories from top global brands at ${brandName}.`
+        }
+        keywords={
+          brandParam
+            ? `${brandParam} price in bd, ${brandParam} bangladesh, buy ${brandParam} dhaka, ${brandParam} official dealer bangladesh`
+            : `computer brands bd, intel amd asus msi gigabyte bangladesh, original hardware dhaka, click2it brands`
+        }
+        canonical={
+          brandParam
+            ? `https://click2itbd.com/brands?brand=${encodeURIComponent(brandParam.toLowerCase())}`
+            : 'https://click2itbd.com/brands'
+        }
       />
 
       {/* Hero Header */}

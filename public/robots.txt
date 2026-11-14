@@ -1,6 +1,15 @@
 User-agent: *
 Allow: /
 
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Storebot-Google
+Allow: /
+
 # Disallow private user, cart, search, and admin paths
 Disallow: /admin
 Disallow: /admin/
@@ -16,6 +25,5 @@ Disallow: /hosting/cart
 Disallow: /hosting/checkout
 Disallow: /payment/
 
-# Sitemaps for both sites
+# Sitemap
 Sitemap: https://click2itbd.com/sitemap.xml
-Sitemap: https://click2it.bd/sitemap.xml

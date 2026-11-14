@@ -14,6 +14,7 @@ import { useCompare } from '../../context/CompareContext';
 import { ProductCard } from '../../components/ProductCard';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 import { SEO } from '../../components/SEO';
+import { buildProductSeoPayload } from '../../utils/seoSearchRegex';
 import { PriceAlertModal } from '../../components/PriceAlertModal';
 import { EMIModal } from '../../components/shop/EMIModal';
 import { getLowestMonthlyEMI, isEligibleForEMI } from '../../data/emiPlans';
@@ -283,6 +284,7 @@ export const ProductDetails: React.FC = () => {
   const isOutOfStock = Boolean(product?.isOutOfStock);
   const displayPrice = product.discountPrice || product.price;
   const sku = product.sku ? product.sku.split(' ')[0] : product.id.slice(0, 8).toUpperCase();
+  const seoPayload = buildProductSeoPayload(product, reviews);
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,125 +316,17 @@ export const ProductDetails: React.FC = () => {
 
   return (
     <Layout>
-      {product && (() => {
-        const productImg = product.imageUrl || product.images?.[0] || 'https://click2itbd.com/logo.png';
-        const absoluteImg = productImg.startsWith('http') ? productImg : `https://click2itbd.com${productImg.startsWith('/') ? '' : '/'}${productImg}`;
-        const productUrl = `https://click2itbd.com/product/${product.id}`;
-        const productDesc = product.shortDescription?.replace(/<[^>]*>?/gm, '').slice(0, 250) || 
-          `Buy genuine ${product.name} at best price in Bangladesh from CLICK2IT. Brand: ${product.brand || 'Original'}. Official warranty included.`;
-        const currentPrice = product.discountPrice || product.price || 0;
-
-        const productSchema = {
-          '@context': 'https://schema.org',
-          '@type': 'Product',
-          name: product.name,
-          image: [absoluteImg],
-          description: productDesc,
-          sku: product.sku || product.id,
-          mpn: product.model || product.sku || product.id,
-          category: product.category || 'Computer Hardware',
-          brand: {
-            '@type': 'Brand',
-            name: product.brand || 'CLICK2IT'
-          },
-          aggregateRating: {
-            '@type': 'AggregateRating',
-            ratingValue: product.rating || '4.8',
-            reviewCount: product.reviewCount || (Array.isArray(product.reviews) && product.reviews.length > 0 ? product.reviews.length : 16),
-            bestRating: '5',
-            worstRating: '1'
-          },
-          offers: {
-            '@type': 'Offer',
-            url: productUrl,
-            priceCurrency: 'BDT',
-            price: currentPrice,
-            priceValidUntil: '2028-12-31',
-            itemCondition: 'https://schema.org/NewCondition',
-            availability: isOutOfStock 
-              ? 'https://schema.org/OutOfStock' 
-              : 'https://schema.org/InStock',
-            seller: {
-              '@type': 'Organization',
-              name: 'CLICK2IT',
-              url: 'https://click2itbd.com'
-            },
-            hasMerchantReturnPolicy: {
-              '@type': 'MerchantReturnPolicy',
-              applicableCountry: 'BD',
-              returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
-              merchantReturnDays: 7,
-              returnMethod: 'https://schema.org/ReturnInStore',
-              returnFees: 'https://schema.org/FreeReturn'
-            },
-            shippingDetails: {
-              '@type': 'OfferShippingDetails',
-              shippingRate: {
-                '@type': 'MonetaryAmount',
-                value: 80,
-                currency: 'BDT'
-              },
-              shippingDestination: {
-                '@type': 'DefinedRegion',
-                addressCountry: 'BD'
-              },
-              deliveryTime: {
-                '@type': 'ShippingDeliveryTime',
-                handlingTime: {
-                  '@type': 'QuantitativeValue',
-                  minValue: 0,
-                  maxValue: 1,
-                  unitCode: 'DAY'
-                },
-                transitTime: {
-                  '@type': 'QuantitativeValue',
-                  minValue: 1,
-                  maxValue: 3,
-                  unitCode: 'DAY'
-                }
-              }
-            }
-          }
-        };
-
-        const breadcrumbSchema = {
-          '@context': 'https://schema.org',
-          '@type': 'BreadcrumbList',
-          itemListElement: [
-            {
-              '@type': 'ListItem',
-              position: 1,
-              name: 'Home',
-              item: 'https://click2itbd.com'
-            },
-            {
-              '@type': 'ListItem',
-              position: 2,
-              name: product.category || 'Products',
-              item: `https://click2itbd.com/category/${encodeURIComponent(product.category?.toLowerCase() || 'all')}`
-            },
-            {
-              '@type': 'ListItem',
-              position: 3,
-              name: product.name,
-              item: productUrl
-            }
-          ]
-        };
-
-        return (
-          <SEO
-            title={`${product.name} Price in Bangladesh | CLICK2IT`}
-            description={productDesc}
-            keywords={`${product.name}, ${product.brand || ''} price in bd, buy ${product.name} bangladesh, ${product.category || 'components'}`}
-            image={absoluteImg}
-            url={productUrl}
-            canonical={productUrl}
-            type="product"
-            schema={[productSchema, breadcrumbSchema]}
-          />
-        );
-      })()}
+      <SEO
+        title={seoPayload.title}
+        description={seoPayload.description}
+        keywords={seoPayload.keywords}
+        image={seoPayload.imageUrl}
+        url={seoPayload.canonicalUrl}
+        canonical={seoPayload.canonicalUrl}
+        type="product"
+        productMeta={seoPayload.productMeta}
+        schema={[seoPayload.productSchema, seoPayload.breadcrumbSchema, seoPayload.faqSchema]}
+      />
       <div className="container mx-auto px-2 sm:px-4 py-4 md:py-6 bg-white md:bg-transparent">
         
         {/* Breadcrumb */}
@@ -520,7 +414,7 @@ export const ProductDetails: React.FC = () => {
                     ) : (
                       <img 
                         src={img} 
-                        alt="" 
+                        alt={`${product.name} thumbnail ${idx + 1}`} 
                         className="w-full h-full object-contain" 
                         referrerPolicy="no-referrer"
                         onError={() => setImageErrorMap(prev => ({ ...prev, [idx]: true }))}
@@ -1059,6 +953,38 @@ export const ProductDetails: React.FC = () => {
 
             </div>
 
+            {/* Price in Bangladesh & Semantic FAQ Section (Google Rich Results Aligned) */}
+            <section className="mt-8 bg-white p-6 rounded-2xl border border-gray-100">
+              <h2 className="text-lg sm:text-xl font-bold text-[#081621] mb-3">
+                {product.name} Price in Bangladesh ({new Date().getFullYear()})
+              </h2>
+              <p className="text-sm text-gray-600 leading-relaxed mb-5">
+                The latest price of <strong>{product.name}</strong> in Bangladesh is{' '}
+                <strong className="text-[#EF4444]">{formatCurrency(seoPayload.currentPrice, settings)}</strong>
+                {seoPayload.discountAmount > 0 && (
+                  <> (regular price <span className="line-through">{formatCurrency(seoPayload.regularPrice, settings)}</span>)</>
+                )}
+                . Brand: <strong>{product.brand || 'Original'}</strong> · Model/SKU: <strong>{product.model || sku}</strong> ·
+                Status: <strong>{seoPayload.isOutOfStock ? 'Out of Stock' : 'In Stock'}</strong> ·{' '}
+                {product.warrantyMonths
+                  ? `${formatWarranty(product.warrantyMonths, product.warrantyUnit)} Official Warranty`
+                  : '7 Days Replacement Warranty'}
+                . Order online for fast nationwide delivery or visit CLICK2IT at Multiplan Center, New Elephant Road, Dhaka.
+              </p>
+
+              <h3 className="text-base font-bold text-[#081621] mb-3">
+                Frequently Asked Questions (FAQ)
+              </h3>
+              <dl className="space-y-3">
+                {seoPayload.faqItems.map((faq, idx) => (
+                  <div key={idx} className="bg-gray-50/80 border border-gray-100 rounded-xl p-3.5">
+                    <dt className="text-sm font-bold text-[#081621] mb-1">{faq.question}</dt>
+                    <dd className="text-xs sm:text-sm text-gray-600 leading-relaxed">{faq.answer}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
             {/* Check Similar Product Links */}
             <div className="mt-8 bg-white p-6 rounded-2xl">
               <h3 className="text-lg font-bold text-[#081621] mb-4">Check Similar Product Price</h3>
@@ -1278,7 +1204,7 @@ export const ProductDetails: React.FC = () => {
                       : "border-transparent opacity-60 hover:opacity-100"
                   )}
                 >
-                  <img src={img} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                  <img src={img} alt={`${product.name} zoom thumbnail ${idx + 1}`} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                 </button>
               ))}
             </div>
